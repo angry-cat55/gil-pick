@@ -9,6 +9,21 @@
 - 불확실한 내용은 확인된 사실, 근거가 있는 추론, 검증되지 않은 추측으로 구분한다. 확인할 수 없는 내용은 모른다고 명시한다.
 - `.agents/skills/`, `.claude/skills/`, `.specify/templates/`, `.specify/scripts/`, `.specify/workflows/` 등 Spec Kit 생성·관리 파일은 도구 설정 변경이나 업그레이드가 작업 범위인 경우에만 수정한다. `.specify/memory/constitution.md`는 팀이 원칙을 합의한 뒤 constitution 작업으로 수정한다.
 
+### 팀원 식별과 담당 영역
+
+| GitHub 계정 | 이름 | 이니셜 | 기본 담당 |
+|---|---|---|---|
+| `angry-cat55` | 유지환 | `jh` | Backend |
+| `xotlr467-cpu` | 유태식 | `ts` | Backend |
+| `NKIA-SJY` | 신재영 | `jy` | Frontend Android |
+| `aihonte` | 전현서 | `hs` | Frontend Android |
+
+- 작업 담당자는 GitHub Issue assignee를 위 표와 대조해 식별한다.
+- 작업 브랜치가 이미 있으면 브랜치 이니셜과 Issue assignee가 일치하는지 확인한다.
+- 대화에서 사용자가 이니셜을 명시했다면 해당 정보를 함께 사용한다.
+- assignee가 없거나 여러 명이라 담당자를 특정할 수 없거나, assignee와 브랜치 이니셜이 다르면 branch 생성 또는 작업 시작 전에 사용자에게 확인한다.
+- Git commit author나 과거 작업 기록만으로 담당자 이니셜을 추측하지 않는다.
+
 ## 2. 문서 작성 언어
 
 - 프로젝트 문서의 기본 작성 언어는 한글이다.
