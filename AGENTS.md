@@ -46,6 +46,9 @@
 - 구현 완료 후 관련 테스트를 실행하고 `commit → push → PR 생성 → review → squash merge` 순서로 진행한다.
 - PR을 만들기 전 최신 `origin/main`을 반영하고, 충돌 해결 후 관련 검증을 다시 실행한다.
 - PR은 팀원 review를 거쳐 기본적으로 squash merge한다. merge가 끝난 작업 브랜치는 삭제를 권장한다.
+- AI는 담당 Issue의 구현·검증·commit·push와 PR 생성까지 수행하고, 생성한 PR의 URL과 검증 결과를 개발자에게 전달한다.
+- PR의 review 완료 여부와 병합 가능 여부는 개발자가 판단하며, 최종 merge도 개발자가 직접 수행한다.
+- AI는 검증과 CI가 모두 통과했더라도 PR을 직접 merge하거나 merge queue 또는 auto-merge에 등록하지 않는다.
 - Git 브랜치명(예: `feat/jh-kakao-login`)과 Spec Kit feature 경로(예: `specs/001-kakao-login`)는 별도 식별자다. 같은 기능임을 Issue와 PR에서 연결하되 두 이름을 동일 형식으로 만들려고 하지 않는다.
 
 ## 4. GitHub Issue 작성과 작업 단위
