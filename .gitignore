@@ -1,0 +1,8 @@
+# Agent-local configuration and logs
+.claude/settings.local.json
+CLAUDE.local.md
+.codex-log/
+
+# OS metadata
+.DS_Store
+Thumbs.db
