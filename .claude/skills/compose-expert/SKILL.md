@@ -17,8 +17,8 @@ version: 2.4.0
 ## When this skill applies
 
 The frontmatter `description:` is intentionally short to satisfy Codex / Copilot
-CLI's 1024-character cap on that field (see issue #12). The full trigger surface
-lives here so it stays available to Claude after the skill loads.
+CLI's 1024-character cap on that field. The full trigger surface lives here so
+it stays available to Claude after the skill loads.
 
 ### Compose API mentions
 `@Composable`, `remember`, `mutableStateOf`, `derivedStateOf`, `rememberSaveable`,
