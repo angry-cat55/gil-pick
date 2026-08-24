@@ -87,6 +87,7 @@
 6. `speckit-tasks`로 합의된 담당자가 포함된 `tasks.md` 생성
 7. `speckit-analyze`로 `spec.md`·`plan.md`·`tasks.md` 간 누락·충돌·불일치 검증
    - 발견 사항을 검토해 해당 산출물을 수정하고 필요하면 `speckit-analyze`를 다시 수행한다.
+   - 검증된 명세 산출물은 현재 작업 브랜치와 별도의 문서 브랜치에서 Issue 없이 PR로 제출한 뒤 `speckit-taskstoissues`를 수행한다.
 8. `speckit-taskstoissues`로 task를 GitHub Issue로 변환
 9. `tasks.md`의 담당자와 선행 관계가 실제 GitHub Issue의 assignee와 dependency에 반영되었는지 확인
 10. 각 담당자가 Issue별 브랜치에서 해당 Issue에 연결된 task만 `speckit-implement` 또는 직접 구현·테스트
