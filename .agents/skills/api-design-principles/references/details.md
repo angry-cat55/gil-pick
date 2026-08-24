@@ -89,6 +89,7 @@ async def list_users(
 ```python
 from fastapi import HTTPException, status
 from pydantic import BaseModel
+from typing import Any, Optional
 
 class ErrorResponse(BaseModel):
     error: str

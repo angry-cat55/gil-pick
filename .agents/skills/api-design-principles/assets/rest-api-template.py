@@ -1,9 +1,11 @@
-"""
-Production-ready REST API template using FastAPI.
-Includes pagination, filtering, error handling, and best practices.
+"""Starter REST API template using FastAPI.
+
+Includes pagination, filtering, and consistent error handling. Replace the
+local-development host and CORS allowlists with deployment-specific values.
 """
 
-from fastapi import FastAPI, HTTPException, Query, Path, Depends, status
+from fastapi import FastAPI, HTTPException, Query, Path, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -22,14 +24,14 @@ app = FastAPI(
 # Trusted Host: Prevents HTTP Host Header attacks
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["*"] # TODO: Configure this in production, e.g. ["api.example.com"]
+    allowed_hosts=["localhost", "127.0.0.1", "testserver"],
 )
 
 # CORS: Configures Cross-Origin Resource Sharing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # TODO: Update this with specific origins in production
-    allow_credentials=False, # TODO: Set to True if you need cookies/auth headers, but restrict origins
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -73,25 +75,38 @@ class PaginatedResponse(BaseModel):
     pages: int
 
 # Error handling
-class ErrorDetail(BaseModel):
-    field: Optional[str] = None
-    message: str
-    code: str
-
 class ErrorResponse(BaseModel):
     error: str
     message: str
-    details: Optional[List[ErrorDetail]] = None
+    details: Any = None
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
+    message = exc.detail
+    details = None
+    if isinstance(exc.detail, dict):
+        message = exc.detail.get("message", "Error")
+        details = exc.detail.get("details")
+
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
             error=exc.__class__.__name__,
-            message=exc.detail if isinstance(exc.detail, str) else exc.detail.get("message", "Error"),
-            details=exc.detail.get("details") if isinstance(exc.detail, dict) else None
-        ).model_dump()
+            message=str(message),
+            details=details,
+        ).model_dump(),
+        headers=exc.headers,
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=ErrorResponse(
+            error="RequestValidationError",
+            message="Invalid request",
+            details=exc.errors(),
+        ).model_dump(),
     )
 
 # Endpoints

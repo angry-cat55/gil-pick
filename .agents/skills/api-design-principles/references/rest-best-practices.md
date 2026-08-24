@@ -193,44 +193,21 @@ Retry-After: 3600
 
 ### Implementation Pattern
 
-```python
-from fastapi import HTTPException, Request
-from datetime import datetime, timedelta
+Rate-limit state must use an atomic store with TTL. Use a shared store such as
+Redis when more than one process or server handles requests; a process-local
+dictionary is not a production rate limiter because keys can accumulate and
+workers do not share counters.
 
-class RateLimiter:
-    def __init__(self, calls: int, period: int):
-        self.calls = calls
-        self.period = period
-        self.cache = {}
-
-    def check(self, key: str) -> bool:
-        now = datetime.now()
-        if key not in self.cache:
-            self.cache[key] = []
-
-        # Remove old requests
-        self.cache[key] = [
-            ts for ts in self.cache[key]
-            if now - ts < timedelta(seconds=self.period)
-        ]
-
-        if len(self.cache[key]) >= self.calls:
-            return False
-
-        self.cache[key].append(now)
-        return True
-
-limiter = RateLimiter(calls=100, period=60)
-
-@app.get("/api/users")
-async def get_users(request: Request):
-    if not limiter.check(request.client.host):
-        raise HTTPException(
-            status_code=429,
-            headers={"Retry-After": "60"}
-        )
-    return {"users": [...]}
+```text
+key = authenticated_user_or_client_ip(request)
+count = shared_store.atomic_increment(key, ttl_seconds=60)
+if count > 100:
+    return 429 with Retry-After: 60
 ```
+
+Use a maintained framework middleware or gateway integration for the concrete
+implementation rather than copying a process-local counter into application
+code.
 
 ## Authentication and Authorization
 

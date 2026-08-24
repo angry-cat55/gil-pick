@@ -380,16 +380,15 @@ type User {
   name: String!
   email: String! @deprecated(reason: "Use emails field instead")
   emails: [String!]!
-
-  # Conditional inclusion
-  privateData: PrivateData @include(if: $isOwner)
+  privateData: PrivateData
 }
 
-# Query
-query GetUser($isOwner: Boolean!) {
+# The resolver must authorize access to privateData. @include only controls
+# whether an already-authorized field is selected; it is not authorization.
+query GetUser($showPrivateData: Boolean!) {
   user(id: "123") {
     name
-    privateData @include(if: $isOwner) {
+    privateData @include(if: $showPrivateData) {
       ssn
     }
   }
@@ -523,16 +522,18 @@ def depth_limit_validator(max_depth: int):
 ### Query Complexity Analysis
 
 ```python
-def complexity_limit_validator(max_complexity: int):
-    def calculate_complexity(node):
-        # Each field = 1, lists multiply
-        complexity = 1
-        if is_list_field(node):
-            complexity *= get_list_size_arg(node)
-        return complexity
+from graphql import GraphQLError
 
-    return validate_complexity
+def enforce_complexity(complexity: int, max_complexity: int) -> None:
+    """Reject a complexity score computed by the GraphQL server library."""
+    if complexity > max_complexity:
+        raise GraphQLError(
+            f"Query complexity {complexity} exceeds maximum {max_complexity}"
+        )
 ```
+
+Complexity traversal is library-specific. Use the server library's analyzer
+to calculate the score, then enforce the configured limit before execution.
 
 ## Schema Versioning
 

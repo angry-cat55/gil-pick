@@ -7,13 +7,15 @@
 **Custom Exception Hierarchy:**
 
 ```python
+from datetime import datetime, timezone
+
 class ApplicationError(Exception):
     """Base exception for all application errors."""
     def __init__(self, message: str, code: str = None, details: dict = None):
         super().__init__(message)
         self.code = code
         self.details = details or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
 class ValidationError(ApplicationError):
     """Raised when validation fails."""
@@ -75,11 +77,11 @@ from typing import TypeVar, Callable
 T = TypeVar('T')
 
 def retry(
+    exceptions: tuple[type[Exception], ...],
     max_attempts: int = 3,
     backoff_factor: float = 2.0,
-    exceptions: tuple = (Exception,)
 ):
-    """Retry decorator with exponential backoff."""
+    """Retry only the explicitly supplied transient exceptions."""
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:

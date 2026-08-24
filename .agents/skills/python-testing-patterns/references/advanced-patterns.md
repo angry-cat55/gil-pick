@@ -7,6 +7,7 @@ Advanced testing patterns including async code, monkeypatching, temporary files,
 ```python
 # test_async.py
 import pytest
+import pytest_asyncio
 import asyncio
 
 async def fetch_data(url: str) -> dict:
@@ -34,7 +35,7 @@ async def test_concurrent_fetches():
     assert all("data" in r for r in results)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def async_client():
     """Async fixture."""
     client = {"connected": True}

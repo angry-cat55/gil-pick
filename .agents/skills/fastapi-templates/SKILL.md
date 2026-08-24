@@ -77,8 +77,8 @@ Detailed sections (starting with `## Implementation Patterns`) live in `referenc
 ```python
 # tests/conftest.py
 import pytest
-import asyncio
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -87,15 +87,9 @@ from app.core.database import get_db, Base
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=True)
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -105,16 +99,25 @@ async def db_session():
 
     async with AsyncSessionLocal() as session:
         yield session
+    await engine.dispose()
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session
 
+    previous_override = app.dependency_overrides.get(get_db)
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
+    finally:
+        if previous_override is None:
+            app.dependency_overrides.pop(get_db, None)
+        else:
+            app.dependency_overrides[get_db] = previous_override
 
 # tests/test_users.py
 import pytest

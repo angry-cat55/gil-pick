@@ -145,8 +145,16 @@ def test_api_client(api_client):
 import pytest
 
 def is_valid_email(email: str) -> bool:
-    """Check if email is valid."""
-    return "@" in email and "." in email.split("@")[1]
+    """Check the minimal shape needed by this parameterized-test example."""
+    local, separator, domain = email.partition("@")
+    return bool(
+        local
+        and separator
+        and "@" not in domain
+        and "." in domain
+        and not domain.startswith(".")
+        and not domain.endswith(".")
+    )
 
 
 @pytest.mark.parametrize("email,expected", [

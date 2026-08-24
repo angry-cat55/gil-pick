@@ -9,15 +9,15 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from app.core.database import engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    # Startup
-    await database.connect()
-    yield
-    # Shutdown
-    await database.disconnect()
+    try:
+        yield
+    finally:
+        await engine.dispose()
 
 app = FastAPI(
     title="API Template",
@@ -28,8 +28,8 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     API_V1_STR: str = "/api/v1"
+    DEBUG: bool = False
 
     class Config:
         env_file = ".env"
@@ -66,7 +67,7 @@ settings = get_settings()
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=True,
+    echo=settings.DEBUG,
     future=True
 )
 
@@ -95,7 +96,7 @@ async def get_db() -> AsyncSession:
 
 ```python
 # repositories/base_repository.py
-from typing import Generic, TypeVar, Type, Optional, List
+from typing import Any, Generic, Mapping, TypeVar, Type, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -132,10 +133,11 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def create(
         self,
         db: AsyncSession,
-        obj_in: CreateSchemaType
+        obj_in: CreateSchemaType | Mapping[str, Any]
     ) -> ModelType:
         """Create new record."""
-        db_obj = self.model(**obj_in.dict())
+        data = obj_in.model_dump() if isinstance(obj_in, BaseModel) else dict(obj_in)
+        db_obj = self.model(**data)
         db.add(db_obj)
         await db.flush()
         await db.refresh(db_obj)
@@ -145,10 +147,14 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self,
         db: AsyncSession,
         db_obj: ModelType,
-        obj_in: UpdateSchemaType
+        obj_in: UpdateSchemaType | Mapping[str, Any]
     ) -> ModelType:
         """Update record."""
-        update_data = obj_in.dict(exclude_unset=True)
+        update_data = (
+            obj_in.model_dump(exclude_unset=True)
+            if isinstance(obj_in, BaseModel)
+            else dict(obj_in)
+        )
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         await db.flush()
@@ -196,6 +202,9 @@ from app.repositories.user_repository import user_repository
 from app.schemas.user import UserCreate, UserUpdate, User
 from app.core.security import get_password_hash, verify_password
 
+class DuplicateEmailError(ValueError):
+    """Raised when an email is already registered."""
+
 class UserService:
     """Business logic for users."""
 
@@ -211,14 +220,14 @@ class UserService:
         # Check if email exists
         existing = await self.repository.get_by_email(db, user_in.email)
         if existing:
-            raise ValueError("Email already registered")
+            raise DuplicateEmailError("Email already registered")
 
         # Hash password
-        user_in_dict = user_in.dict()
-        user_in_dict["hashed_password"] = get_password_hash(user_in_dict.pop("password"))
+        user_data = user_in.model_dump(exclude={"password"})
+        user_data["hashed_password"] = get_password_hash(user_in.password)
 
         # Create user
-        user = await self.repository.create(db, UserCreate(**user_in_dict))
+        user = await self.repository.create(db, user_data)
         return user
 
     async def authenticate(
@@ -247,13 +256,12 @@ class UserService:
             return None
 
         if user_in.password:
-            user_in_dict = user_in.dict(exclude_unset=True)
-            user_in_dict["hashed_password"] = get_password_hash(
-                user_in_dict.pop("password")
-            )
-            user_in = UserUpdate(**user_in_dict)
+            update_data = user_in.model_dump(exclude_unset=True, exclude={"password"})
+            update_data["hashed_password"] = get_password_hash(user_in.password)
+        else:
+            update_data = user_in.model_dump(exclude_unset=True)
 
-        return await self.repository.update(db, user, user_in)
+        return await self.repository.update(db, user, update_data)
 
 user_service = UserService()
 ```
@@ -268,7 +276,7 @@ from typing import List
 
 from app.core.database import get_db
 from app.schemas.user import User, UserCreate, UserUpdate
-from app.services.user_service import user_service
+from app.services.user_service import DuplicateEmailError, user_service
 from app.api.dependencies import get_current_user
 
 router = APIRouter()
@@ -282,8 +290,8 @@ async def create_user(
     try:
         user = await user_service.create_user(db, user_in)
         return user
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except DuplicateEmailError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 @router.get("/me", response_model=User)
 async def read_current_user(
@@ -380,6 +388,7 @@ from app.core.security import ALGORITHM
 from app.core.config import get_settings
 from app.repositories.user_repository import user_repository
 
+settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 async def get_current_user(

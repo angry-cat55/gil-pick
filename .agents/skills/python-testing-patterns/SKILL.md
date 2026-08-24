@@ -132,6 +132,7 @@ def test_function():  # Doesn't explain what's tested
 Verify that retry logic works correctly using mock side effects.
 
 ```python
+import pytest
 from unittest.mock import Mock
 
 def test_retries_on_transient_error():
@@ -217,6 +218,7 @@ def test_with_time_travel():
 
 ```python
 # test_markers.py
+import os
 import pytest
 
 @pytest.mark.slow
