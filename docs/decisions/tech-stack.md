@@ -33,12 +33,14 @@ flowchart LR
 
 ## 3. 인증
 
-1. Android 앱이 카카오 인가 코드를 FastAPI에 전달한다.
-2. FastAPI가 카카오 토큰을 발급받고 사용자 정보를 검증한다.
-3. 길픽 Access Token 1시간, Refresh Token 30일을 발급한다.
-4. 앱은 토큰을 Android Keystore 기반 안전 저장소에 보관한다.
-5. 기기별 Refresh Token을 DB에 저장해 다중 기기 로그인을 지원한다.
-6. 로그아웃은 현재 기기의 Refresh Token만 폐기한다.
+1. Android 앱이 FastAPI에서 기기별 카카오 로그인 transaction과 인증 URL을 발급받아 Custom Tab으로 연다.
+2. 카카오는 등록된 FastAPI HTTPS callback으로 인가 코드를 전달하고, FastAPI는 `state`를 검증한 뒤 카카오 Token 발급과 사용자 검증을 수행한다.
+3. FastAPI는 짧은 수명의 일회용 login ticket을 Android verified App Link로 전달한다.
+4. Android 앱이 login ticket을 한 번 교환하면 길픽 Access Token 1시간과 Refresh Token을 발급한다. Refresh Token은 최초 로그인과 각 회전 발급 시점부터 30일 유효하며 MVP에는 별도 절대 만료 상한을 두지 않는다.
+5. 앱은 설치 단위 `deviceId`와 Token 암호문을 Android Keystore 기반 `auth_session.pb` 안전 저장소에 보관한다.
+6. 기기별 Refresh Token 해시를 DB에 저장해 다중 기기 로그인을 지원한다.
+7. 로그아웃은 현재 기기의 Refresh Token만 폐기하며, 서버 폐기 실패 시 앱이 연결 복구 후 재시도한다.
+8. 보호 API는 FastAPI dependency에서 Access Token의 signature, issuer, audience, type과 만료를 handler 실행 전에 검증한다.
 
 ## 4. 여행·일정·경로
 

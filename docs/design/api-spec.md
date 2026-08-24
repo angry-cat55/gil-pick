@@ -1,6 +1,6 @@
 # 길픽 프로젝트 API 명세서
 
-- 버전: `1.1.0`
+- 버전: `1.2.0`
 - 기본 경로: `/api/v1`
 - 기준 시간대: `Asia/Seoul`
 - ID: UUID 문자열
@@ -59,6 +59,8 @@
 }
 ```
 
+Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자체 rate limit은 공모전 MVP 필수 범위에서 제외하고, 배포 환경에 기존 보호 계층이 있을 때 별도 hardening으로 적용한다.
+
 공통 오류 코드 원칙:
 
 | HTTP | 대표 상황 |
@@ -76,12 +78,14 @@
 ### 1.3 인증과 사용자 식별
 
 - 보호 API는 `Authorization: Bearer {accessToken}`을 사용한다.
-- 서버는 Access Token의 subject로 사용자를 식별한다.
+- 서버는 Access Token의 signature, issuer, audience, `type=access`, 만료를 handler 실행 전에 검증하고 subject로 사용자를 식별한다.
 - 일반 API의 Query/Body에 `userId`를 반복해서 받지 않는다.
 - 다른 사용자의 여행·일정·감지·알림 데이터에 접근하는 요청은 `403 Forbidden`으로 거절한다.
-- Access Token 유효시간은 1시간, Refresh Token 유효시간은 30일이다.
+- Access Token 유효시간은 1시간이다. Refresh Token은 최초 로그인과 각 회전 발급 시점부터 30일 유효하며 MVP에는 별도 절대 만료 상한을 두지 않는다.
 - 다중 기기 로그인을 허용하며 기기별 Refresh Token을 별도로 관리한다.
 - 로그아웃은 현재 기기의 Refresh Token만 폐기한다.
+- 로그아웃 전에 발급된 Access Token의 서버 즉시 폐기는 MVP 범위 밖이며 해당 Token은 최대 1시간 뒤 만료된다.
+- 인증 application log는 30일 보관 후 삭제하고 Backend 운영 계정만 접근한다. Token, code, `state`, ticket과 profile 원문은 기록하지 않는다.
 
 ### 1.4 요청 헤더
 
@@ -115,6 +119,7 @@
 - 외부 API 단일 호출 timeout 기본값: 5초
 - 일시적인 timeout/network/5xx 오류: 최대 1회 재시도
 - quota/rate-limit/auth/잘못된 요청은 즉시 재시도하지 않는다.
+- 카카오 로그인은 일회성 인가 코드의 소비 여부를 확인할 수 없으므로 Token 교환을 자동 재시도하지 않는다. Token 교환 후 사용자 정보 조회만 timeout/network/5xx 오류에 최대 1회 재시도한다.
 - Google Places는 MVP에서 서버 캐시를 사용하지 않는다.
 - Google Places 실패 시 Google 기반 변수만 제외하고 추천을 계속한다.
 - 기상청·서울시 데이터 실패 시 해당 변수만 제외하고 나머지 가중치를 100%로 재분배한다.
@@ -125,9 +130,11 @@
 
 | ID | 분류 | 기능명 | 프론트 | 백엔드 | 메서드 | URL |
 |---|---|---|---|---|---|---|
-| AUTH-001 | 인증 | 카카오 로그인 | [ ] | [ ] | POST | `/api/v1/auth/kakao/login` |
-| AUTH-002 | 인증 | 액세스 토큰 재발급 | [ ] | [ ] | POST | `/api/v1/auth/token/refresh` |
-| AUTH-003 | 인증 | 로그아웃 | [ ] | [ ] | POST | `/api/v1/auth/logout` |
+| AUTH-001 | 인증 | 카카오 로그인 transaction 생성 | [ ] | [ ] | POST | `/api/v1/auth/kakao/transactions` |
+| AUTH-002 | 인증 | 카카오 로그인 callback | [ ] | [ ] | GET | `/api/v1/auth/kakao/callback` |
+| AUTH-003 | 인증 | 카카오 login ticket 교환 | [ ] | [ ] | POST | `/api/v1/auth/kakao/exchange` |
+| AUTH-004 | 인증 | 액세스 토큰 재발급 | [ ] | [ ] | POST | `/api/v1/auth/token/refresh` |
+| AUTH-005 | 인증 | 로그아웃 | [ ] | [ ] | POST | `/api/v1/auth/logout` |
 | USER-001 | 사용자 | 내 정보 조회 | [ ] | [ ] | GET | `/api/v1/users/me` |
 | TRIP-001 | 여행 | 여행 목록 조회 | [ ] | [ ] | GET | `/api/v1/trips` |
 | TRIP-002 | 여행 | 여행 생성 | [ ] | [ ] | POST | `/api/v1/trips` |
@@ -164,18 +171,87 @@
 
 ## 3. 인증·사용자
 
-### AUTH-001 카카오 로그인
+### AUTH-001 카카오 로그인 transaction 생성
 
-`POST /api/v1/auth/kakao/login`
+`POST /api/v1/auth/kakao/transactions`
 
 Request Body:
 
 ```json
 {
-  "authorizationCode": "kakao_authorization_code",
-  "redirectUri": "gilpick://oauth/kakao",
   "deviceId": "uuid",
   "platform": "ANDROID"
+}
+```
+
+Response `201`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": "uuid",
+    "authorizationUrl": "https://kauth.kakao.com/oauth/authorize?...",
+    "expiresIn": 600
+  },
+  "meta": {
+    "requestId": "uuid"
+  }
+}
+```
+
+정책:
+- 서버는 요청마다 256-bit 난수 `state`를 만들고 해시만 10분간 저장한다.
+- `authorizationUrl`에는 서버에 등록된 고정 HTTPS callback과 요청별 `state`를 사용한다. 클라이언트가 `redirectUri`를 선택하거나 전달하지 않는다.
+- transaction은 요청한 `deviceId`와 `ANDROID` platform에 결합한다.
+- 앱은 `authorizationUrl`을 Custom Tab으로 열고 카카오 인가 코드나 Token을 직접 처리하지 않는다.
+
+주요 오류: `400 INVALID_REQUEST`, `500 INTERNAL_ERROR`
+
+### AUTH-002 카카오 로그인 callback
+
+`GET /api/v1/auth/kakao/callback`
+
+Query:
+
+| 필드 | 필수 | 설명 |
+|---|---|---|
+| `code` | 성공 시 | 카카오 일회성 인가 코드 |
+| `state` | 필수 | 로그인 transaction 검증값 |
+| `error` | 실패 시 | 카카오 인증 실패 코드 |
+| `error_description` | 실패 시 | 카카오 인증 실패 설명 |
+
+Response: Android verified App Link로 `302 Found`
+
+```http
+Location: https://{configured-app-link-host}/auth/kakao/complete#loginTicket={one-time-ticket}
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+```
+
+정책:
+- 서버는 `state`가 존재하고 만료되지 않았으며 아직 처리되지 않은 transaction과 일치하는지 먼저 검증한다.
+- 서버는 유효한 `PENDING` transaction을 짧은 DB transaction에서 `PROCESSING`으로 먼저 전환한 뒤 외부 호출을 시작하여 같은 callback의 중복 처리를 막는다.
+- 서버는 인가 코드를 카카오 Token으로 교환하고 사용자 정보를 조회한다. 인가 코드 교환은 자동 재시도하지 않고, 사용자 정보 조회의 timeout/network/5xx만 한 번 재시도한다.
+- 카카오 Token은 사용자 정보 조회 동안 memory에서만 사용하고 저장하거나 log에 남기지 않는다.
+- 성공 시 `transactionId.secret` 형식의 256-bit 일회용 login ticket을 발급하고 해시만 저장한다. ticket은 120초 동안 유효하다.
+- callback 성공 전에는 길픽 사용자나 기기 세션을 생성하지 않는다. 사용자 확인 결과의 최소 snapshot만 ticket 교환 시점까지 transaction에 보관한다.
+- login ticket은 HTTP request나 중간 access log로 전달되지 않는 URI fragment에 넣으며 Android가 수신 즉시 제거한다. Callback request의 `code`와 `state`는 access log에서 제거한다.
+- 취소·실패 시 민감정보가 없는 오류 식별자와 함께 App Link로 돌아가 앱이 재시도 또는 새 인증을 안내한다.
+- 신뢰 가능한 transaction을 찾은 뒤 발생한 사용자 취소·provider 오류·timeout은 HTTP 오류 응답이 아니라 아래 App Link `error` code를 담은 `302`로 전달한다. `state`가 없거나 잘못되어 안전한 redirect 대상을 결정할 수 없을 때만 민감정보 없는 일반 `400`을 반환한다.
+
+App Link 오류 code: `ACCESS_DENIED`, `INVALID_AUTHORIZATION_CODE`, `KAKAO_AUTH_FAILED`, `KAKAO_RATE_LIMITED`, `KAKAO_API_FAILED`, `KAKAO_API_TIMEOUT`, `LOGIN_TRANSACTION_EXPIRED`
+
+### AUTH-003 카카오 login ticket 교환
+
+`POST /api/v1/auth/kakao/exchange`
+
+Request Body:
+
+```json
+{
+  "loginTicket": "transaction-id.secret",
+  "deviceId": "uuid"
 }
 ```
 
@@ -187,7 +263,7 @@ Response `200` 또는 신규 사용자 `201`:
   "data": {
     "accessToken": "jwt",
     "expiresIn": 3600,
-    "refreshToken": "refresh-token",
+    "refreshToken": "session-id.secret",
     "refreshExpiresIn": 2592000,
     "user": {
       "userId": "uuid",
@@ -203,17 +279,18 @@ Response `200` 또는 신규 사용자 `201`:
 ```
 
 정책:
-- 앱은 Kakao Access Token을 직접 전달하지 않고 `authorizationCode`를 전달한다.
-- 백엔드가 인가 코드를 Kakao 토큰으로 교환하고 사용자 정보를 조회한다.
-- 동일 계정의 다른 기기 로그인은 허용한다.
+- login ticket은 transaction에 결합된 동일 `deviceId`에서 유효기간 내 한 번만 교환할 수 있다.
+- ticket 교환 transaction 시작 시 대상 row를 `SELECT ... FOR UPDATE`로 잠그고 조건을 재검증한다. ticket 검증, 사용자 upsert, 기기 세션 upsert, ticket 소비는 한 transaction으로 처리하여 동시 요청 중 하나만 성공한다.
+- 기존 사용자의 nickname과 profile image는 카카오가 이번 로그인에서 제공한 non-null 값만 최신 값으로 갱신한다.
+- 사용자당 활성 기기 수에는 MVP 별도 상한을 두지 않는다.
+- 동일 계정의 다른 기기 로그인 상태는 변경하지 않는다.
 
 주요 오류:
-- `400 INVALID_AUTHORIZATION_CODE`
-- `401 KAKAO_AUTH_FAILED`
-- `502 KAKAO_API_FAILED`
-- `504 KAKAO_API_TIMEOUT`
+- `401 INVALID_LOGIN_TICKET`
+- `401 LOGIN_TICKET_EXPIRED`
+- `403 DEVICE_MISMATCH`
 
-### AUTH-002 액세스 토큰 재발급
+### AUTH-004 액세스 토큰 재발급
 
 `POST /api/v1/auth/token/refresh`
 
@@ -248,7 +325,13 @@ Response `200`:
 - `401 INVALID_REFRESH_TOKEN`
 - `403 DEVICE_MISMATCH`
 
-### AUTH-003 로그아웃
+정책:
+- Refresh Token은 `sessionId.secret` 형식의 256-bit opaque Token이며 서버는 해시만 저장한다.
+- 같은 Refresh Token을 사용한 동시 갱신은 조건부 갱신으로 정확히 한 요청만 성공한다.
+- 성공 시 이전 Refresh Token은 즉시 무효화하고 새 Refresh Token 만료시각을 발급 시점부터 30일로 갱신한다.
+- 갱신 성공 후 응답이 유실되면 앱은 기존 로그인 상태를 보존하고 재시도한다. 재시도에서 이전 Token이 무효로 확인되면 새 카카오 로그인을 요구한다. MVP에서는 Token 원문이나 암호화된 성공 응답을 저장하는 replay 기능을 추가하지 않는다.
+
+### AUTH-005 로그아웃
 
 `POST /api/v1/auth/logout`
 
@@ -265,9 +348,13 @@ Response: `204 No Content`
 
 정책:
 - 현재 기기의 Refresh Token만 폐기한다.
+- 같은 `deviceId`와 Refresh Token으로 이미 폐기된 세션의 로그아웃을 반복하면 멱등하게 `204`를 반환한다.
+- 앱은 서버 응답과 관계없이 로컬 로그인 상태를 즉시 종료하고, 로그아웃마다 별도 `revocationOperationId`를 가진 암호화 envelope를 대기 큐에 보존한다. WorkManager는 operation ID별 작업으로 통신 실패를 재시도한다.
+- pending 폐기 요청의 `INVALID_REFRESH_TOKEN`·`TOKEN_EXPIRED`는 폐기 완료와 동등하게 종료하고, `DEVICE_MISMATCH`는 다른 session을 변경하지 않은 terminal failure로 기록한다.
+- Refresh 성공 응답 유실 직후에는 앱이 보유한 이전 Token으로 서버 폐기가 불가능할 수 있다. MVP는 서버 자격의 최대 30일 만료 또는 같은 기기 재로그인 시 교체를 잔여 위험으로 허용한다.
 - 모든 기기에서 로그아웃 기능은 MVP에서 제외한다.
 
-주요 오류: `401`, `403 DEVICE_MISMATCH`
+주요 오류: `401 INVALID_REFRESH_TOKEN`, `401 TOKEN_EXPIRED`, `403 DEVICE_MISMATCH`
 
 ### USER-001 내 정보 조회
 

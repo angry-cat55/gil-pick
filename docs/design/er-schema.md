@@ -17,16 +17,18 @@
 - 감지 평가값, 복합 상태 변경, 임시 경로처럼 수명이 짧은 스냅샷만 `jsonb`를 사용한다.
 - 대체 경로 미리보기와 승인된 장소 변경은 분리한다.
 - Refresh Token 원문은 저장하지 않고 해시만 저장한다.
+- 인증 transaction은 terminal/expired 후 24시간, 만료·폐기 device session은 30일 뒤 삭제한다. 활성 사용자 profile은 계정 활성 기간에만 인증 목적으로 보관한다.
 - 사용자와 여행은 논리 삭제한다. 실제 purge를 수행할 때만 여행 하위 테이블을 `ON DELETE CASCADE`로 제거하며, 공유 장소인 `places`는 `RESTRICT`한다.
 
 ## 2. 테이블 구성
 
-MVP는 14개 테이블로 구성한다.
+MVP는 15개 테이블로 구성한다.
 
 | 영역 | 테이블 | 역할 |
 |---|---|---|
 | 사용자 | `users` | 카카오 사용자와 단일 알림 설정 |
 | 인증·기기 | `device_sessions` | 기기별 Refresh Token과 FCM Token |
+| 인증 transaction | `auth_login_transactions` | 카카오 `state`, 일회용 login ticket과 단기 사용자 snapshot |
 | 여행 | `trips` | 여행 기본정보와 논리 삭제 |
 | 여행 일자 | `trip_days` | 날짜별 진행 상태·시작시각·일정 버전 |
 | 장소 | `places` | 일정에 필요한 최소 장소 참조정보 |
@@ -102,12 +104,12 @@ erDiagram
 | `user_id` | uuid | N | FK → `users.user_id` |
 | `client_device_id` | varchar(255) | N | 앱이 생성한 기기 UUID |
 | `platform` | varchar(20) | N | MVP 값 `ANDROID` |
-| `refresh_token_hash` | varchar(255) | N | 현재 Refresh Token 해시 |
+| `refresh_token_hash` | varchar(64) | N | 현재 Refresh Token SHA-256 hex |
 | `refresh_expires_at` | timestamptz | N | 발급 후 30일 |
 | `revoked_at` | timestamptz | Y | 현재 기기 로그아웃 시각 |
 | `fcm_token` | text | Y | 현재 기기의 FCM Token |
 | `app_version` | varchar(40) | Y | 앱 버전 |
-| `last_seen_at` | timestamptz | Y | 마지막 요청 시각 |
+| `last_seen_at` | timestamptz | Y | 마지막으로 성공한 인증 요청 시각 |
 | `created_at` | timestamptz | N | 생성 시각 |
 | `updated_at` | timestamptz | N | 수정 시각 |
 
@@ -116,6 +118,34 @@ erDiagram
 - `UNIQUE(user_id, client_device_id)`
 - 활성 세션의 `fcm_token`은 partial unique index를 사용한다.
 - 토큰 재발급 시 같은 세션 행의 해시와 만료시각을 교체한다.
+- 만료·폐기된 기기 session은 상태 확정 후 30일 동안 진단 목적으로 보관한 뒤 삭제한다. Active session은 유효한 동안 보관한다.
+
+### 4.3 `auth_login_transactions`
+
+| 컬럼 | 타입 | NULL | 설명 |
+|---|---|---:|---|
+| `transaction_id` | uuid | N | PK, login ticket selector |
+| `state_hash` | varchar(64) | N | 카카오 callback `state`의 SHA-256 hash |
+| `client_device_id` | varchar(255) | N | transaction을 시작한 앱 설치 UUID |
+| `platform` | varchar(20) | N | MVP 값 `ANDROID` |
+| `status` | varchar(20) | N | `PENDING`, `PROCESSING`, `VERIFIED`, `CONSUMED`, `FAILED`, `EXPIRED` |
+| `login_ticket_hash` | varchar(64) | Y | verified App Link로 전달한 일회용 ticket secret hash |
+| `social_subject` | varchar(255) | Y | callback에서 확인한 카카오 사용자 식별자 |
+| `nickname` | varchar(80) | Y | ticket 교환 전까지만 보관하는 표시 이름 snapshot |
+| `profile_image_url` | text | Y | ticket 교환 전까지만 보관하는 프로필 이미지 snapshot |
+| `expires_at` | timestamptz | N | transaction 생성 후 10분 |
+| `ticket_expires_at` | timestamptz | Y | callback 성공 후 120초 |
+| `consumed_at` | timestamptz | Y | ticket 교환 완료 시각 |
+| `failure_code` | varchar(80) | Y | callback 최종 실패 원인 |
+| `created_at` | timestamptz | N | 생성 시각 |
+| `updated_at` | timestamptz | N | 수정 시각 |
+
+제약:
+
+- `UNIQUE(state_hash)`와 `UNIQUE(login_ticket_hash)`를 적용한다.
+- `PENDING` callback은 먼저 `PROCESSING`으로 원자적 선점하고, 외부 검증 성공 후 `VERIFIED`로 전환한다. `VERIFIED`에서만 ticket을 한 번 소비해 `CONSUMED`로 전환한다.
+- 인가 코드, 카카오 Token, `state`와 login ticket 원문은 저장하지 않는다.
+- ticket 소비 시 사용자 snapshot을 null 처리하고, 만료·실패 transaction은 24시간 이내 삭제한다.
 
 ## 5. 여행·일정·장소
 
@@ -515,7 +545,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 
 | API 영역 | 주요 테이블 |
 |---|---|
-| AUTH·USER·DEV·PREF | `users`, `device_sessions` |
+| AUTH·USER·DEV·PREF | `auth_login_transactions`, `users`, `device_sessions` |
 | TRIP | `trips`, `trip_days` |
 | ITIN·PLACE | `itinerary_items`, `places` |
 | ROUTE | `routes` |

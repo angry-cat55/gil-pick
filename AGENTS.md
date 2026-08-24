@@ -97,10 +97,12 @@
 12. review와 필수 검증이 완료된 PR을 개발자가 squash merge
 
 - AI는 Feature 작업을 시작할 때 현재 단계, 완료된 선행 단계, 필요한 산출물과 다음 단계를 확인한다. 선행 단계나 담당자 합의가 누락되면 임의로 건너뛰지 않고 사용자에게 알린다.
+- `speckit-plan` 완료 후 사용자에게 보내는 결과 메시지에는 구현에 필요한 Frontend·Backend 담당자가 각각 어떤 일을 맡아야 하는지 주요 작업, 소유할 계약·상태, 필수 검증을 요약한다. 이 정보는 별도 요구가 없는 한 `plan.md` 산출물에 추가하지 않는다. 특정 영역의 작업이 필요하지 않으면 역할을 억지로 만들지 말고 결과 메시지에서 제외 이유를 알린다.
+- 위 완료 보고의 역할 설명은 “어떤 일을 맡을 사람이 필요한가”를 식별하는 것이며 팀원 배정이 아니다. AI는 합의 전에 이름이나 이니셜을 임의로 연결하지 않고 배정이 미정임을 함께 알린다.
 
 - 새로운 기능을 임의로 추가하지 않고 합의된 MVP 범위 안에서 다음 Feature를 선정한다.
 - 다음 Feature는 MVP Feature 목록, 완료·진행 중인 Feature, GitHub Issues, Feature 간 의존성을 확인한 뒤 선택한다.
-- 다음 Feature 담당자는 `tasks` 생성 전에 팀원과 Frontend·Backend 담당자를 합의하고, 그 결과를 `tasks.md`와 GitHub Issue assignee에 반영한다. 합의되지 않은 담당자는 `미정`으로 기록하며 AI가 임의로 배정하지 않는다.
+- 다음 Feature 담당자는 `tasks` 생성 전에 팀원과 Frontend·Backend 담당자를 합의하고, plan 완료 보고에서 식별한 업무 범위에 합의된 팀원을 연결한 뒤 그 결과를 `tasks.md`와 GitHub Issue assignee에 반영한다. 합의되지 않은 담당자는 `미정`으로 기록하며 AI가 임의로 배정하지 않는다.
 - 현재 Feature가 구현 단계에 들어가면 다른 담당자는 다음 Feature 하나의 `spec → clarify → plan → tasks`를 미리 준비할 수 있다.
 - 구현보다 앞서 상세화하는 Feature는 최대 1개로 제한한다.
 - 원칙적으로 `현재 Feature: 구현 중`, `다음 Feature: 상세 설계 준비 가능`, `그 이후 Feature: 상세 명세 미생성` 상태를 유지한다.
