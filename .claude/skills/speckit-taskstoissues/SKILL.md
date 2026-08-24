@@ -1,6 +1,6 @@
 ---
 name: "speckit-taskstoissues"
-description: "Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts."
+description: "Group existing feature tasks into actionable, dependency-ordered GitHub issues sized for one owner, branch, and pull request."
 argument-hint: "Optional filter or label for GitHub issues"
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
@@ -69,10 +69,21 @@ git config --get remote.origin.url
 > [!CAUTION]
 > ONLY PROCEED TO NEXT STEPS IF THE REMOTE IS A GITHUB URL
 
-1. **Fetch existing issues for deduplication**: Before creating anything, build the set of task IDs you are about to process from `tasks.md` (each is a `T` followed by **at least** three digits, e.g. `T001` — `/speckit-converge` assigns new IDs with `T{M+1:03d}`, which is a floor rather than a cap, so once a file has more than 999 tasks the IDs are four digits or longer). Then use the GitHub MCP server's `list_issues` tool to look for issues that already cover those IDs. Do not pass a `state` value, since omitting it makes the tool return both open and closed issues. Request `perPage: 100` to keep the number of calls down, and since the tool uses cursor-based pagination, request pages with the `after` parameter (using the `endCursor` from the previous response). For each issue title, match it against the task ID pattern `\bT\d{3,}\b` (the `{3,}` accepts four-digit and longer IDs — with `\d{3}` a title containing `T1000` would not match at all, because the trailing `\b` cannot fall between two digits, so that task would be silently neither deduplicated nor created; word boundaries still stop a token like `ST001` from matching, and force the whole digit run to be consumed so `T100` can never match inside `T1000`; this also recognises titles written as `T001 ...`, `T001: ...` or `[T001] ...`) and, when it matches one of your task IDs, mark that ID as already having an issue. Stop paginating as soon as every task ID has been matched, or when there are no more pages, so you do not keep fetching the whole repository's issue history once all task IDs are accounted for. This bounds the number of calls on repos with large issue histories and still prevents duplicates when the command is re-run after `tasks.md` is regenerated or the skill is re-invoked.
-1. For each task in the list, use the GitHub MCP server to create a new issue in the repository that is representative of the Git remote. Task lines in `tasks.md` start with a markdown checkbox, so first strip the leading `- [ ]` (and any `[P]` / `[US#]` markers) to recover the task ID and its description. Create the issue with a single canonical title of the form `T001: <description>`, with the ID written once followed by the task description (for example, the line `- [ ] T001 Create project structure` becomes the title `T001: Create project structure`).
-   - **Skip** any task whose ID is already present in the set of existing issues from the previous step, and report it (for example, `T001 already has an issue, skipping`).
-   - Only create issues for tasks that do not yet have a matching issue.
+1. **Fetch existing issues for deduplication**: Before creating anything, build the set of task IDs you are about to process from `tasks.md` (each is a `T` followed by **at least** three digits, e.g. `T001` — `/speckit-converge` assigns new IDs with `T{M+1:03d}`, which is a floor rather than a cap). Then use the GitHub MCP server's `list_issues` tool to fetch open and closed issues with `perPage: 100` and cursor pagination. Match `\bT\d{3,}\b` against both each issue title and body because grouped issues normally keep task IDs in a body checklist. Mark every matched task ID as already covered. Stop when all task IDs are covered or there are no more pages.
+1. **Plan issue groups before creating anything**:
+   - A task is a detailed implementation/checking step; an issue is a cohesive unit that one assignee can complete on one branch and in one pull request. Do not create one issue per task by default.
+   - Group tasks only when they have the same assignee and ownership area, contribute to one implementation slice, have compatible predecessor constraints, and can be reviewed together without obscuring completion.
+   - Setup and tests may be grouped with their implementation when the same owner and change set need them. Split tasks when owners or platforms differ, when they can be independently delivered, when the combined review would be too broad, or when a separate integration checkpoint is required.
+   - Preserve task-level ordering inside each group. `[P]` permits parallel execution after predecessors are satisfied but does not by itself require a separate issue.
+   - Put cross-owner end-to-end verification in a separate integration issue with one agreed assignee and explicit review/verification responsibilities for the other owner.
+   - If task owners are missing, conflict within a proposed group, or cannot be mapped to GitHub accounts from repository guidance, stop and ask the user instead of assigning or grouping by guess.
+1. **Create one GitHub issue per group** in dependency order:
+   - Use a concise title describing the implementation result. Do not enumerate every task ID in the title.
+   - In the body, include purpose, scope, assignee/area, completion conditions, test method, related artifacts, and an `- [ ] T### ...` checklist containing every grouped task exactly once. Preserve each task's target, predecessor, and verification metadata.
+   - Assign the issue to the single agreed owner. Do not create a group with multiple implementation owners.
+   - Record whole-group dependencies as `blocked by #<issue-number>`. If only some tasks depend on an intermediate result from another issue, keep the issue startable and document the task-specific partial dependency and required artifact instead of blocking the whole issue.
+   - State that `/speckit-implement` must process only the task IDs listed in the current issue and must not mark unrelated tasks complete.
+1. **Verify coverage after creation**: Re-fetch the created issues and confirm that every uncovered task ID appears exactly once, no already-covered task was duplicated, assignees match the agreed task owners, and all whole-group dependency references point to real issues. Report the group count, task coverage, assignments, and any skipped existing coverage.
 
 > [!CAUTION]
 > UNDER NO CIRCUMSTANCES EVER CREATE ISSUES IN REPOSITORIES THAT DO NOT MATCH THE REMOTE URL
