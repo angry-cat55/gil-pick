@@ -79,18 +79,23 @@
 
 ### 전체 흐름
 
-1. MVP Feature 목록 생성
-2. constitution 후보 검토 및 팀 합의 후 확정
-3. 구현할 기능 선택
-4. `spec` 생성
-5. `clarify` 수행
-6. `plan` 생성
-7. 다음 Feature 담당자가 팀원과 Frontend·Backend 담당자 합의
-8. 합의 결과를 반영해 `tasks` 생성
-9. task를 GitHub Issue로 분리하고 assignee와 dependency 반영
-10. 각 담당자가 Issue별 구현·테스트
-11. 명세·구현·테스트 결과 검증(verify)
-12. PR review 및 merge
+1. MVP Feature 목록에서 다음 기능 선택
+2. 다음 Feature 담당자가 `speckit-specify`로 `spec.md` 작성
+3. `speckit-clarify`로 불명확한 요구사항 확정
+4. `speckit-plan`으로 기술 설계와 구현 방향 작성
+5. 팀 메시지방에서 Frontend·Backend 구현 담당자 합의
+6. `speckit-tasks`로 합의된 담당자가 포함된 `tasks.md` 생성
+7. `speckit-analyze`로 `spec.md`·`plan.md`·`tasks.md` 간 누락·충돌·불일치 검증
+   - 발견 사항을 검토해 해당 산출물을 수정하고 필요하면 `speckit-analyze`를 다시 수행한다.
+8. `speckit-taskstoissues`로 task를 GitHub Issue로 변환
+9. `tasks.md`의 담당자와 선행 관계가 실제 GitHub Issue의 assignee와 dependency에 반영되었는지 확인
+10. 각 담당자가 Issue별 브랜치에서 해당 Issue에 연결된 task만 `speckit-implement` 또는 직접 구현·테스트
+    - `speckit-implement`를 사용하더라도 현재 Issue 범위를 벗어난 task는 구현하지 않는다.
+    - 구현 중 `spec.md`·`plan.md`·`tasks.md`가 변경되었다면 `speckit-analyze`를 다시 수행한다.
+11. Issue별 PR 생성 및 팀원 review
+12. review와 필수 검증이 완료된 PR을 개발자가 squash merge
+
+- AI는 Feature 작업을 시작할 때 현재 단계, 완료된 선행 단계, 필요한 산출물과 다음 단계를 확인한다. 선행 단계나 담당자 합의가 누락되면 임의로 건너뛰지 않고 사용자에게 알린다.
 
 - 새로운 기능을 임의로 추가하지 않고 합의된 MVP 범위 안에서 다음 Feature를 선정한다.
 - 다음 Feature는 MVP Feature 목록, 완료·진행 중인 Feature, GitHub Issues, Feature 간 의존성을 확인한 뒤 선택한다.
@@ -100,8 +105,7 @@
 - 원칙적으로 `현재 Feature: 구현 중`, `다음 Feature: 상세 설계 준비 가능`, `그 이후 Feature: 상세 명세 미생성` 상태를 유지한다.
 - 앞선 구현에서 API, ERD, 정책, 요구사항이 바뀌어 후속 명세가 낡는 일을 줄이기 위해 여러 후속 Feature를 한꺼번에 상세화하지 않는다.
 - 하나의 Feature가 완전히 구현될 때까지 다음 Feature의 설계를 무조건 기다릴 필요는 없지만, 선행 Feature의 미확정 계약에 의존하는 내용은 확정된 것처럼 작성하지 않는다.
-- 설치된 Spec Kit bundle workflow에는 포함되지 않은 `clarify`와 GitHub Issue 변환도 각각 설치된 `speckit-clarify`, `speckit-taskstoissues`를 사용해 위 순서대로 수행한다.
-- verify는 별도 Spec Kit command명이 아니라 팀 검증 단계다. Issue 완료 조건, 관련 테스트·정적 분석, `spec.md`·`plan.md`·`tasks.md`와 구현의 일치 여부를 확인하고, 필요하면 `speckit-checklist`, `speckit-analyze`, `speckit-converge`를 사용한다.
+- 설치된 Spec Kit bundle workflow에는 포함되지 않은 `clarify`, 산출물 분석, GitHub Issue 변환도 각각 설치된 `speckit-clarify`, `speckit-analyze`, `speckit-taskstoissues`를 사용해 위 순서대로 수행한다.
 
 ## 7. `tasks.md` 작성 원칙
 
