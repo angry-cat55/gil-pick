@@ -85,15 +85,16 @@
 4. `spec` 생성
 5. `clarify` 수행
 6. `plan` 생성
-7. `tasks` 생성
-8. task를 GitHub Issue로 분리
-9. 담당자 지정
+7. 다음 Feature 담당자가 팀원과 Frontend·Backend 담당자 합의
+8. 합의 결과를 반영해 `tasks` 생성
+9. task를 GitHub Issue로 분리하고 assignee와 dependency 반영
 10. 각 담당자가 Issue별 구현·테스트
 11. 명세·구현·테스트 결과 검증(verify)
 12. PR review 및 merge
 
 - 새로운 기능을 임의로 추가하지 않고 합의된 MVP 범위 안에서 다음 Feature를 선정한다.
 - 다음 Feature는 MVP Feature 목록, 완료·진행 중인 Feature, GitHub Issues, Feature 간 의존성을 확인한 뒤 선택한다.
+- 다음 Feature 담당자는 `tasks` 생성 전에 팀원과 Frontend·Backend 담당자를 합의하고, 그 결과를 `tasks.md`와 GitHub Issue assignee에 반영한다. 합의되지 않은 담당자는 `미정`으로 기록하며 AI가 임의로 배정하지 않는다.
 - 현재 Feature가 구현 단계에 들어가면 다른 담당자는 다음 Feature 하나의 `spec → clarify → plan → tasks`를 미리 준비할 수 있다.
 - 구현보다 앞서 상세화하는 Feature는 최대 1개로 제한한다.
 - 원칙적으로 `현재 Feature: 구현 중`, `다음 Feature: 상세 설계 준비 가능`, `그 이후 Feature: 상세 명세 미생성` 상태를 유지한다.
