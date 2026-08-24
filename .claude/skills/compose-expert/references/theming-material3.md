@@ -69,7 +69,7 @@ val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 MaterialTheme(colorScheme = colorScheme) { ... }
 ```
 
-This requires `android:READ_MEDIA_IMAGES` or context access. `dynamicColorScheme` APIs are in `androidx.compose.material3`.
+This only requires a `Context` and Android 12+ (API 31) — no runtime permission like `READ_MEDIA_IMAGES` is needed. `dynamicColorScheme` APIs are in `androidx.compose.material3`.
 
 ---
 

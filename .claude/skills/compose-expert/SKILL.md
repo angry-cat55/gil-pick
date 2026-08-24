@@ -1,29 +1,18 @@
 ---
 name: compose-expert
 description: >
-  Compose and Compose Multiplatform expert for UI development across Android, Desktop,
-  iOS, and Web. Use whenever the user mentions Compose APIs (@Composable, remember,
-  LaunchedEffect, NavHost, MaterialTheme, LazyColumn, Modifier, recomposition),
-  Compose Multiplatform (commonMain, expect/actual, Res.*, ComposeUIViewController,
-  UIKitView, ComposeViewport), Android TV (tv-material, D-pad, focus, Carousel),
-  Material 3 motion, atomic design systems, design-to-code workflows, Paging 3, or
-  navigation. Activates Review Mode on GitHub PR URLs and review phrases ("review
-  this PR", "what's wrong with this"). Auto-detects Compose projects on
-  session_start. Backed by actual androidx/androidx and JetBrains/compose-multiplatform-core
-  source receipts. See "## When this skill applies" in SKILL.md for the full trigger
-  surface.
+  Compose and Compose Multiplatform expert for Android/Desktop/iOS/Web UI, design-to-code,
+  and PR review. See "## When this skill applies" below for the full trigger surface.
 version: 2.4.0
 ---
 
-> **Installation notice:** This skill is now distributed as a plugin.
-> If you copied files into `~/.claude/skills/` manually, you are on an
-> unmaintained install path and will not receive updates. Migrate via:
+> **Vendored skill notice:** This copy was vendored into `.claude/skills/compose-expert/`
+> from the `aldefy/compose-skill` marketplace plugin (see PR #14) so the whole team gets
+> it without each person installing the plugin locally.
 >
->     /plugin marketplace add aldefy/compose-skill
->     /plugin install compose-expert
->
-> See [MIGRATION.md](../docs/MIGRATION.md) for Codex and Copilot CLI instructions.
-> This banner will remain through v2.x and escalate in v3.0.
+> To pick up upstream updates, a team member re-installs the plugin locally
+> (`/plugin marketplace add aldefy/compose-skill` → `/plugin install compose-expert`),
+> copies the refreshed files over this directory, and opens a PR with the diff.
 
 ## When this skill applies
 
