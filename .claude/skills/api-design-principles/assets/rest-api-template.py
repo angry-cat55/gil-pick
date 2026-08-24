@@ -1,6 +1,10 @@
 """
-Production-ready REST API template using FastAPI.
+Starter REST API template using FastAPI.
 Includes pagination, filtering, error handling, and best practices.
+
+NOT production-ready as-is: the TrustedHost/CORS middleware below uses
+permissive placeholder defaults (see the TODO comments) that must be
+locked down to your actual domains before deploying.
 """
 
 from fastapi import FastAPI, HTTPException, Query, Path, Depends, status

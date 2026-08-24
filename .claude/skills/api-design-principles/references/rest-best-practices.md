@@ -108,7 +108,7 @@ GET /api/users?fields=id,name,email
 
 ### Offset-Based Pagination
 
-```python
+```http
 GET /api/users?page=2&page_size=20
 
 Response:
@@ -123,7 +123,7 @@ Response:
 
 ### Cursor-Based Pagination (for large datasets)
 
-```python
+```http
 GET /api/users?limit=20&cursor=eyJpZCI6MTIzfQ
 
 Response:

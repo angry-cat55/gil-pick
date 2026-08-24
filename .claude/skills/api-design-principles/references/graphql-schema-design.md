@@ -531,7 +531,7 @@ def complexity_limit_validator(max_complexity: int):
             complexity *= get_list_size_arg(node)
         return complexity
 
-    return validate_complexity
+    return calculate_complexity
 ```
 
 ## Schema Versioning
