@@ -23,7 +23,7 @@ class AuthRepositoryTest {
     fun setUp() {
         val file = File(tempFolder.root, AuthSessionStore.FILE_NAME)
         store = AuthSessionStore(AuthSessionStore.createDataStore(file), cipher)
-        repository = AuthRepository(store)
+        repository = newRepository()
     }
 
     @Test
@@ -41,7 +41,7 @@ class AuthRepositoryTest {
     fun `저장된 session은 Authenticated로 복원된다`() = runTest {
         signIn(nickname = "길픽")
 
-        val restored = AuthRepository(store).restore()
+        val restored = newRepository().restore()
 
         val authenticated = restored as AuthUiState.Authenticated
         assertEquals("user-1", authenticated.userId)
@@ -52,7 +52,7 @@ class AuthRepositoryTest {
     fun `profile이 null인 사용자도 Authenticated가 된다`() = runTest {
         signIn(nickname = null)
 
-        val authenticated = AuthRepository(store).restore() as AuthUiState.Authenticated
+        val authenticated = newRepository().restore() as AuthUiState.Authenticated
 
         assertEquals(null, authenticated.nickname)
         assertEquals(null, authenticated.profileImageUrl)
@@ -88,13 +88,20 @@ class AuthRepositoryTest {
         signIn(nickname = null)
         cipher.invalidated = true
 
-        assertEquals(AuthUiState.SignedOut, AuthRepository(store).restore())
+        assertEquals(AuthUiState.SignedOut, newRepository().restore())
     }
 
     @Test
     fun `deviceId는 repository를 통해서도 재사용된다`() = runTest {
-        assertEquals(repository.deviceId(), AuthRepository(store).deviceId())
+        assertEquals(repository.deviceId(), newRepository().deviceId())
     }
+
+    /** 이 test는 저장·복원과 상태 전이만 보므로 network 계층은 호출되지 않는다. */
+    private fun newRepository() = AuthRepository(
+        store = store,
+        api = FakeAuthService,
+        appLinkHandler = AuthAppLinkHandler("app.gilpick.example"),
+    )
 
     private suspend fun signIn(nickname: String?) {
         repository.onSignedIn(
