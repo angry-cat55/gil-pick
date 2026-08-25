@@ -118,7 +118,7 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T006, T007, T008
   - 검증: 구현 전 실패하고 code 교환 무재시도, 사용자 조회 1회 재시도, nullable profile 로그인 성공, 외부 HTTP 호출 전 DB transaction·row lock 해제와 `PENDING→PROCESSING→VERIFIED/FAILED` 전이를 검사
-- [ ] T016 [P] [US1] Android login transaction·ticket 교환·암호화 저장 unit test 작성 in android/app/src/test/java/com/gilpick/auth/AuthLoginFlowTest.kt
+- [x] T016 [P] [US1] Android login transaction·ticket 교환·암호화 저장 unit test 작성 in android/app/src/test/java/com/gilpick/auth/AuthLoginFlowTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009, T010, T011, T012
@@ -151,17 +151,17 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T006, T020
   - 검증: transaction/snapshot은 24시간, expired/revoked session은 30일 후 삭제 대상이며 active session은 유지되고 실패 시 다음 실행에서 재시도되는 test 통과
-- [ ] T022 [P] [US1] Android transaction 생성·ticket 교환 API DTO와 호출 구현 in android/app/src/main/java/com/gilpick/auth/AuthApi.kt
+- [x] T022 [P] [US1] Android transaction 생성·ticket 교환 API DTO와 호출 구현 in android/app/src/main/java/com/gilpick/auth/AuthApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T011, T016
   - 검증: MockWebServer로 `201/200` Token 응답과 callback error code mapping test 통과
-- [ ] T023 [P] [US1] App Link URI fragment의 login ticket 일회 수신·제거 구현 in android/app/src/main/java/com/gilpick/auth/AuthAppLinkHandler.kt
+- [x] T023 [P] [US1] App Link URI fragment의 login ticket 일회 수신·제거 구현 in android/app/src/main/java/com/gilpick/auth/AuthAppLinkHandler.kt
   - 영역: FE
   - 담당: jy
   - 선행: T010, T016, T017
   - 검증: 허용 host/path·fragment만 수락하고 query ticket·중복 intent·잘못된 URI를 거절하는 test 통과
-- [ ] T024 [US1] Custom Tab 시작부터 session 저장까지 Android login orchestration 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt
+- [x] T024 [US1] Custom Tab 시작부터 session 저장까지 Android login orchestration 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T012, T022, T023
