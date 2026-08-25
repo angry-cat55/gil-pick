@@ -5,8 +5,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.POST
 
 /**
  * `contracts/auth.openapi.yaml`의 공통 성공 envelope.
@@ -79,6 +82,16 @@ sealed interface AuthError {
 
     /** 계약과 다른 응답. 재시도해도 동일하므로 오류로 확정한다. */
     data class Malformed(val cause: Throwable) : AuthError
+
+    /**
+     * Backend가 App Link redirect의 query error로 알린 provider 단계 실패.
+     *
+     * JSON 응답이 아니라 redirect로 도착하므로 HTTP 상태 코드가 없다.
+     *
+     * @property code `KAKAO_API_TIMEOUT`, `ACCESS_DENIED` 등 계약상의 code.
+     * @property retryable 같은 인증 시도를 그대로 다시 요청해도 되는지 여부.
+     */
+    data class Callback(val code: String, val retryable: Boolean) : AuthError
 }
 
 /** 계약에 정의된 인증 error code. 화면·재시도 분기에서 문자열 오타를 막는다. */
@@ -88,6 +101,31 @@ object AuthErrorCodes {
     const val INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN"
     const val TOKEN_EXPIRED = "TOKEN_EXPIRED"
     const val DEVICE_MISMATCH = "DEVICE_MISMATCH"
+
+    // Backend가 App Link redirect의 query error로 전달하는 provider 단계 실패.
+    const val ACCESS_DENIED = "ACCESS_DENIED"
+    const val INVALID_AUTHORIZATION_CODE = "INVALID_AUTHORIZATION_CODE"
+    const val KAKAO_AUTH_FAILED = "KAKAO_AUTH_FAILED"
+    const val KAKAO_RATE_LIMITED = "KAKAO_RATE_LIMITED"
+    const val KAKAO_API_FAILED = "KAKAO_API_FAILED"
+    const val KAKAO_API_TIMEOUT = "KAKAO_API_TIMEOUT"
+    const val LOGIN_TRANSACTION_EXPIRED = "LOGIN_TRANSACTION_EXPIRED"
+
+    /**
+     * callback error code가 같은 인증 시도를 그대로 다시 요청해도 되는 실패인지 알린다.
+     *
+     * provider 일시 장애만 재시도 대상이다. 동의 거절, 인가 코드 실패, transaction 만료는
+     * 새 Kakao 인증이 필요하므로 자동 재시도하지 않는다.
+     */
+    private val RETRYABLE_CALLBACK_ERRORS = setOf(
+        KAKAO_RATE_LIMITED,
+        KAKAO_API_FAILED,
+        KAKAO_API_TIMEOUT,
+    )
+
+    /** callback error code를 재시도 가능 여부와 함께 [AuthError.Callback]으로 옮긴다. */
+    fun toCallbackError(code: String): AuthError.Callback =
+        AuthError.Callback(code, retryable = code in RETRYABLE_CALLBACK_ERRORS)
 }
 
 /**
@@ -104,6 +142,8 @@ sealed interface AuthResult<out T> {
 private val authJson = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
+    // 계약이 required로 정의한 값은 Kotlin 기본값과 같아도 요청 body에 실어야 한다.
+    encodeDefaults = true
 }
 
 /** 인증 endpoint 전용 Retrofit 인스턴스를 만든다. */
@@ -139,4 +179,92 @@ fun <T> retrofit2.Response<SuccessEnvelope<T>>.toAuthResult(): AuthResult<T> {
     } catch (e: kotlinx.serialization.SerializationException) {
         AuthResult.Failure(AuthError.Malformed(e))
     }
+}
+
+// --- US1 로그인 계약 DTO ---
+
+/**
+ * `POST /auth/kakao/transactions` 요청.
+ *
+ * @property deviceId 이 설치의 기기 ID. 발급될 ticket과 session이 이 값에 결합된다.
+ * @property platform 계약상 Android는 항상 `ANDROID`다.
+ */
+@Serializable
+data class CreateLoginTransactionRequest(
+    val deviceId: String,
+    val platform: String = "ANDROID",
+)
+
+/**
+ * 로그인 transaction 생성 결과.
+ *
+ * @property transactionId 서버가 부여한 transaction 식별자.
+ * @property authorizationUrl Custom Tab으로 열 Kakao 인증 URL.
+ * @property expiresIn transaction 유효 시간(초). 계약상 600이다.
+ */
+@Serializable
+data class LoginTransactionData(
+    val transactionId: String,
+    val authorizationUrl: String,
+    val expiresIn: Int,
+)
+
+/**
+ * `POST /auth/kakao/exchange` 요청.
+ *
+ * @property loginTicket App Link URI fragment로 받은 일회용 ticket.
+ * @property deviceId ticket 발급에 사용한 것과 같은 기기 ID.
+ */
+@Serializable
+data class LoginTicketExchangeRequest(
+    val loginTicket: String,
+    val deviceId: String,
+)
+
+/**
+ * 로그인한 사용자 요약.
+ *
+ * @property nickname 카카오 미동의 시 `null`이다.
+ * @property profileImageUrl 카카오 미동의 시 `null`이다.
+ */
+@Serializable
+data class UserSummary(
+    val userId: String,
+    val nickname: String? = null,
+    val profileImageUrl: String? = null,
+    val provider: String,
+)
+
+/**
+ * 로그인 성공 시 발급되는 Token pair와 사용자 정보.
+ *
+ * @property expiresIn Access Token 유효 시간(초). 계약상 3600이다.
+ * @property refreshExpiresIn Refresh Token 유효 시간(초). 계약상 2592000이다.
+ */
+@Serializable
+data class AuthTokenData(
+    val accessToken: String,
+    val expiresIn: Int,
+    val refreshToken: String,
+    val refreshExpiresIn: Int,
+    val user: UserSummary,
+)
+
+/**
+ * 인증 endpoint 호출 계약.
+ *
+ * 신규 사용자 `201`과 기존 사용자 `200`을 모두 성공으로 받기 위해 `Response`를 그대로
+ * 반환하고 [toAuthResult]에서 상태 코드를 보존한다.
+ */
+interface AuthService {
+
+    @POST("auth/kakao/transactions")
+    suspend fun createLoginTransaction(
+        @Body body: CreateLoginTransactionRequest,
+    ): Response<SuccessEnvelope<LoginTransactionData>>
+
+    @POST("auth/kakao/exchange")
+    suspend fun exchangeLoginTicket(
+        @Body body: LoginTicketExchangeRequest,
+    ): Response<SuccessEnvelope<AuthTokenData>>
 }

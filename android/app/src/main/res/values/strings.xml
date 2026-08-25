@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">길픽</string>
+
+    <string name="login_title">길픽으로 여행을 시작하세요</string>
+    <string name="login_kakao">카카오로 로그인</string>
+    <string name="login_in_progress">카카오 인증을 진행하고 있습니다</string>
+    <string name="login_retry">다시 시도</string>
+    <string name="login_error_retryable">지금은 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <string name="login_error_restart">로그인하지 못했습니다. 카카오 로그인을 다시 진행해 주세요.</string>
+
+    <string name="trips_title">내 여행</string>
+    <string name="trips_empty">아직 등록한 여행이 없습니다</string>
+    <string name="trips_empty_hint">여행 만들기는 곧 제공될 예정입니다.</string>
 </resources>
