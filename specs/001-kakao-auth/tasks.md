@@ -30,7 +30,7 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 영역: FE
   - 담당: jy
   - 선행: 없음
-  - 검증: `android/gradlew.bat tasks` 성공 및 `minSdk 26`, `compileSdk/targetSdk 36` 확인
+  - 검증: `android/gradlew.bat tasks` 성공 및 `minSdk 26`, `targetSdk 36`, `compileSdk 37` 확인
 - [ ] T003 [P] PostgreSQL 로컬 실행과 비밀정보 없는 환경 예시 구성 in docker-compose.yml, api/.env.example
   - 영역: BE
   - 담당: jh
