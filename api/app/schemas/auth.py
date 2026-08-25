@@ -83,7 +83,7 @@ class UserSummary(ApiModel):
     user_id: uuid.UUID
     nickname: str | None = Field(default=None, max_length=80)
     profile_image_url: HttpUrl | None = None
-    provider: Literal["KAKAO"] = "KAKAO"
+    provider: Literal["KAKAO"]
 
     @field_validator("profile_image_url")
     @classmethod
@@ -99,7 +99,7 @@ class LoginTransactionData(ApiModel):
 
     transaction_id: uuid.UUID
     authorization_url: HttpUrl
-    expires_in: Literal[600] = 600
+    expires_in: Literal[600]
 
     @field_validator("authorization_url")
     @classmethod
@@ -114,13 +114,13 @@ class AuthTokenData(ApiModel):
     """Token pair and user returned after ticket exchange."""
 
     access_token: str
-    expires_in: Literal[3600] = 3600
+    expires_in: Literal[3600]
     refresh_token: str = Field(
         min_length=80,
         max_length=80,
         pattern=OPAQUE_SELECTOR_PATTERN,
     )
-    refresh_expires_in: Literal[2592000] = 2592000
+    refresh_expires_in: Literal[2592000]
     user: UserSummary
 
 
@@ -128,13 +128,13 @@ class RefreshTokenData(ApiModel):
     """Rotated Token pair returned for an existing session."""
 
     access_token: str
-    expires_in: Literal[3600] = 3600
+    expires_in: Literal[3600]
     refresh_token: str = Field(
         min_length=80,
         max_length=80,
         pattern=OPAQUE_SELECTOR_PATTERN,
     )
-    refresh_expires_in: Literal[2592000] = 2592000
+    refresh_expires_in: Literal[2592000]
 
 
 class ResponseMeta(ApiModel):
@@ -158,7 +158,7 @@ DataT = TypeVar("DataT")
 class SuccessEnvelope(ApiModel, Generic[DataT]):
     """Common successful JSON response envelope."""
 
-    success: Literal[True] = True
+    success: Literal[True]
     data: DataT
     meta: ResponseMeta
 
@@ -166,6 +166,6 @@ class SuccessEnvelope(ApiModel, Generic[DataT]):
 class ErrorEnvelope(ApiModel):
     """Common failed JSON response envelope."""
 
-    success: Literal[False] = False
+    success: Literal[False]
     error: ErrorBody
     meta: ResponseMeta
