@@ -6,3 +6,32 @@ CLAUDE.local.md
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Kotlin / Gradle
+.gradle/
+build/
+out/
+*.class
+*.jar
+*.iml
+
+# Local tools and secrets
+.idea/
+.vscode/
+*.log
+.env
+.env.*
+!.env.example
+*.tmp
+*.swp
