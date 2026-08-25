@@ -113,6 +113,7 @@
 - 앞선 구현에서 API, ERD, 정책, 요구사항이 바뀌어 후속 명세가 낡는 일을 줄이기 위해 여러 후속 Feature를 한꺼번에 상세화하지 않는다.
 - 하나의 Feature가 완전히 구현될 때까지 다음 Feature의 설계를 무조건 기다릴 필요는 없지만, 선행 Feature의 미확정 계약에 의존하는 내용은 확정된 것처럼 작성하지 않는다.
 - 설치된 Spec Kit bundle workflow에는 포함되지 않은 `clarify`, 산출물 분석, GitHub Issue 변환도 각각 설치된 `speckit-clarify`, `speckit-analyze`, `speckit-taskstoissues`를 사용해 위 순서대로 수행한다.
+- Feature 상태 변경은 전이를 일으킨 PR에 포함한다. 검증된 `tasks` 문서 PR은 `READY`, 첫 구현 Issue PR은 `IN_PROGRESS`, 전체 구현 완료 후 검증 PR은 `VERIFY`, 관련 PR의 `main` 병합 완료 후에는 `DONE`으로 갱신한다.
 
 ## 7. `tasks.md` 작성 원칙
 
