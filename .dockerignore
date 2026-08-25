@@ -1,0 +1,13 @@
+.git/
+.dockerignore
+Dockerfile*
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log*
+.env
+.env.*
+!.env.example
