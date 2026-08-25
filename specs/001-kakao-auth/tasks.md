@@ -21,7 +21,7 @@ description: "F001 카카오 인증 구현 작업 목록"
 
 **Purpose**: Backend와 Android source scaffold 및 로컬 개발 환경을 만든다.
 
-- [ ] T001 Backend Python·Alembic 프로젝트와 ASGI entrypoint 초기화 in api/pyproject.toml, api/alembic.ini, api/migrations/env.py, api/app/main.py, api/app/__init__.py, api/app/api/v1/__init__.py
+- [x] T001 Backend Python·Alembic 프로젝트와 ASGI entrypoint 초기화 in api/pyproject.toml, api/alembic.ini, api/migrations/env.py, api/app/main.py, api/app/__init__.py, api/app/api/v1/__init__.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
@@ -31,7 +31,7 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jy
   - 선행: 없음
   - 검증: `android/gradlew.bat tasks` 성공 및 `minSdk 26`, `compileSdk/targetSdk 36` 확인
-- [ ] T003 [P] PostgreSQL 로컬 실행과 비밀정보 없는 환경 예시 구성 in docker-compose.yml, api/.env.example
+- [x] T003 [P] PostgreSQL 로컬 실행과 비밀정보 없는 환경 예시 구성 in docker-compose.yml, api/.env.example
   - 영역: BE
   - 담당: jh
   - 선행: 없음
@@ -45,27 +45,27 @@ description: "F001 카카오 인증 구현 작업 목록"
 
 **⚠️ CRITICAL**: 각 User Story의 Backend·Frontend task는 해당 영역의 Foundation 선행 task가 완료되어야 시작할 수 있다.
 
-- [ ] T004 Backend 인증·Kakao·App Link 환경 설정과 시작 시 검증 구현 in api/app/core/config.py
+- [x] T004 Backend 인증·Kakao·App Link 환경 설정과 시작 시 검증 구현 in api/app/core/config.py
   - 영역: BE
   - 담당: jh
   - 선행: T001, T003
   - 검증: 필수 환경값 누락·잘못된 HTTPS URL에 대한 unit test 통과
-- [ ] T005 [P] SQLAlchemy async engine과 transaction session 기반 구현 in api/app/db.py
+- [x] T005 [P] SQLAlchemy async engine과 transaction session 기반 구현 in api/app/db.py
   - 영역: BE
   - 담당: jh
   - 선행: T001, T003
   - 검증: PostgreSQL 연결·rollback integration smoke test 통과
-- [ ] T006 인증 공통 entity와 제약조건 migration 구현 in api/app/models/auth.py, api/migrations/versions/001_create_auth_tables.py
+- [x] T006 인증 공통 entity와 제약조건 migration 구현 in api/app/models/auth.py, api/migrations/versions/001_create_auth_tables.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
   - 검증: Alembic upgrade 후 `users`, `device_sessions`, `auth_login_transactions`의 unique/index/check constraint 확인
-- [ ] T007 [P] Access JWT·opaque Refresh/login ticket과 보호 API 인증 dependency 구현 in api/app/core/security.py, api/app/api/dependencies.py, api/tests/unit/test_auth_dependency.py
+- [x] T007 [P] Access JWT·opaque Refresh/login ticket과 보호 API 인증 dependency 구현 in api/app/core/security.py, api/app/api/dependencies.py, api/tests/unit/test_auth_dependency.py
   - 영역: BE
   - 담당: jh
   - 선행: T001, T004
   - 검증: JWT signature·issuer·audience·type·exp 검증과 handler 실행 전 거절, 1시간 claim, 80자 selector Token, 원문 미저장 hash unit test 통과
-- [ ] T008 [P] 인증 schema·공통 오류·request ID·상태 전이 log와 redaction 구현 in api/app/schemas/auth.py, api/app/api/errors.py, api/app/core/logging.py
+- [x] T008 [P] 인증 schema·공통 오류·request ID·상태 전이 log와 redaction 구현 in api/app/schemas/auth.py, api/app/api/errors.py, api/app/core/logging.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
