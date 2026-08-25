@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  API 30 이하의 auto backup 규칙.
+  auth_session.pb는 AndroidKeyStore 암호문을 담고 있고 다른 기기에서는 복호화할 수
+  없으므로 backup에서 제외한다.
+-->
+<full-backup-content>
+    <exclude domain="file" path="auth_session.pb" />
+</full-backup-content>

@@ -1,0 +1,9 @@
+# Gradle·Android 빌드 산출물
+.gradle/
+build/
+
+# 머신 종속 SDK 경로. commit하지 않는다.
+local.properties
+
+# wrapper jar는 gradlew 실행에 필요하므로 상위 무시 규칙에서 되살린다.
+!gradle/wrapper/gradle-wrapper.jar
