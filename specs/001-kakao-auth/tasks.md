@@ -26,11 +26,11 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: 없음
   - 검증: Python 3.13, FastAPI 0.141.1, SQLAlchemy 2.0.52 dependency가 lock/pin되고 `python -m pytest --collect-only`가 import 오류 없이 완료
-- [ ] T002 [P] Android Gradle wrapper·application entrypoint 초기화 in android/settings.gradle.kts, android/build.gradle.kts, android/app/build.gradle.kts, android/gradlew.bat, android/gradle/wrapper/gradle-wrapper.properties, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T002 [P] Android Gradle wrapper·application entrypoint 초기화 in android/settings.gradle.kts, android/build.gradle.kts, android/app/build.gradle.kts, android/gradlew.bat, android/gradle/wrapper/gradle-wrapper.properties, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: 없음
-  - 검증: `android/gradlew.bat tasks` 성공 및 `minSdk 26`, `compileSdk/targetSdk 36` 확인
+  - 검증: `android/gradlew.bat tasks` 성공 및 `minSdk 26`, `targetSdk 36`, `compileSdk 37` 확인
 - [x] T003 [P] PostgreSQL 로컬 실행과 비밀정보 없는 환경 예시 구성 in docker-compose.yml, api/.env.example
   - 영역: BE
   - 담당: jh
@@ -70,7 +70,7 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T001
   - 검증: success/error response request ID가 operation/result/transaction 또는 session ID log와 연결되고 Token·code·state·ticket·profile 원문이 노출되지 않는 test 통과
-- [ ] T009 [P] AndroidKeyStore AES-GCM 기반 `auth_session.pb` session·deviceId·pending revocation 저장소 구현 in android/app/src/main/java/com/gilpick/auth/AuthSessionStore.kt
+- [x] T009 [P] AndroidKeyStore AES-GCM 기반 `auth_session.pb` session·deviceId·pending revocation 저장소 구현 in android/app/src/main/java/com/gilpick/auth/AuthSessionStore.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002
@@ -80,12 +80,12 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jy
   - 선행: T004, T009
   - 검증: 공모전 실제 host의 debug·release fingerprint 검증, 인증 완료 path만 `autoVerify` claim, API callback 미claim, `auth_session.pb` backup 제외 확인
-- [ ] T011 [P] Retrofit 인증 transport와 공통 DTO·오류 mapping 기반 구현 in android/app/src/main/java/com/gilpick/auth/AuthApi.kt
+- [x] T011 [P] Retrofit 인증 transport와 공통 DTO·오류 mapping 기반 구현 in android/app/src/main/java/com/gilpick/auth/AuthApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002
   - 검증: OpenAPI의 success/error 응답 parsing unit test 통과
-- [ ] T012 Android 인증 repository 단일 진입점과 공통 UI 상태 기반 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt, android/app/src/main/java/com/gilpick/auth/AuthUiState.kt
+- [x] T012 Android 인증 repository 단일 진입점과 공통 UI 상태 기반 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt, android/app/src/main/java/com/gilpick/auth/AuthUiState.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009, T011
