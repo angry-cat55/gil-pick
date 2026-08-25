@@ -16,15 +16,17 @@
 
 ## 2. Backend와 Android 기준 버전
 
-**Decision**: Backend는 Python 3.13, FastAPI 0.141.1, SQLAlchemy 2.0.52 async, PostgreSQL 18.6/PostGIS 3.6.x를 고정한다. Android는 Kotlin 2.4.10, `compileSdk/targetSdk 36`, `minSdk 26`, Compose BOM 2026.08.00을 기준으로 한다.
+**Decision**: Backend는 Python 3.13, FastAPI 0.141.1, SQLAlchemy 2.0.52 async, PostgreSQL 18.6/PostGIS 3.6.x를 고정한다. Android는 Kotlin 2.4.10, `targetSdk 36`, `minSdk 26`, Compose BOM 2026.08.00을 기준으로 하고 `compileSdk`는 37을 사용한다.
 
-**Rationale**: 저장소에는 제품별 기술만 확정되어 있고 manifest가 없다. 2026-08-25 공식 안정판을 기준으로 재현 가능한 시작점을 선택하되 FastAPI의 `0.x` 특성상 minor를 고정한다. Android 8.0은 AndroidKeyStore AES-GCM, WorkManager, App Links를 적용하면서 MVP 지원 범위를 과도하게 넓히지 않는 하한이다.
+**Rationale**: 저장소에는 제품별 기술만 확정되어 있고 manifest가 없다. 2026-08-25 공식 안정판을 기준으로 재현 가능한 시작점을 선택하되 FastAPI의 `0.x` 특성상 minor를 고정한다. Android 8.0은 AndroidKeyStore AES-GCM, WorkManager, App Links를 적용하면서 MVP 지원 범위를 과도하게 넓히지 않는 하한이다. `compileSdk`는 이 문서가 고정한 Compose BOM 2026.08.00(Compose 1.12.0)과 `core-ktx 1.19.0`, `okhttp 5.5.0`이 요구하는 하한을 따라 37로 둔다. `compileSdk 36`으로는 `checkDebugAarMetadata`가 실패해 빌드가 성립하지 않는 것을 T002 구현에서 확인했다. `compileSdk`는 compile 시점에 사용할 수 있는 API 집합일 뿐이므로 런타임 동작 계약인 `targetSdk`는 36으로 유지한다.
 
 **Alternatives considered**:
 
 - pre-release Kotlin 2.4.20-RC: 안정판 요구 때문에 제외했다.
 - PostgreSQL 17: 안정 기간은 길지만 신규 구축 시 공식 지원 종료가 더 빠르다.
 - Android API 23 하한: 지원 기기는 늘지만 backup·crypto·background 호환 분기가 증가한다.
+- `compileSdk 36` 유지와 Compose BOM downgrade: 고정한 안정판 조합을 되돌려야 하고 Compose 1.12.0의 수정 사항을 포기하게 되므로 제외한다.
+- `targetSdk 37` 동반 상향: 아직 검증하지 않은 API 37 런타임 동작 변경까지 떠안게 되어 MVP 범위 밖이다.
 
 **Sources**: [FastAPI versions](https://fastapi.tiangolo.com/deployment/versions/), [SQLAlchemy 2.0](https://docs.sqlalchemy.org/en/20/intro.html), [PostgreSQL versioning](https://www.postgresql.org/support/versioning/), [Kotlin releases](https://kotlinlang.org/docs/releases.html), [Android 16 SDK](https://developer.android.com/about/versions/16/setup-sdk), [Compose BOM](https://developer.android.com/develop/ui/compose/bom)
 

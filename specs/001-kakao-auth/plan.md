@@ -12,13 +12,13 @@ Android 사용자는 Custom Tab에서 카카오 인증을 수행하고, Backend 
 
 **Language/Version**: Backend Python 3.13; Android Kotlin 2.4.10
 
-**Primary Dependencies**: FastAPI 0.141.1, SQLAlchemy 2.0.52 async, Alembic, asyncpg, HTTPX, PyJWT, APScheduler; Android SDK 36, Jetpack Compose BOM 2026.08.00, Lifecycle/ViewModel, Retrofit·OkHttp, Proto DataStore, WorkManager, AndroidKeyStore
+**Primary Dependencies**: FastAPI 0.141.1, SQLAlchemy 2.0.52 async, Alembic, asyncpg, HTTPX, PyJWT, APScheduler; Android `compileSdk 37`·`targetSdk 36`, Jetpack Compose BOM 2026.08.00, Lifecycle/ViewModel, Retrofit·OkHttp, Proto DataStore, WorkManager, AndroidKeyStore
 
 **Storage**: PostgreSQL 18.6 + PostGIS 3.6.x (`users`, `device_sessions`, `auth_login_transactions`); AndroidKeyStore AES-GCM key + app-private Proto DataStore ciphertext
 
 **Testing**: Backend pytest, pytest-asyncio, HTTPX ASGI client, PostgreSQL integration/contract tests; Android JUnit, kotlinx-coroutines-test, MockWebServer, WorkManager test utilities, Compose UI tests, App Link verification
 
-**Target Platform**: Docker 기반 AWS Linux Backend; Android 8.0 이상(`minSdk 26`, `compileSdk/targetSdk 36`)
+**Target Platform**: Docker 기반 AWS Linux Backend; Android 8.0 이상(`minSdk 26`, `targetSdk 36`, `compileSdk 37`)
 
 **Project Type**: Android mobile app + REST API web service
 

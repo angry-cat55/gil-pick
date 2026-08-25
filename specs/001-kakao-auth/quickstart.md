@@ -6,7 +6,7 @@
 
 - Docker와 Docker Compose
 - Python 3.13
-- JDK와 Android SDK 36, Android emulator 또는 API 26 이상 기기
+- JDK와 Android SDK Platform 37(`compileSdk`), Android emulator 또는 API 26 이상 기기
 - 수동 App Link 검증 명령용 API 31 이상 emulator/기기(API 26~30 기능 검증은 별도 수행)
 - Kakao Developers test app
   - REST API key와 Client secret 활성화
