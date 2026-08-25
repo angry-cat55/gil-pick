@@ -15,10 +15,10 @@ val apiBaseUrl: String = providers.gradleProperty("GILPICK_API_BASE_URL").get()
 android {
     namespace = "com.gilpick"
 
-    // plan.md는 compileSdk/targetSdk 36을 명시하지만 같은 문서가 고정한 Compose BOM
-    // 2026.08.00(Compose 1.12.0)과 core-ktx 1.19.0, okhttp 5.5.0이 compileSdk 37
-    // 이상을 요구한다. 런타임 동작 계약인 targetSdk는 36으로 유지하고 compileSdk만
-    // 올린다. plan.md 정정은 후속 명세 PR에서 처리한다.
+    // Compose BOM 2026.08.00(Compose 1.12.0)과 core-ktx 1.19.0, okhttp 5.5.0이
+    // compileSdk 37 이상을 요구한다. compileSdk는 compile 시점에 쓸 수 있는 API 집합일
+    // 뿐이므로 런타임 동작 계약인 targetSdk는 36으로 유지하고 compileSdk만 37로 둔다.
+    // 근거와 검토한 대안은 specs/001-kakao-auth/research.md 2절에 있다.
     compileSdk = 37
 
     defaultConfig {
