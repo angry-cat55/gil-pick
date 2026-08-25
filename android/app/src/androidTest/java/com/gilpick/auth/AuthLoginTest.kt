@@ -1,12 +1,12 @@
 package com.gilpick.auth
 
-import android.content.Intent
-import android.content.pm.PackageManager
+import android.content.pm.verify.domain.DomainVerificationManager
+import android.content.pm.verify.domain.DomainVerificationUserState
+import android.os.Build
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.BuildConfig
@@ -14,6 +14,7 @@ import com.gilpick.GilpickApp
 import com.gilpick.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,34 +37,30 @@ class AuthLoginTest {
 
     // --- verified App Link 수신 ---
 
+    /**
+     * 앱이 인증 완료 host를 App Link domain으로 선언하는지 확인한다.
+     *
+     * 선언까지가 앱의 몫이고, `VERIFIED`로 바뀌려면 실제 host의
+     * `/.well-known/assetlinks.json` 배포가 필요하다(T010). API 31 이상은 검증되지 않은
+     * domain을 암시적 intent 해석에서 제외하므로 `queryIntentActivities`로는 선언 여부를
+     * 확인할 수 없다. path 단위 claim 범위는 `AuthAppLinkHandler` test와 T045의
+     * `pm get-app-links`로 확인한다.
+     */
     @Test
-    fun 인증_완료_path의_App_Link를_앱이_claim한다() {
-        val intent = Intent(Intent.ACTION_VIEW, completeLink().toUri())
+    fun 앱이_인증_완료_host를_App_Link_domain으로_선언한다() {
+        assumeTrue("domain verification 조회는 API 31 이상이다", Build.VERSION.SDK_INT >= 31)
+        val manager = context.getSystemService(DomainVerificationManager::class.java)
 
-        val handlers = context.packageManager
-            .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            .map { it.activityInfo.packageName }
+        val hostStates = manager.getDomainVerificationUserState(context.packageName)?.hostToStateMap
 
         assertTrue(
-            "인증 완료 path는 길픽이 받아야 한다: $handlers",
-            handlers.contains(context.packageName),
+            "선언한 App Link domain: $hostStates",
+            hostStates?.containsKey(BuildConfig.APP_LINK_HOST) == true,
         )
-    }
-
-    @Test
-    fun API_callback_path는_앱이_claim하지_않는다() {
-        val intent = Intent(
-            Intent.ACTION_VIEW,
-            "https://${BuildConfig.APP_LINK_HOST}/api/v1/auth/kakao/callback?state=abc".toUri(),
-        )
-
-        val handlers = context.packageManager
-            .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            .map { it.activityInfo.packageName }
-
-        assertTrue(
-            "Kakao가 브라우저로 호출해야 하는 callback을 앱이 가로채면 안 된다: $handlers",
-            !handlers.contains(context.packageName),
+        assertEquals(
+            "assetlinks.json 배포 전에는 검증되지 않은 상태가 정상이다",
+            DomainVerificationUserState.DOMAIN_STATE_NONE,
+            hostStates?.get(BuildConfig.APP_LINK_HOST),
         )
     }
 
