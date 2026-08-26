@@ -90,6 +90,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 def error_response(request: Request, error: AppError) -> JSONResponse:
     """Serialize an application error without leaking internal exception data."""
     envelope = ErrorEnvelope(
+        success=False,
         error=ErrorBody(
             code=error.code,
             message=error.message,
@@ -107,7 +108,11 @@ def error_response(request: Request, error: AppError) -> JSONResponse:
 
 def success_response(request: Request, data: Any, *, status_code: int = 200) -> JSONResponse:
     """Serialize a successful payload with the correlated request ID."""
-    envelope = SuccessEnvelope(data=data, meta=ResponseMeta(request_id=get_request_id(request)))
+    envelope = SuccessEnvelope(
+        success=True,
+        data=data,
+        meta=ResponseMeta(request_id=get_request_id(request)),
+    )
     return JSONResponse(
         status_code=status_code,
         content=envelope.model_dump(mode="json", by_alias=True),
