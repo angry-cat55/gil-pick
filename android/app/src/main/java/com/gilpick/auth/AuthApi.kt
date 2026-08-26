@@ -134,7 +134,20 @@ object AuthErrorCodes {
  * Retrofit 예외를 화면까지 전파하지 않고 [AuthError]로 좁혀 다음 행동을 명확히 한다.
  */
 sealed interface AuthResult<out T> {
+
+    /**
+     * 계약을 만족하는 응답을 받았다.
+     *
+     * @property value endpoint별 payload.
+     * @property httpStatus 신규 `201`과 기존 `200`을 구분해야 하므로 그대로 보존한다.
+     */
     data class Success<T>(val value: T, val httpStatus: Int) : AuthResult<T>
+
+    /**
+     * 요청이 실패했다.
+     *
+     * @property error 다음 행동을 정하기 위해 좁힌 실패 원인.
+     */
     data class Failure(val error: AuthError) : AuthResult<Nothing>
 }
 
@@ -305,16 +318,19 @@ data class RefreshTokenData(
  */
 interface AuthService {
 
+    /** 기기에 결합된 로그인 transaction을 만들고 Kakao 인증 URL을 받는다. */
     @POST("auth/kakao/transactions")
     suspend fun createLoginTransaction(
         @Body body: CreateLoginTransactionRequest,
     ): Response<SuccessEnvelope<LoginTransactionData>>
 
+    /** 일회용 login ticket을 Token pair와 사용자 정보로 교환한다. */
     @POST("auth/kakao/exchange")
     suspend fun exchangeLoginTicket(
         @Body body: LoginTicketExchangeRequest,
     ): Response<SuccessEnvelope<AuthTokenData>>
 
+    /** 현재 기기의 Refresh Token을 새 Token pair로 회전한다. */
     @POST("auth/token/refresh")
     suspend fun refreshTokens(
         @Body body: RefreshTokenRequest,
