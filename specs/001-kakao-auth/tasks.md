@@ -75,7 +75,7 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jy
   - 선행: T002
   - 검증: 설치 최초 UUID `deviceId` 생성·재사용, 원자적 Token pair 저장, 평문 미저장, key invalidation 시 local 초기화 unit test 통과
-- [ ] T010 verified App Link·`assetlinks.json` 배포와 `auth_session.pb` backup 제외 설정 구현 in android/app/src/main/AndroidManifest.xml, android/app/src/main/res/xml/backup_rules.xml, android/app/src/main/res/xml/data_extraction_rules.xml, deployment target https://$ANDROID_APP_LINK_HOST/.well-known/assetlinks.json
+- [x] T010 verified App Link·`assetlinks.json` 배포와 `auth_session.pb` backup 제외 설정 구현 in android/app/src/main/AndroidManifest.xml, android/app/src/main/res/xml/backup_rules.xml, android/app/src/main/res/xml/data_extraction_rules.xml, deployment target https://$ANDROID_APP_LINK_HOST/.well-known/assetlinks.json
   - 영역: FE
   - 담당: jy
   - 선행: T004, T009
