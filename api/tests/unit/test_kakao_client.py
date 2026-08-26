@@ -51,3 +51,25 @@ async def test_profile_maps_nullable_fields() -> None:
         "nickname": None,
         "profile_image_url": None,
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider_url", "expected"),
+    [
+        ("http://k.kakaocdn.net/dn/abc/img_640x640.jpg", "https://k.kakaocdn.net/dn/abc/img_640x640.jpg"),
+        ("https://k.kakaocdn.net/dn/abc/img_640x640.jpg", "https://k.kakaocdn.net/dn/abc/img_640x640.jpg"),
+    ],
+)
+async def test_profile_normalizes_http_image_url(provider_url: str, expected: str) -> None:
+    """Kakao가 http로 주는 profile image URL을 계약대로 https로 맞춘다."""
+
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            json={"id": 42, "kakao_account": {"profile": {"profile_image_url": provider_url}}},
+        )
+
+    client = KakaoClient(settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+
+    assert (await client.get_user_profile("kakao-token"))["profile_image_url"] == expected

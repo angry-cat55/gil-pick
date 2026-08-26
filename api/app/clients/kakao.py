@@ -91,7 +91,7 @@ class KakaoClient:
         return {
             "id": subject,
             "nickname": profile.get("nickname"),
-            "profile_image_url": profile.get("profile_image_url"),
+            "profile_image_url": _normalize_profile_image_url(profile.get("profile_image_url")),
         }
 
     @staticmethod
@@ -103,3 +103,22 @@ class KakaoClient:
         if 400 <= response.status_code < 500:
             raise KakaoClientError("INVALID_AUTHORIZATION_CODE", status_code=response.status_code)
         raise KakaoClientError("KAKAO_API_FAILED", retryable=True, status_code=response.status_code)
+
+
+def _normalize_profile_image_url(url: str | None) -> str | None:
+    """Kakao가 http로 내려주는 profile image URL을 https로 맞춘다.
+
+    Kakao는 `k.kakaocdn.net` profile image를 http URL로 반환하지만 같은 경로를
+    https로도 제공한다. API 계약은 `profileImageUrl`을 https로 제한하고 Android는
+    `targetSdk 36`이라 cleartext 이미지를 로드할 수 없으므로, provider 응답이
+    들어오는 이 경계에서 scheme만 맞춘다. 경로와 host는 바꾸지 않는다.
+
+    Args:
+        url: Kakao가 반환한 profile image URL. 미동의 시 ``None``이다.
+
+    Returns:
+        https scheme으로 맞춘 URL. 입력이 ``None``이면 ``None``이다.
+    """
+    if url is not None and url.startswith("http://"):
+        return f"https://{url.removeprefix('http://')}"
+    return url
