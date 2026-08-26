@@ -12,6 +12,39 @@ plugins {
 val appLinkHost: String = providers.gradleProperty("GILPICK_ANDROID_APP_LINK_HOST").get()
 val apiBaseUrl: String = providers.gradleProperty("GILPICK_API_BASE_URL").get()
 
+/**
+ * 제출용 release 서명 정보.
+ *
+ * App Link 검증은 APK 서명 인증서의 SHA-256 fingerprint를 `assetlinks.json`과 대조하므로,
+ * release fingerprint를 얻으려면 release 서명이 필요하다. keystore와 비밀번호는 저장소에
+ * 두지 않고 `~/.gradle/gradle.properties`나 CI 비밀값에서 주입한다.
+ *
+ * 네 값이 모두 있을 때만 release 서명을 구성한다. 값이 없는 개발자도 debug 빌드와 test를
+ * 그대로 실행할 수 있어야 하기 때문이다.
+ */
+val releaseKeystorePath: String? = providers.gradleProperty("GILPICK_KEYSTORE_PATH").orNull
+val releaseKeystorePassword: String? = providers.gradleProperty("GILPICK_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias: String? = providers.gradleProperty("GILPICK_KEY_ALIAS").orNull
+val releaseKeyPassword: String? = providers.gradleProperty("GILPICK_KEY_PASSWORD").orNull
+val hasReleaseSigning: Boolean = listOf(
+    releaseKeystorePath,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+
+/**
+ * 팀 공용 debug keystore 경로.
+ *
+ * debug keystore는 PC마다 자동 생성되어 서명 fingerprint가 서로 다르다. 팀이 하나를
+ * 공유하면 `assetlinks.json`에 fingerprint 하나만 등록해도 모두가 App Link 검증을
+ * 통과한다. 비밀번호와 alias는 Android가 정한 고정 공개값이라 여기에 그대로 둔다.
+ *
+ * 값을 주지 않으면 각자 PC의 자동 생성 keystore를 그대로 쓴다. 이 경우 본인 fingerprint를
+ * `assetlinks.json`에 따로 등록해야 App Link 검증이 통과한다.
+ */
+val debugKeystorePath: String? = providers.gradleProperty("GILPICK_DEBUG_KEYSTORE_PATH").orNull
+
 android {
     namespace = "com.gilpick"
 
@@ -36,8 +69,33 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
+    signingConfigs {
+        if (!debugKeystorePath.isNullOrBlank()) {
+            getByName("debug") {
+                storeFile = file(debugKeystorePath)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // 서명 정보가 주입되지 않은 환경에서는 서명 없이 빌드한다. 이 APK로는 App Link
+            // 검증을 할 수 없으므로 제출용 빌드는 반드시 네 property를 주입해 만든다.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
         }
     }

@@ -38,16 +38,18 @@ class AuthLoginTest {
     // --- verified App Link 수신 ---
 
     /**
-     * 앱이 인증 완료 host를 App Link domain으로 선언하는지 확인한다.
+     * 앱이 인증 완료 host를 App Link domain으로 선언하고 검증까지 통과하는지 확인한다.
      *
-     * 선언까지가 앱의 몫이고, `VERIFIED`로 바뀌려면 실제 host의
-     * `/.well-known/assetlinks.json` 배포가 필요하다(T010). API 31 이상은 검증되지 않은
-     * domain을 암시적 intent 해석에서 제외하므로 `queryIntentActivities`로는 선언 여부를
-     * 확인할 수 없다. path 단위 claim 범위는 `AuthAppLinkHandler` test와 T045의
-     * `pm get-app-links`로 확인한다.
+     * T010의 검증 기준을 자동화한 test다. `VERIFIED`가 되려면 앱의 선언과 host의
+     * `/.well-known/assetlinks.json`이 모두 있어야 하고, 그 파일의 fingerprint 목록에
+     * 이 빌드의 서명 인증서가 들어 있어야 한다. 셋 중 하나라도 어긋나면 실패한다.
+     *
+     * API 31 이상은 검증되지 않은 domain을 암시적 intent 해석에서 제외하므로
+     * `queryIntentActivities`로는 선언 여부를 확인할 수 없다. path 단위 claim 범위는
+     * `AuthAppLinkHandler` test로 확인한다.
      */
     @Test
-    fun 앱이_인증_완료_host를_App_Link_domain으로_선언한다() {
+    fun 앱이_인증_완료_host를_App_Link_domain으로_검증한다() {
         assumeTrue("domain verification 조회는 API 31 이상이다", Build.VERSION.SDK_INT >= 31)
         val manager = context.getSystemService(DomainVerificationManager::class.java)
 
@@ -58,8 +60,9 @@ class AuthLoginTest {
             hostStates?.containsKey(BuildConfig.APP_LINK_HOST) == true,
         )
         assertEquals(
-            "assetlinks.json 배포 전에는 검증되지 않은 상태가 정상이다",
-            DomainVerificationUserState.DOMAIN_STATE_NONE,
+            "${BuildConfig.APP_LINK_HOST}의 assetlinks.json에 이 빌드의 서명 fingerprint가 " +
+                "있어야 한다. 상태가 바뀌지 않으면 pm verify-app-links --re-verify로 재검증한다.",
+            DomainVerificationUserState.DOMAIN_STATE_VERIFIED,
             hostStates?.get(BuildConfig.APP_LINK_HOST),
         )
     }
