@@ -33,6 +33,18 @@ val hasReleaseSigning: Boolean = listOf(
     releaseKeyPassword,
 ).all { !it.isNullOrBlank() }
 
+/**
+ * 팀 공용 debug keystore 경로.
+ *
+ * debug keystore는 PC마다 자동 생성되어 서명 fingerprint가 서로 다르다. 팀이 하나를
+ * 공유하면 `assetlinks.json`에 fingerprint 하나만 등록해도 모두가 App Link 검증을
+ * 통과한다. 비밀번호와 alias는 Android가 정한 고정 공개값이라 여기에 그대로 둔다.
+ *
+ * 값을 주지 않으면 각자 PC의 자동 생성 keystore를 그대로 쓴다. 이 경우 본인 fingerprint를
+ * `assetlinks.json`에 따로 등록해야 App Link 검증이 통과한다.
+ */
+val debugKeystorePath: String? = providers.gradleProperty("GILPICK_DEBUG_KEYSTORE_PATH").orNull
+
 android {
     namespace = "com.gilpick"
 
@@ -58,6 +70,15 @@ android {
     }
 
     signingConfigs {
+        if (!debugKeystorePath.isNullOrBlank()) {
+            getByName("debug") {
+                storeFile = file(debugKeystorePath)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+
         if (hasReleaseSigning) {
             create("release") {
                 storeFile = file(releaseKeystorePath!!)
