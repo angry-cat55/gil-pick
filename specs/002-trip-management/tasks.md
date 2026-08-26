@@ -74,11 +74,11 @@
 
 > **NOTE: 아래 test를 먼저 작성하고 구현 전에 실패하는 것을 확인한다**
 
-- [ ] T007 [P] [US1] Backend contract test: 생성 성공·검증 실패(이름 길이/trim, 기간, `startDate>endDate`) in `api/tests/contract/test_trip_contract.py`
+- [ ] T007 [P] [US1] Backend contract test: 생성 성공·검증 실패(이름 길이/trim, 기간, `startDate>endDate`)·동일 이름 재생성 성공 in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T005
-  - 검증: FR-001, FR-001a, FR-001b 대응 케이스 포함, 구현 전 실패
+  - 검증: FR-001, FR-001a, FR-001b 대응 케이스 포함, FR-002(동일 사용자 내 여행명 중복 생성이 거부되지 않고 성공하는 케이스) 포함, 구현 전 실패
 - [ ] T008 [P] [US1] Backend integration test: `Idempotency-Key` 재전송 시 단일 생성 in `api/tests/integration/test_trip_flow.py`
   - 영역: BE
   - 담당: ts
@@ -140,11 +140,11 @@
   - 담당: ts
   - 선행: T012
   - 검증: FR-004, FR-005, SC-005
-- [ ] T017 [P] [US2] Android unit test: 검색어·상태 필터 조합 상태 관리 in `android/app/src/test/java/com/gilpick/trip/TripListViewModelTest.kt`
+- [ ] T017 [P] [US2] Android unit test: 검색어·상태 필터 조합 상태 관리·무결과 상태 표시 in `android/app/src/test/java/com/gilpick/trip/TripListViewModelTest.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T006
-  - 검증: US2 Acceptance Scenario 2·3, 구현 전 실패
+  - 검증: US2 Acceptance Scenario 2·3, 검색어+상태 필터를 동시 적용해 결과가 없을 때 빈 화면 문구가 표시되는 케이스 포함, 구현 전 실패
 
 ### Implementation for User Story 2
 
@@ -237,11 +237,11 @@
 
 ### Tests for User Story 4
 
-- [ ] T030 [P] [US4] Backend contract test: 수정 성공, 버전 충돌(`409 VERSION_CONFLICT`), 완료 상태 기간 수정 거부(`409 TRIP_LOCKED`) in `api/tests/contract/test_trip_contract.py`
+- [ ] T030 [P] [US4] Backend contract test: 수정 성공, 버전 충돌(`409 VERSION_CONFLICT`), 완료 상태 기간 수정 거부(`409 TRIP_LOCKED`), 소유권 없는 사용자의 수정 거부(`403`) in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
-  - 검증: FR-010, FR-010a, FR-011, FR-011a, US4 Acceptance Scenario 5~8, 구현 전 실패
+  - 검증: FR-010, FR-010a, FR-011, FR-011a, US4 Acceptance Scenario 5~8, FR-017(다른 사용자가 `PATCH`를 시도하면 `403`으로 거부되는 케이스, T023의 상세 조회 소유권 테스트와 동일한 방식) 포함, 구현 전 실패
 - [ ] T031 [P] [US4] Backend integration test: 기간 축소 확인 흐름(`409 CONFIRMATION_REQUIRED` → `confirmDeleteOutOfRangeItems=true` 재요청) in `api/tests/integration/test_trip_flow.py`
   - 영역: BE
   - 담당: ts
@@ -260,11 +260,11 @@
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] `TripService.update_trip` 구현(버전 검증, 완료 상태 잠금, trim·기간 검증, 삭제 확인 플래그 처리) in `api/app/services/trip.py`
+- [ ] T034 [US4] `TripService.update_trip` 구현(버전 검증, 완료 상태 잠금, trim·기간 검증, 삭제 확인 플래그 처리, T025의 소유권 검증 재사용) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T025, T030, T031, T032
-  - 검증: T030~T032 test 통과
+  - 검증: T030~T032 test 통과(FR-017 소유권 거부 케이스 포함)
 - [ ] T035 [US4] `PATCH /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
