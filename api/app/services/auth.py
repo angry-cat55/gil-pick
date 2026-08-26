@@ -19,7 +19,7 @@ from app.core.config import Settings
 from app.core.logging import log_auth_event
 from app.core.security import create_access_token, create_opaque_token, parse_opaque_token
 from app.models.auth import AuthLoginTransaction, DeviceSession, User
-from app.schemas.auth import AuthTokenData, UserSummary
+from app.schemas.auth import AuthTokenData, RefreshTokenData, UserSummary
 
 logger = logging.getLogger("gilpick.auth")
 TRANSACTION_TTL = timedelta(minutes=10)
@@ -44,6 +44,13 @@ class InvalidLoginTicketError(AuthServiceError):
         super().__init__(code, status_code=401)
 
 
+class InvalidRefreshTokenError(AuthServiceError):
+    """유효하지 않거나 이미 회전·폐기된 Refresh Token이다."""
+
+    def __init__(self, code: str = "INVALID_REFRESH_TOKEN") -> None:
+        super().__init__(code, status_code=401)
+
+
 @dataclass(slots=True)
 class LoginExchangeResult:
     """Ticket 교환 뒤 endpoint가 직렬화할 인증 결과."""
@@ -61,6 +68,23 @@ class LoginExchangeResult:
             refresh_token=self.refresh_token,
             refresh_expires_in=2592000,
             user=self.user,
+        )
+
+
+@dataclass(slots=True)
+class RefreshResult:
+    """Refresh Token 회전 뒤 endpoint가 직렬화할 결과."""
+
+    access_token: str
+    refresh_token: str
+
+    def as_data(self) -> RefreshTokenData:
+        """공개 API schema로 변환한다."""
+        return RefreshTokenData(
+            access_token=self.access_token,
+            expires_in=3600,
+            refresh_token=self.refresh_token,
+            refresh_expires_in=2592000,
         )
 
 
@@ -282,3 +306,117 @@ async def exchange_login_ticket(session: AsyncSession, login_ticket: str, device
         user=UserSummary(user_id=user.user_id, nickname=user.nickname, profile_image_url=user.profile_image_url, provider="KAKAO"),
         is_new_user=is_new_user,
     )
+
+
+async def rotate_refresh_token(
+    session: AsyncSession,
+    refresh_token: str,
+    device_id: str | uuid.UUID,
+    settings: Settings,
+    *,
+    now: datetime | None = None,
+) -> RefreshResult:
+    """조건부 update 한 건으로 현재 기기의 Refresh Token을 회전한다."""
+    clock = now or datetime.now(UTC)
+    try:
+        current = parse_opaque_token(refresh_token)
+    except ValueError as exc:
+        raise InvalidRefreshTokenError() from exc
+    replacement = create_opaque_token(current.selector)
+    result = await session.execute(
+        update(DeviceSession)
+        .where(
+            DeviceSession.session_id == current.selector,
+            DeviceSession.refresh_token_hash == current.secret_hash,
+            DeviceSession.client_device_id == str(device_id),
+            DeviceSession.revoked_at.is_(None),
+            DeviceSession.refresh_expires_at > clock,
+        )
+        .values(
+            refresh_token_hash=replacement.secret_hash,
+            refresh_expires_at=clock + REFRESH_TTL,
+            last_seen_at=clock,
+        )
+        .returning(DeviceSession.user_id, DeviceSession.session_id)
+    )
+    rotated = result.one_or_none()
+    if rotated is None:
+        await _raise_refresh_rejection(session, current, device_id, clock)
+
+    user_id, session_id = rotated
+    log_auth_event(
+        logger,
+        operation="REFRESH_TOKEN",
+        result="SUCCEEDED",
+        session_id=str(session_id),
+    )
+    return RefreshResult(
+        access_token=create_access_token(user_id, session_id, settings, now=clock),
+        refresh_token=replacement.encoded,
+    )
+
+
+async def logout_device_session(
+    session: AsyncSession,
+    refresh_token: str,
+    device_id: str | uuid.UUID,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """현재 기기 session을 폐기하고 같은 자격의 반복 요청은 성공 처리한다."""
+    clock = now or datetime.now(UTC)
+    try:
+        current = parse_opaque_token(refresh_token)
+    except ValueError as exc:
+        raise InvalidRefreshTokenError() from exc
+    result = await session.execute(
+        update(DeviceSession)
+        .where(
+            DeviceSession.session_id == current.selector,
+            DeviceSession.refresh_token_hash == current.secret_hash,
+            DeviceSession.client_device_id == str(device_id),
+            DeviceSession.revoked_at.is_(None),
+            DeviceSession.refresh_expires_at > clock,
+        )
+        .values(revoked_at=clock, last_seen_at=clock)
+        .returning(DeviceSession.session_id)
+    )
+    session_id = result.scalar_one_or_none()
+    if session_id is None:
+        stored = await session.get(DeviceSession, current.selector)
+        if stored is None or not hmac.compare_digest(
+            stored.refresh_token_hash, current.secret_hash
+        ):
+            raise InvalidRefreshTokenError()
+        if stored.client_device_id != str(device_id):
+            raise AuthServiceError("DEVICE_MISMATCH", status_code=403)
+        if stored.refresh_expires_at <= clock:
+            raise InvalidRefreshTokenError()
+        if stored.revoked_at is None:
+            raise InvalidRefreshTokenError()
+        session_id = stored.session_id
+    log_auth_event(
+        logger,
+        operation="LOGOUT",
+        result="SUCCEEDED",
+        session_id=str(session_id),
+    )
+
+
+async def _raise_refresh_rejection(
+    session: AsyncSession,
+    current: Any,
+    device_id: str | uuid.UUID,
+    clock: datetime,
+) -> None:
+    """조건부 회전 실패를 공개 오류 계약으로 분류한다."""
+    stored = await session.get(DeviceSession, current.selector)
+    if stored is None or not hmac.compare_digest(
+        stored.refresh_token_hash, current.secret_hash
+    ):
+        raise InvalidRefreshTokenError()
+    if stored.client_device_id != str(device_id):
+        raise AuthServiceError("DEVICE_MISMATCH", status_code=403)
+    if stored.refresh_expires_at <= clock:
+        raise InvalidRefreshTokenError("TOKEN_EXPIRED")
+    raise InvalidRefreshTokenError()

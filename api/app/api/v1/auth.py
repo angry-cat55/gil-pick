@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from urllib.parse import urlencode
 
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.errors import AppError, success_response
 from app.clients.kakao import KakaoClient
 from app.core.config import Settings, get_settings
+from app.core.logging import log_auth_event
 from app.db import create_session_factory, get_session
 from app.schemas.auth import (
     AuthTokenData,
@@ -20,13 +22,22 @@ from app.schemas.auth import (
     ErrorEnvelope,
     LoginTicketExchangeRequest,
     LoginTransactionData,
+    RefreshTokenData,
+    RefreshTokenRequest,
     SuccessEnvelope,
 )
-from app.services.auth import AuthService, AuthServiceError, exchange_login_ticket
+from app.services.auth import (
+    AuthService,
+    AuthServiceError,
+    exchange_login_ticket,
+    logout_device_session,
+    rotate_refresh_token,
+)
 
-router = APIRouter(prefix="/auth/kakao", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 NO_CACHE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 CALLBACK_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+logger = logging.getLogger("gilpick.auth")
 
 
 async def _service(settings: Settings = Depends(get_settings)) -> AsyncIterator[AuthService]:
@@ -36,7 +47,7 @@ async def _service(settings: Settings = Depends(get_settings)) -> AsyncIterator[
 
 
 @router.post(
-    "/transactions",
+    "/kakao/transactions",
     status_code=201,
     response_model=SuccessEnvelope[LoginTransactionData],
     responses={
@@ -58,7 +69,7 @@ async def create_transaction(payload: CreateLoginTransactionRequest, request: Re
 
 
 @router.get(
-    "/callback",
+    "/kakao/callback",
     status_code=302,
     responses={
         302: {
@@ -105,7 +116,7 @@ async def kakao_callback(
 
 
 @router.post(
-    "/exchange",
+    "/kakao/exchange",
     response_model=SuccessEnvelope[AuthTokenData],
     responses={
         200: {"headers": {"Cache-Control": {"schema": {"type": "string", "const": "no-store"}}, "Pragma": {"schema": {"type": "string", "const": "no-cache"}}}},
@@ -124,3 +135,67 @@ async def exchange_ticket(payload: LoginTicketExchangeRequest, request: Request,
     response = success_response(request, result.as_data(), status_code=201 if result.is_new_user else 200)
     response.headers.update(NO_CACHE_HEADERS)
     return response
+
+
+@router.post(
+    "/token/refresh",
+    response_model=SuccessEnvelope[RefreshTokenData],
+    responses={
+        200: {"headers": {"Cache-Control": {"schema": {"type": "string", "const": "no-store"}}, "Pragma": {"schema": {"type": "string", "const": "no-cache"}}}},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        500: {"model": ErrorEnvelope},
+    },
+)
+async def refresh_tokens(payload: RefreshTokenRequest, request: Request, session: AsyncSession = Depends(get_session), settings: Settings = Depends(get_settings)):
+    """현재 기기의 유효한 Refresh Token을 새 Token pair로 회전한다."""
+    try:
+        result = await rotate_refresh_token(
+            session, payload.refresh_token, payload.device_id, settings
+        )
+    except AuthServiceError as exc:
+        log_auth_event(
+            logger,
+            operation="REFRESH_TOKEN",
+            result="FAILED",
+            error_code=exc.code,
+        )
+        raise AppError(
+            exc.status_code,
+            exc.code,
+            "로그인 상태를 갱신할 수 없습니다.",
+            retryable=exc.retryable,
+        ) from exc
+    response = success_response(request, result.as_data())
+    response.headers.update(NO_CACHE_HEADERS)
+    return response
+
+
+@router.post(
+    "/logout",
+    status_code=204,
+    response_model=None,
+    responses={
+        204: {"description": "현재 기기 logout 완료 또는 이미 같은 자격으로 완료됨"},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        500: {"model": ErrorEnvelope},
+    },
+)
+async def logout(payload: RefreshTokenRequest, session: AsyncSession = Depends(get_session)):
+    """Bearer 없이 현재 기기의 Refresh Token을 멱등 폐기한다."""
+    try:
+        await logout_device_session(session, payload.refresh_token, payload.device_id)
+    except AuthServiceError as exc:
+        log_auth_event(
+            logger,
+            operation="LOGOUT",
+            result="FAILED",
+            error_code=exc.code,
+        )
+        raise AppError(
+            exc.status_code,
+            exc.code,
+            "로그인 상태를 종료할 수 없습니다.",
+            retryable=exc.retryable,
+        ) from exc
