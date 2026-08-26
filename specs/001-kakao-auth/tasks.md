@@ -103,17 +103,17 @@ description: "F001 카카오 인증 구현 작업 목록"
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] transaction·callback·ticket exchange OpenAPI contract test 작성 in api/tests/contract/test_auth_contract.py
+- [x] T013 [P] [US1] transaction·callback·ticket exchange OpenAPI contract test 작성 in api/tests/contract/test_auth_contract.py
   - 영역: BE
   - 담당: jh
   - 선행: T004, T006, T007, T008
   - 검증: 구현 전 실패하고 `201/200/302/400/401/403/500`, request ID, cache/referrer header와 URI fragment 계약을 검사
-- [ ] T014 [P] [US1] 신규·기존·다중 기기·ticket 단일 소비 integration test 작성 in api/tests/integration/test_auth_flow.py
+- [x] T014 [P] [US1] 신규·기존·다중 기기·ticket 단일 소비 integration test 작성 in api/tests/integration/test_auth_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T005, T006, T007
   - 검증: 구현 전 실패하고 동시 ticket 교환 중 정확히 한 건만 성공하며 부분 user/session이 남지 않는 조건 포함
-- [ ] T015 [P] [US1] state 선점·Kakao retry 경계·profile upsert unit test 작성 in api/tests/unit/test_auth_service.py
+- [x] T015 [P] [US1] state 선점·Kakao retry 경계·profile upsert unit test 작성 in api/tests/unit/test_auth_service.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007, T008
@@ -131,22 +131,22 @@ description: "F001 카카오 인증 구현 작업 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T018 [P] [US1] Kakao code 교환과 사용자 조회 client 및 재시도 정책 구현 in api/app/clients/kakao.py
+- [x] T018 [P] [US1] Kakao code 교환과 사용자 조회 client 및 재시도 정책 구현 in api/app/clients/kakao.py
   - 영역: BE
   - 담당: jh
   - 선행: T004, T015
   - 검증: mock provider로 timeout·4xx·429·5xx mapping과 code 무재시도/사용자 조회 1회 재시도 test 통과
-- [ ] T019 [US1] login transaction 선점과 ticket 원자 교환 service 구현 in api/app/services/auth.py
+- [x] T019 [US1] login transaction 선점과 ticket 원자 교환 service 구현 in api/app/services/auth.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007, T008, T014, T015, T018
   - 검증: `SELECT ... FOR UPDATE` ticket 단일 소비, user/device session upsert, 실패 전체 rollback과 request ID·상태 전이 log test 통과
-- [ ] T020 [US1] `POST /auth/kakao/transactions`·`GET /auth/kakao/callback`·`POST /auth/kakao/exchange` endpoint와 router 등록 구현 in api/app/api/v1/auth.py, api/app/main.py
+- [x] T020 [US1] `POST /auth/kakao/transactions`·`GET /auth/kakao/callback`·`POST /auth/kakao/exchange` endpoint와 router 등록 구현 in api/app/api/v1/auth.py, api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T013, T019
   - 검증: US1 contract/integration test 전체 통과 및 callback 302·no-store·no-referrer 확인
-- [ ] T021 [US1] login transaction과 만료·폐기 device session 보존정책 cleanup job·application lifecycle 등록 구현 in api/app/jobs/auth_cleanup.py, api/app/main.py
+- [x] T021 [US1] login transaction과 만료·폐기 device session 보존정책 cleanup job·application lifecycle 등록 구현 in api/app/jobs/auth_cleanup.py, api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T020
