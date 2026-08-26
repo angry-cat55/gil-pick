@@ -297,12 +297,12 @@ description: "F001 카카오 인증 구현 작업 목록"
 
 **Purpose**: 성능, 전체 보안 및 종단간 증거를 검증한다.
 
-- [ ] T043 인증 endpoint 동시성·p95·100개 session Refresh smoke test 구현 in api/tests/integration/test_auth_load.py
+- [x] T043 인증 endpoint 동시성·p95·100개 session Refresh smoke test 구현 in api/tests/integration/test_auth_load.py
   - 영역: BE
   - 담당: jh
   - 선행: T020, T031, T040
   - 검증: Kakao mock 기준 동시 100건 무결성 오류 없음, JSON 인증 endpoint p95 500ms 이하, 서로 다른 유효 session 100건 Refresh 전부 성공, 같은 Token 경쟁 성공 update 1건 확인
-- [ ] T044 [P] Backend migration·unit·contract·integration·문서화 검증 실행 according to specs/001-kakao-auth/quickstart.md
+- [x] T044 [P] Backend migration·unit·contract·integration·문서화 검증 실행 according to specs/001-kakao-auth/quickstart.md
   - 영역: BE
   - 담당: jh
   - 선행: T021, T040, T043
