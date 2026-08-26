@@ -307,7 +307,7 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T021, T040, T043
   - 검증: quickstart Backend 명령, request ID·상태 전이 log와 30일 log 보존 설정, 필수 Google-style docstring 확인 및 미실행 항목·이유 기록
-- [ ] T045 [P] Android unit·instrumented·실제 App Link·secure storage·반복 시간 검증 실행 according to specs/001-kakao-auth/quickstart.md
+- [x] T045 [P] Android unit·instrumented·실제 App Link·secure storage·반복 시간 검증 실행 according to specs/001-kakao-auth/quickstart.md
   - 영역: FE
   - 담당: jy
   - 선행: T025, T034, T042

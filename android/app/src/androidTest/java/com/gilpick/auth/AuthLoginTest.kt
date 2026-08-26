@@ -3,8 +3,11 @@ package com.gilpick.auth
 import android.content.pm.verify.domain.DomainVerificationManager
 import android.content.pm.verify.domain.DomainVerificationUserState
 import android.os.Build
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -12,6 +15,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.BuildConfig
 import com.gilpick.GilpickApp
 import com.gilpick.R
+import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -161,11 +172,93 @@ class AuthLoginTest {
         composeRule.onNodeWithText(string(R.string.trips_empty)).assertIsDisplayed()
     }
 
+    // --- T045: 반복 시간 측정 ---
+
+    /**
+     * mock 환경에서 App Link 수신부터 빈 여행 목록 shell 표시까지의 시간을 20회 측정한다.
+     *
+     * SC-001의 "20회 중 19회 이상 10초 이내"를 확인한다. Kakao와 Backend는 mock이므로
+     * 외부 대기시간은 빠지고 ticket 교환, 암호화 저장, 화면 전환 경로만 측정한다.
+     * 느린 회차도 기록해야 분포를 볼 수 있으므로 대기 한도는 기준치보다 넉넉하게 둔다.
+     */
+    @Test
+    fun mock_App_Link부터_빈_여행_목록_shell까지_20회_중_19회_이상_10초_이내다() {
+        val server = MockWebServer()
+        server.start()
+        val storeFile = File(context.cacheDir, "auth-perf-${System.nanoTime()}.pb")
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val repository = AuthRepository(
+            store = AuthSessionStore(
+                AuthSessionStore.createDataStore(storeFile, scope),
+                KeystoreSessionCipher(PERF_KEY_ALIAS),
+            ),
+            api = createAuthRetrofit(server.url("/api/v1/").toString())
+                .create(AuthService::class.java),
+            appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
+            scope = scope,
+        )
+
+        try {
+            composeRule.setContent {
+                val state by repository.state.collectAsState()
+                GilpickApp(state = state, onKakaoLogin = {}, onRetry = {})
+            }
+
+            val durationsMs = (1..ITERATIONS).map { iteration ->
+                server.enqueue(MockResponse(code = 201, body = tokenJson(iteration)))
+                runBlocking { repository.onSignedOut() }
+                composeRule.waitUntil(WAIT_LIMIT_MS) { isDisplayed(R.string.login_kakao) }
+
+                val startedAt = System.nanoTime()
+                runBlocking { repository.completeLogin(completeLink(iteration)) }
+                composeRule.waitUntil(WAIT_LIMIT_MS) { isDisplayed(R.string.trips_empty) }
+                (System.nanoTime() - startedAt) / 1_000_000
+            }
+
+            val withinLimit = durationsMs.count { it <= LIMIT_MS }
+            assertTrue(
+                "10초 이내 $withinLimit/$ITERATIONS 회. 회차별 ms=$durationsMs",
+                withinLimit >= REQUIRED_WITHIN_LIMIT,
+            )
+        } finally {
+            server.close()
+            scope.cancel()
+            storeFile.delete()
+        }
+    }
+
+    /** 해당 문자열을 가진 node가 화면에 있는지 확인한다. */
+    private fun isDisplayed(id: Int) =
+        composeRule.onAllNodesWithText(string(id)).fetchSemanticsNodes().isNotEmpty()
+
+    /** 회차마다 다른 ticket을 만든다. 같은 link는 한 번만 소비되기 때문이다. */
+    private fun completeLink(iteration: Int) =
+        "https://${BuildConfig.APP_LINK_HOST}/auth/kakao/complete" +
+            "#loginTicket=${ticketFor(iteration)}"
+
+    private fun ticketFor(iteration: Int) =
+        "11111111-2222-4333-8444-%012d.%s".format(iteration, TICKET_SECRET)
+
+    private fun tokenJson(iteration: Int) = """
+        {"success":true,
+         "data":{"accessToken":"access-$iteration","expiresIn":3600,
+                 "refreshToken":"${ticketFor(iteration)}","refreshExpiresIn":2592000,
+                 "user":{"userId":"$USER_ID","provider":"KAKAO"}},
+         "meta":{"requestId":"$REQUEST_ID"}}
+    """.trimIndent()
+
     private fun completeLink() =
         "https://${BuildConfig.APP_LINK_HOST}/auth/kakao/complete#loginTicket=$TICKET"
 
     private companion object {
         const val USER_ID = "33333333-4444-4555-8666-777777777777"
+        const val REQUEST_ID = "99999999-8888-4777-8666-555555555555"
+        const val PERF_KEY_ALIAS = "gilpick.auth.perf.test"
+        const val ITERATIONS = 20
+        const val REQUIRED_WITHIN_LIMIT = 19
+        const val LIMIT_MS = 10_000L
+        const val WAIT_LIMIT_MS = 30_000L
+        const val TICKET_SECRET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"
         const val TICKET =
             "11111111-2222-4333-8444-555555555555.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"
     }
