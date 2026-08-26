@@ -53,6 +53,26 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         viewModelScope.launch { repository.cancelLogin() }
     }
 
+    /**
+     * 통신 장애로 중단된 로그인 상태 갱신을 다시 시도한다.
+     *
+     * 성공하면 `Authenticated`로 돌아가고, 자격이 무효로 확정되면 `SignedOut`이 되어
+     * 재로그인을 요구한다. 다시 통신에 실패하면 `RefreshOffline`을 유지한다.
+     */
+    fun retryRefresh() {
+        viewModelScope.launch { repository.refresh() }
+    }
+
+    /**
+     * 현재 기기에서 로그아웃한다.
+     *
+     * network 상태와 무관하게 즉시 로그인 화면으로 전환되고, 서버 폐기는 배경 작업으로
+     * 재시도한다.
+     */
+    fun logout() {
+        viewModelScope.launch { repository.logout() }
+    }
+
     companion object {
 
         /**
@@ -70,6 +90,7 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                             api = createAuthRetrofit(BuildConfig.API_BASE_URL)
                                 .create(AuthService::class.java),
                             appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
+                            scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
                         ),
                     )
                 }

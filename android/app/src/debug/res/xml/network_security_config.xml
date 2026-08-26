@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  debug 빌드에서만 loopback 평문 통신을 허용한다.
+
+  계측 test의 MockWebServer는 기기 안 127.0.0.1에서 HTTP로 응답하므로, targetSdk 28
+  이상의 기본 cleartext 차단을 loopback에 한해 푼다. 실제 인증 endpoint는 HTTPS이고
+  release 빌드에는 이 설정이 포함되지 않는다.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

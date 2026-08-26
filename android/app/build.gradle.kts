@@ -96,5 +96,6 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.work:work-testing:2.11.2")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver3-junit4:5.5.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
