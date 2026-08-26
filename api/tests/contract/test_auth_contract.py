@@ -1,4 +1,4 @@
-"""US1 Kakao login HTTP contract tests."""
+"""F001 authentication HTTP contract tests."""
 
 from urllib.parse import parse_qs, urlparse
 
@@ -8,13 +8,18 @@ from fastapi.testclient import TestClient
 from app.api.v1.auth import _service
 from app.core.config import get_settings
 from app.main import app
-from app.services.auth import AuthServiceError
+from app.services.auth import AuthServiceError, RefreshResult
 
 
 US1_RESPONSES = {
     "/api/v1/auth/kakao/transactions": {"201", "400", "500"},
     "/api/v1/auth/kakao/callback": {"302", "400"},
     "/api/v1/auth/kakao/exchange": {"200", "201", "401", "403", "500"},
+}
+
+SESSION_RESPONSES = {
+    "/api/v1/auth/token/refresh": {"200", "401", "403", "500"},
+    "/api/v1/auth/logout": {"204", "401", "403", "500"},
 }
 
 
@@ -88,6 +93,148 @@ def test_json_error_contract_has_request_id(
 
     assert {"success", "error", "meta"} <= set(envelope["required"])
     assert "requestId" in meta["required"]
+
+
+@pytest.mark.parametrize(("path", "statuses"), SESSION_RESPONSES.items())
+def test_session_endpoints_declare_expected_statuses(
+    openapi: dict, path: str, statuses: set[str]
+) -> None:
+    assert set(_operation(openapi, path, "post")["responses"]) == statuses
+
+
+def test_refresh_success_contract_has_sliding_expiry_and_no_cache_headers(
+    openapi: dict,
+) -> None:
+    response = _operation(openapi, "/api/v1/auth/token/refresh", "post")[
+        "responses"
+    ]["200"]
+    schema = response["content"]["application/json"]["schema"]
+    components = openapi["components"]["schemas"]
+    envelope = components[schema["$ref"].rsplit("/", 1)[-1]]
+    data = components[envelope["properties"]["data"]["$ref"].rsplit("/", 1)[-1]]
+
+    assert data["properties"]["refreshExpiresIn"]["const"] == 2_592_000
+    assert "requestId" in components[
+        envelope["properties"]["meta"]["$ref"].rsplit("/", 1)[-1]
+    ]["required"]
+    assert _header(response, "Cache-Control")["const"] == "no-store"
+    assert _header(response, "Pragma")["const"] == "no-cache"
+
+
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [
+        ("/api/v1/auth/token/refresh", "401"),
+        ("/api/v1/auth/token/refresh", "403"),
+        ("/api/v1/auth/token/refresh", "500"),
+        ("/api/v1/auth/logout", "401"),
+        ("/api/v1/auth/logout", "403"),
+        ("/api/v1/auth/logout", "500"),
+    ],
+)
+def test_session_error_contract_has_request_id(
+    openapi: dict, path: str, status: str
+) -> None:
+    response = _operation(openapi, path, "post")["responses"][status]
+    schema = response["content"]["application/json"]["schema"]
+    components = openapi["components"]["schemas"]
+    envelope = components[schema["$ref"].rsplit("/", 1)[-1]]
+    meta = components[envelope["properties"]["meta"]["$ref"].rsplit("/", 1)[-1]]
+
+    assert "requestId" in meta["required"]
+
+
+def test_logout_contract_requires_no_bearer_security(openapi: dict) -> None:
+    operation = _operation(openapi, "/api/v1/auth/logout", "post")
+
+    assert operation.get("security", []) == []
+    assert "requestBody" in operation
+
+
+def test_refresh_endpoint_returns_rotated_pair_and_request_id(monkeypatch) -> None:
+    token = "00000000-0000-4000-8000-000000000000." + "A" * 43
+
+    async def rotate(*_args, **_kwargs) -> RefreshResult:
+        return RefreshResult(access_token="access", refresh_token=token)
+
+    monkeypatch.setattr("app.api.v1.auth.rotate_refresh_token", rotate)
+    response = TestClient(app).post(
+        "/api/v1/auth/token/refresh",
+        json={
+            "refreshToken": token,
+            "deviceId": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["refreshExpiresIn"] == 2_592_000
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["Pragma"] == "no-cache"
+
+
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [("INVALID_REFRESH_TOKEN", 401), ("TOKEN_EXPIRED", 401), ("DEVICE_MISMATCH", 403)],
+)
+def test_refresh_endpoint_maps_auth_errors(monkeypatch, code: str, status: int) -> None:
+    async def reject(*_args, **_kwargs) -> None:
+        raise AuthServiceError(code, status_code=status)
+
+    monkeypatch.setattr("app.api.v1.auth.rotate_refresh_token", reject)
+    token = "00000000-0000-4000-8000-000000000000." + "A" * 43
+    response = TestClient(app).post(
+        "/api/v1/auth/token/refresh",
+        json={
+            "refreshToken": token,
+            "deviceId": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+def test_logout_endpoint_is_bearer_free_and_returns_204(monkeypatch) -> None:
+    async def revoke(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("app.api.v1.auth.logout_device_session", revoke)
+    token = "00000000-0000-4000-8000-000000000000." + "A" * 43
+    response = TestClient(app).post(
+        "/api/v1/auth/logout",
+        json={
+            "refreshToken": token,
+            "deviceId": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+
+    assert response.status_code == 204
+    assert not response.content
+
+
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [("INVALID_REFRESH_TOKEN", 401), ("DEVICE_MISMATCH", 403)],
+)
+def test_logout_endpoint_maps_auth_errors(monkeypatch, code: str, status: int) -> None:
+    async def reject(*_args, **_kwargs) -> None:
+        raise AuthServiceError(code, status_code=status)
+
+    monkeypatch.setattr("app.api.v1.auth.logout_device_session", reject)
+    token = "00000000-0000-4000-8000-000000000000." + "A" * 43
+    response = TestClient(app).post(
+        "/api/v1/auth/logout",
+        json={
+            "refreshToken": token,
+            "deviceId": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
 
 
 def test_callback_redirect_uses_fragment_and_security_headers(openapi: dict) -> None:
