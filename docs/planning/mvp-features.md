@@ -44,6 +44,30 @@
 - 실제 구현은 `tasks.md`의 task를 GitHub Issue로 나눈 뒤 팀원들이 분담한다.
 - Feature 상태는 관련 산출물과 GitHub Issue·PR 상태가 바뀔 때 함께 갱신한다.
 
+## 공통 환경 준비 Gate
+
+환경 준비는 사용자 기능이 아니므로 별도 Feature 번호를 부여하지 않고 `chore` 또는 `infra` Issue로 관리한다. 각 Issue에는 대상 환경, 담당자, 비용 영향, secret 소유자, 완료 조건과 이를 기다리는 Feature task를 명시한다.
+
+### G001 외부 연동 검증 Gate
+
+- 실제 callback, App Link 또는 외부 API 종단간 검증이 필요한 Feature는 해당 검증 task를 시작하기 전에 공유 dev/staging 환경을 준비한다.
+- 공유 환경에는 외부에서 접근 가능한 HTTPS Backend, PostgreSQL·PostGIS 연결, 환경변수·secret 주입, 필요한 callback·domain 등록이 포함된다.
+- 외부 연동 자격은 다음 시점까지 준비한다.
+  - F001: Kakao test app, Backend HTTPS callback, Android App Link domain과 `assetlinks.json`
+  - F003: TourAPI
+  - F005: TMAP·ODsay
+  - F008: 기상청·서울시 데이터
+  - F009: Google Places
+  - F011: Firebase·FCM
+- 실제 환경이 필요한 task는 관련 환경 Issue를 `blocked by #번호`로 연결한다. mock·local test만 필요한 선행 task까지 불필요하게 차단하지 않는다.
+
+### G002 MVP 운영 준비 Gate
+
+- MVP 전체 종단간 검증과 배포 후보 확정 전까지 Backend 실행 환경, 운영 PostgreSQL·PostGIS, HTTPS domain·TLS, secret 관리, 로그 보존·접근 제한, backup·restore, monitoring과 배포 절차를 준비한다.
+- CI/CD를 사용한다면 build·test·migration·배포 단계와 실패 시 중단·rollback 절차를 운영 환경 Issue에 기록한다. 수동 배포를 선택한 경우에도 같은 검증과 복구 절차를 문서화한다.
+- AWS의 구체 서비스와 환경 수, 비용 상한은 인프라 Issue의 기술 결정으로 합의하며 이 문서에서 임의로 고정하지 않는다.
+- 운영 자격과 실제 endpoint는 저장소에 기록하지 않고 승인된 secret 저장소와 배포 환경에서 주입한다.
+
 ## 관련 문서
 
 - MVP 범위: `docs/planning/mvp.md`

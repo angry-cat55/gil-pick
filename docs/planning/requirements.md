@@ -71,4 +71,9 @@
 - 성공·오류 응답은 공통 envelope를 사용한다.
 - 앱 토큰은 Android Keystore 기반 안전 저장소에 보관한다.
 - 위치 이벤트와 상태 변경에는 발생 시각, 처리 출처, 변경 전후 상태를 기록한다.
+- 실제 외부 연동 검증 전에는 외부에서 접근 가능한 HTTPS dev/staging Backend, PostgreSQL·PostGIS와 Feature별 test credential을 준비한다.
+- 운영환경은 MVP 전체 종단간 검증과 배포 후보 확정 전에 구성하며 Backend 실행 환경, 운영 DB, HTTPS·TLS, secret 주입, 로그 보존·접근 제한, backup·restore, monitoring과 배포·rollback 절차를 포함한다.
+- DB 주소, API key, signing secret과 실제 endpoint 같은 환경별 값은 repository에 저장하지 않고 승인된 secret 저장소 또는 배포 환경변수로 주입한다.
+- `.env`의 local test secret은 개인 local 환경에서만 사용하며 공유 dev/staging과 운영환경에는 사용하지 않는다.
+- 외부 API credential은 사용하는 Feature의 실제 연동 검증 전에 준비하며, 준비되지 않은 실제 연동 task는 환경 Issue를 선행 관계로 명시한다.
 

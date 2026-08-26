@@ -170,3 +170,33 @@
 - 도착·출발 확인 알림은 여행 진행을 위해 별도로 동작한다.
 - 설정 화면에는 이용약관, 개인정보처리방침, 로그아웃을 제공한다.
 
+## 7. 실행 환경과 배포 준비
+
+### 7.1 G001 공유 dev/staging 환경
+
+- 실제 callback, App Link 또는 외부 API 검증이 필요한 Feature는 종단간 검증 전에 공유 dev/staging 환경을 사용한다.
+- 환경은 HTTPS Backend, PostgreSQL·PostGIS, 환경별 secret 주입과 필요한 외부 서비스 callback·domain 등록을 제공한다.
+- local test secret은 개인 local 환경에만 허용하고 공유 환경의 secret은 승인된 secret 저장소 또는 배포 환경변수로 주입한다.
+- F001은 실제 Kakao test app과 Android App Link 검증 전에 준비한다. 이후 외부 API credential은 F003·F005·F008·F009·F011의 실제 연동 검증 전에 각각 준비한다.
+- 환경 준비가 완료되지 않아도 mock·local test가 가능한 task는 진행할 수 있다. 실제 연동 task만 환경 Issue에 의존한다.
+
+완료 조건:
+
+- 실제 endpoint와 secret이 repository, test output과 screenshot에 노출되지 않는다.
+- 해당 Feature가 요구하는 callback·domain·credential로 정상·실패 종단간 흐름을 재현할 수 있다.
+- 환경 준비 Issue와 이를 기다리는 Feature task의 선행 관계가 GitHub에 기록되어 있다.
+
+### 7.2 G002 MVP 운영환경
+
+- MVP 전체 종단간 검증과 배포 후보 확정 전에 Backend 실행 환경과 운영 PostgreSQL·PostGIS를 구성한다.
+- HTTPS domain·TLS, secret 관리, 인증 application log 30일 보존과 Backend 운영 계정 접근 제한, backup·restore, monitoring을 구성하고 검증한다.
+- 배포 방식은 build, test, DB migration, 배포, 실패 시 중단과 rollback 순서를 재현 가능하게 문서화한다.
+- AWS의 구체 서비스, 환경 수와 비용 상한은 별도 인프라 Issue에서 팀 합의로 결정한다.
+
+완료 조건:
+
+- 배포된 Backend가 운영 DB와 외부 서비스에 secret 노출 없이 연결된다.
+- migration과 애플리케이션 배포의 순서 및 rollback 절차가 검증된다.
+- 인증 로그의 30일 보존과 Backend 운영 계정 접근 제한을 실제 설정으로 확인한다.
+- backup 복구 절차와 핵심 monitoring·장애 확인 경로가 문서화된다.
+
