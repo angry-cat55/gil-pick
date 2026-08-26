@@ -55,6 +55,7 @@
 ## 4. GitHub Issue 작성과 작업 단위
 
 - Issue에는 목적, 작업 범위, 완료 조건, 테스트 방법, 관련 문서 또는 의존 Issue를 명시한다.
+- Issue를 생성하거나 변환할 때 작업 영역과 유형에 맞는 저장소 표준 label을 적용한다.
 - 한 Issue는 한 사람이 독립적으로 구현하고 테스트할 수 있으며, 다른 팀원이 변경 범위와 완료 여부를 독립적으로 review할 수 있는 크기로 나눈다.
 - `tasks.md`의 task는 구현 순서와 세부 완료 여부를 관리하는 단위이며 GitHub Issue와 1:1로 대응하지 않는다. GitHub Issue는 한 담당자가 하나의 브랜치와 PR에서 완료할 수 있는 응집된 구현·검증 묶음으로 생성한다.
 - 같은 담당자와 영역에 속하고 하나의 기능 흐름을 함께 완성하며 선행 관계와 수정 파일 소유권이 양립하는 setup·구현·test task는 하나의 Issue로 묶을 수 있다. 담당자나 플랫폼이 다르거나 별도 review·배포가 필요하거나 서로 독립적으로 완료할 수 있는 작업은 분리한다.
@@ -94,7 +95,7 @@
    - 발견 사항을 검토해 해당 산출물을 수정하고 필요하면 `speckit-analyze`를 다시 수행한다.
    - 검증된 명세 산출물은 현재 작업 브랜치와 별도의 문서 브랜치에서 Issue 없이 PR로 제출한 뒤 `speckit-taskstoissues`를 수행한다.
 8. `speckit-taskstoissues`로 task를 GitHub Issue로 변환
-9. `tasks.md`의 담당자와 선행 관계가 실제 GitHub Issue의 assignee와 dependency에 반영되었는지 확인
+9. `tasks.md`의 담당자·영역·선행 관계가 실제 GitHub Issue의 assignee·label·dependency에 반영되었는지 확인
 10. 각 담당자가 Issue별 브랜치에서 해당 Issue에 연결된 task만 `speckit-implement` 또는 직접 구현·테스트
     - `speckit-implement`를 사용하더라도 현재 Issue 범위를 벗어난 task는 구현하지 않는다.
     - 구현 중 `spec.md`·`plan.md`·`tasks.md`가 변경되었다면 `speckit-analyze`를 다시 수행한다.
