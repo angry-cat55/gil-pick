@@ -167,6 +167,19 @@ fun <T> retrofit2.Response<SuccessEnvelope<T>>.toAuthResult(): AuthResult<T> {
     if (isSuccessful && body != null) {
         return AuthResult.Success(body.data, code())
     }
+    return toAuthFailure()
+}
+
+/**
+ * body 없는 성공 응답을 [AuthResult]로 변환한다.
+ *
+ * logout은 계약상 `204`라 payload가 없으므로 상태 코드만 성공 여부로 쓴다.
+ */
+fun retrofit2.Response<Unit>.toEmptyAuthResult(): AuthResult<Unit> =
+    if (isSuccessful) AuthResult.Success(Unit, code()) else toAuthFailure()
+
+/** 오류 응답 body를 계약상의 code·`retryable`로 옮긴다. */
+private fun retrofit2.Response<*>.toAuthFailure(): AuthResult.Failure {
     val raw = errorBody()?.string()
     if (raw.isNullOrBlank()) {
         return AuthResult.Failure(
@@ -250,6 +263,40 @@ data class AuthTokenData(
     val user: UserSummary,
 )
 
+// --- US2·US3 갱신·로그아웃 계약 DTO ---
+
+/**
+ * `POST /auth/token/refresh` 요청. 계약상 `POST /auth/logout` 요청과 같은 형식이다.
+ *
+ * logout은 Bearer Access Token 없이 이 body만으로 durable retry할 수 있어야 하므로,
+ * 폐기 대기 항목도 이 두 값만 보관한다.
+ *
+ * @property refreshToken 현재 기기의 Refresh Token.
+ * @property deviceId Token을 발급받은 기기 ID. 서버가 기기 일치를 확인한다.
+ */
+@Serializable
+data class RefreshTokenRequest(
+    val refreshToken: String,
+    val deviceId: String,
+)
+
+/**
+ * 갱신 성공 시 발급되는 새 Token pair.
+ *
+ * 회전이므로 이전 Refresh Token은 더 이상 사용할 수 없다. 사용자 정보는 다시 내려오지
+ * 않으므로 앱이 보관 중인 값을 유지한다.
+ *
+ * @property expiresIn Access Token 유효 시간(초). 계약상 3600이다.
+ * @property refreshExpiresIn Refresh Token 유효 시간(초). 계약상 2592000이다.
+ */
+@Serializable
+data class RefreshTokenData(
+    val accessToken: String,
+    val expiresIn: Int,
+    val refreshToken: String,
+    val refreshExpiresIn: Int,
+)
+
 /**
  * 인증 endpoint 호출 계약.
  *
@@ -267,4 +314,15 @@ interface AuthService {
     suspend fun exchangeLoginTicket(
         @Body body: LoginTicketExchangeRequest,
     ): Response<SuccessEnvelope<AuthTokenData>>
+
+    @POST("auth/token/refresh")
+    suspend fun refreshTokens(
+        @Body body: RefreshTokenRequest,
+    ): Response<SuccessEnvelope<RefreshTokenData>>
+
+    /** 계약상 성공은 body 없는 `204`다. */
+    @POST("auth/logout")
+    suspend fun logout(
+        @Body body: RefreshTokenRequest,
+    ): Response<Unit>
 }

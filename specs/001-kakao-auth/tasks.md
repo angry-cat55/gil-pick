@@ -194,12 +194,12 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T014
   - 검증: 구현 전 실패하고 동일 Token 동시 요청 중 정확히 한 건만 `200`이며 이전 hash가 재사용되지 않음을 검사
-- [ ] T028 [P] [US2] Android single-flight·1회 replay·offline 보존 unit test 작성 in android/app/src/test/java/com/gilpick/auth/AuthRefreshTest.kt
+- [x] T028 [P] [US2] Android single-flight·1회 replay·offline 보존 unit test 작성 in android/app/src/test/java/com/gilpick/auth/AuthRefreshTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T012
   - 검증: 구현 전 실패하고 동시 `401`이 refresh 한 건으로 합쳐지며 모든 waiter가 같은 결과를 받는 조건 포함
-- [ ] T029 [P] [US2] Android refresh 성공·재로그인·재시도 UI integration test 작성 in android/app/src/androidTest/java/com/gilpick/auth/AuthRefreshIntegrationTest.kt
+- [x] T029 [P] [US2] Android refresh 성공·재로그인·재시도 UI integration test 작성 in android/app/src/androidTest/java/com/gilpick/auth/AuthRefreshIntegrationTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T025
@@ -217,17 +217,17 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T020, T026, T030
   - 검증: US2 contract/integration test 전체 통과 및 Token 원문 log 미노출 확인
-- [ ] T032 [P] [US2] Android Refresh API DTO와 호출 구현 in android/app/src/main/java/com/gilpick/auth/AuthApi.kt
+- [x] T032 [P] [US2] Android Refresh API DTO와 호출 구현 in android/app/src/main/java/com/gilpick/auth/AuthApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T022, T028
   - 검증: MockWebServer로 정상·만료·무효·기기 불일치 parsing test 통과
-- [ ] T033 [US2] single-flight refresh·Token 원자 교체·원 요청 최대 1회 replay 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt
+- [x] T033 [US2] single-flight refresh·Token 원자 교체·원 요청 최대 1회 replay 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T028, T032
   - 검증: 동시 waiter 공유, timeout session 보존, 확인된 무효 시 삭제와 replay loop 방지 unit test 통과
-- [ ] T034 [US2] RefreshOffline·재시도·재로그인 Android UI 상태 연결 in android/app/src/main/java/com/gilpick/auth/AuthViewModel.kt, android/app/src/main/java/com/gilpick/auth/AuthUiState.kt
+- [x] T034 [US2] RefreshOffline·재시도·재로그인 Android UI 상태 연결 in android/app/src/main/java/com/gilpick/auth/AuthViewModel.kt, android/app/src/main/java/com/gilpick/auth/AuthUiState.kt
   - 영역: FE
   - 담당: jy
   - 선행: T025, T029, T033
@@ -255,12 +255,12 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T027
   - 검증: 구현 전 실패하고 다른 기기 row 불변, 같은 hash/device 반복 `204`, 잘못된 device/hash 거절을 검사
-- [ ] T037 [P] [US3] pending revocation queue와 WorkManager 결과 정책 unit test 작성 in android/app/src/test/java/com/gilpick/auth/SessionRevocationWorkerTest.kt
+- [x] T037 [P] [US3] pending revocation queue와 WorkManager 결과 정책 unit test 작성 in android/app/src/test/java/com/gilpick/auth/SessionRevocationWorkerTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009, T012
   - 검증: 구현 전 실패하고 operation ID별 격리, Token input/output 미포함, terminal/retryable 오류 분류를 검사
-- [ ] T038 [P] [US3] 즉시 local logout·재부팅·복수 폐기 Android integration test 작성 in android/app/src/androidTest/java/com/gilpick/auth/AuthLogoutIntegrationTest.kt
+- [x] T038 [P] [US3] 즉시 local logout·재부팅·복수 폐기 Android integration test 작성 in android/app/src/androidTest/java/com/gilpick/auth/AuthLogoutIntegrationTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T034
@@ -278,12 +278,12 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jh
   - 선행: T031, T035, T039
   - 검증: US3 contract/integration test 전체 통과 및 다른 session 미변경 확인
-- [ ] T041 [P] [US3] 요청별 암호화 pending revocation queue와 unique WorkManager 구현 in android/app/src/main/java/com/gilpick/auth/AuthSessionStore.kt, android/app/src/main/java/com/gilpick/auth/SessionRevocationWorker.kt
+- [x] T041 [P] [US3] 요청별 암호화 pending revocation queue와 unique WorkManager 구현 in android/app/src/main/java/com/gilpick/auth/AuthSessionStore.kt, android/app/src/main/java/com/gilpick/auth/SessionRevocationWorker.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009, T037
   - 검증: network/timeout/429/5xx만 backoff 재시도하고 무효·만료는 성공 동등, 기기 불일치는 terminal 처리하는 unit test 통과
-- [ ] T042 [US3] 즉시 local logout·로그인 화면 전환·폐기 enqueue 연결 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt, android/app/src/main/java/com/gilpick/auth/AuthViewModel.kt
+- [x] T042 [US3] 즉시 local logout·로그인 화면 전환·폐기 enqueue 연결 구현 in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt, android/app/src/main/java/com/gilpick/auth/AuthViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T033, T034, T038, T041

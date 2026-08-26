@@ -188,12 +188,22 @@ class AuthSessionStore(
         /** 암호문만 담기므로 backup·data extraction에서 제외한다. */
         const val FILE_NAME = "auth_session.pb"
 
-        /** 앱 private 저장소에 store를 만든다. */
+        @Volatile
+        private var instance: AuthSessionStore? = null
+
+        /**
+         * 앱 private 저장소의 store를 반환한다. process 안에서 하나만 만든다.
+         *
+         * 화면과 [SessionRevocationWorker]가 같은 process에서 함께 동작하므로, 한 파일에
+         * 두 DataStore 인스턴스가 생기지 않도록 여기서 공유한다.
+         */
         fun create(context: Context, cipher: SessionCipher = KeystoreSessionCipher()): AuthSessionStore =
-            AuthSessionStore(
-                dataStore = createDataStore(File(context.filesDir, FILE_NAME)),
-                cipher = cipher,
-            )
+            instance ?: synchronized(this) {
+                instance ?: AuthSessionStore(
+                    dataStore = createDataStore(File(context.applicationContext.filesDir, FILE_NAME)),
+                    cipher = cipher,
+                ).also { instance = it }
+            }
 
         /**
          * 임의 경로에 store를 만든다. test에서 임시 디렉터리를 쓸 때 사용한다.

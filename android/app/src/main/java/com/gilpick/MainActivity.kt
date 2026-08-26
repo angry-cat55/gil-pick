@@ -17,6 +17,7 @@ import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.AuthenticatedHomeScreen
 import com.gilpick.auth.LoginScreen
+import com.gilpick.auth.RefreshOfflineScreen
 
 /**
  * 앱의 단일 Activity entrypoint.
@@ -48,6 +49,8 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onKakaoLogin = ::startKakaoLogin,
                         onRetry = ::startKakaoLogin,
+                        onRetryRefresh = viewModel::retryRefresh,
+                        onLogout = viewModel::logout,
                     )
                 }
             }
@@ -96,7 +99,9 @@ class MainActivity : ComponentActivity() {
  *
  * @param state 현재 인증 상태.
  * @param onKakaoLogin 카카오 로그인을 시작한다.
- * @param onRetry 실패 후 다시 시도한다.
+ * @param onRetry 로그인 실패 후 새 카카오 인증을 시작한다.
+ * @param onRetryRefresh 통신 장애로 중단된 로그인 상태 갱신을 다시 시도한다.
+ * @param onLogout 현재 기기에서 로그아웃한다.
  */
 @Composable
 fun GilpickApp(
@@ -104,15 +109,22 @@ fun GilpickApp(
     onKakaoLogin: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onRetryRefresh: () -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
     when (state) {
-        is AuthUiState.Authenticated ->
-            AuthenticatedHomeScreen(nickname = state.nickname, modifier = modifier)
+        is AuthUiState.Authenticated -> AuthenticatedHomeScreen(
+            nickname = state.nickname,
+            modifier = modifier,
+            onLogout = onLogout,
+        )
 
-        // 갱신 실패 시 보호 기능을 막고 재시도를 안내하는 화면은 T034가 소유한다.
-        // 여기서는 session이 유지된다는 사실만 반영해 로그인 화면으로 되돌리지 않는다.
-        is AuthUiState.RefreshOffline ->
-            AuthenticatedHomeScreen(nickname = null, modifier = modifier)
+        // 통신 장애로 갱신이 중단된 상태다. session은 유지한 채 보호 기능만 막는다.
+        is AuthUiState.RefreshOffline -> RefreshOfflineScreen(
+            onRetry = onRetryRefresh,
+            modifier = modifier,
+            onLogout = onLogout,
+        )
 
         else -> LoginScreen(
             state = state,
