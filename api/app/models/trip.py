@@ -1,4 +1,4 @@
-"""Trip entity and database invariants."""
+"""여행 엔티티와 데이터베이스 불변 조건."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from app.models.auth import TimestampMixin
 
 
 class Trip(TimestampMixin, Base):
-    """A user-owned trip with derived status and optimistic versioning."""
+    """계산된 상태와 낙관적 버전을 사용하는 사용자 소유 여행."""
 
     __tablename__ = "trips"
     __table_args__ = (
