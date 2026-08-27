@@ -1,0 +1,2553 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "r9Q59x",
+      "x": 0,
+      "y": -180,
+      "name": "StatusBar",
+      "reusable": true,
+      "width": 393,
+      "height": 62,
+      "padding": [
+        0,
+        20
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "HUYq2",
+          "name": "Time",
+          "fill": "$on-surface",
+          "content": "9:41",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "700"
+        },
+        {
+          "type": "frame",
+          "id": "C6fpt",
+          "name": "Indicators",
+          "gap": 6,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "y48ChP",
+              "name": "signal",
+              "width": 17,
+              "height": 17,
+              "icon": "signal",
+              "library": "lucide",
+              "fill": "$on-surface"
+            },
+            {
+              "type": "icon",
+              "id": "BKeP3",
+              "name": "wifi",
+              "width": 17,
+              "height": 17,
+              "icon": "wifi",
+              "library": "lucide",
+              "fill": "$on-surface"
+            },
+            {
+              "type": "icon",
+              "id": "demeX",
+              "name": "battery-full",
+              "width": 17,
+              "height": 17,
+              "icon": "battery-full",
+              "library": "lucide",
+              "fill": "$on-surface"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "E2foQT",
+      "x": 0,
+      "y": 0,
+      "name": "01 로그인",
+      "clip": true,
+      "width": 393,
+      "height": 852,
+      "fill": "$background",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "sHwyV",
+          "type": "ref",
+          "ref": "r9Q59x",
+          "name": "Status Bar"
+        },
+        {
+          "type": "frame",
+          "id": "Eoznx",
+          "name": "Content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [
+            0,
+            20,
+            32,
+            20
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "JyKau",
+              "name": "Hero",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 20,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "bIzX7",
+                  "name": "Logo Placeholder",
+                  "width": 104,
+                  "height": 104,
+                  "fill": "$surface-variant",
+                  "cornerRadius": "$radius-lg",
+                  "stroke": "$on-surface-variant",
+                  "strokeWidth": 1,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FbNa9",
+                      "name": "Logo Label",
+                      "fill": "$on-surface-variant",
+                      "content": "LOGO",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "700",
+                      "letterSpacing": 1.5
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "hCVRQ",
+                  "name": "App Name",
+                  "fill": "$on-surface",
+                  "content": "길픽",
+                  "fontFamily": "$font",
+                  "fontSize": 28,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "W06Td",
+                  "name": "Tagline",
+                  "fill": "$on-surface-variant",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "실시간 여행 변수를 감지해\n남은 일정을 다시 짜드립니다",
+                  "lineHeight": 1.55,
+                  "textAlign": "center",
+                  "fontFamily": "$font",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "CZ6Wa",
+              "name": "Actions",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "B9QEz",
+                  "name": "Kakao Login Button",
+                  "width": "fill_container",
+                  "height": 52,
+                  "fill": "$kakao",
+                  "cornerRadius": "$radius-md",
+                  "gap": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "k2J7y7",
+                      "name": "Kakao Icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "message-circle",
+                      "library": "lucide",
+                      "fill": "$kakao-label"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TuRCJ",
+                      "name": "Kakao Label",
+                      "fill": "$kakao-label",
+                      "content": "카카오로 시작하기",
+                      "fontFamily": "$font",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "c34h7",
+                  "name": "Browse Button",
+                  "width": "fill_container",
+                  "height": 52,
+                  "cornerRadius": "$radius-md",
+                  "stroke": "$outline",
+                  "strokeWidth": 1,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "j9CHg",
+                      "name": "Browse Label",
+                      "fill": "$on-surface",
+                      "content": "로그인 없이 둘러보기",
+                      "fontFamily": "$font",
+                      "fontSize": 15,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "GnnI0",
+                  "name": "Terms",
+                  "fill": "$on-surface-variant",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "계속하면 이용약관과 개인정보처리방침에 동의하게 됩니다",
+                  "lineHeight": 1.5,
+                  "textAlign": "center",
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "r9PKc6",
+      "x": 480,
+      "y": 0,
+      "name": "02 여행 목록",
+      "clip": true,
+      "width": 393,
+      "fill": "$background",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "CDPIs",
+          "type": "ref",
+          "ref": "r9Q59x",
+          "name": "Status Bar"
+        },
+        {
+          "type": "frame",
+          "id": "TXdu0",
+          "name": "App Bar",
+          "width": "fill_container",
+          "height": 56,
+          "padding": [
+            0,
+            20
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "zf2Oe",
+              "name": "Title",
+              "fill": "$on-surface",
+              "content": "내 여행",
+              "fontFamily": "$font",
+              "fontSize": 22,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "zTPkI",
+              "name": "Bar Icons",
+              "gap": 16,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "gp4A5",
+                  "name": "bell",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "bell",
+                  "library": "lucide",
+                  "fill": "$on-surface"
+                },
+                {
+                  "type": "icon",
+                  "id": "ERG8f",
+                  "name": "settings",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "settings",
+                  "library": "lucide",
+                  "fill": "$on-surface"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "R6Vo8",
+          "name": "Body",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 20,
+          "padding": [
+            10,
+            20,
+            0,
+            20
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "o6F4m",
+              "name": "Now Trip Card",
+              "width": "fill_container",
+              "fill": "$surface",
+              "cornerRadius": "$radius-lg",
+              "stroke": "$outline",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "GLrnC",
+                  "name": "Now Header",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "pxdr5",
+                      "name": "Live Pill",
+                      "fill": "$primary",
+                      "cornerRadius": 999,
+                      "gap": 4,
+                      "padding": [
+                        4,
+                        9
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "Yh2V5",
+                          "name": "Live Icon",
+                          "width": 12,
+                          "height": 12,
+                          "icon": "navigation",
+                          "library": "lucide",
+                          "fill": "$on-primary"
+                        },
+                        {
+                          "type": "text",
+                          "id": "gEpOz",
+                          "name": "Live Label",
+                          "fill": "$on-primary",
+                          "content": "여행 중",
+                          "fontFamily": "$font",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "wapA7",
+                      "name": "Now Trip Name",
+                      "fill": "$on-surface-variant",
+                      "content": "제주 3박 4일 · 1일차",
+                      "fontFamily": "$font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bDip3",
+                  "name": "Next Place",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "S5YnA",
+                      "name": "Next Label",
+                      "fill": "$on-surface-variant",
+                      "content": "다음 장소",
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "500",
+                      "letterSpacing": 0.3
+                    },
+                    {
+                      "type": "text",
+                      "id": "N7igDN",
+                      "name": "Next Place Name",
+                      "fill": "$on-surface",
+                      "content": "성산일출봉",
+                      "fontFamily": "$font",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Y0OMv",
+                  "name": "ETA",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "i8ys61",
+                      "name": "ETA Value",
+                      "fill": "$primary",
+                      "content": "오후 2:35 도착",
+                      "lineHeight": 1.25,
+                      "fontFamily": "$font",
+                      "fontSize": 24,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cOLYS",
+                      "name": "ETA Remain",
+                      "fill": "$on-surface-variant",
+                      "content": "12분 남았어요",
+                      "lineHeight": 1.9,
+                      "fontFamily": "$font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "TzkGo",
+                  "name": "Variable Warning",
+                  "width": "fill_container",
+                  "fill": "$surface-variant",
+                  "cornerRadius": "$radius-sm",
+                  "gap": 8,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "Qxc7c",
+                      "name": "Warn Icon",
+                      "width": 17,
+                      "height": 17,
+                      "icon": "cloud-rain",
+                      "library": "lucide",
+                      "fill": "$warning"
+                    },
+                    {
+                      "type": "text",
+                      "id": "o0GvnQ",
+                      "name": "Warn Text",
+                      "fill": "$warning",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "도착 시간에 비가 올 가능성이 높아요",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "K4VuXH",
+                  "name": "Now Actions",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "UR5JJ",
+                      "name": "Arrived Button",
+                      "width": "fill_container",
+                      "height": 52,
+                      "fill": "$primary",
+                      "cornerRadius": "$radius-md",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ViMGj",
+                          "name": "Arrived Label",
+                          "fill": "$on-primary",
+                          "content": "도착했어요",
+                          "fontFamily": "$font",
+                          "fontSize": 15,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "sszkg",
+                      "name": "Itinerary Button",
+                      "width": 112,
+                      "height": 52,
+                      "cornerRadius": "$radius-md",
+                      "stroke": "$outline",
+                      "strokeWidth": 1,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YVahQ",
+                          "name": "Itinerary Label",
+                          "fill": "$on-surface",
+                          "content": "일정 보기",
+                          "fontFamily": "$font",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zfehe",
+              "name": "Search Field",
+              "width": "fill_container",
+              "height": 46,
+              "fill": "$surface-variant",
+              "cornerRadius": "$radius-sm",
+              "gap": 8,
+              "padding": [
+                0,
+                14
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Itms1",
+                  "name": "Search Icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "search",
+                  "library": "lucide",
+                  "fill": "$on-surface-variant"
+                },
+                {
+                  "type": "text",
+                  "id": "AqOZi",
+                  "name": "Search Placeholder",
+                  "fill": "$on-surface-variant",
+                  "content": "여행 이름으로 검색",
+                  "fontFamily": "$font",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "z76AC",
+              "name": "Filter Chips",
+              "width": "fill_container",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "iWB3c",
+                  "name": "Chip 전체",
+                  "fill": "$primary-container",
+                  "cornerRadius": 999,
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HNmDF",
+                      "name": "Chip Label",
+                      "fill": "$primary",
+                      "content": "전체",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MzNDE",
+                  "name": "Chip 여행 중",
+                  "fill": "$surface",
+                  "cornerRadius": 999,
+                  "stroke": "$outline",
+                  "strokeWidth": 1,
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "UJ2X3",
+                      "name": "Chip Label",
+                      "fill": "$on-surface-variant",
+                      "content": "여행 중",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FQNdP",
+                  "name": "Chip 예정",
+                  "fill": "$surface",
+                  "cornerRadius": 999,
+                  "stroke": "$outline",
+                  "strokeWidth": 1,
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "rPQ2u",
+                      "name": "Chip Label",
+                      "fill": "$on-surface-variant",
+                      "content": "예정",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uOcqP",
+                  "name": "Chip 완료",
+                  "fill": "$surface",
+                  "cornerRadius": 999,
+                  "stroke": "$outline",
+                  "strokeWidth": 1,
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dKG3q",
+                      "name": "Chip Label",
+                      "fill": "$on-surface-variant",
+                      "content": "완료",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "B25Pnr",
+              "name": "Trip List",
+              "width": "fill_container",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "abquD",
+                  "name": "Section 예정 2",
+                  "width": "fill_container",
+                  "padding": [
+                    2,
+                    0,
+                    8,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TkdHD",
+                      "name": "Section Label",
+                      "fill": "$on-surface-variant",
+                      "content": "예정 2",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "S3Rhme",
+                  "name": "Row 부산 주말 여행",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "sjOjq",
+                      "name": "Thumb 부산 주말 여행",
+                      "metadata": {
+                        "type": "unsplash",
+                        "username": "dotzero",
+                        "link": "https://unsplash.com/@dotzero",
+                        "author": "dotzero"
+                      },
+                      "clip": true,
+                      "width": 64,
+                      "height": 64,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "https://images.unsplash.com/photo-1625914997202-29210269e251?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODc4MzI5NjN8&ixlib=rb-4.1.0&q=80&w=1080",
+                        "mode": "fill"
+                      },
+                      "cornerRadius": "$radius-sm"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "uACfF",
+                      "name": "Row Text",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 3,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "roW5M",
+                          "name": "Row Name",
+                          "fill": "$on-surface",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "부산 주말 여행",
+                          "fontFamily": "$font",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "QbFK4",
+                          "name": "Row Period",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "10월 3일 – 10월 5일 · 3일",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "xw6IT",
+                          "name": "Row Meta",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "D-37 · 장소 8곳",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "McQJk",
+                      "name": "Chevron",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "chevron-right",
+                      "library": "lucide",
+                      "fill": "$on-surface-variant"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "yIo8a",
+                  "name": "Divider",
+                  "width": "fill_container",
+                  "height": 1,
+                  "fill": "$outline"
+                },
+                {
+                  "type": "frame",
+                  "id": "vtoUk",
+                  "name": "Row 경주 당일치기",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "YYKeV",
+                      "name": "Thumb 경주 당일치기",
+                      "metadata": {
+                        "type": "unsplash",
+                        "username": "verpark",
+                        "link": "https://unsplash.com/@verpark",
+                        "author": "ALEX PARK"
+                      },
+                      "clip": true,
+                      "width": 64,
+                      "height": 64,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "https://images.unsplash.com/photo-1632397299707-b3061f7aae0b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODc4MzI5NjR8&ixlib=rb-4.1.0&q=80&w=1080",
+                        "mode": "fill"
+                      },
+                      "cornerRadius": "$radius-sm"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "C6lV4w",
+                      "name": "Row Text",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 3,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "iBEod",
+                          "name": "Row Name",
+                          "fill": "$on-surface",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "경주 당일치기",
+                          "fontFamily": "$font",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "gKvnJ",
+                          "name": "Row Period",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "11월 14일 · 하루",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "nBxyX",
+                          "name": "Row Meta",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "D-79 · 장소 5곳",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Un892",
+                      "name": "Chevron",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "chevron-right",
+                      "library": "lucide",
+                      "fill": "$on-surface-variant"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "i5XR2k",
+                  "name": "Section 완료 1",
+                  "width": "fill_container",
+                  "padding": [
+                    18,
+                    0,
+                    8,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cdVwz",
+                      "name": "Section Label",
+                      "fill": "$on-surface-variant",
+                      "content": "완료 1",
+                      "fontFamily": "$font",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "incox",
+                  "name": "Row 강릉 바다 2박 3일",
+                  "width": "fill_container",
+                  "gap": 12,
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "YhgKZ",
+                      "name": "Thumb 강릉 바다 2박 3일",
+                      "metadata": {
+                        "type": "unsplash",
+                        "username": "vikachartier",
+                        "link": "https://unsplash.com/@vikachartier",
+                        "author": "Vika Chartier"
+                      },
+                      "clip": true,
+                      "width": 64,
+                      "height": 64,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "https://images.unsplash.com/photo-1611848989176-ec7c22e3ae79?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODc4MzI5NjV8&ixlib=rb-4.1.0&q=80&w=1080",
+                        "mode": "fill"
+                      },
+                      "cornerRadius": "$radius-sm"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TBTAz",
+                      "name": "Row Text",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 3,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Dkk4F",
+                          "name": "Row Name",
+                          "fill": "$on-surface",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "강릉 바다 2박 3일",
+                          "fontFamily": "$font",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "Laon0",
+                          "name": "Row Period",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "7월 19일 – 7월 21일 · 3일",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "wPxHV",
+                          "name": "Row Meta",
+                          "fill": "$success",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "완료 · 장소 9곳",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "b6uvx",
+                      "name": "Chevron",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "chevron-right",
+                      "library": "lucide",
+                      "fill": "$on-surface-variant"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "q9tZx",
+              "name": "List Bottom Spacer",
+              "width": "fill_container",
+              "height": 4
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "TQ6FH",
+          "name": "Tab Bar Wrapper",
+          "width": "fill_container",
+          "padding": [
+            0,
+            16,
+            12,
+            16
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "QUia1",
+              "name": "Tab Bar",
+              "width": "fill_container",
+              "height": 56,
+              "fill": "#FFFFFFB3",
+              "cornerRadius": 28,
+              "stroke": "$outline-variant",
+              "strokeWidth": 1,
+              "effect": [
+                {
+                  "type": "background_blur",
+                  "radius": 18
+                },
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#1C191726",
+                  "offset": {
+                    "x": 0,
+                    "y": 6
+                  },
+                  "blur": 18,
+                  "spread": -4
+                }
+              ],
+              "gap": 4,
+              "padding": 6,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zZw0q",
+                  "name": "Tab 여행",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$primary-container",
+                  "cornerRadius": 22,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "E9sfe",
+                      "name": "Tab Icon",
+                      "width": 21,
+                      "height": 21,
+                      "icon": "map",
+                      "library": "lucide",
+                      "fill": "$primary"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cuTGo",
+                      "name": "Tab Label",
+                      "fill": "$primary",
+                      "content": "여행",
+                      "fontFamily": "$font",
+                      "fontSize": 10,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "RFHvK",
+                  "name": "Tab 탐색",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "cornerRadius": 22,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "K7Q9OS",
+                      "name": "Tab Icon",
+                      "width": 21,
+                      "height": 21,
+                      "icon": "compass",
+                      "library": "lucide",
+                      "fill": "$on-surface-variant"
+                    },
+                    {
+                      "type": "text",
+                      "id": "O6QMSn",
+                      "name": "Tab Label",
+                      "fill": "$on-surface-variant",
+                      "content": "탐색",
+                      "fontFamily": "$font",
+                      "fontSize": 10,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mDz5E",
+                  "name": "Tab 설정",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "cornerRadius": 22,
+                  "layout": "vertical",
+                  "gap": 3,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "SrZWn",
+                      "name": "Tab Icon",
+                      "width": 21,
+                      "height": 21,
+                      "icon": "user",
+                      "library": "lucide",
+                      "fill": "$on-surface-variant"
+                    },
+                    {
+                      "type": "text",
+                      "id": "rink2",
+                      "name": "Tab Label",
+                      "fill": "$on-surface-variant",
+                      "content": "설정",
+                      "fontFamily": "$font",
+                      "fontSize": 10,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "oIjAh",
+          "layoutPosition": "absolute",
+          "x": 321,
+          "y": 827,
+          "name": "FAB 여행 만들기",
+          "width": 56,
+          "height": 56,
+          "fill": "$primary",
+          "cornerRadius": 28,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#1C191740",
+            "offset": {
+              "x": 0,
+              "y": 6
+            },
+            "blur": 16,
+            "spread": -2
+          },
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "R6HBx2",
+              "name": "FAB Icon",
+              "width": 24,
+              "height": 24,
+              "icon": "plus",
+              "library": "lucide",
+              "fill": "$on-primary"
+            },
+            {
+              "type": "text",
+              "id": "DYFwd",
+              "x": 74.5,
+              "y": 17,
+              "name": "FAB Label",
+              "enabled": false,
+              "fill": "$on-primary",
+              "content": "새 여행",
+              "fontFamily": "$font",
+              "fontSize": 15,
+              "fontWeight": "700"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "bkZcf",
+      "x": 960,
+      "y": 0,
+      "name": "03 일정",
+      "clip": true,
+      "width": 393,
+      "fill": "$background",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "U5LW8",
+          "type": "ref",
+          "ref": "r9Q59x",
+          "name": "Status Bar"
+        },
+        {
+          "type": "frame",
+          "id": "EQKLA",
+          "name": "App Bar",
+          "width": "fill_container",
+          "height": 56,
+          "padding": [
+            0,
+            20
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "cZioj",
+              "name": "Back",
+              "width": 22,
+              "height": 22,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$on-surface"
+            },
+            {
+              "type": "text",
+              "id": "UnM9i",
+              "name": "Trip Title",
+              "fill": "$on-surface",
+              "content": "제주 3박 4일",
+              "fontFamily": "$font",
+              "fontSize": 17,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "uN2St",
+              "name": "Bar Icons",
+              "gap": 16,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "vCzHF",
+                  "name": "share-2",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "share-2",
+                  "library": "lucide",
+                  "fill": "$on-surface"
+                },
+                {
+                  "type": "icon",
+                  "id": "x8IzE2",
+                  "name": "more-horizontal",
+                  "width": 22,
+                  "height": 22,
+                  "icon": "ellipsis",
+                  "library": "lucide",
+                  "fill": "$on-surface"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BhvTj",
+          "name": "Tabs",
+          "width": "fill_container",
+          "stroke": "$outline-variant",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "padding": [
+            0,
+            20
+          ],
+          "alignItems": "end",
+          "children": [
+            {
+              "type": "frame",
+              "id": "f15Bcy",
+              "name": "Tab 개요",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "BmRcX",
+                  "name": "Tab Label",
+                  "fill": "$on-surface-variant",
+                  "content": "개요",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "eJCGR",
+                  "name": "Underline",
+                  "width": "fill_container",
+                  "height": 2,
+                  "fill": "#00000000"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AsTUG",
+              "name": "Tab 일정",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "syC2M",
+                  "name": "Tab Label",
+                  "fill": "$primary",
+                  "content": "일정",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "um4qv",
+                  "name": "Underline",
+                  "width": "fill_container",
+                  "height": 2,
+                  "fill": "$primary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "H60K2y",
+              "name": "Tab 탐색",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "U82Fu2",
+                  "name": "Tab Label",
+                  "fill": "$on-surface-variant",
+                  "content": "탐색",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "U2aZnL",
+                  "name": "Underline",
+                  "width": "fill_container",
+                  "height": 2,
+                  "fill": "#00000000"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "o4Fdn",
+              "name": "Tab 예산",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Y5BMA0",
+                  "name": "Tab Label",
+                  "fill": "$on-surface-variant",
+                  "content": "예산",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "YlS3E",
+                  "name": "Underline",
+                  "width": "fill_container",
+                  "height": 2,
+                  "fill": "#00000000"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "u3h7Pe",
+          "name": "Day Selector",
+          "width": "fill_container",
+          "gap": 8,
+          "padding": [
+            14,
+            20
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "BUcx8",
+              "name": "Edit Days",
+              "width": 44,
+              "height": 44,
+              "fill": "$primary",
+              "cornerRadius": 999,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "d83N7H",
+                  "name": "Edit Icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "calendar-days",
+                  "library": "lucide",
+                  "fill": "$on-primary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kUuky",
+              "name": "Day 1일차 9/12",
+              "fill": "$primary-container",
+              "cornerRadius": "$radius-sm",
+              "layout": "vertical",
+              "gap": 2,
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kuO9g",
+                  "name": "Day Label",
+                  "fill": "$primary",
+                  "content": "9월 12일",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "PlnHc",
+                  "name": "Day Sub",
+                  "fill": "$primary",
+                  "content": "수 · 1일차",
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "isJD0",
+              "name": "Day 2일차 9/13",
+              "fill": "$surface",
+              "cornerRadius": "$radius-sm",
+              "stroke": "$outline-variant",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 2,
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "M1nnNn",
+                  "name": "Day Label",
+                  "fill": "$on-surface",
+                  "content": "9월 13일",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "IgfQW",
+                  "name": "Day Sub",
+                  "fill": "$on-surface-variant",
+                  "content": "목 · 2일차",
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "NFWuC",
+              "name": "Day 3일차 9/14",
+              "fill": "$surface",
+              "cornerRadius": "$radius-sm",
+              "stroke": "$outline-variant",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 2,
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RIpb8",
+                  "name": "Day Label",
+                  "fill": "$on-surface",
+                  "content": "9월 14일",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "fpYfD",
+                  "name": "Day Sub",
+                  "fill": "$on-surface-variant",
+                  "content": "금 · 3일차",
+                  "fontFamily": "$font",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "PiCfV",
+          "name": "Body",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            0,
+            20,
+            20,
+            20
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "d0DsOk",
+              "name": "Day Header",
+              "width": "fill_container",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "HmTq3",
+                  "name": "Day Date",
+                  "fill": "$on-surface",
+                  "content": "9월 12일",
+                  "fontFamily": "$font",
+                  "fontSize": 22,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "Z4Pim",
+                  "name": "Day Index",
+                  "fill": "$on-surface-variant",
+                  "content": "1일차",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n6ZpPa",
+              "name": "Optimize Route",
+              "width": "fill_container",
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Bioe2",
+                  "name": "Optimize Icon",
+                  "width": 17,
+                  "height": 17,
+                  "icon": "git-compare-arrows",
+                  "library": "lucide",
+                  "fill": "$primary"
+                },
+                {
+                  "type": "text",
+                  "id": "mUmUh",
+                  "name": "Optimize Label",
+                  "fill": "$primary",
+                  "content": "경로 최적화",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "FQJx9",
+                  "name": "Optimize Meta",
+                  "fill": "$on-surface-variant",
+                  "content": "· 이동 42분, 12.4km",
+                  "fontFamily": "$font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "abKRV",
+              "name": "Reservations",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "OntRX",
+                  "name": "KE 1201  김포 — 제주",
+                  "width": "fill_container",
+                  "height": 52,
+                  "fill": "$surface-variant",
+                  "cornerRadius": "$radius-md",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "rT3hB",
+                      "name": "Left",
+                      "gap": 10,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "nqh7K",
+                          "name": "Icon Box",
+                          "width": 30,
+                          "height": 30,
+                          "fill": "$surface",
+                          "cornerRadius": 999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "pxyDE",
+                              "name": "Icon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "plane",
+                              "library": "lucide",
+                              "fill": "$on-surface-variant"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "jZmR7",
+                          "name": "Label",
+                          "fill": "$on-surface",
+                          "content": "KE 1201  김포 — 제주",
+                          "fontFamily": "$font",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "gTGMo",
+                      "name": "Meta",
+                      "fill": "$on-surface-variant",
+                      "content": "07:00 – 08:10",
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "500",
+                      "letterSpacing": 0.2
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "m3wVAH",
+                  "name": "성산 오션뷰 호텔",
+                  "width": "fill_container",
+                  "height": 52,
+                  "fill": "$surface-variant",
+                  "cornerRadius": "$radius-md",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "lSHvV",
+                      "name": "Left",
+                      "gap": 10,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "SWRDT",
+                          "name": "Icon Box",
+                          "width": 30,
+                          "height": 30,
+                          "fill": "$surface",
+                          "cornerRadius": 999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "i5LJv",
+                              "name": "Icon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "bed-double",
+                              "library": "lucide",
+                              "fill": "$on-surface-variant"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "fSg0E",
+                          "name": "Label",
+                          "fill": "$on-surface",
+                          "content": "성산 오션뷰 호텔",
+                          "fontFamily": "$font",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "AQD6k",
+                      "name": "Meta",
+                      "fill": "$on-surface-variant",
+                      "content": "체크인 15:00",
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "500",
+                      "letterSpacing": 0.2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "f7022R",
+              "name": "Place List",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ZRRz1",
+                  "name": "Place 1",
+                  "width": "fill_container",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "M3fAZ2",
+                      "name": "Pin Col",
+                      "width": 26,
+                      "layout": "vertical",
+                      "gap": 6,
+                      "padding": [
+                        2,
+                        0,
+                        0,
+                        0
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "X1SU8M",
+                          "name": "Pin",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$primary",
+                          "cornerRadius": 999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "F3YxpC",
+                              "name": "Pin Number",
+                              "fill": "$on-primary",
+                              "content": "1",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "jqGDJ",
+                          "name": "Timeline Line",
+                          "width": 2,
+                          "height": 97,
+                          "fill": "$outline"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "N1tAKU",
+                      "name": "Place Text",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "P4uDX",
+                          "name": "Place Name",
+                          "fill": "$on-surface",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "성산일출봉",
+                          "fontFamily": "$font",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "SubKG",
+                          "name": "Place Desc",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "유네스코 세계자연유산. 바다 위로 솟은 분화구 정상에서 제주 동쪽 해안을 한눈에 볼 수 있다.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "dstp1",
+                          "name": "Time Badge",
+                          "fill": "$primary-container",
+                          "cornerRadius": "$radius-xs",
+                          "padding": [
+                            4,
+                            9
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "NGcmT",
+                              "name": "Time",
+                              "fill": "$primary",
+                              "content": "09:00",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "S6ygCG",
+                      "name": "Thumb 성산일출봉",
+                      "metadata": {
+                        "type": "unsplash",
+                        "username": "rhox",
+                        "link": "https://unsplash.com/@rhox",
+                        "author": "Rocco Dipoppa"
+                      },
+                      "clip": true,
+                      "width": 72,
+                      "height": 72,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "https://images.unsplash.com/photo-1571159948701-b78bd595bb6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODc4MzI1MjV8&ixlib=rb-4.1.0&q=80&w=1080",
+                        "mode": "fill"
+                      },
+                      "cornerRadius": "$radius-sm"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FXTun",
+                  "name": "Connector 1",
+                  "width": "fill_container",
+                  "height": 30,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "KUPXX",
+                      "name": "Timeline Gap",
+                      "width": 26,
+                      "height": "fill_container",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "PTo9D",
+                          "name": "Timeline Line",
+                          "width": 2,
+                          "height": "fill_container",
+                          "fill": "$outline"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GTUec",
+                      "name": "Move Info",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "a3nwS",
+                          "name": "Move Icon",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "footprints",
+                          "library": "lucide",
+                          "fill": "$on-surface-variant"
+                        },
+                        {
+                          "type": "text",
+                          "id": "e7mhD0",
+                          "name": "Move Text",
+                          "fill": "$on-surface-variant",
+                          "content": "도보 6분 · 0.4km",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ajipa",
+                          "name": "Directions",
+                          "fill": "$primary",
+                          "content": "길찾기",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "e9akI",
+                  "name": "Place 2",
+                  "width": "fill_container",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Ili0j",
+                      "name": "Pin Col",
+                      "width": 26,
+                      "layout": "vertical",
+                      "gap": 6,
+                      "padding": [
+                        2,
+                        0,
+                        0,
+                        0
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "t1bpo",
+                          "name": "Pin",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$primary",
+                          "cornerRadius": 999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "dwaKO",
+                              "name": "Pin Number",
+                              "fill": "$on-primary",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "h336OV",
+                          "name": "Timeline Line",
+                          "width": 2,
+                          "height": 97,
+                          "fill": "$outline"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "SkZZc",
+                      "name": "Place Text",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "TStVQ",
+                          "name": "Place Name",
+                          "fill": "$on-surface",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "광치기해변",
+                          "fontFamily": "$font",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "RATVf",
+                          "name": "Place Desc",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "썰물 때 드러나는 초록 이끼 암반으로 유명한 해변. 성산일출봉을 배경으로 사진 찍기 좋다.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "J5B0em",
+                          "name": "Time Badge",
+                          "fill": "$primary-container",
+                          "cornerRadius": "$radius-xs",
+                          "padding": [
+                            4,
+                            9
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Oe0F7",
+                              "name": "Time",
+                              "fill": "$primary",
+                              "content": "10:30",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "e8537q",
+                      "name": "Thumb 광치기해변",
+                      "metadata": {
+                        "type": "unsplash",
+                        "username": "shihchinw",
+                        "link": "https://unsplash.com/@shihchinw",
+                        "author": "Shih-Chin Weng"
+                      },
+                      "clip": true,
+                      "width": 72,
+                      "height": 72,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "https://images.unsplash.com/photo-1580634727076-67bce7a53a0e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODc4MzI1NDh8&ixlib=rb-4.1.0&q=80&w=1080",
+                        "mode": "fill"
+                      },
+                      "cornerRadius": "$radius-sm"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "wnw3e",
+                  "name": "Connector 2",
+                  "width": "fill_container",
+                  "height": 30,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "G83M3",
+                      "name": "Timeline Gap",
+                      "width": 26,
+                      "height": "fill_container",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Y37kts",
+                          "name": "Timeline Line",
+                          "width": 2,
+                          "height": "fill_container",
+                          "fill": "$outline"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "nnLOh",
+                      "name": "Move Info",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "eXbph",
+                          "name": "Move Icon",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "car",
+                          "library": "lucide",
+                          "fill": "$on-surface-variant"
+                        },
+                        {
+                          "type": "text",
+                          "id": "xVT2o",
+                          "name": "Move Text",
+                          "fill": "$on-surface-variant",
+                          "content": "차량 14분 · 6.2km",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "N75HQi",
+                          "name": "Directions",
+                          "fill": "$primary",
+                          "content": "길찾기",
+                          "fontFamily": "$font",
+                          "fontSize": 13,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "aIagP",
+                  "name": "Place 3",
+                  "width": "fill_container",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "jM14A",
+                      "name": "Pin Col",
+                      "width": 26,
+                      "layout": "vertical",
+                      "gap": 6,
+                      "padding": [
+                        2,
+                        0,
+                        0,
+                        0
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "AoH2g",
+                          "name": "Pin",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$primary",
+                          "cornerRadius": 999,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ew7OY",
+                              "name": "Pin Number",
+                              "fill": "$on-primary",
+                              "content": "3",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hC0o4",
+                      "name": "Place Text",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "eedUn",
+                          "name": "Place Name",
+                          "fill": "$on-surface",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "섭지코지",
+                          "fontFamily": "$font",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ICZrh",
+                          "name": "Place Desc",
+                          "fill": "$on-surface-variant",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "해안 절벽을 따라 등대까지 이어지는 산책로. 유채꽃 시즌에 특히 붐빈다.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "wG44y",
+                          "name": "Time Badge",
+                          "fill": "$primary-container",
+                          "cornerRadius": "$radius-xs",
+                          "padding": [
+                            4,
+                            9
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "qImXU",
+                              "name": "Time",
+                              "fill": "$primary",
+                              "content": "12:00",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wwho0",
+                      "name": "Thumb 섭지코지",
+                      "metadata": {
+                        "type": "unsplash",
+                        "username": "atyr",
+                        "link": "https://unsplash.com/@atyr",
+                        "author": "Artur Ament"
+                      },
+                      "clip": true,
+                      "width": 72,
+                      "height": 72,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "https://images.unsplash.com/photo-1749996676201-904052362506?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODc4MzI1Mjd8&ixlib=rb-4.1.0&q=80&w=1080",
+                        "mode": "fill"
+                      },
+                      "cornerRadius": "$radius-sm"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vZunV",
+              "name": "Add Place",
+              "width": "fill_container",
+              "height": 48,
+              "cornerRadius": 12,
+              "stroke": "$outline-variant",
+              "strokeWidth": 1,
+              "gap": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "n3doG",
+                  "name": "Add Icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "plus",
+                  "library": "lucide",
+                  "fill": "$on-surface-variant"
+                },
+                {
+                  "type": "text",
+                  "id": "D2wovs",
+                  "name": "Add Label",
+                  "fill": "$on-surface-variant",
+                  "content": "장소 추가",
+                  "fontFamily": "$font",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "background": {
+      "type": "color",
+      "value": "#FAFBF9"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "surface-variant": {
+      "type": "color",
+      "value": "#F1F4F2"
+    },
+    "on-surface": {
+      "type": "color",
+      "value": "#18201E"
+    },
+    "on-surface-variant": {
+      "type": "color",
+      "value": "#64706D"
+    },
+    "primary": {
+      "type": "color",
+      "value": "#087F73"
+    },
+    "on-primary": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "secondary": {
+      "type": "color",
+      "value": "#526A64"
+    },
+    "on-secondary": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "error": {
+      "type": "color",
+      "value": "#BA1A1A"
+    },
+    "outline": {
+      "type": "color",
+      "value": "#D8DEDB"
+    },
+    "outline-variant": {
+      "type": "color",
+      "value": "#D8DEDB"
+    },
+    "kakao": {
+      "type": "color",
+      "value": "#FEE500"
+    },
+    "kakao-label": {
+      "type": "color",
+      "value": "#191919"
+    },
+    "font": {
+      "type": "string",
+      "value": "Noto Sans KR"
+    },
+    "space3": {
+      "type": "number",
+      "value": 16
+    },
+    "radius-card": {
+      "type": "number",
+      "value": 12
+    },
+    "primary-container": {
+      "type": "color",
+      "value": "#D6F3EE"
+    },
+    "warning": {
+      "type": "color",
+      "value": "#A15C00"
+    },
+    "success": {
+      "type": "color",
+      "value": "#287A47"
+    },
+    "info": {
+      "type": "color",
+      "value": "#36618E"
+    },
+    "radius-xs": {
+      "type": "number",
+      "value": 4
+    },
+    "radius-sm": {
+      "type": "number",
+      "value": 8
+    },
+    "radius-md": {
+      "type": "number",
+      "value": 12
+    },
+    "radius-lg": {
+      "type": "number",
+      "value": 16
+    }
+  },
+  "fileToken": "25749600-0e44-4a6d-b681-ed4f8830df44"
+}
