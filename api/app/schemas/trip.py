@@ -1,4 +1,4 @@
-"""Trip API schemas matching the F002 OpenAPI contract."""
+"""F002 OpenAPI 계약과 일치하는 여행 API 스키마."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from app.schemas.auth import ApiModel, ErrorEnvelope, ResponseMeta, SuccessEnvel
 
 
 class TripRequestModel(ApiModel):
-    """Strict camelCase base for trip request payloads."""
+    """여행 요청 payload에 적용하는 엄격한 camelCase 기반 모델."""
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -26,7 +26,7 @@ class TripRequestModel(ApiModel):
 
 
 class TripStatus(StrEnum):
-    """Trip status derived from KST dates rather than persisted."""
+    """저장하지 않고 KST 날짜를 기준으로 계산하는 여행 상태."""
 
     UPCOMING = "UPCOMING"
     IN_PROGRESS = "IN_PROGRESS"
@@ -34,7 +34,7 @@ class TripStatus(StrEnum):
 
 
 class CreateTripRequest(TripRequestModel):
-    """Trip creation payload; cross-field rules are enforced by the service."""
+    """여행 생성 payload이며 필드 간 규칙은 서비스에서 검증한다."""
 
     name: str = Field(min_length=2, max_length=30)
     start_date: date
@@ -42,7 +42,7 @@ class CreateTripRequest(TripRequestModel):
 
 
 class UpdateTripRequest(TripRequestModel):
-    """Partial trip update payload with optimistic concurrency version."""
+    """낙관적 동시성 버전을 포함하는 여행 부분 수정 payload."""
 
     name: str | None = Field(default=None, min_length=2, max_length=30)
     start_date: date | None = None
@@ -52,7 +52,7 @@ class UpdateTripRequest(TripRequestModel):
 
 
 class Trip(ApiModel):
-    """Public trip representation."""
+    """외부에 제공하는 여행 표현."""
 
     trip_id: uuid.UUID
     name: str
@@ -65,26 +65,26 @@ class Trip(ApiModel):
 
 
 class TripListData(ApiModel):
-    """Items contained in a trip list response."""
+    """여행 목록 응답에 포함되는 항목."""
 
     items: list[Trip]
 
 
 class Pagination(ApiModel):
-    """Cursor pagination state for a trip list."""
+    """여행 목록의 cursor pagination 상태."""
 
     next_cursor: str | None
     has_next: bool
 
 
 class TripListMeta(ResponseMeta):
-    """Request correlation and pagination metadata."""
+    """요청 추적 및 pagination 메타데이터."""
 
     pagination: Pagination
 
 
 class TripListResponse(ApiModel):
-    """Trip list response envelope."""
+    """여행 목록 응답 envelope."""
 
     success: Literal[True]
     data: TripListData
