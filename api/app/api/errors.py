@@ -17,6 +17,11 @@ from app.core.logging import request_id_context
 from app.schemas.auth import ErrorBody, ErrorEnvelope, ResponseMeta, SuccessEnvelope
 
 REQUEST_ID_HEADER = "X-Request-ID"
+INVALID_TRIP_PERIOD = "INVALID_TRIP_PERIOD"
+TRIP_NOT_FOUND = "TRIP_NOT_FOUND"
+TRIP_LOCKED = "TRIP_LOCKED"
+VERSION_CONFLICT = "VERSION_CONFLICT"
+CONFIRMATION_REQUIRED = "CONFIRMATION_REQUIRED"
 logger = logging.getLogger("gilpick.api")
 
 
