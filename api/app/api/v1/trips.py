@@ -1,4 +1,4 @@
-"""Trip management HTTP endpoint signatures."""
+"""여행 관리 HTTP 엔드포인트 시그니처."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/trips", tags=["trips"])
 
 
 def _not_implemented() -> NoReturn:
-    """Keep foundation routes explicit until their owning Issues implement them."""
+    """담당 Issue에서 구현할 때까지 기반 라우트의 미구현 상태를 명시한다."""
     raise AppError(501, "NOT_IMPLEMENTED", "아직 구현되지 않은 여행 API입니다.")
 
 
@@ -39,7 +39,7 @@ async def list_trips(
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> NoReturn:
-    """Declare the authenticated trip list contract for Issue #98."""
+    """Issue #98에서 구현할 인증된 여행 목록 계약을 선언한다."""
     _not_implemented()
 
 
@@ -58,7 +58,7 @@ async def create_trip(
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
 ) -> NoReturn:
-    """Declare the authenticated trip creation contract for Issue #97."""
+    """Issue #97에서 구현할 인증된 여행 생성 계약을 선언한다."""
     _not_implemented()
 
 
@@ -75,7 +75,7 @@ async def get_trip(
     trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
 ) -> NoReturn:
-    """Declare the authenticated trip detail contract for Issue #99."""
+    """Issue #99에서 구현할 인증된 여행 상세 조회 계약을 선언한다."""
     _not_implemented()
 
 
@@ -96,7 +96,7 @@ async def update_trip(
     payload: UpdateTripRequest,
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
 ) -> NoReturn:
-    """Declare the authenticated trip update contract for Issue #100."""
+    """Issue #100에서 구현할 인증된 여행 수정 계약을 선언한다."""
     _not_implemented()
 
 
@@ -115,5 +115,5 @@ async def delete_trip(
     trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
 ) -> NoReturn:
-    """Declare the authenticated idempotent delete contract for Issue #101."""
+    """Issue #101에서 구현할 인증된 멱등 삭제 계약을 선언한다."""
     _not_implemented()

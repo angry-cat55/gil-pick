@@ -1,4 +1,4 @@
-"""Prepare the trip management migration.
+"""여행 관리 migration을 준비한다.
 
 Revision ID: 002_create_trip_table
 Revises: 001_create_auth_tables
@@ -14,8 +14,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Reserve the F002 revision; T010 adds the ``trips`` table."""
+    """F002 revision을 예약하며 T010에서 ``trips`` 테이블을 추가한다."""
 
 
 def downgrade() -> None:
-    """Revert the empty F002 revision."""
+    """비어 있는 F002 revision을 되돌린다."""
