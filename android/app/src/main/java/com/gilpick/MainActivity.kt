@@ -18,6 +18,7 @@ import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.AuthenticatedHomeScreen
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import com.gilpick.ui.theme.GilpickTheme
 
 /**
  * 앱의 단일 Activity entrypoint.
@@ -43,17 +44,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
-            MaterialTheme {
-                Surface {
-                    GilpickApp(
-                        state = state,
-                        onKakaoLogin = ::startKakaoLogin,
-                        onRetry = ::startKakaoLogin,
-                        onRetryRefresh = viewModel::retryRefresh,
-                        onLogout = viewModel::logout,
-                    )
-                }
-            }
+            GilpickApp(
+                state = state,
+                onKakaoLogin = ::startKakaoLogin,
+                onRetry = ::startKakaoLogin,
+                onRetryRefresh = viewModel::retryRefresh,
+                onLogout = viewModel::logout,
+            )
         }
     }
 
@@ -111,6 +108,24 @@ fun GilpickApp(
     modifier: Modifier = Modifier,
     onRetryRefresh: () -> Unit = {},
     onLogout: () -> Unit = {},
+) {
+    // 테마를 여기서 적용해 화면과 test·preview가 같은 토큰 위에서 동작하게 한다.
+    GilpickTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            AuthRoute(state, onKakaoLogin, onRetry, modifier, onRetryRefresh, onLogout)
+        }
+    }
+}
+
+/** 인증 상태에 따라 실제 화면을 고른다. */
+@Composable
+private fun AuthRoute(
+    state: AuthUiState,
+    onKakaoLogin: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier,
+    onRetryRefresh: () -> Unit,
+    onLogout: () -> Unit,
 ) {
     when (state) {
         is AuthUiState.Authenticated -> AuthenticatedHomeScreen(
