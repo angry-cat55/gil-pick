@@ -168,7 +168,31 @@
 - 두 작업이 같은 파일, API 또는 DB 계약을 건드리면 구현 전에 담당 범위와 소유권을 조율한다.
 - 중요한 설계 결정과 trade-off는 관련 `plan.md` 또는 적절한 `docs/decisions/` 문서에 기록한다.
 
-## 10. Issue 완료 보고 규칙
+### 저장소 공용 skill 사용
+
+`.claude/skills/`에 vendor한 skill은 팀 공용이다. 각자 설치하지 않아도 되도록 저장소에 함께 commit했으므로, 해당 작업을 할 때 사용한다.
+
+| 작업 | skill |
+|---|---|
+| Spec Kit 산출물 작성·분석·Issue 변환 | `speckit-*` |
+| Android Compose 화면 구현과 review | `compose-expert` |
+| 색상·타이포·간격·컴포넌트·접근성 등 시각 설계 결정 | `ui-ux-pro-max` |
+| API 설계와 계약 검토 | `api-design-principles` |
+| 과잉설계 점검과 단순화 | `ponytail-*` |
+
+- skill이 제안한 값과 구조는 권고이지 결정이 아니다. 이 저장소의 명세, `docs/design/ui-guidelines.md`, constitution과 충돌하면 저장소 기준이 우선한다.
+- skill이 제안한 값을 그대로 채택하지 않는다. 저장소 기준으로 검증한 뒤 쓰고, 검증 결과와 조정한 값을 PR에 기록한다.
+- skill을 실행하지 않고 판단했다면 그 사실과 이유를 PR에 남긴다.
+
+## 10. 사용자 화면 작업 규칙
+
+- Android 화면을 새로 만들거나 수정하기 전에 `docs/design/ui-guidelines.md`와 해당 feature의 화면 요구사항을 먼저 읽는다.
+- 색상·간격·타이포 값을 화면 코드에 직접 쓰지 않는다. `com.gilpick.ui.theme`의 토큰에서 읽고, 필요한 값이 없으면 가이드라인에 토큰을 먼저 추가한다.
+- 기능 동작만 구현한 임시 화면을 완료 상태로 간주하지 않는다. 임시 화면이면 task와 PR에 임시임을 명시하고 후속 작업을 남긴다.
+- 화면 구현 task의 검증 기준에는 `loading`·`empty`·`error`·`content` 네 상태, 접근성 기준, 실제 기기 또는 screenshot 확인을 포함한다.
+- 승인된 디자인 기준과 구현이 충돌하면 임의로 해석하지 않고 차이를 Issue 또는 PR에 기록해 결정을 받는다.
+
+## 11. Issue 완료 보고 규칙
 
 - Issue 구현·검증·commit·push와 PR 생성을 마친 뒤, 터미널에 표시되는 최종 완료 응답을 아래 형식으로 작성한다.
 - 확인한 사실과 추론을 구분하고, 실행하지 못한 검증이나 확인할 수 없는 관계는 명시한다.
