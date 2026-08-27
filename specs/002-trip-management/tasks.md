@@ -18,12 +18,12 @@
 
 **Purpose**: F002 구현에 필요한 최소 뼈대 준비
 
-- [ ] T001 Alembic revision 뼈대 생성 in `api/migrations/versions/002_create_trip_table.py`
+- [x] T001 Alembic revision 뼈대 생성 in `api/migrations/versions/002_create_trip_table.py`
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `upgrade`/`downgrade` 함수만 있는 빈 revision이 `alembic upgrade head`·`downgrade -1`로 왕복 성공
-- [ ] T002 [P] 여행 오류 코드 상수 추가 in `api/app/api/errors.py`
+- [x] T002 [P] 여행 오류 코드 상수 추가 in `api/app/api/errors.py`
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -39,17 +39,17 @@
 
 **🚨 CRITICAL**: 이 phase가 끝나기 전에는 어떤 user story 작업도 시작하지 않는다.
 
-- [ ] T003 Trip ORM 모델 구현 in `api/app/models/trip.py`
+- [x] T003 Trip ORM 모델 구현 in `api/app/models/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T001
   - 검증: [data-model.md](data-model.md) 컬럼·제약(`CHECK` 길이·기간)·인덱스와 1:1 대응, `python -m compileall` 통과
-- [ ] T004 [P] Trip 요청·응답 DTO 구현 in `api/app/schemas/trip.py`
+- [x] T004 [P] Trip 요청·응답 DTO 구현 in `api/app/schemas/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: [contracts/trips.openapi.yaml](contracts/trips.openapi.yaml)의 `CreateTripRequest`, `UpdateTripRequest`, `Trip`, `ErrorEnvelope` 스키마와 필드·필수 여부 일치
-- [ ] T005 trips API 라우터 뼈대와 `/api/v1` 등록 in `api/app/api/v1/trips.py`, `api/app/main.py`
+- [x] T005 trips API 라우터 뼈대와 `/api/v1` 등록 in `api/app/api/v1/trips.py`, `api/app/main.py`
   - 영역: BE
   - 담당: ts
   - 선행: T003, T004

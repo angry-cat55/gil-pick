@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 
 from app.api.errors import install_error_handling
 from app.api.v1.auth import router as auth_router
+from app.api.v1.trips import router as trips_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db import create_session_factory
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     application = FastAPI(title="길픽 API", version="0.1.0", lifespan=lifespan)
     install_error_handling(application)
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(trips_router, prefix="/api/v1")
 
     def contract_openapi() -> dict:
         """생성된 문서에서 계약에 없는 framework 기본 422만 제거한다."""
@@ -54,7 +56,9 @@ def create_app() -> FastAPI:
         schema = get_openapi(title=application.title, version=application.version, routes=application.routes)
         for path in schema["paths"].values():
             for operation in path.values():
-                operation.get("responses", {}).pop("422", None)
+                responses = operation.get("responses", {})
+                if responses.get("422", {}).get("description") == "Validation Error":
+                    responses.pop("422")
         application.openapi_schema = schema
         return schema
 
