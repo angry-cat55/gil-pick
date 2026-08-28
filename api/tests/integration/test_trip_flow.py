@@ -7,14 +7,14 @@ from collections.abc import AsyncIterator
 from datetime import date, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, inspect, select
+from sqlalchemy import func, inspect, select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api.errors import AppError
 from app.db import transaction_session
 from app.models.auth import User
 from app.models.trip import Trip
-from app.schemas.trip import CreateTripRequest, TripStatus
+from app.schemas.trip import CreateTripRequest, TripStatus, UpdateTripRequest
 from app.services.trip import KST, TripService
 
 CURSOR_SECRET = "integration-test-trip-cursor-secret"
@@ -96,6 +96,21 @@ async def get_trip(
         return await TripService(session, cursor_secret=CURSOR_SECRET).get_trip(
             user_id=user_id,
             trip_id=trip_id,
+        )
+
+
+async def update_trip(
+    factory: async_sessionmaker[AsyncSession],
+    user_id: uuid.UUID,
+    trip_id: uuid.UUID,
+    payload: UpdateTripRequest,
+):
+    """별도 transaction에서 여행 수정을 실행한다."""
+    async with transaction_session(factory) as session:
+        return await TripService(session, cursor_secret=CURSOR_SECRET).update_trip(
+            user_id=user_id,
+            trip_id=trip_id,
+            payload=payload,
         )
 
 
@@ -392,3 +407,142 @@ async def test_get_trip_distinguishes_owner_forbidden_missing_and_deleted(
         await get_trip(session_factory, other_user_id, created.trip_id)
     assert other_user_deleted.value.status_code == 404
     assert other_user_deleted.value.code == "TRIP_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_update_trip_requires_confirmation_and_rejects_stale_version(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """기간 축소는 확인 전 보존하고 확인 후 version을 올려 원자적으로 반영한다."""
+    user_id = await create_user(session_factory)
+    today = datetime.now(KST).date()
+    created = await create_trip(
+        session_factory,
+        user_id,
+        start_date=today + timedelta(days=10),
+        end_date=today + timedelta(days=12),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    shortened_end = today + timedelta(days=11)
+
+    with pytest.raises(AppError) as confirmation:
+        await update_trip(
+            session_factory,
+            user_id,
+            created.trip_id,
+            UpdateTripRequest(endDate=shortened_end, version=created.version),
+        )
+    assert confirmation.value.status_code == 409
+    assert confirmation.value.code == "CONFIRMATION_REQUIRED"
+    assert confirmation.value.details == {"deletedItemCount": 0}
+
+    unchanged = await get_trip(session_factory, user_id, created.trip_id)
+    assert unchanged.end_date == created.end_date
+    assert unchanged.version == created.version
+
+    updated = await update_trip(
+        session_factory,
+        user_id,
+        created.trip_id,
+        UpdateTripRequest(
+            endDate=shortened_end,
+            version=created.version,
+            confirmDeleteOutOfRangeItems=True,
+        ),
+    )
+    assert updated.end_date == shortened_end
+    assert updated.version == created.version + 1
+
+    with pytest.raises(AppError) as stale:
+        await update_trip(
+            session_factory,
+            user_id,
+            created.trip_id,
+            UpdateTripRequest(name="오래된 수정", version=created.version),
+        )
+    assert stale.value.status_code == 409
+    assert stale.value.code == "VERSION_CONFLICT"
+
+
+@pytest.mark.asyncio
+async def test_update_trip_rejects_other_owner_missing_and_deleted(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """수정 대상의 소유권·존재·활성 상태를 실제 DB 행으로 검증한다."""
+    user_id = await create_user(session_factory)
+    other_user_id = await create_user(session_factory)
+    created = await create_trip(
+        session_factory,
+        user_id,
+        idempotency_key=str(uuid.uuid4()),
+    )
+    payload = UpdateTripRequest(name="수정 여행", version=created.version)
+
+    with pytest.raises(AppError) as forbidden:
+        await update_trip(session_factory, other_user_id, created.trip_id, payload)
+    assert forbidden.value.status_code == 403
+    assert forbidden.value.code == "FORBIDDEN"
+
+    with pytest.raises(AppError) as missing:
+        await update_trip(session_factory, user_id, uuid.uuid4(), payload)
+    assert missing.value.status_code == 404
+    assert missing.value.code == "TRIP_NOT_FOUND"
+
+    async with transaction_session(session_factory) as session:
+        trip = await session.get(Trip, created.trip_id)
+        assert trip is not None
+        trip.deleted_at = datetime.now(KST)
+
+    with pytest.raises(AppError) as deleted:
+        await update_trip(session_factory, user_id, created.trip_id, payload)
+    assert deleted.value.status_code == 404
+    assert deleted.value.code == "TRIP_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("concurrent_change", "expected_code"),
+    [("version", "VERSION_CONFLICT"), ("delete", "TRIP_NOT_FOUND")],
+)
+async def test_update_trip_maps_concurrent_change_after_stale_read(
+    session_factory: async_sessionmaker[AsyncSession],
+    concurrent_change: str,
+    expected_code: str,
+) -> None:
+    """stale ORM 객체 뒤의 동시 수정·삭제도 500 없이 공개 오류로 변환한다."""
+    user_id = await create_user(session_factory)
+    created = await create_trip(
+        session_factory,
+        user_id,
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    async with session_factory() as stale_session:
+        async with stale_session.begin():
+            cached = await stale_session.get(Trip, created.trip_id)
+            assert cached is not None
+
+            async with transaction_session(session_factory) as concurrent_session:
+                values = (
+                    {"name": "동시 수정", "version": created.version + 1}
+                    if concurrent_change == "version"
+                    else {"deleted_at": datetime.now(KST)}
+                )
+                await concurrent_session.execute(
+                    sql_update(Trip)
+                    .where(Trip.trip_id == created.trip_id)
+                    .values(**values)
+                )
+
+            with pytest.raises(AppError) as error:
+                await TripService(
+                    stale_session,
+                    cursor_secret=CURSOR_SECRET,
+                ).update_trip(
+                    user_id=user_id,
+                    trip_id=created.trip_id,
+                    payload=UpdateTripRequest(name="내 수정", version=created.version),
+                )
+
+    assert error.value.code == expected_code
+    assert error.value.status_code == (409 if concurrent_change == "version" else 404)

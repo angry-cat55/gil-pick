@@ -237,17 +237,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T030 [P] [US4] Backend contract test: 수정 성공, 버전 충돌(`409 VERSION_CONFLICT`), 완료 상태 기간 수정 거부(`409 TRIP_LOCKED`), 소유권 없는 사용자의 수정 거부(`403`) in `api/tests/contract/test_trip_contract.py`
+- [x] T030 [P] [US4] Backend contract test: 수정 성공, 버전 충돌(`409 VERSION_CONFLICT`), 완료 상태 기간 수정 거부(`409 TRIP_LOCKED`), 소유권 없는 사용자의 수정 거부(`403`) in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
   - 검증: FR-010, FR-010a, FR-011, FR-011a, US4 Acceptance Scenario 5~8, FR-017(다른 사용자가 `PATCH`를 시도하면 `403`으로 거부되는 케이스, T023의 상세 조회 소유권 테스트와 동일한 방식) 포함, 구현 전 실패
-- [ ] T031 [P] [US4] Backend integration test: 기간 축소 확인 흐름(`409 CONFIRMATION_REQUIRED` → `confirmDeleteOutOfRangeItems=true` 재요청) in `api/tests/integration/test_trip_flow.py`
+- [x] T031 [P] [US4] Backend integration test: 기간 축소 확인 흐름(`409 CONFIRMATION_REQUIRED` → `confirmDeleteOutOfRangeItems=true` 재요청) in `api/tests/integration/test_trip_flow.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
   - 검증: FR-012, FR-013. F002 시점에는 `trip_days`/`itinerary_items`가 없어 `deletedItemCount`가 항상 0임을 확인([data-model.md](data-model.md) "범위 밖")
-- [ ] T032 [P] [US4] Backend unit test: 완료 상태는 이름만 허용, trim·길이·기간 재검증 in `api/tests/unit/test_trip_service.py`
+- [x] T032 [P] [US4] Backend unit test: 완료 상태는 이름만 허용, trim·길이·기간 재검증 in `api/tests/unit/test_trip_service.py`
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -260,12 +260,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] `TripService.update_trip` 구현(버전 검증, 완료 상태 잠금, trim·기간 검증, 삭제 확인 플래그 처리, T025의 소유권 검증 재사용) in `api/app/services/trip.py`
+- [x] T034 [US4] `TripService.update_trip` 구현(버전 검증, 완료 상태 잠금, trim·기간 검증, 삭제 확인 플래그 처리, T025의 소유권 검증 재사용) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T025, T030, T031, T032
   - 검증: T030~T032 test 통과(FR-017 소유권 거부 케이스 포함)
-- [ ] T035 [US4] `PATCH /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
+- [x] T035 [US4] `PATCH /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
   - 선행: T034

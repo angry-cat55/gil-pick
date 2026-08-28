@@ -187,10 +187,31 @@ async def get_trip(
 async def update_trip(
     trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
     payload: UpdateTripRequest,
+    request: Request,
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
-) -> NoReturn:
-    """Issue #100에서 구현할 인증된 여행 수정 계약을 선언한다."""
-    _not_implemented()
+    service: Annotated[TripService, Depends(_trip_service)],
+) -> JSONResponse:
+    """인증된 사용자가 소유한 여행의 이름·기간을 수정한다.
+
+    Args:
+        trip_id: 수정할 여행 식별자.
+        payload: 부분 수정 필드와 조회 시점 version, 기간 축소 확인 여부.
+        request: 공통 응답의 request ID를 제공하는 HTTP 요청.
+        principal: Access Token에서 검증한 여행 소유자.
+        service: 현재 요청 transaction을 사용하는 여행 service.
+
+    Returns:
+        수정된 여행 정보를 담은 공통 성공 envelope.
+
+    Raises:
+        AppError: 소유권·검증·잠금·version·기간 축소 확인 규칙을 위반한 경우.
+    """
+    trip = await service.update_trip(
+        user_id=principal.user_id,
+        trip_id=trip_id,
+        payload=payload,
+    )
+    return success_response(request, trip)
 
 
 @router.delete(

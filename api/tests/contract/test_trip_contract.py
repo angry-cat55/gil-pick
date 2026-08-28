@@ -43,6 +43,19 @@ class StubTripService:
             created_at=datetime.now(UTC),
         )
 
+    async def update_trip(self, *, user_id, trip_id, payload) -> Trip:
+        """요청한 필드를 반영한 여행 수정 응답을 반환한다."""
+        return Trip(
+            trip_id=trip_id,
+            name=payload.name.strip() if payload.name else "서울 여행",
+            start_date=payload.start_date or date(2026, 9, 1),
+            end_date=payload.end_date or date(2026, 9, 3),
+            status=TripStatus.UPCOMING,
+            day_count=2,
+            version=payload.version + 1,
+            created_at=datetime.now(UTC),
+        )
+
 
 class StubTripListService(StubTripService):
     """목록 query 전달과 응답 envelope를 검증하는 service 대역이다."""
@@ -99,6 +112,10 @@ class RejectingTripService:
 
     async def get_trip(self, *, user_id, trip_id) -> Trip:
         """설정된 조회 오류를 그대로 발생시킨다."""
+        raise self.error
+
+    async def update_trip(self, *, user_id, trip_id, payload) -> Trip:
+        """설정된 수정 오류를 그대로 발생시킨다."""
         raise self.error
 
 
@@ -318,3 +335,113 @@ def test_get_trip_openapi_declares_path_and_responses() -> None:
     assert trip_id["required"] is True
     assert trip_id["schema"]["format"] == "uuid"
     assert set(operation["responses"]) == {"200", "400", "401", "403", "404"}
+
+
+def test_update_trip_contract_returns_200_envelope(client: TestClient) -> None:
+    """여행 수정 성공 응답이 version 증가를 포함한 공개 계약과 일치하는지 확인한다."""
+    trip_id = uuid.uuid4()
+
+    response = client.patch(
+        f"/api/v1/trips/{trip_id}",
+        json={
+            "name": "  서울 여행 수정  ",
+            "endDate": "2026-09-02",
+            "version": 1,
+            "confirmDeleteOutOfRangeItems": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert {
+        "tripId": str(trip_id),
+        "name": "서울 여행 수정",
+        "endDate": "2026-09-02",
+        "dayCount": 2,
+        "version": 2,
+    }.items() <= response.json()["data"].items()
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+@pytest.mark.parametrize(
+    ("status_code", "code"),
+    [
+        (403, "FORBIDDEN"),
+        (409, "VERSION_CONFLICT"),
+        (409, "TRIP_LOCKED"),
+        (422, "INVALID_TRIP_PERIOD"),
+    ],
+)
+def test_update_trip_contract_maps_domain_errors(
+    client: TestClient,
+    status_code: int,
+    code: str,
+) -> None:
+    """여행 수정의 소유권·충돌·잠금·검증 실패를 공통 오류 envelope로 반환한다."""
+    app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
+        AppError(status_code, code, "여행을 수정할 수 없습니다.")
+    )
+
+    response = client.patch(
+        f"/api/v1/trips/{uuid.uuid4()}",
+        json={"name": "수정 여행", "version": 1},
+    )
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == code
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+def test_update_trip_contract_validates_trimmed_name_in_service(client: TestClient) -> None:
+    """trim 후 짧은 여행명을 422 도메인 오류로 반환한다."""
+    app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
+        AppError(422, "VALIDATION_ERROR", "여행명이 올바르지 않습니다.")
+    )
+
+    response = client.patch(
+        f"/api/v1/trips/{uuid.uuid4()}",
+        json={"name": " ", "version": 1},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"name": None, "version": 1},
+        {"startDate": None, "version": 1},
+        {"endDate": None, "version": 1},
+        {"name": "수정 여행", "version": True},
+        {"name": "수정 여행", "version": "1"},
+    ],
+)
+def test_update_trip_contract_rejects_null_fields_and_non_integer_version(
+    client: TestClient,
+    payload: dict[str, object],
+) -> None:
+    """명시적 null과 정수가 아닌 version을 400 계약 오류로 거부한다."""
+    response = client.patch(f"/api/v1/trips/{uuid.uuid4()}", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_update_trip_openapi_declares_request_and_responses() -> None:
+    """여행 수정 OpenAPI가 요청 DTO와 공개 응답 상태를 선언하는지 확인한다."""
+    operation = app.openapi()["paths"]["/api/v1/trips/{tripId}"]["patch"]
+
+    assert operation["requestBody"]["required"] is True
+    assert set(operation["responses"]) == {
+        "200",
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+    }
+    schema = app.openapi()["components"]["schemas"]["UpdateTripRequest"]
+    assert schema["properties"]["name"]["type"] == "string"
+    assert schema["properties"]["startDate"]["type"] == "string"
+    assert schema["properties"]["endDate"]["type"] == "string"

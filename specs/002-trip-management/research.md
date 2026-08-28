@@ -21,9 +21,9 @@
 
 이 결정은 Backend 담당자(jh)의 확인이 필요한 항목으로 별도 표시한다(아래 5절).
 
-## 3. 여행 목록·상세 응답에서 일정 관련 필드 처리
+## 3. 여행 API 응답에서 일정 관련 필드 처리
 
-**Decision**: `docs/design/api-spec.md`의 TRIP-001 응답 `dayCount`는 저장된 행이 아니라 `end_date - start_date + 1`로 계산해 반환한다. TRIP-003 응답의 `days[]`(날짜별 `itemCount`, `routeStatus`)는 `trip_days`/`itinerary_items`가 아직 없는 F002 시점에는 채울 데이터가 없으므로, F002 구현에서는 이 필드를 생략하거나 빈 배열로 반환하고 F004(일정)·F005(경로) 완료 후 실제 값을 채운다.
+**Decision**: `docs/design/api-spec.md`의 TRIP-001 응답 `dayCount`는 저장된 행이 아니라 `end_date - start_date + 1`로 계산해 반환한다. TRIP-003 응답의 `days[]`(날짜별 `itemCount`, `routeStatus`)는 `trip_days`/`itinerary_items`가 아직 없는 F002 시점에는 생략한다. TRIP-004 수정 성공 응답은 F002 계약의 `TripEnvelope`를 사용해 `deletedDayCount`·`deletedItemCount`를 생략하고, 기간 축소 확인 오류의 `details.deletedItemCount`만 항상 `0`으로 반환한다. F004(일정)·F005(경로) 완료 후 실제 일정 기반 필드가 필요하면 계약 version을 갱신해 추가한다.
 
 **Rationale**: 기존 계약 문서(api-spec.md)는 모든 feature를 아우르는 최종 형태를 미리 그려둔 문서다. F001이 `AuthenticatedHomeScreen`을 F002 전까지 빈 shell로 유지했던 것과 같은 방식으로, F002도 아직 존재하지 않는 하위 feature 데이터를 임의로 만들어내지 않는다.
 
@@ -39,4 +39,4 @@
 
 ## 5. 열린 항목 (Backend 담당자 확인 필요)
 
-- 2절의 "F002는 `trips`만 생성" 결정과 3절의 "F002는 `days[]`를 생략/빈 배열로 반환" 결정은 `docs/design/api-spec.md`·`docs/design/er-schema.md`를 새로 수정하지 않고 F002 구현 범위로만 적용한 해석이다. Backend 담당자가 다른 판단을 하면 `spec.md`가 아니라 이 문서와 `docs/design/api-spec.md`/`er-schema.md` 동기화 여부를 먼저 조정해야 한다.
+- 2절의 "F002는 `trips`만 생성" 결정과 3절의 일정 관련 필드 생략은 2026-08-28 Backend 구현 과정에서 확정했으며, `docs/design/api-spec.md`에도 F002 현재 계약과 F004 이후 확장 시점을 동기화했다.
