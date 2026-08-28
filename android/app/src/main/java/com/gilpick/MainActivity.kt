@@ -9,15 +9,24 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
-import com.gilpick.auth.AuthenticatedHomeScreen
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import com.gilpick.trip.TripFormScreen
+import com.gilpick.trip.TripFormViewModel
+import com.gilpick.trip.TripListScreen
+import com.gilpick.trip.TripListViewModel
 import com.gilpick.ui.theme.GilpickTheme
 
 /**
@@ -92,7 +101,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * 인증 상태에 따라 로그인 화면과 빈 여행 목록 shell을 고른다.
+ * 인증 상태에 따라 로그인 화면과 여행 화면을 고른다.
  *
  * @param state 현재 인증 상태.
  * @param onKakaoLogin 카카오 로그인을 시작한다.
@@ -128,11 +137,7 @@ private fun AuthRoute(
     onLogout: () -> Unit,
 ) {
     when (state) {
-        is AuthUiState.Authenticated -> AuthenticatedHomeScreen(
-            nickname = state.nickname,
-            modifier = modifier,
-            onLogout = onLogout,
-        )
+        is AuthUiState.Authenticated -> TripRoute(modifier = modifier, onLogout = onLogout)
 
         // 통신 장애로 갱신이 중단된 상태다. session은 유지한 채 보호 기능만 막는다.
         is AuthUiState.RefreshOffline -> RefreshOfflineScreen(
@@ -148,4 +153,58 @@ private fun AuthRoute(
             modifier = modifier,
         )
     }
+}
+
+/**
+ * 로그인 후 여행 화면 사이를 오간다.
+ *
+ * 화면이 둘뿐이라 navigation 라이브러리를 새로 들이지 않고 상태 하나로 고른다. 목록에서
+ * 상세로 들어가는 이동은 US3(#105)에서 추가한다.
+ */
+@Composable
+private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
+    var creating by remember { mutableStateOf(false) }
+
+    if (creating) {
+        val formViewModel: TripFormViewModel = viewModel(
+            factory = TripFormViewModel.factory(LocalContext.current),
+        )
+        val formState by formViewModel.state.collectAsStateWithLifecycle()
+
+        // 생성에 성공하면 목록으로 돌아가 새 여행이 포함된 목록을 다시 받는다.
+        LaunchedEffect(formState.createdTripId) {
+            if (formState.createdTripId != null) {
+                formViewModel.consumeCreated()
+                creating = false
+            }
+        }
+
+        TripFormScreen(
+            state = formState,
+            onNameChange = formViewModel::onNameChange,
+            onPeriodChange = formViewModel::onPeriodChange,
+            onSubmit = formViewModel::submit,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val listViewModel: TripListViewModel = viewModel(
+        factory = TripListViewModel.factory(LocalContext.current),
+    )
+    val listState by listViewModel.state.collectAsStateWithLifecycle()
+
+    // 목록으로 돌아올 때마다 다시 조회해 방금 만든 여행이 보이게 한다.
+    LaunchedEffect(Unit) { listViewModel.load() }
+
+    TripListScreen(
+        state = listState,
+        onQueryChange = listViewModel::onQueryChange,
+        onStatusFilterChange = listViewModel::onStatusFilterChange,
+        onRetry = listViewModel::retry,
+        onLoadMore = listViewModel::loadMore,
+        onCreateTrip = { creating = true },
+        modifier = modifier,
+        onLogout = onLogout,
+    )
 }

@@ -175,10 +175,22 @@ fun createAuthRetrofit(
  * 오류 body가 계약을 따르면 code와 `retryable`을 보존하고, 그렇지 않으면
  * [AuthError.Malformed]로 확정한다. 어떤 경우에도 Token 원문을 message에 담지 않는다.
  */
-fun <T> retrofit2.Response<SuccessEnvelope<T>>.toAuthResult(): AuthResult<T> {
+fun <T> retrofit2.Response<SuccessEnvelope<T>>.toAuthResult(): AuthResult<T> =
+    toAuthResult { it.data }
+
+/**
+ * 공통 envelope가 아닌 응답도 같은 오류 규칙으로 [AuthResult]에 담는다.
+ *
+ * 목록 endpoint처럼 `meta`에 pagination이 붙어 [SuccessEnvelope]로 표현할 수 없는
+ * 응답이 있다. 성공 body에서 필요한 값을 꺼내는 방법만 [extract]로 받고, 실패 처리는
+ * 모든 endpoint가 같은 규칙을 쓰도록 여기에 모아 둔다.
+ *
+ * @param extract 성공 body에서 화면·repository가 쓸 값을 꺼낸다.
+ */
+fun <B, T> retrofit2.Response<B>.toAuthResult(extract: (B) -> T): AuthResult<T> {
     val body = body()
     if (isSuccessful && body != null) {
-        return AuthResult.Success(body.data, code())
+        return AuthResult.Success(extract(body), code())
     }
     return toAuthFailure()
 }

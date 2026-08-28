@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 /**
  * T017: verified App Link 수신과 로그인 화면 상태 전이 검증.
  *
- * 실제 host/path의 intent를 앱이 claim하는지, 로그인에 성공하면 빈 여행 목록 shell로
+ * 실제 host/path의 intent를 앱이 claim하는지, 로그인에 성공하면 여행 목록 화면으로
  * 이동하는지 확인한다.
  */
 @RunWith(AndroidJUnit4::class)
@@ -146,7 +146,7 @@ class AuthLoginTest {
     // --- 로그인 성공 후 이동 ---
 
     @Test
-    fun 로그인에_성공하면_빈_여행_목록_shell로_이동한다() {
+    fun 로그인에_성공하면_여행_목록_화면으로_이동한다() {
         composeRule.setContent {
             GilpickApp(
                 state = AuthUiState.Authenticated(USER_ID, nickname = "길픽", profileImageUrl = null),
@@ -155,12 +155,12 @@ class AuthLoginTest {
             )
         }
 
-        composeRule.onNodeWithText(string(R.string.trips_empty)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.login_kakao)).assertDoesNotExist()
     }
 
     @Test
-    fun profile이_없는_사용자도_빈_여행_목록_shell로_들어간다() {
+    fun profile이_없는_사용자도_여행_목록_화면으로_들어간다() {
         composeRule.setContent {
             GilpickApp(
                 state = AuthUiState.Authenticated(USER_ID, nickname = null, profileImageUrl = null),
@@ -169,20 +169,20 @@ class AuthLoginTest {
             )
         }
 
-        composeRule.onNodeWithText(string(R.string.trips_empty)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
     }
 
     // --- T045: 반복 시간 측정 ---
 
     /**
-     * mock 환경에서 App Link 수신부터 빈 여행 목록 shell 표시까지의 시간을 20회 측정한다.
+     * mock 환경에서 App Link 수신부터 여행 목록 화면 표시까지의 시간을 20회 측정한다.
      *
      * SC-001의 "20회 중 19회 이상 10초 이내"를 확인한다. Kakao와 Backend는 mock이므로
      * 외부 대기시간은 빠지고 ticket 교환, 암호화 저장, 화면 전환 경로만 측정한다.
      * 느린 회차도 기록해야 분포를 볼 수 있으므로 대기 한도는 기준치보다 넉넉하게 둔다.
      */
     @Test
-    fun mock_App_Link부터_빈_여행_목록_shell까지_20회_중_19회_이상_10초_이내다() {
+    fun mock_App_Link부터_여행_목록_화면까지_20회_중_19회_이상_10초_이내다() {
         val server = MockWebServer()
         server.start()
         val storeFile = File(context.cacheDir, "auth-perf-${System.nanoTime()}.pb")
@@ -211,7 +211,7 @@ class AuthLoginTest {
 
                 val startedAt = System.nanoTime()
                 runBlocking { repository.completeLogin(completeLink(iteration)) }
-                composeRule.waitUntil(WAIT_LIMIT_MS) { isDisplayed(R.string.trips_empty) }
+                composeRule.waitUntil(WAIT_LIMIT_MS) { isDisplayed(R.string.trips_title) }
                 (System.nanoTime() - startedAt) / 1_000_000
             }
 
