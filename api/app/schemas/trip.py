@@ -36,7 +36,7 @@ class TripStatus(StrEnum):
 class CreateTripRequest(TripRequestModel):
     """여행 생성 payload이며 필드 간 규칙은 서비스에서 검증한다."""
 
-    name: str = Field(min_length=2, max_length=30)
+    name: str = Field(json_schema_extra={"minLength": 2, "maxLength": 30})
     start_date: date
     end_date: date
 

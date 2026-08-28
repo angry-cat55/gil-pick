@@ -74,12 +74,12 @@
 
 > **NOTE: 아래 test를 먼저 작성하고 구현 전에 실패하는 것을 확인한다**
 
-- [ ] T007 [P] [US1] Backend contract test: 생성 성공·검증 실패(이름 길이/trim, 기간, `startDate>endDate`)·동일 이름 재생성 성공 in `api/tests/contract/test_trip_contract.py`
+- [x] T007 [P] [US1] Backend contract test: 생성 성공·검증 실패(이름 길이/trim, 기간, `startDate>endDate`)·동일 이름 재생성 성공 in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T005
   - 검증: FR-001, FR-001a, FR-001b 대응 케이스 포함, FR-002(동일 사용자 내 여행명 중복 생성이 거부되지 않고 성공하는 케이스) 포함, 구현 전 실패
-- [ ] T008 [P] [US1] Backend integration test: `Idempotency-Key` 재전송 시 단일 생성 in `api/tests/integration/test_trip_flow.py`
+- [x] T008 [P] [US1] Backend integration test: `Idempotency-Key` 재전송 시 단일 생성 in `api/tests/integration/test_trip_flow.py`
   - 영역: BE
   - 담당: ts
   - 선행: T005
@@ -92,17 +92,17 @@
 
 ### Implementation for User Story 1
 
-- [ ] T010 Alembic migration 완성(`trips` 테이블 컬럼·`CHECK`·인덱스) in `api/migrations/versions/002_create_trip_table.py`
+- [x] T010 Alembic migration 완성(`trips` 테이블 컬럼·`CHECK`·인덱스) in `api/migrations/versions/002_create_trip_table.py`
   - 영역: BE
   - 담당: ts
   - 선행: T001, T003
   - 검증: `alembic upgrade head` 성공, [data-model.md](data-model.md) 인덱스(`(user_id, deleted_at)`, `(user_id, lower(name)) WHERE deleted_at IS NULL`) 존재 확인
-- [ ] T011 [US1] `TripService.create_trip` 구현(trim·길이·기간 검증, Idempotency-Key 처리) in `api/app/services/trip.py`
+- [x] T011 [US1] `TripService.create_trip` 구현(trim·길이·기간 검증, Idempotency-Key 처리) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T007, T008, T010
   - 검증: T007·T008 test 통과
-- [ ] T012 [US1] `POST /api/v1/trips` endpoint 연결 in `api/app/api/v1/trips.py`
+- [x] T012 [US1] `POST /api/v1/trips` endpoint 연결 in `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
   - 선행: T011
