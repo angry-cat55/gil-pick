@@ -48,7 +48,6 @@
     <string name="trip_form_period_empty">날짜를 선택해 주세요</string>
     <string name="trip_form_period_value">%1$s ~ %2$s</string>
     <string name="trip_form_period_days">%1$d일</string>
-    <string name="trip_form_period_change">기간 선택</string>
     <string name="trip_form_submit">여행 만들기</string>
     <string name="trip_form_submitting">여행을 만들고 있습니다</string>
     <string name="trip_form_confirm">확인</string>
