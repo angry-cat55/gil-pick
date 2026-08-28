@@ -142,6 +142,7 @@ async def create_trip(
     "/{tripId}",
     response_model=TripEnvelope,
     responses={
+        400: {"model": ErrorEnvelope},
         401: {"model": ErrorEnvelope},
         403: {"model": ErrorEnvelope},
         404: {"model": ErrorEnvelope},
@@ -149,10 +150,26 @@ async def create_trip(
 )
 async def get_trip(
     trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
+    request: Request,
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
-) -> NoReturn:
-    """Issue #99에서 구현할 인증된 여행 상세 조회 계약을 선언한다."""
-    _not_implemented()
+    service: Annotated[TripService, Depends(_trip_service)],
+) -> JSONResponse:
+    """인증된 사용자가 소유한 여행의 상세 정보를 조회한다.
+
+    Args:
+        trip_id: 조회할 여행 식별자.
+        request: 공통 응답의 request ID를 제공하는 HTTP 요청.
+        principal: Access Token에서 검증한 여행 소유자.
+        service: 현재 요청 transaction을 사용하는 여행 service.
+
+    Returns:
+        여행 상세 정보를 담은 공통 성공 envelope.
+
+    Raises:
+        AppError: 여행이 없거나 삭제됐거나 요청 사용자가 소유하지 않은 경우.
+    """
+    trip = await service.get_trip(user_id=principal.user_id, trip_id=trip_id)
+    return success_response(request, trip)
 
 
 @router.patch(

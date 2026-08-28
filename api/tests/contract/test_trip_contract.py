@@ -30,6 +30,19 @@ class StubTripService:
             created_at=datetime.now(UTC),
         )
 
+    async def get_trip(self, *, user_id, trip_id) -> Trip:
+        """요청한 식별자의 여행 상세 응답을 반환한다."""
+        return Trip(
+            trip_id=trip_id,
+            name="서울 여행",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 9, 3),
+            status=TripStatus.UPCOMING,
+            day_count=3,
+            version=1,
+            created_at=datetime.now(UTC),
+        )
+
 
 class StubTripListService(StubTripService):
     """목록 query 전달과 응답 envelope를 검증하는 service 대역이다."""
@@ -82,6 +95,10 @@ class RejectingTripService:
 
     async def create_trip(self, *, user_id, payload, idempotency_key) -> Trip:
         """설정된 검증 오류를 그대로 발생시킨다."""
+        raise self.error
+
+    async def get_trip(self, *, user_id, trip_id) -> Trip:
+        """설정된 조회 오류를 그대로 발생시킨다."""
         raise self.error
 
 
@@ -241,3 +258,63 @@ def test_list_trips_openapi_declares_query_and_pagination_contract() -> None:
         "title": "Limit",
     }
     assert set(operation["responses"]) == {"200", "400", "401"}
+
+
+def test_get_trip_contract_returns_200_envelope(client: TestClient) -> None:
+    """여행 상세 조회 성공 응답이 공개 계약과 일치하는지 확인한다."""
+    trip_id = uuid.uuid4()
+
+    response = client.get(f"/api/v1/trips/{trip_id}")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "tripId": str(trip_id),
+        "name": "서울 여행",
+        "startDate": "2026-09-01",
+        "endDate": "2026-09-03",
+        "status": "UPCOMING",
+        "dayCount": 3,
+        "version": 1,
+        "createdAt": response.json()["data"]["createdAt"],
+    }
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+@pytest.mark.parametrize(
+    ("status_code", "code"),
+    [(403, "FORBIDDEN"), (404, "TRIP_NOT_FOUND")],
+)
+def test_get_trip_contract_maps_ownership_and_missing_errors(
+    client: TestClient,
+    status_code: int,
+    code: str,
+) -> None:
+    """비소유 여행과 미존재·삭제 여행을 공통 오류 envelope로 반환한다."""
+    app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
+        AppError(status_code, code, "여행을 조회할 수 없습니다.")
+    )
+
+    response = client.get(f"/api/v1/trips/{uuid.uuid4()}")
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == code
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+def test_get_trip_contract_rejects_invalid_uuid(client: TestClient) -> None:
+    """UUID가 아닌 여행 식별자를 400 공통 오류 envelope로 거부한다."""
+    response = client.get("/api/v1/trips/not-a-uuid")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+def test_get_trip_openapi_declares_path_and_responses() -> None:
+    """여행 상세 OpenAPI가 UUID 경로와 공개 응답 상태를 선언하는지 확인한다."""
+    operation = app.openapi()["paths"]["/api/v1/trips/{tripId}"]["get"]
+    trip_id = next(item for item in operation["parameters"] if item["name"] == "tripId")
+
+    assert trip_id["required"] is True
+    assert trip_id["schema"]["format"] == "uuid"
+    assert set(operation["responses"]) == {"200", "400", "401", "403", "404"}

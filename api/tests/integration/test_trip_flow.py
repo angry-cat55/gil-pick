@@ -86,6 +86,19 @@ async def list_trips(
         )
 
 
+async def get_trip(
+    factory: async_sessionmaker[AsyncSession],
+    user_id: uuid.UUID,
+    trip_id: uuid.UUID,
+):
+    """별도 transaction에서 여행 상세를 조회한다."""
+    async with transaction_session(factory) as session:
+        return await TripService(session, cursor_secret=CURSOR_SECRET).get_trip(
+            user_id=user_id,
+            trip_id=trip_id,
+        )
+
+
 @pytest.mark.asyncio
 async def test_same_idempotency_key_creates_one_trip(
     session_factory: async_sessionmaker[AsyncSession],
@@ -337,3 +350,45 @@ async def test_list_trips_applies_search_status_and_cursor_pagination(
             limit=1,
         )
     assert error.value.code == "INVALID_REQUEST"
+
+
+@pytest.mark.asyncio
+async def test_get_trip_distinguishes_owner_forbidden_missing_and_deleted(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """상세 조회가 소유권과 활성 상태에 따라 성공·403·404를 구분하는지 확인한다."""
+    user_id = await create_user(session_factory)
+    other_user_id = await create_user(session_factory)
+    created = await create_trip(
+        session_factory,
+        user_id,
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    found = await get_trip(session_factory, user_id, created.trip_id)
+
+    assert found == created
+
+    with pytest.raises(AppError) as forbidden:
+        await get_trip(session_factory, other_user_id, created.trip_id)
+    assert forbidden.value.status_code == 403
+
+    with pytest.raises(AppError) as missing:
+        await get_trip(session_factory, user_id, uuid.uuid4())
+    assert missing.value.status_code == 404
+    assert missing.value.code == "TRIP_NOT_FOUND"
+
+    async with transaction_session(session_factory) as session:
+        trip = await session.get(Trip, created.trip_id)
+        assert trip is not None
+        trip.deleted_at = datetime.now(KST)
+
+    with pytest.raises(AppError) as deleted:
+        await get_trip(session_factory, user_id, created.trip_id)
+    assert deleted.value.status_code == 404
+    assert deleted.value.code == "TRIP_NOT_FOUND"
+
+    with pytest.raises(AppError) as other_user_deleted:
+        await get_trip(session_factory, other_user_id, created.trip_id)
+    assert other_user_deleted.value.status_code == 404
+    assert other_user_deleted.value.code == "TRIP_NOT_FOUND"

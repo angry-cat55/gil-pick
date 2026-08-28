@@ -13,7 +13,7 @@ from sqlalchemy import and_, case, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.errors import AppError, INVALID_TRIP_PERIOD
+from app.api.errors import AppError, FORBIDDEN, INVALID_TRIP_PERIOD, TRIP_NOT_FOUND
 from app.models.trip import Trip as TripModel
 from app.schemas.trip import CreateTripRequest, Trip, TripStatus
 
@@ -189,6 +189,28 @@ class TripService:
             else None
         )
         return items, next_cursor, has_next
+
+    async def get_trip(self, *, user_id: uuid.UUID, trip_id: uuid.UUID) -> Trip:
+        """소유한 활성 여행 하나를 조회한다.
+
+        Args:
+            user_id: 인증된 사용자 식별자.
+            trip_id: 조회할 여행 식별자.
+
+        Returns:
+            현재 KST 날짜로 상태를 계산한 여행 상세 정보.
+
+        Raises:
+            AppError: 여행이 없거나 삭제됐거나 요청 사용자가 소유하지 않은 경우.
+        """
+        trip = await self.session.scalar(
+            select(TripModel).where(TripModel.trip_id == trip_id)
+        )
+        if trip is None or trip.deleted_at is not None:
+            raise AppError(404, TRIP_NOT_FOUND, "여행을 찾을 수 없습니다.")
+        if trip.user_id != user_id:
+            raise AppError(403, FORBIDDEN, "다른 사용자의 여행은 조회할 수 없습니다.")
+        return _to_schema(trip)
 
 
 def _decode_cursor(

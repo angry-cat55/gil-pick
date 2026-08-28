@@ -186,7 +186,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T023 [P] [US3] Backend contract test: 상세 조회 성공·소유권 거부(`403`)·미존재/삭제됨(`404`) in `api/tests/contract/test_trip_contract.py`
+- [x] T023 [P] [US3] Backend contract test: 상세 조회 성공·소유권 거부(`403`)·미존재/삭제됨(`404`) in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
@@ -199,12 +199,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] `TripService.get_trip` 구현(소유권 검증, `403`/`404` 분기) in `api/app/services/trip.py`
+- [x] T025 [US3] `TripService.get_trip` 구현(소유권 검증, `403`/`404` 분기) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T018, T023
   - 검증: T023 test 통과
-- [ ] T026 [US3] `GET /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
+- [x] T026 [US3] `GET /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
   - 선행: T025
