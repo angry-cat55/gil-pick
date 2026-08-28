@@ -130,12 +130,12 @@
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Backend contract test: 목록 조회 정렬·검색·필터·cursor pagination in `api/tests/contract/test_trip_contract.py`
+- [x] T015 [P] [US2] Backend contract test: 목록 조회 정렬·검색·필터·cursor pagination in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
   - 검증: FR-005~FR-009, 구현 전 실패
-- [ ] T016 [P] [US2] Backend integration test: 다른 사용자 여행 비노출, 상태 그룹(여행 중→예정→완료) 순서 in `api/tests/integration/test_trip_flow.py`
+- [x] T016 [P] [US2] Backend integration test: 다른 사용자 여행 비노출, 상태 그룹(여행 중→예정→완료) 순서 in `api/tests/integration/test_trip_flow.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
@@ -148,12 +148,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 [US2] `TripService.list_trips` 구현(상태 파생 계산, 검색, 필터, cursor pagination, 소유권 필터) in `api/app/services/trip.py`
+- [x] T018 [US2] `TripService.list_trips` 구현(상태 파생 계산, 검색, 필터, cursor pagination, 소유권 필터) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T015, T016
   - 검증: T015·T016 test 통과
-- [ ] T019 [US2] `GET /api/v1/trips` endpoint 연결 in `api/app/api/v1/trips.py`
+- [x] T019 [US2] `GET /api/v1/trips` endpoint 연결 in `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
   - 선행: T018
