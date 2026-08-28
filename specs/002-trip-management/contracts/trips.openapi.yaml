@@ -314,6 +314,8 @@ components:
             code:
               type: string
               enum:
+                - INVALID_REQUEST
+                - INVALID_ACCESS_TOKEN
                 - VALIDATION_ERROR
                 - INVALID_TRIP_PERIOD
                 - TRIP_NOT_FOUND

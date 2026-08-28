@@ -44,10 +44,13 @@ class CreateTripRequest(TripRequestModel):
 class UpdateTripRequest(TripRequestModel):
     """낙관적 동시성 버전을 포함하는 여행 부분 수정 payload."""
 
-    name: str | None = Field(default=None, min_length=2, max_length=30)
-    start_date: date | None = None
-    end_date: date | None = None
-    version: int
+    name: str = Field(  # type: ignore[assignment]
+        default=None,
+        json_schema_extra={"minLength": 2, "maxLength": 30},
+    )
+    start_date: date = None  # type: ignore[assignment]
+    end_date: date = None  # type: ignore[assignment]
+    version: int = Field(strict=True)
     confirm_delete_out_of_range_items: bool = False
 
 

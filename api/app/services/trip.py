@@ -1,4 +1,4 @@
-"""여행 생성 규칙과 transaction 내부 DB 변경을 처리한다."""
+"""여행 관리 규칙과 transaction 내부 DB 변경을 처리한다."""
 
 from __future__ import annotations
 
@@ -9,20 +9,28 @@ import hmac
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import and_, case, func, select, tuple_
+from sqlalchemy import and_, case, func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.errors import AppError, FORBIDDEN, INVALID_TRIP_PERIOD, TRIP_NOT_FOUND
+from app.api.errors import (
+    AppError,
+    CONFIRMATION_REQUIRED,
+    FORBIDDEN,
+    INVALID_TRIP_PERIOD,
+    TRIP_LOCKED,
+    TRIP_NOT_FOUND,
+    VERSION_CONFLICT,
+)
 from app.models.trip import Trip as TripModel
-from app.schemas.trip import CreateTripRequest, Trip, TripStatus
+from app.schemas.trip import CreateTripRequest, Trip, TripStatus, UpdateTripRequest
 
 KST = timezone(timedelta(hours=9))
 EPOCH_DATE = date(1970, 1, 1)
 
 
 class TripService:
-    """인증된 사용자의 여행 생성과 목록 조회 규칙을 담당한다."""
+    """인증된 사용자의 여행 생성·조회·수정 규칙을 담당한다."""
 
     def __init__(self, session: AsyncSession, *, cursor_secret: str) -> None:
         self.session = session
@@ -56,20 +64,11 @@ class TripService:
             이 메서드는 호출자가 소유한 transaction 안에서 한 행만 생성한다.
         """
         name = payload.name.strip()
-        if not 2 <= len(name) <= 30:
-            raise AppError(
-                422,
-                "VALIDATION_ERROR",
-                "여행명은 앞뒤 공백을 제외하고 2자 이상 30자 이하여야 합니다.",
-            )
-
-        duration = (payload.end_date - payload.start_date).days
-        if not 0 <= duration <= 6:
-            raise AppError(
-                422,
-                INVALID_TRIP_PERIOD,
-                "여행 기간은 시작일부터 종료일까지 최대 7일이어야 합니다.",
-            )
+        _validate_trip_values(
+            name=name,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
 
         key = idempotency_key.strip()
         if not key:
@@ -203,6 +202,104 @@ class TripService:
         Raises:
             AppError: 여행이 없거나 삭제됐거나 요청 사용자가 소유하지 않은 경우.
         """
+        trip = await self._get_owned_active_trip(user_id=user_id, trip_id=trip_id)
+        return _to_schema(trip)
+
+    async def update_trip(
+        self,
+        *,
+        user_id: uuid.UUID,
+        trip_id: uuid.UUID,
+        payload: UpdateTripRequest,
+    ) -> Trip:
+        """여행 이름·기간을 검증하고 version 조건으로 원자적으로 수정한다.
+
+        Args:
+            user_id: 인증된 사용자 식별자.
+            trip_id: 수정할 여행 식별자.
+            payload: 부분 수정 필드와 조회 시점 version, 기간 축소 확인 여부.
+
+        Returns:
+            수정 후 version과 파생 상태를 포함한 여행 정보.
+
+        Raises:
+            AppError: 여행이 없거나 소유권·검증·잠금·version·확인 규칙을 위반한 경우.
+
+        Notes:
+            호출자가 소유한 transaction 안에서 조건부 ``UPDATE`` 한 번으로 변경한다.
+        """
+        trip = await self._get_owned_active_trip(user_id=user_id, trip_id=trip_id)
+        if trip.version != payload.version:
+            raise _version_conflict()
+
+        period_requested = payload.start_date is not None or payload.end_date is not None
+        if _to_schema(trip).status == TripStatus.COMPLETED and period_requested:
+            raise AppError(
+                409,
+                TRIP_LOCKED,
+                "완료된 여행의 기간은 수정할 수 없습니다.",
+            )
+
+        name = payload.name.strip() if payload.name is not None else trip.name
+        start_date = payload.start_date or trip.start_date
+        end_date = payload.end_date or trip.end_date
+        _validate_trip_values(name=name, start_date=start_date, end_date=end_date)
+
+        period_shrinks = start_date > trip.start_date or end_date < trip.end_date
+        if period_shrinks and not payload.confirm_delete_out_of_range_items:
+            raise AppError(
+                409,
+                CONFIRMATION_REQUIRED,
+                "기간 축소로 제외되는 일정을 확인해 주세요.",
+                details={"deletedItemCount": 0},
+            )
+
+        values: dict[str, object] = {}
+        if payload.name is not None:
+            values["name"] = name
+        if payload.start_date is not None:
+            values["start_date"] = start_date
+        if payload.end_date is not None:
+            values["end_date"] = end_date
+        if not values:
+            return _to_schema(trip)
+        values["version"] = TripModel.version + 1
+
+        result = await self.session.execute(
+            update(TripModel)
+            .where(
+                TripModel.trip_id == trip_id,
+                TripModel.user_id == user_id,
+                TripModel.deleted_at.is_(None),
+                TripModel.version == payload.version,
+            )
+            .values(**values)
+            .returning(TripModel)
+        )
+        updated_trip = result.scalar_one_or_none()
+        if updated_trip is None:
+            current = (
+                await self.session.execute(
+                    select(
+                        TripModel.user_id,
+                        TripModel.deleted_at,
+                    ).where(TripModel.trip_id == trip_id)
+                )
+            ).one_or_none()
+            if current is None or current.deleted_at is not None:
+                raise AppError(404, TRIP_NOT_FOUND, "여행을 찾을 수 없습니다.")
+            if current.user_id != user_id:
+                raise AppError(403, FORBIDDEN, "다른 사용자의 여행은 수정할 수 없습니다.")
+            raise _version_conflict()
+        return _to_schema(updated_trip)
+
+    async def _get_owned_active_trip(
+        self,
+        *,
+        user_id: uuid.UUID,
+        trip_id: uuid.UUID,
+    ) -> TripModel:
+        """활성 여행의 존재와 소유권을 공통 규칙으로 검증한다."""
         trip = await self.session.scalar(
             select(TripModel).where(TripModel.trip_id == trip_id)
         )
@@ -210,7 +307,7 @@ class TripService:
             raise AppError(404, TRIP_NOT_FOUND, "여행을 찾을 수 없습니다.")
         if trip.user_id != user_id:
             raise AppError(403, FORBIDDEN, "다른 사용자의 여행은 조회할 수 없습니다.")
-        return _to_schema(trip)
+        return trip
 
 
 def _decode_cursor(
@@ -302,6 +399,31 @@ def _filter_fingerprint(query: str, status: TripStatus | None) -> str:
     status_value = status.value if status else ""
     value = f"{query}\0{status_value}".encode()
     return hashlib.sha256(value).hexdigest()[:16]
+
+
+def _validate_trip_values(*, name: str, start_date: date, end_date: date) -> None:
+    """여행 생성·수정에 공통인 이름과 기간 불변 조건을 검증한다."""
+    if not 2 <= len(name) <= 30:
+        raise AppError(
+            422,
+            "VALIDATION_ERROR",
+            "여행명은 앞뒤 공백을 제외하고 2자 이상 30자 이하여야 합니다.",
+        )
+    if not 0 <= (end_date - start_date).days <= 6:
+        raise AppError(
+            422,
+            INVALID_TRIP_PERIOD,
+            "여행 기간은 시작일부터 종료일까지 최대 7일이어야 합니다.",
+        )
+
+
+def _version_conflict() -> AppError:
+    """클라이언트가 최신 여행을 다시 조회하도록 version 충돌 오류를 만든다."""
+    return AppError(
+        409,
+        VERSION_CONFLICT,
+        "여행이 이미 변경되었습니다. 최신 정보를 다시 조회해 주세요.",
+    )
 
 
 def _to_schema(trip: TripModel, *, today: date | None = None) -> Trip:

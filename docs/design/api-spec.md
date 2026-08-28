@@ -542,8 +542,7 @@ Response `200`:
     "startDate": "2026-08-22",
     "endDate": "2026-08-23",
     "status": "IN_PROGRESS",
-    "deletedDayCount": 1,
-    "deletedItemCount": 3,
+    "dayCount": 2,
     "version": 4
   },
   "meta": {
@@ -551,6 +550,8 @@ Response `200`:
   }
 }
 ```
+
+F002에서는 `trip_days`·`itinerary_items`가 아직 없으므로 수정 성공 응답도 다른 여행 API와 같은 `TripEnvelope`를 사용하며 `deletedDayCount`·`deletedItemCount`를 포함하지 않는다. 실제 일정 삭제 개수는 F004에서 일정 테이블을 도입할 때 계약 version을 갱신해 추가한다.
 
 삭제 확인이 필요한 경우 `409 CONFIRMATION_REQUIRED` 예시:
 
@@ -561,7 +562,7 @@ Response `200`:
     "code": "CONFIRMATION_REQUIRED",
     "message": "여행 기간을 줄이면 범위 밖 일정이 삭제됩니다.",
     "details": {
-      "deletedItemCount": 3
+      "deletedItemCount": 0
     },
     "retryable": false
   },
@@ -571,7 +572,9 @@ Response `200`:
 }
 ```
 
-주요 오류: `400`, `403`, `404`, `409 VERSION_CONFLICT`, `409 CONFIRMATION_REQUIRED`, `409 TRIP_LOCKED`, `422`
+F002의 `deletedItemCount`는 항상 `0`이며 F004 이후 실제 범위 밖 일정 개수로 대체한다.
+
+주요 오류: `400`, `401 INVALID_ACCESS_TOKEN`, `403`, `404`, `409 VERSION_CONFLICT`, `409 CONFIRMATION_REQUIRED`, `409 TRIP_LOCKED`, `422`
 
 ### TRIP-005 여행 삭제
 
