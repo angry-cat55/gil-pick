@@ -4,7 +4,7 @@
 
 **Prerequisites**: [plan.md](plan.md), [spec.md](spec.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/trips.openapi.yaml](contracts/trips.openapi.yaml), [quickstart.md](quickstart.md)
 
-**담당자**: 팀 합의에 따라 Backend는 `ts`, Frontend Android는 `hs`가 담당한다. 영역이 `통합`인 task(Phase 8)는 `ts, hs`가 함께 확인한다.
+**담당자**: 팀 합의에 따라 Backend는 `ts`, Frontend Android는 `hs`가 담당한다. Phase 8은 원래 `ts, hs` 공동이었으나 GitHub Issue 변환을 위해 BE(T045~T047)·FE(T048~T049)로 분리했다.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -116,7 +116,7 @@
   - 영역: FE
   - 담당: hs
   - 선행: T009, T013
-  - 검증: T009 test 통과, 생성 성공 시 서버가 반환한 `tripId`로 상세 화면 이동 준비(실제 이동 연결은 US3)
+  - 검증: T009 test 통과, 생성 성공 시 서버가 반환한 `tripId`로 상세 화면 이동 준비(실제 이동 연결은 US3). `docs/design/ui-guidelines.md` 준수: 색상·간격·타이포는 `com.gilpick.ui.theme` 토큰만 사용(리터럴 금지), 여행 기간 입력에 `com.gilpick.ui.component`의 날짜 선택 컴포넌트 재사용, 제출 중·오류·정상 상태 표현, 접근성 기준(라벨 항상 표시, 터치 영역 48dp 이상) 충족
 
 **Checkpoint**: 여행 생성이 독립적으로 동작하고 테스트 가능하다.
 
@@ -167,12 +167,12 @@
   - 영역: FE
   - 담당: hs
   - 선행: T017, T020
-  - 검증: T017 test 통과, 여행 없음 상태의 빈 화면 문구 표시
+  - 검증: T017 test 통과. `docs/design/ui-guidelines.md` 9절 4상태(`loading`은 1초 초과 시에만 skeleton, `empty`는 이유와 행동 버튼, `error`는 원인과 재시도 버튼, `content`) 모두 구현, `com.gilpick.ui.component`의 여행 카드·여행 목록 행·상태 뱃지 재사용, 색상·간격·타이포는 `com.gilpick.ui.theme` 토큰만 사용(리터럴 금지)
 - [ ] T022 [US2] `MainActivity` 진입점을 `AuthenticatedHomeScreen`에서 `TripListScreen`으로 교체 in `android/app/src/main/java/com/gilpick/MainActivity.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T021
-  - 검증: 로그인 성공 후 실제 여행 목록이 표시됨(F001의 빈 shell 대체)
+  - 검증: 로그인 성공 후 실제 여행 목록이 표시됨(F001의 빈 shell 대체), 기존 `GilpickTheme` 적용 위치(`GilpickApp`) 안에서 정상 렌더링 확인
 
 **Checkpoint**: US1+US2로 생성→목록 확인까지 되는 MVP가 완성된다.
 
@@ -218,7 +218,7 @@
   - 영역: FE
   - 담당: hs
   - 선행: T024, T027
-  - 검증: T024 test 통과
+  - 검증: T024 test 통과. `docs/design/ui-guidelines.md` 9절 4상태(loading·empty·error·content) 구현, 여행 상태(예정/여행 중/완료)는 `com.gilpick.ui.component`의 상태 뱃지로 표시(색만으로 구분 금지, 텍스트 병기), 색상·간격·타이포는 `com.gilpick.ui.theme` 토큰만 사용
 - [ ] T029 [US3] 목록에서 상세로 이동하는 navigation 연결 in `android/app/src/main/java/com/gilpick/trip/TripListScreen.kt`
   - 영역: FE
   - 담당: hs
@@ -279,7 +279,7 @@
   - 영역: FE
   - 담당: hs
   - 선행: T033, T036
-  - 검증: T033 test 통과
+  - 검증: T033 test 통과. 완료 상태 기간 입력 잠금은 `docs/design/ui-guidelines.md`의 색 단독 의미 전달 금지 기준에 따라 비활성 스타일과 안내 문구를 함께 표시, `com.gilpick.ui.theme`/`com.gilpick.ui.component` 토큰·컴포넌트만 사용
 - [ ] T038 [US4] 상세 화면에서 수정 진입 연결 in `android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt`
   - 영역: FE
   - 담당: hs
@@ -325,12 +325,12 @@
   - 영역: FE
   - 담당: hs
   - 선행: T027
-  - 검증: 삭제 성공·잠금 오류 매핑
+  - 검증: 모든 여행 상태의 삭제 성공과 소유권·미존재 오류 매핑
 - [ ] T044 [US5] 상세 화면 삭제 버튼·확인 다이얼로그·목록 갱신 연결 in `android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripListViewModel.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T028, T043
-  - 검증: 삭제 후 상세 화면 종료, 목록에서 즉시 제외
+  - 검증: 삭제 후 상세 화면 종료, 목록에서 즉시 제외. 삭제 버튼은 `docs/design/ui-guidelines.md`의 "위험" 버튼 규칙(주요 버튼과 공간적으로 분리, 확인 절차 포함) 준수
 
 **Checkpoint**: US1~US5 전체가 독립적으로 동작한다.
 
@@ -338,20 +338,32 @@
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T045 [P] quickstart.md 시나리오 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
-  - 영역: 통합
-  - 담당: ts, hs
-  - 선행: T012, T019, T026, T035, T042, T022, T029, T038, T044
-  - 검증: Backend curl 시나리오·Android 확인 항목을 모두 실행하고 실행 명령·결과를 PR에 기록. 실행하지 못한 항목은 이유를 남긴다.
+**Note**: 원래 T045~T047은 담당 `ts, hs` 공동으로 기록했으나, GitHub Issue는 단일 assignee만 가능해 speckit-taskstoissues 변환 시점에 BE/FE로 분리했다(F001의 #78/#79 패턴과 동일). 이 분리는 PR #95 병합 시점에는 반영되지 못했다가 이번 PR에서 GitHub Issue #102(BE)·#108(FE)과 다시 맞춰졌다. Backend 검증(T045, T046, T047)이 끝난 뒤 Android 검증(T048, T049)을 진행한다.
+
+- [ ] T045 [P] quickstart.md의 Backend curl 시나리오(1~5) 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
+  - 영역: BE
+  - 담당: ts
+  - 선행: T012, T019, T026, T035, T042
+  - 검증: Backend 절의 curl 시나리오를 모두 실행하고 실행 명령·결과를 PR에 기록. 실행하지 못한 항목은 이유를 남긴다.
 - [ ] T046 [P] `docs/design/api-spec.md`·`docs/design/er-schema.md`와 실제 구현 최종 일치 확인 in `docs/design/api-spec.md`, `docs/design/er-schema.md`
-  - 영역: 통합
-  - 담당: ts, hs
+  - 영역: BE
+  - 담당: ts
   - 선행: T045
   - 검증: TRIP-001~005 실제 응답·오류 코드가 문서 예시와 일치, 불일치 시 문서 수정 PR 별도 제안
-- [ ] T047 Backend Google-style docstring·Android KDoc 보완 in `api/app/services/trip.py`, `api/app/api/v1/trips.py`, `android/app/src/main/java/com/gilpick/trip/*.kt`
-  - 영역: 통합
-  - 담당: ts, hs
-  - 선행: T041, T044
+- [ ] T047 Backend Google-style docstring 보완 in `api/app/services/trip.py`, `api/app/api/v1/trips.py`
+  - 영역: BE
+  - 담당: ts
+  - 선행: T041
+  - 검증: constitution "코드 주석과 문서화 스타일" 절 기준 충족(공개 함수·핵심 상태 변경 함수 문서화)
+- [ ] T048 [P] quickstart.md의 Android 확인 항목 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
+  - 영역: FE
+  - 담당: hs
+  - 선행: T022, T029, T038, T044, T045
+  - 검증: Android 절의 확인 항목을 모두 실행하고 결과를 PR에 기록. `docs/design/ui-guidelines.md` 9절 4상태와 10절 접근성 최저선 확인을 포함한다. 실행하지 못한 항목은 이유를 남긴다.
+- [ ] T049 [P] Android KDoc 보완 in `android/app/src/main/java/com/gilpick/trip/*.kt`
+  - 영역: FE
+  - 담당: hs
+  - 선행: T044
   - 검증: constitution "코드 주석과 문서화 스타일" 절 기준 충족(공개 함수·핵심 상태 변경 함수 문서화)
 
 ---
@@ -386,6 +398,6 @@
 
 ### 팀 분담
 
-- Backend 성격 task(T001~T005, T007~T008, T010~T012, T015~T016, T018~T019, T023, T025~T026, T030~T032, T034~T035, T039~T042)는 `ts`가 맡는다.
-- Frontend Android 성격 task(T006, T009, T013~T014, T017, T020~T022, T024, T027~T029, T033, T036~T038, T043~T044)는 `hs`가 맡는다.
-- Phase 8(T045~T047)은 통합 검증으로 `ts`·`hs`가 함께 확인한다.
+- Backend 성격 task(T001~T005, T007~T008, T010~T012, T015~T016, T018~T019, T023, T025~T026, T030~T032, T034~T035, T039~T042, T045~T047)는 `ts`가 맡는다.
+- Frontend Android 성격 task(T006, T009, T013~T014, T017, T020~T022, T024, T027~T029, T033, T036~T038, T043~T044, T048~T049)는 `hs`가 맡는다.
+- Android 검증(T048)은 Backend 검증(T045~T047)이 끝난 뒤 진행한다.
