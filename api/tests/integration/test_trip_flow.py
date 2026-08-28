@@ -114,6 +114,19 @@ async def update_trip(
         )
 
 
+async def delete_trip(
+    factory: async_sessionmaker[AsyncSession],
+    user_id: uuid.UUID,
+    trip_id: uuid.UUID,
+) -> None:
+    """별도 transaction에서 여행 삭제를 실행한다."""
+    async with transaction_session(factory) as session:
+        await TripService(session, cursor_secret=CURSOR_SECRET).delete_trip(
+            user_id=user_id,
+            trip_id=trip_id,
+        )
+
+
 @pytest.mark.asyncio
 async def test_same_idempotency_key_creates_one_trip(
     session_factory: async_sessionmaker[AsyncSession],
@@ -546,3 +559,94 @@ async def test_update_trip_maps_concurrent_change_after_stale_read(
 
     assert error.value.code == expected_code
     assert error.value.status_code == (409 if concurrent_change == "version" else 404)
+
+
+@pytest.mark.asyncio
+async def test_delete_trip_soft_deletes_and_excludes_all_reads_idempotently(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """삭제된 여행은 행을 보존하면서 목록·검색·상세에서 빠지고 반복 삭제도 유지된다."""
+    user_id = await create_user(session_factory)
+    other_user_id = await create_user(session_factory)
+    today = datetime.now(KST).date()
+    created = await create_trip(
+        session_factory,
+        user_id,
+        name="삭제할 서울 여행",
+        start_date=today + timedelta(days=1),
+        end_date=today + timedelta(days=2),
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    await delete_trip(session_factory, user_id, created.trip_id)
+    with pytest.raises(AppError) as other_user_deleted:
+        await delete_trip(session_factory, other_user_id, created.trip_id)
+    assert other_user_deleted.value.status_code == 404
+    assert other_user_deleted.value.code == "TRIP_NOT_FOUND"
+
+    async with session_factory() as session:
+        stored = await session.get(Trip, created.trip_id)
+        assert stored is not None
+        assert stored.deleted_at is not None
+        first_deleted_at = stored.deleted_at
+
+    all_items, _, _ = await list_trips(session_factory, user_id)
+    searched_items, _, _ = await list_trips(session_factory, user_id, query="서울")
+    assert all_items == []
+    assert searched_items == []
+
+    with pytest.raises(AppError) as deleted:
+        await get_trip(session_factory, user_id, created.trip_id)
+    assert deleted.value.status_code == 404
+    assert deleted.value.code == "TRIP_NOT_FOUND"
+
+    await delete_trip(session_factory, user_id, created.trip_id)
+    async with session_factory() as session:
+        stored = await session.get(Trip, created.trip_id)
+        assert stored is not None
+        assert stored.deleted_at == first_deleted_at
+
+
+@pytest.mark.asyncio
+async def test_delete_trip_rejects_completed_other_owner_and_missing(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """완료 여행·비소유 여행·미존재 여행의 삭제 오류를 구분한다."""
+    user_id = await create_user(session_factory)
+    other_user_id = await create_user(session_factory)
+    today = datetime.now(KST).date()
+    completed = await create_trip(
+        session_factory,
+        user_id,
+        start_date=today - timedelta(days=2),
+        end_date=today - timedelta(days=1),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    active = await create_trip(
+        session_factory,
+        user_id,
+        start_date=today,
+        end_date=today + timedelta(days=1),
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    with pytest.raises(AppError) as locked:
+        await delete_trip(session_factory, user_id, completed.trip_id)
+    assert locked.value.status_code == 409
+    assert locked.value.code == "TRIP_LOCKED"
+
+    with pytest.raises(AppError) as forbidden:
+        await delete_trip(session_factory, other_user_id, active.trip_id)
+    assert forbidden.value.status_code == 403
+    assert forbidden.value.code == "FORBIDDEN"
+
+    with pytest.raises(AppError) as missing:
+        await delete_trip(session_factory, user_id, uuid.uuid4())
+    assert missing.value.status_code == 404
+    assert missing.value.code == "TRIP_NOT_FOUND"
+
+    async with session_factory() as session:
+        completed_row = await session.get(Trip, completed.trip_id)
+        active_row = await session.get(Trip, active.trip_id)
+        assert completed_row is not None and completed_row.deleted_at is None
+        assert active_row is not None and active_row.deleted_at is None

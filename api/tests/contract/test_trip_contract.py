@@ -56,6 +56,9 @@ class StubTripService:
             created_at=datetime.now(UTC),
         )
 
+    async def delete_trip(self, *, user_id, trip_id) -> None:
+        """요청한 여행의 삭제가 성공한 것으로 처리한다."""
+
 
 class StubTripListService(StubTripService):
     """목록 query 전달과 응답 envelope를 검증하는 service 대역이다."""
@@ -116,6 +119,10 @@ class RejectingTripService:
 
     async def update_trip(self, *, user_id, trip_id, payload) -> Trip:
         """설정된 수정 오류를 그대로 발생시킨다."""
+        raise self.error
+
+    async def delete_trip(self, *, user_id, trip_id) -> None:
+        """설정된 삭제 오류를 그대로 발생시킨다."""
         raise self.error
 
 
@@ -445,3 +452,55 @@ def test_update_trip_openapi_declares_request_and_responses() -> None:
     assert schema["properties"]["name"]["type"] == "string"
     assert schema["properties"]["startDate"]["type"] == "string"
     assert schema["properties"]["endDate"]["type"] == "string"
+
+
+def test_delete_trip_contract_returns_empty_204_and_is_repeatable(
+    client: TestClient,
+) -> None:
+    """여행 삭제와 같은 요청의 반복이 본문 없는 204를 반환하는지 확인한다."""
+    trip_id = uuid.uuid4()
+
+    first = client.delete(f"/api/v1/trips/{trip_id}")
+    second = client.delete(f"/api/v1/trips/{trip_id}")
+
+    assert first.status_code == second.status_code == 204
+    assert first.content == second.content == b""
+
+
+@pytest.mark.parametrize(
+    ("status_code", "code"),
+    [(403, "FORBIDDEN"), (404, "TRIP_NOT_FOUND"), (409, "TRIP_LOCKED")],
+)
+def test_delete_trip_contract_maps_domain_errors(
+    client: TestClient,
+    status_code: int,
+    code: str,
+) -> None:
+    """여행 삭제의 소유권·존재·상태 오류를 공통 오류 envelope로 반환한다."""
+    app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
+        AppError(status_code, code, "여행을 삭제할 수 없습니다.")
+    )
+
+    response = client.delete(f"/api/v1/trips/{uuid.uuid4()}")
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == code
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+def test_delete_trip_contract_rejects_invalid_uuid(client: TestClient) -> None:
+    """UUID가 아닌 여행 식별자를 400 공통 오류 envelope로 거부한다."""
+    response = client.delete("/api/v1/trips/not-a-uuid")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_delete_trip_openapi_declares_path_and_responses() -> None:
+    """여행 삭제 OpenAPI가 UUID 경로와 공개 응답 상태를 선언하는지 확인한다."""
+    operation = app.openapi()["paths"]["/api/v1/trips/{tripId}"]["delete"]
+    trip_id = next(item for item in operation["parameters"] if item["name"] == "tripId")
+
+    assert trip_id["required"] is True
+    assert trip_id["schema"]["format"] == "uuid"
+    assert set(operation["responses"]) == {"204", "400", "401", "403", "404", "409"}

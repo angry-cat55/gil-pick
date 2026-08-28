@@ -298,12 +298,12 @@
 
 ### Tests for User Story 5
 
-- [ ] T039 [P] [US5] Backend contract test: 삭제 성공(`204`), 반복 요청 멱등, 완료 상태 거부(`409 TRIP_LOCKED`), 소유권 거부(`403`) in `api/tests/contract/test_trip_contract.py`
+- [x] T039 [P] [US5] Backend contract test: 삭제 성공(`204`), 반복 요청 멱등, 완료 상태 거부(`409 TRIP_LOCKED`), 소유권 거부(`403`) in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
   - 검증: FR-014, FR-016, US5 Acceptance Scenario 1~4, 구현 전 실패
-- [ ] T040 [P] [US5] Backend integration test: 삭제 후 목록·상세·검색 결과에서 즉시 제외 in `api/tests/integration/test_trip_flow.py`
+- [x] T040 [P] [US5] Backend integration test: 삭제 후 목록·상세·검색 결과에서 즉시 제외 in `api/tests/integration/test_trip_flow.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
@@ -311,12 +311,12 @@
 
 ### Implementation for User Story 5
 
-- [ ] T041 [US5] `TripService.delete_trip` 구현(soft delete, 완료 상태 잠금, 멱등 처리) in `api/app/services/trip.py`
+- [x] T041 [US5] `TripService.delete_trip` 구현(soft delete, 완료 상태 잠금, 멱등 처리) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T025, T039, T040
   - 검증: T039·T040 test 통과
-- [ ] T042 [US5] `DELETE /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
+- [x] T042 [US5] `DELETE /api/v1/trips/{tripId}` endpoint 연결 in `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
   - 선행: T041

@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, NoReturn
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_principal
-from app.api.errors import AppError, get_request_id, success_response
+from app.api.errors import get_request_id, success_response
 from app.core.config import Settings, get_settings
 from app.core.security import AuthPrincipal
 from app.db import get_session
@@ -28,11 +28,6 @@ from app.schemas.trip import (
 from app.services.trip import TripService
 
 router = APIRouter(prefix="/trips", tags=["trips"])
-
-
-def _not_implemented() -> NoReturn:
-    """담당 Issue에서 구현할 때까지 기반 라우트의 미구현 상태를 명시한다."""
-    raise AppError(501, "NOT_IMPLEMENTED", "아직 구현되지 않은 여행 API입니다.")
 
 
 def _trip_service(
@@ -219,6 +214,7 @@ async def update_trip(
     status_code=204,
     response_model=None,
     responses={
+        400: {"model": ErrorEnvelope},
         401: {"model": ErrorEnvelope},
         403: {"model": ErrorEnvelope},
         404: {"model": ErrorEnvelope},
@@ -228,6 +224,20 @@ async def update_trip(
 async def delete_trip(
     trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
-) -> NoReturn:
-    """Issue #101에서 구현할 인증된 멱등 삭제 계약을 선언한다."""
-    _not_implemented()
+    service: Annotated[TripService, Depends(_trip_service)],
+) -> Response:
+    """인증된 사용자가 소유한 완료 전 여행을 논리 삭제한다.
+
+    Args:
+        trip_id: 삭제할 여행 식별자.
+        principal: Access Token에서 검증한 여행 소유자.
+        service: 현재 요청 transaction을 사용하는 여행 service.
+
+    Returns:
+        본문 없는 204 응답.
+
+    Raises:
+        AppError: 여행이 없거나 소유권이 없거나 완료된 여행인 경우.
+    """
+    await service.delete_trip(user_id=principal.user_id, trip_id=trip_id)
+    return Response(status_code=204)

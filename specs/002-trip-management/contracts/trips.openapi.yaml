@@ -160,6 +160,8 @@ paths:
       responses:
         '204':
           description: 삭제 완료 (또는 이미 삭제된 상태 유지)
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
