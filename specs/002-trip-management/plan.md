@@ -4,6 +4,10 @@
 
 **Input**: Feature specification from `/specs/002-trip-management/spec.md`
 
+## Plan 갱신 기록
+
+- 2026-08-28: F001의 PR #111(`docs/design/ui-guidelines.md`, AGENTS.md 10절 신설)·#113(`com.gilpick.ui.theme` 구축)이 F002 plan 작성 이후 merge되어, Android 관련 Technical Context·Project Structure를 이 문서에서 갱신했다. `spec.md`는 요구사항(무엇을 할 수 있어야 하는지)만 다루고 화면 구현 방식을 규정하지 않으므로 변경하지 않았다. `tasks.md`의 FE 화면 구현 task 검증 기준도 같은 PR에서 함께 갱신한다.
+
 ## Summary
 
 인증된 사용자가 여행을 생성·조회·수정·삭제하고 목록을 검색·필터링한다. Backend는 `trips` 테이블 하나로 여행 기본정보를 관리하며, 상태(예정/여행 중/완료)는 저장하지 않고 KST 현재 날짜와 기간으로 매 요청 시점에 계산한다. 여행 수정은 `version` 기반 낙관적 동시성 제어를 사용하고, 완료된 여행은 이름만 수정 가능하며 기간 수정과 삭제는 잠근다. 기간 축소로 범위 밖 일정이 생기는 경우 사용자 확인 후에만 적용하지만, F002 시점에는 일정(`trip_days`/`itinerary_items`)이 아직 없어 실제 삭제 개수는 항상 0이며 F004(일정 구성)에서 확장한다. Android는 F001이 만들어 둔 빈 여행 목록 shell(`AuthenticatedHomeScreen`)을 실제 여행 목록·생성·상세·수정·삭제 화면으로 교체한다.
@@ -12,7 +16,7 @@
 
 **Language/Version**: Backend Python 3.13; Android Kotlin 2.4.10
 
-**Primary Dependencies**: Backend는 F001과 동일한 FastAPI 0.141.1, SQLAlchemy 2.0.52 async, Alembic, asyncpg, PyJWT(기존 인증 dependency 재사용). Android는 F001과 동일한 `compileSdk 37`·`targetSdk 36`, Jetpack Compose BOM 2026.08.00, Lifecycle/ViewModel, Retrofit·OkHttp
+**Primary Dependencies**: Backend는 F001과 동일한 FastAPI 0.141.1, SQLAlchemy 2.0.52 async, Alembic, asyncpg, PyJWT(기존 인증 dependency 재사용). Android는 F001과 동일한 `compileSdk 37`·`targetSdk 36`, Jetpack Compose BOM 2026.08.00, Lifecycle/ViewModel, Retrofit·OkHttp에 더해, F001에서 새로 만든 `com.gilpick.ui.theme`(`GilpickTheme`, 색상·타이포·간격·곡률 토큰)와 `com.gilpick.ui.component`(공통 컴포넌트)를 재사용한다
 
 **Storage**: PostgreSQL 18.6 (`trips` 테이블 신규 추가). `trip_days`/`itinerary_items`는 F004에서 추가한다([research.md](research.md) 2절)
 
@@ -24,7 +28,7 @@
 
 **Performance Goals**: 여행 생성 결과 확인 3초 이내(SC-001), 여행 100건 목록 최초 화면 2초 이내(SC-002), 검색·필터 결과 반영 1초 이내(SC-003)
 
-**Constraints**: 여행명 2~30자(trim 후), 기간 최대 7일, `startDate <= endDate`; 완료 상태 여행은 기간 수정·삭제 불가(이름 수정만 허용); 수정은 `version` 낙관적 동시성 제어; 목록은 cursor 페이지네이션과 공통 envelope 사용; 모든 보호 API는 소유권 검증(FR-017)
+**Constraints**: 여행명 2~30자(trim 후), 기간 최대 7일, `startDate <= endDate`; 완료 상태 여행은 기간 수정·삭제 불가(이름 수정만 허용); 수정은 `version` 낙관적 동시성 제어; 목록은 cursor 페이지네이션과 공통 envelope 사용; 모든 보호 API는 소유권 검증(FR-017); Android 화면은 `docs/design/ui-guidelines.md`와 AGENTS.md 10절을 따라 색상·간격·타이포 리터럴을 직접 쓰지 않고 `com.gilpick.ui.theme` 토큰과 `com.gilpick.ui.component`의 여행 카드·여행 목록 행·날짜 선택·상태 뱃지를 재사용하며, 목록·상세 화면은 loading·empty·error·content 4상태를 모두 구현해야 한다
 
 **Scale/Scope**: MVP 단일 Backend 배포 단위; 여행 endpoint 5개(TRIP-001~005); 사용자당 여행 수 별도 상한 없음(성능 목표는 100건 기준)
 
@@ -89,15 +93,21 @@ android/
 │   ├── TripRepository.kt        # API 호출, 상태 매핑
 │   ├── TripListViewModel.kt     # 목록·검색·필터·무한 스크롤 상태
 │   ├── TripDetailViewModel.kt   # 상세·수정·삭제 상태
-│   ├── TripListScreen.kt
-│   ├── TripDetailScreen.kt
-│   └── TripFormScreen.kt        # 생성·수정 공용 입력 화면
+│   ├── TripListScreen.kt        # com.gilpick.ui.component의 여행 카드/여행 목록 행 재사용
+│   ├── TripDetailScreen.kt      # com.gilpick.ui.component의 상태 뱃지 재사용
+│   └── TripFormScreen.kt        # 생성·수정 공용 입력 화면, com.gilpick.ui.component의 날짜 선택 재사용
 ├── app/src/main/java/com/gilpick/MainActivity.kt   # AuthenticatedHomeScreen → TripListScreen 진입점 교체
 ├── app/src/test/java/com/gilpick/trip/
 └── app/src/androidTest/java/com/gilpick/trip/
+
+# 아래는 F001이 이미 만든 공용 위치다. F002는 새로 만들지 않고 재사용만 한다.
+# android/app/src/main/java/com/gilpick/ui/theme/      GilpickTheme, 색상·타이포·간격·곡률 토큰
+# android/app/src/main/java/com/gilpick/ui/component/  버튼·입력창·여행 카드·여행 목록 행·날짜 선택·상태 뱃지 등
 ```
 
 **Structure Decision**: F001과 동일하게 `api/`, `android/` 두 디렉터리를 유지한다. Backend는 `trips.py`를 얇은 transport 계층으로, `services/trip.py`가 트랜잭션 경계(생성 멱등성, 버전 검증, 완료 상태 잠금)를 소유하는 F001 `services/auth.py`와 동일한 패턴을 따른다. Android는 `com.gilpick.auth`와 분리된 `com.gilpick.trip` 패키지를 새로 만들고, `MainActivity`의 인증 성공 이후 진입점을 F001이 임시로 둔 `AuthenticatedHomeScreen`에서 `TripListScreen`으로 교체한다. `trip_days`/`itinerary_items`, 지도 표시, 이동수단은 F004~F005 범위이므로 이번 구조에 포함하지 않는다.
+
+F002 spec/plan 작성 이후 F001의 PR #111(`docs/design/ui-guidelines.md`, AGENTS.md 10절)·#113(`com.gilpick.ui.theme` 구축)이 merge되어, Android 화면 작업의 소유 위치와 규칙이 새로 생겼다. `com.gilpick.trip` 패키지는 화면·ViewModel·Repository만 소유하고, 시각 토큰과 재사용 컴포넌트는 F001이 만든 `com.gilpick.ui.theme`/`com.gilpick.ui.component`를 그대로 가져다 쓴다. F002가 새 컴포넌트를 만들 필요는 없다 — ui-guidelines.md 7절에 여행 카드·여행 목록 행·날짜 선택·상태 뱃지가 이미 정의되어 있다.
 
 ## Phase 0 Research Decisions
 
