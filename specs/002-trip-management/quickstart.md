@@ -64,7 +64,7 @@ curl -X PATCH https://localhost/api/v1/trips/<tripId> \
 - 기간 축소로 범위 밖 일정이 있는 여행에 `confirmDeleteOutOfRangeItems` 없이 요청 → `409 CONFIRMATION_REQUIRED`, `details.deletedItemCount` 확인 후 `confirmDeleteOutOfRangeItems: true`로 재요청 → `200`
   - F002 시점에는 `trip_days`/`itinerary_items`가 없어 `deletedItemCount`는 항상 0이다([data-model.md](data-model.md) "범위 밖" 참고). F004 이후 재검증한다.
 
-### 5. 삭제 — 멱등성과 완료 잠금 (FR-014, FR-015, FR-016)
+### 5. 삭제 — 상태 무관 soft delete와 멱등성 (FR-014, FR-015, FR-016)
 
 ```bash
 curl -X DELETE https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer <A_ACCESS_TOKEN>"
@@ -73,7 +73,7 @@ curl -X DELETE https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer
 - 기대 결과: `204`
 - 동일 요청 재전송: `204` (추가 부작용 없음)
 - 삭제 후 목록·상세 조회에서 제외 확인
-- 완료 상태 여행 삭제 시도: `409 TRIP_LOCKED`
+- 완료 상태 여행 삭제: `204`, 이후 목록·상세 조회에서 제외
 
 ## Android 검증
 
