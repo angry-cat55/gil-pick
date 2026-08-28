@@ -103,6 +103,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TripEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -318,6 +320,7 @@ components:
                 - TRIP_LOCKED
                 - VERSION_CONFLICT
                 - CONFIRMATION_REQUIRED
+                - FORBIDDEN
             message:
               type: string
             details:
