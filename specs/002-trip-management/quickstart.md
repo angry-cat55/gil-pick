@@ -7,13 +7,14 @@
 - F001(카카오 인증) 기준 발급된 유효한 Access Token 1개(사용자 A), 다른 사용자(사용자 B)의 Access Token 1개
 - Backend: `uv run --project api alembic -c api/alembic.ini upgrade head`로 F002 migration까지 적용
 - Backend 실행: `uv run --project api uvicorn app.main:app --reload`
+- 로컬 URL: `BASE_URL=http://127.0.0.1:8000`
 
 ## Backend 검증
 
 ### 1. 여행 생성과 검증 (FR-001, FR-001a, FR-001b, FR-002, FR-003)
 
 ```bash
-curl -X POST https://localhost/api/v1/trips \
+curl -X POST "$BASE_URL/api/v1/trips" \
   -H "Authorization: Bearer <A_ACCESS_TOKEN>" \
   -H "Idempotency-Key: <uuid>" \
   -H "Content-Type: application/json" \
@@ -30,7 +31,7 @@ curl -X POST https://localhost/api/v1/trips \
 ### 2. 목록·검색·필터 (FR-004~FR-009)
 
 ```bash
-curl "https://localhost/api/v1/trips?query=서울&status=UPCOMING&limit=20" \
+curl "$BASE_URL/api/v1/trips?query=서울&status=UPCOMING&limit=20" \
   -H "Authorization: Bearer <A_ACCESS_TOKEN>"
 ```
 
@@ -41,8 +42,8 @@ curl "https://localhost/api/v1/trips?query=서울&status=UPCOMING&limit=20" \
 ### 3. 상세 조회와 소유권 (FR-004, FR-017, US3)
 
 ```bash
-curl https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer <A_ACCESS_TOKEN>"
-curl https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer <B_ACCESS_TOKEN>"
+curl "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <A_ACCESS_TOKEN>"
+curl "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <B_ACCESS_TOKEN>"
 ```
 
 - 사용자 A: `200`
@@ -52,7 +53,7 @@ curl https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer <B_ACCESS
 ### 4. 수정 — 이름·기간·버전 충돌·완료 잠금 (FR-010, FR-010a, FR-011, FR-011a, FR-012, FR-013)
 
 ```bash
-curl -X PATCH https://localhost/api/v1/trips/<tripId> \
+curl -X PATCH "$BASE_URL/api/v1/trips/<tripId>" \
   -H "Authorization: Bearer <A_ACCESS_TOKEN>" -H "Content-Type: application/json" \
   -d '{"name":"서울 여행 수정","version":1}'
 ```
@@ -67,7 +68,7 @@ curl -X PATCH https://localhost/api/v1/trips/<tripId> \
 ### 5. 삭제 — 상태 무관 soft delete와 멱등성 (FR-014, FR-015, FR-016)
 
 ```bash
-curl -X DELETE https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer <A_ACCESS_TOKEN>"
+curl -X DELETE "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <A_ACCESS_TOKEN>"
 ```
 
 - 기대 결과: `204`
@@ -82,6 +83,20 @@ curl -X DELETE https://localhost/api/v1/trips/<tripId> -H "Authorization: Bearer
 - 여행 상세에서 완료 상태 여행의 기간 수정 UI가 비활성화되고 이름 수정은 가능한지 확인
 - 기간 축소 시 삭제 예정 안내 다이얼로그가 뜨고, 취소하면 서버에 반영되지 않는지 확인
 
-## 미실행 항목
+## Backend 실행 결과 (2026-08-28)
 
-- 이 문서는 F002 구현 완료 후 실제 실행 결과를 PR에 기록하는 용도다. 지금 시점(plan 단계)에서는 실행하지 않았다.
+- 환경: 로컬 PostgreSQL, `uvicorn` HTTP(`127.0.0.1:8765`), 사용자 A·B용 로컬 검증 JWT
+- migration: `uv run alembic -c alembic.ini upgrade head` 성공
+- 시나리오 1: 생성 `201`, 같은 멱등 키에 같은 `tripId`, 역순·8일·공백 이름 `422`, 같은 이름의 다른 여행 `201`
+- 시나리오 2: 사용자 A/B 목록 격리, `IN_PROGRESS → UPCOMING → COMPLETED` 정렬, 검색·상태 필터, `limit=1`의 `hasNext=true`·`nextCursor`와 다음 페이지 중복 없음 확인
+- 시나리오 3: 소유자 상세 `200`, 비소유자 상세 `403 FORBIDDEN`
+- 시나리오 4: 이름 수정 `200`·`version=2`, 오래된 version `409 VERSION_CONFLICT`, 완료 여행 기간 수정 `409 TRIP_LOCKED`·이름 수정 `200`, 기간 축소 확인 전 `409 CONFIRMATION_REQUIRED`·확인 후 `200`
+- 시나리오 5: 삭제와 반복 삭제 `204`, 삭제 후 목록·검색·상세 제외, 완료 여행 삭제 `204`
+- 종단간 검증: quickstart의 HTTP 요청과 동일한 payload·header를 표준 라이브러리 client로 실행하고 생성·검증·검색 필터·cursor 발급·소유권·version 충돌·삭제 응답을 assertion으로 확인
+- 보완 회귀 검증: PostgreSQL integration test로 사용자 목록 격리·전체 상태 정렬·cursor 다음 페이지·기간 축소 확인·삭제 후 목록/검색 제외를 확인하고, contract test로 완료 여행 기간 잠금과 이름 수정 계약을 확인
+- 실행 중 Uvicorn access log formatter와 민감정보 filter의 호환 오류를 발견했으며 API 결과에는 영향이 없었다. 수정은 Issue #123으로 분리했다.
+
+### 미실행 항목
+
+- 실제 카카오 로그인으로 발급한 운영 Access Token 검증은 외부 카카오 인증정보가 없는 로컬 환경이라 실행하지 않았다. JWT 검증 규칙과 사용자 분리는 F001 테스트와 로컬 검증 JWT로 확인했다.
+- Android 확인 항목은 T048(Issue #108) 범위이므로 실행하지 않았다.

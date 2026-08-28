@@ -340,17 +340,17 @@
 
 **Note**: 원래 T045~T047은 담당 `ts, hs` 공동으로 기록했으나, GitHub Issue는 단일 assignee만 가능해 speckit-taskstoissues 변환 시점에 BE/FE로 분리했다(F001의 #78/#79 패턴과 동일). 이 분리는 PR #95 병합 시점에는 반영되지 못했다가 이번 PR에서 GitHub Issue #102(BE)·#108(FE)과 다시 맞춰졌다. Backend 검증(T045, T046, T047)이 끝난 뒤 Android 검증(T048, T049)을 진행한다.
 
-- [ ] T045 [P] quickstart.md의 Backend curl 시나리오(1~5) 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
+- [x] T045 [P] quickstart.md의 Backend curl 시나리오(1~5) 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
   - 영역: BE
   - 담당: ts
   - 선행: T012, T019, T026, T035, T042
   - 검증: Backend 절의 curl 시나리오를 모두 실행하고 실행 명령·결과를 PR에 기록. 실행하지 못한 항목은 이유를 남긴다.
-- [ ] T046 [P] `docs/design/api-spec.md`·`docs/design/er-schema.md`와 실제 구현 최종 일치 확인 in `docs/design/api-spec.md`, `docs/design/er-schema.md`
+- [x] T046 [P] `docs/design/api-spec.md`·`docs/design/er-schema.md`와 실제 구현 최종 일치 확인 in `docs/design/api-spec.md`, `docs/design/er-schema.md`
   - 영역: BE
   - 담당: ts
   - 선행: T045
   - 검증: TRIP-001~005 실제 응답·오류 코드가 문서 예시와 일치, 불일치 시 문서 수정 PR 별도 제안
-- [ ] T047 Backend Google-style docstring 보완 in `api/app/services/trip.py`, `api/app/api/v1/trips.py`
+- [x] T047 Backend Google-style docstring 보완 in `api/app/services/trip.py`, `api/app/api/v1/trips.py`
   - 영역: BE
   - 담당: ts
   - 선행: T041
