@@ -6,7 +6,7 @@
 
 ## Summary
 
-인증된 사용자가 여행을 생성·조회·수정·삭제하고 목록을 검색·필터링한다. Backend는 `trips` 테이블 하나로 여행 기본정보를 관리하며, 상태(예정/여행 중/완료)는 저장하지 않고 KST 현재 날짜와 기간으로 매 요청 시점에 계산한다. 여행 수정은 `version` 기반 낙관적 동시성 제어를 사용하고, 완료된 여행은 이름만 수정 가능하며 기간 수정과 삭제는 잠근다. 기간 축소로 범위 밖 일정이 생기는 경우 사용자 확인 후에만 적용하지만, F002 시점에는 일정(`trip_days`/`itinerary_items`)이 아직 없어 실제 삭제 개수는 항상 0이며 F004(일정 구성)에서 확장한다. Android는 F001이 만들어 둔 빈 여행 목록 shell(`AuthenticatedHomeScreen`)을 실제 여행 목록·생성·상세·수정·삭제 화면으로 교체한다.
+인증된 사용자가 여행을 생성·조회·수정·삭제하고 목록을 검색·필터링한다. Backend는 `trips` 테이블 하나로 여행 기본정보를 관리하며, 상태(예정/여행 중/완료)는 저장하지 않고 KST 현재 날짜와 기간으로 매 요청 시점에 계산한다. 여행 수정은 `version` 기반 낙관적 동시성 제어를 사용하고, 완료된 여행은 이름만 수정 가능하며 기간 수정은 잠근다. 삭제는 상태와 무관하게 soft delete로 처리한다. 기간 축소로 범위 밖 일정이 생기는 경우 사용자 확인 후에만 적용하지만, F002 시점에는 일정(`trip_days`/`itinerary_items`)이 아직 없어 실제 삭제 개수는 항상 0이며 F004(일정 구성)에서 확장한다. Android는 F001이 만들어 둔 빈 여행 목록 shell(`AuthenticatedHomeScreen`)을 실제 여행 목록·생성·상세·수정·삭제 화면으로 교체한다.
 
 ## Technical Context
 
@@ -24,7 +24,7 @@
 
 **Performance Goals**: 여행 생성 결과 확인 3초 이내(SC-001), 여행 100건 목록 최초 화면 2초 이내(SC-002), 검색·필터 결과 반영 1초 이내(SC-003)
 
-**Constraints**: 여행명 2~30자(trim 후), 기간 최대 7일, `startDate <= endDate`; 완료 상태 여행은 기간 수정·삭제 불가(이름 수정만 허용); 수정은 `version` 낙관적 동시성 제어; 목록은 cursor 페이지네이션과 공통 envelope 사용; 모든 보호 API는 소유권 검증(FR-017)
+**Constraints**: 여행명 2~30자(trim 후), 기간 최대 7일, `startDate <= endDate`; 완료 상태 여행은 기간 수정 불가(이름 수정과 삭제는 허용); 수정은 `version` 낙관적 동시성 제어; 목록은 cursor 페이지네이션과 공통 envelope 사용; 모든 보호 API는 소유권 검증(FR-017)
 
 **Scale/Scope**: MVP 단일 Backend 배포 단위; 여행 endpoint 5개(TRIP-001~005); 사용자당 여행 수 별도 상한 없음(성능 목표는 100건 기준)
 
@@ -35,7 +35,7 @@
 | 원칙 | 설계 대응 | Gate |
 |---|---|---|
 | I. 사용자 통제와 안전한 fallback | 여행 조회·목록은 위치·외부 데이터와 무관해 항상 제공한다. 기간 축소는 삭제 전 항상 사용자 확인을 거치고(FR-012, FR-013), 확인 전 어떤 데이터도 바뀌지 않는다. | PASS |
-| II. 계약 우선 SDD와 문서 동기화 | `docs/design/api-spec.md`(TRIP-001~005)·`docs/design/er-schema.md`(`trips`)를 기준 계약으로 사용했다. clarify에서 나온 완료 상태 잠금(`409 TRIP_LOCKED`) 규칙은 이번 작업 범위에서 두 문서에 반영했다. | PASS |
+| II. 계약 우선 SDD와 문서 동기화 | `docs/design/api-spec.md`(TRIP-001~005)·`docs/design/er-schema.md`(`trips`)를 기준 계약으로 사용했다. 완료 상태의 기간 수정 잠금과 상태 무관 삭제 정책을 관련 명세와 API 계약에 동기화했다. | PASS |
 | III. 상태 변경의 일관성·멱등성·추적 가능성 | 여행 생성은 `Idempotency-Key`로 멱등 처리하고(FR-003), 수정은 `version` 낙관적 동시성으로 충돌을 감지하며(FR-011a), 삭제는 반복 요청에도 동일한 결과를 반환한다(FR-016). | PASS |
 | IV. 외부 의존성 실패 격리 | F002는 외부 API를 호출하지 않는다(N/A). | N/A |
 | V. 보안·소유권·최소 데이터 | 모든 endpoint는 Access Token의 사용자 ID로 소유권을 검증하고(FR-004, FR-017), 다른 사용자의 여행 정보를 어떤 응답에도 포함하지 않는다(SC-005). 여행 데이터에는 위치·민감정보가 없다. | PASS |
@@ -46,8 +46,8 @@
 ### Post-Design Re-check
 
 - `data-model.md`는 `trips` 단일 entity와 검증 규칙·인덱스만 정의하며 F004 범위(`trip_days`, `itinerary_items`)를 침범하지 않는다.
-- `contracts/trips.openapi.yaml`은 공통 envelope, `Idempotency-Key`, `version` 기반 `409 VERSION_CONFLICT`, 완료 상태 잠금 `409 TRIP_LOCKED`를 명시한다.
-- `quickstart.md`는 정상 흐름뿐 아니라 소유권 위반, 버전 충돌, 완료 상태 잠금, 삭제 멱등성, 삭제 확인 흐름을 검증한다.
+- `contracts/trips.openapi.yaml`은 공통 envelope, `Idempotency-Key`, `version` 기반 `409 VERSION_CONFLICT`, 완료 상태 기간 수정 잠금 `409 TRIP_LOCKED`, 상태 무관 삭제를 명시한다.
+- `quickstart.md`는 정상 흐름뿐 아니라 소유권 위반, 버전 충돌, 완료 상태 기간 수정 잠금, 상태 무관 삭제 멱등성, 삭제 확인 흐름을 검증한다.
 - Phase 1 이후에도 모든 constitution gate는 PASS이며 새로운 예외는 없다.
 
 ## Project Structure
@@ -97,7 +97,7 @@ android/
 └── app/src/androidTest/java/com/gilpick/trip/
 ```
 
-**Structure Decision**: F001과 동일하게 `api/`, `android/` 두 디렉터리를 유지한다. Backend는 `trips.py`를 얇은 transport 계층으로, `services/trip.py`가 트랜잭션 경계(생성 멱등성, 버전 검증, 완료 상태 잠금)를 소유하는 F001 `services/auth.py`와 동일한 패턴을 따른다. Android는 `com.gilpick.auth`와 분리된 `com.gilpick.trip` 패키지를 새로 만들고, `MainActivity`의 인증 성공 이후 진입점을 F001이 임시로 둔 `AuthenticatedHomeScreen`에서 `TripListScreen`으로 교체한다. `trip_days`/`itinerary_items`, 지도 표시, 이동수단은 F004~F005 범위이므로 이번 구조에 포함하지 않는다.
+**Structure Decision**: F001과 동일하게 `api/`, `android/` 두 디렉터리를 유지한다. Backend는 `trips.py`를 얇은 transport 계층으로, `services/trip.py`가 트랜잭션 경계(생성 멱등성, 버전 검증, 완료 상태 기간 수정 잠금)를 소유하는 F001 `services/auth.py`와 동일한 패턴을 따른다. Android는 `com.gilpick.auth`와 분리된 `com.gilpick.trip` 패키지를 새로 만들고, `MainActivity`의 인증 성공 이후 진입점을 F001이 임시로 둔 `AuthenticatedHomeScreen`에서 `TripListScreen`으로 교체한다. `trip_days`/`itinerary_items`, 지도 표시, 이동수단은 F004~F005 범위이므로 이번 구조에 포함하지 않는다.
 
 ## Phase 0 Research Decisions
 

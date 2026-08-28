@@ -292,13 +292,13 @@
 
 ## Phase 7: User Story 5 - 여행 삭제 (Priority: P3)
 
-**Goal**: 사용자가 더 이상 필요 없는 여행을 삭제한다. 완료된 여행은 삭제할 수 없다.
+**Goal**: 사용자가 더 이상 필요 없는 여행을 상태와 무관하게 삭제한다.
 
-**Independent Test**: 여행을 삭제 요청한 뒤 목록·상세에서 더 이상 나타나지 않는지, 완료 상태 여행은 삭제가 거부되는지 확인한다.
+**Independent Test**: 예정·여행 중·완료 상태 여행을 삭제 요청한 뒤 목록·상세에서 더 이상 나타나지 않는지 확인한다.
 
 ### Tests for User Story 5
 
-- [x] T039 [P] [US5] Backend contract test: 삭제 성공(`204`), 반복 요청 멱등, 완료 상태 거부(`409 TRIP_LOCKED`), 소유권 거부(`403`) in `api/tests/contract/test_trip_contract.py`
+- [x] T039 [P] [US5] Backend contract test: 모든 상태 삭제 성공(`204`), 반복 요청 멱등, 소유권 거부(`403`) in `api/tests/contract/test_trip_contract.py`
   - 영역: BE
   - 담당: ts
   - 선행: T012
@@ -311,7 +311,7 @@
 
 ### Implementation for User Story 5
 
-- [x] T041 [US5] `TripService.delete_trip` 구현(soft delete, 완료 상태 잠금, 멱등 처리) in `api/app/services/trip.py`
+- [x] T041 [US5] `TripService.delete_trip` 구현(상태 무관 soft delete, 멱등 처리) in `api/app/services/trip.py`
   - 영역: BE
   - 담당: ts
   - 선행: T025, T039, T040
@@ -320,7 +320,7 @@
   - 영역: BE
   - 담당: ts
   - 선행: T041
-  - 검증: `204`/`409 TRIP_LOCKED` 응답 확인
+  - 검증: 모든 상태의 `204` 응답 확인
 - [ ] T043 [P] [US5] `TripRepository.deleteTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
   - 영역: FE
   - 담당: hs

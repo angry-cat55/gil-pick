@@ -608,10 +608,10 @@ async def test_delete_trip_soft_deletes_and_excludes_all_reads_idempotently(
 
 
 @pytest.mark.asyncio
-async def test_delete_trip_rejects_completed_other_owner_and_missing(
+async def test_delete_trip_allows_completed_and_rejects_other_owner_and_missing(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """완료 여행·비소유 여행·미존재 여행의 삭제 오류를 구분한다."""
+    """완료 여행 삭제를 허용하고 비소유·미존재 여행 오류를 구분한다."""
     user_id = await create_user(session_factory)
     other_user_id = await create_user(session_factory)
     today = datetime.now(KST).date()
@@ -630,10 +630,7 @@ async def test_delete_trip_rejects_completed_other_owner_and_missing(
         idempotency_key=str(uuid.uuid4()),
     )
 
-    with pytest.raises(AppError) as locked:
-        await delete_trip(session_factory, user_id, completed.trip_id)
-    assert locked.value.status_code == 409
-    assert locked.value.code == "TRIP_LOCKED"
+    await delete_trip(session_factory, user_id, completed.trip_id)
 
     with pytest.raises(AppError) as forbidden:
         await delete_trip(session_factory, other_user_id, active.trip_id)
@@ -648,5 +645,5 @@ async def test_delete_trip_rejects_completed_other_owner_and_missing(
     async with session_factory() as session:
         completed_row = await session.get(Trip, completed.trip_id)
         active_row = await session.get(Trip, active.trip_id)
-        assert completed_row is not None and completed_row.deleted_at is None
+        assert completed_row is not None and completed_row.deleted_at is not None
         assert active_row is not None and active_row.deleted_at is None

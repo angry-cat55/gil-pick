@@ -469,7 +469,7 @@ def test_delete_trip_contract_returns_empty_204_and_is_repeatable(
 
 @pytest.mark.parametrize(
     ("status_code", "code"),
-    [(403, "FORBIDDEN"), (404, "TRIP_NOT_FOUND"), (409, "TRIP_LOCKED")],
+    [(403, "FORBIDDEN"), (404, "TRIP_NOT_FOUND")],
 )
 def test_delete_trip_contract_maps_domain_errors(
     client: TestClient,
@@ -503,4 +503,4 @@ def test_delete_trip_openapi_declares_path_and_responses() -> None:
 
     assert trip_id["required"] is True
     assert trip_id["schema"]["format"] == "uuid"
-    assert set(operation["responses"]) == {"204", "400", "401", "403", "404", "409"}
+    assert set(operation["responses"]) == {"204", "400", "401", "403", "404"}

@@ -155,8 +155,8 @@ paths:
       operationId: deleteTrip
       summary: 여행 논리 삭제
       description: >-
-        완료(`COMPLETED`) 상태 여행은 삭제를 `409 TRIP_LOCKED`로 거부한다. 이미 삭제된 여행에 대한
-        반복 요청은 부작용 없이 `204`를 반환한다(멱등).
+        상태와 무관하게 소유한 여행을 논리 삭제한다. 이미 삭제된 여행에 대한 반복 요청은
+        부작용 없이 `204`를 반환한다(멱등).
       responses:
         '204':
           description: 삭제 완료 (또는 이미 삭제된 상태 유지)
@@ -168,12 +168,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '409':
-          description: 완료 상태 여행 삭제 시도
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
 
 components:
   securitySchemes:

@@ -294,22 +294,20 @@ class TripService:
         return _to_schema(updated_trip)
 
     async def delete_trip(self, *, user_id: uuid.UUID, trip_id: uuid.UUID) -> None:
-        """소유한 진행 전·진행 중 여행을 논리 삭제한다.
+        """소유한 여행을 상태와 무관하게 논리 삭제한다.
 
         Args:
             user_id: 인증된 사용자 식별자.
             trip_id: 삭제할 여행 식별자.
 
         Raises:
-            AppError: 여행이 없거나 소유권이 없거나 완료된 여행인 경우.
+            AppError: 여행이 없거나 소유권이 없는 경우.
 
         Notes:
             소유자가 이미 삭제한 여행은 ``deleted_at``을 바꾸지 않고 성공 처리한다.
         """
         trip = await self.session.scalar(
-            select(TripModel)
-            .where(TripModel.trip_id == trip_id)
-            .with_for_update()
+            select(TripModel).where(TripModel.trip_id == trip_id)
         )
         if trip is None:
             raise AppError(404, TRIP_NOT_FOUND, "여행을 찾을 수 없습니다.")
@@ -319,9 +317,6 @@ class TripService:
             raise AppError(404, TRIP_NOT_FOUND, "여행을 찾을 수 없습니다.")
         if trip.user_id != user_id:
             raise AppError(403, FORBIDDEN, "다른 사용자의 여행은 삭제할 수 없습니다.")
-        if _to_schema(trip).status == TripStatus.COMPLETED:
-            raise AppError(409, TRIP_LOCKED, "완료된 여행은 삭제할 수 없습니다.")
-
         await self.session.execute(
             update(TripModel)
             .where(

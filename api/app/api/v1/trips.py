@@ -218,7 +218,6 @@ async def update_trip(
         401: {"model": ErrorEnvelope},
         403: {"model": ErrorEnvelope},
         404: {"model": ErrorEnvelope},
-        409: {"model": ErrorEnvelope},
     },
 )
 async def delete_trip(
@@ -226,7 +225,7 @@ async def delete_trip(
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
     service: Annotated[TripService, Depends(_trip_service)],
 ) -> Response:
-    """인증된 사용자가 소유한 완료 전 여행을 논리 삭제한다.
+    """인증된 사용자가 소유한 여행을 상태와 무관하게 논리 삭제한다.
 
     Args:
         trip_id: 삭제할 여행 식별자.
@@ -237,7 +236,7 @@ async def delete_trip(
         본문 없는 204 응답.
 
     Raises:
-        AppError: 여행이 없거나 소유권이 없거나 완료된 여행인 경우.
+        AppError: 여행이 없거나 소유권이 없는 경우.
     """
     await service.delete_trip(user_id=principal.user_id, trip_id=trip_id)
     return Response(status_code=204)

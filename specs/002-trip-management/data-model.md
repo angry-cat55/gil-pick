@@ -41,7 +41,7 @@ users 1 ------------------------------- N trips
 | `end_date >= start_date` | FR-001a |
 | `end_date - start_date <= 6` | FR-001, FR-011 |
 | 이름 중복 허용, unique 제약 없음 | FR-002 |
-| `status == COMPLETED`이면 `start_date`/`end_date` 수정과 논리 삭제 거부 | FR-010a, FR-014 |
+| `status == COMPLETED`이면 `start_date`/`end_date` 수정 거부, 논리 삭제는 허용 | FR-010a, FR-014 |
 | `status == COMPLETED`가 아니어도 `name` 수정은 항상 허용 | FR-010 |
 | `PATCH` 요청은 조회 시점 `version`을 함께 받아 저장된 값과 다르면 거부 | FR-011a |
 | 삭제는 `deleted_at` 설정(soft delete), 이미 삭제된 행에 대한 재요청은 동일 결과(204) | FR-014, FR-016 |
@@ -53,7 +53,7 @@ UPCOMING --start_date 도달--> IN_PROGRESS --end_date 경과--> COMPLETED
 ```
 
 - 위 전이는 저장된 컬럼 변경이 아니라 조회 시점 계산 결과다. 별도 background job이 필요 없다.
-- `COMPLETED` 도달 후에는 기간 수정·삭제가 잠기지만(FR-010a, FR-014) 이름 수정과 상세 조회는 계속 허용된다.
+- `COMPLETED` 도달 후에는 기간 수정만 잠기며(FR-010a), 이름 수정·상세 조회·논리 삭제는 허용된다(FR-014).
 
 ### Indexes
 
