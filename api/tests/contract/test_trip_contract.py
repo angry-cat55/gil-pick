@@ -1,4 +1,4 @@
-"""F002 여행 생성 HTTP 계약 테스트."""
+"""F002 여행 관리 HTTP 계약 테스트."""
 
 import uuid
 from datetime import date, datetime, UTC
@@ -28,6 +28,49 @@ class StubTripService:
             day_count=(payload.end_date - payload.start_date).days + 1,
             version=1,
             created_at=datetime.now(UTC),
+        )
+
+
+class StubTripListService(StubTripService):
+    """목록 query 전달과 응답 envelope를 검증하는 service 대역이다."""
+
+    def __init__(self) -> None:
+        self.list_call = None
+
+    async def list_trips(self, *, user_id, query, status, cursor, limit):
+        """요청 인자를 기록하고 정렬된 두 여행과 다음 cursor를 반환한다."""
+        self.list_call = {
+            "user_id": user_id,
+            "query": query,
+            "status": status,
+            "cursor": cursor,
+            "limit": limit,
+        }
+        return (
+            [
+                Trip(
+                    trip_id=uuid.uuid4(),
+                    name="진행 중 여행",
+                    start_date=date(2026, 8, 27),
+                    end_date=date(2026, 8, 29),
+                    status=TripStatus.IN_PROGRESS,
+                    day_count=3,
+                    version=1,
+                    created_at=datetime.now(UTC),
+                ),
+                Trip(
+                    trip_id=uuid.uuid4(),
+                    name="예정 여행",
+                    start_date=date(2026, 9, 1),
+                    end_date=date(2026, 9, 2),
+                    status=TripStatus.UPCOMING,
+                    day_count=2,
+                    version=1,
+                    created_at=datetime.now(UTC),
+                ),
+            ],
+            "next-page",
+            True,
         )
 
 
@@ -136,3 +179,65 @@ def test_create_trip_openapi_requires_idempotency_key() -> None:
 
     assert header["required"] is True
     assert set(operation["responses"]) == {"201", "400", "401", "422"}
+
+
+def test_list_trips_contract_forwards_filters_and_returns_pagination(
+    client: TestClient,
+) -> None:
+    """목록 검색·상태·cursor가 service에 전달되고 공통 envelope로 반환되는지 확인한다."""
+    service = StubTripListService()
+    app.dependency_overrides[_trip_service] = lambda: service
+
+    response = client.get(
+        "/api/v1/trips",
+        params={
+            "query": "여행",
+            "status": "IN_PROGRESS",
+            "cursor": "current-page",
+            "limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.list_call is not None
+    assert service.list_call["query"] == "여행"
+    assert service.list_call["status"] is TripStatus.IN_PROGRESS
+    assert service.list_call["cursor"] == "current-page"
+    assert service.list_call["limit"] == 2
+    assert [item["status"] for item in response.json()["data"]["items"]] == [
+        "IN_PROGRESS",
+        "UPCOMING",
+    ]
+    assert response.json()["meta"]["pagination"] == {
+        "nextCursor": "next-page",
+        "hasNext": True,
+    }
+    assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
+
+
+@pytest.mark.parametrize("params", ({"limit": 0}, {"limit": 101}, {"status": "UNKNOWN"}))
+def test_list_trips_contract_rejects_invalid_query(
+    client: TestClient,
+    params: dict[str, int | str],
+) -> None:
+    """공개 계약의 limit 범위와 상태 enum 밖 요청을 400 오류 envelope로 거부한다."""
+    response = client.get("/api/v1/trips", params=params)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_list_trips_openapi_declares_query_and_pagination_contract() -> None:
+    """여행 목록 OpenAPI가 검색·상태·cursor·limit과 공개 응답을 선언하는지 확인한다."""
+    operation = app.openapi()["paths"]["/api/v1/trips"]["get"]
+    parameters = {item["name"]: item for item in operation["parameters"]}
+
+    assert set(parameters) == {"query", "status", "cursor", "limit"}
+    assert parameters["limit"]["schema"] == {
+        "type": "integer",
+        "maximum": 100,
+        "minimum": 1,
+        "default": 20,
+        "title": "Limit",
+    }
+    assert set(operation["responses"]) == {"200", "400", "401"}

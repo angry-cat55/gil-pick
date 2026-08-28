@@ -1,9 +1,10 @@
-"""PostgreSQL을 사용하는 여행 생성 통합 테스트."""
+"""PostgreSQL을 사용하는 여행 관리 통합 테스트."""
 
+import base64
 import os
 import uuid
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, inspect, select
@@ -13,8 +14,10 @@ from app.api.errors import AppError
 from app.db import transaction_session
 from app.models.auth import User
 from app.models.trip import Trip
-from app.schemas.trip import CreateTripRequest
-from app.services.trip import TripService
+from app.schemas.trip import CreateTripRequest, TripStatus
+from app.services.trip import KST, TripService
+
+CURSOR_SECRET = "integration-test-trip-cursor-secret"
 
 
 @pytest.fixture
@@ -52,7 +55,7 @@ async def create_trip(
 ):
     """별도 transaction에서 여행 생성을 실행한다."""
     async with transaction_session(factory) as session:
-        return await TripService(session).create_trip(
+        return await TripService(session, cursor_secret=CURSOR_SECRET).create_trip(
             user_id=user_id,
             payload=CreateTripRequest(
                 name=name,
@@ -60,6 +63,26 @@ async def create_trip(
                 endDate=end_date,
             ),
             idempotency_key=idempotency_key,
+        )
+
+
+async def list_trips(
+    factory: async_sessionmaker[AsyncSession],
+    user_id: uuid.UUID,
+    *,
+    query: str | None = None,
+    status: TripStatus | None = None,
+    cursor: str | None = None,
+    limit: int = 20,
+):
+    """별도 transaction에서 사용자 여행 목록을 조회한다."""
+    async with transaction_session(factory) as session:
+        return await TripService(session, cursor_secret=CURSOR_SECRET).list_trips(
+            user_id=user_id,
+            query=query,
+            status=status,
+            cursor=cursor,
+            limit=limit,
         )
 
 
@@ -148,3 +171,169 @@ async def test_trip_schema_constraints_and_indexes_exist(
     assert "trips" in tables
     assert {"ck_trips_name_length", "ck_trips_date_range"} <= constraints
     assert {"ix_trips_user_deleted_at", "ix_trips_user_lower_name_active"} <= indexes
+
+
+@pytest.mark.asyncio
+async def test_list_trips_only_returns_owner_in_status_group_order(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """다른 사용자 여행을 제외하고 여행 중·예정·완료 그룹 순으로 반환한다."""
+    user_id = await create_user(session_factory)
+    other_user_id = await create_user(session_factory)
+    today = datetime.now(KST).date()
+
+    await create_trip(
+        session_factory,
+        user_id,
+        name="오래된 완료 여행",
+        start_date=today - timedelta(days=365),
+        end_date=today - timedelta(days=365),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await create_trip(
+        session_factory,
+        user_id,
+        name="먼 예정 여행",
+        start_date=today + timedelta(days=365),
+        end_date=today + timedelta(days=365),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await create_trip(
+        session_factory,
+        user_id,
+        name="최근 완료 여행",
+        start_date=today - timedelta(days=30),
+        end_date=today - timedelta(days=30),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await create_trip(
+        session_factory,
+        user_id,
+        name="가까운 예정 여행",
+        start_date=today + timedelta(days=30),
+        end_date=today + timedelta(days=30),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await create_trip(
+        session_factory,
+        user_id,
+        name="진행 중 여행",
+        start_date=today,
+        end_date=today,
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await create_trip(
+        session_factory,
+        other_user_id,
+        name="다른 사용자 여행",
+        start_date=today,
+        end_date=today,
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    items, next_cursor, has_next = await list_trips(session_factory, user_id)
+
+    assert [item.name for item in items] == [
+        "진행 중 여행",
+        "가까운 예정 여행",
+        "먼 예정 여행",
+        "최근 완료 여행",
+        "오래된 완료 여행",
+    ]
+    assert [item.status for item in items] == [
+        TripStatus.IN_PROGRESS,
+        TripStatus.UPCOMING,
+        TripStatus.UPCOMING,
+        TripStatus.COMPLETED,
+        TripStatus.COMPLETED,
+    ]
+    assert next_cursor is None
+    assert has_next is False
+
+
+@pytest.mark.asyncio
+async def test_list_trips_applies_search_status_and_cursor_pagination(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """검색어와 상태 필터 결과를 cursor로 중복 없이 이어서 조회한다."""
+    user_id = await create_user(session_factory)
+    today = datetime.now(KST).date()
+    for name, days_until_start in (
+        ("서울 봄 여행", 30),
+        ("부산 여행", 40),
+        ("서울 가을 여행", 60),
+    ):
+        upcoming = today + timedelta(days=days_until_start)
+        await create_trip(
+            session_factory,
+            user_id,
+            name=name,
+            start_date=upcoming,
+            end_date=upcoming,
+            idempotency_key=str(uuid.uuid4()),
+        )
+
+    first_items, cursor, first_has_next = await list_trips(
+        session_factory,
+        user_id,
+        query="서울",
+        status=TripStatus.UPCOMING,
+        limit=1,
+    )
+    await create_trip(
+        session_factory,
+        user_id,
+        name="서울 새 여행",
+        start_date=today + timedelta(days=10),
+        end_date=today + timedelta(days=10),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    second_items, final_cursor, second_has_next = await list_trips(
+        session_factory,
+        user_id,
+        query="서울",
+        status=TripStatus.UPCOMING,
+        cursor=cursor,
+        limit=1,
+    )
+
+    assert len(first_items) == len(second_items) == 1
+    assert first_items[0].trip_id != second_items[0].trip_id
+    assert first_items[0].name == "서울 봄 여행"
+    assert second_items[0].name == "서울 가을 여행"
+    assert first_has_next is True
+    assert cursor is not None
+    assert final_cursor is None
+    assert second_has_next is False
+
+    with pytest.raises(AppError) as error:
+        await list_trips(session_factory, user_id, cursor="invalid-cursor")
+    assert error.value.status_code == 400
+    assert error.value.code == "INVALID_REQUEST"
+
+    other_user_id = await create_user(session_factory)
+    with pytest.raises(AppError) as error:
+        await list_trips(
+            session_factory,
+            other_user_id,
+            query="서울",
+            status=TripStatus.UPCOMING,
+            cursor=cursor,
+            limit=1,
+        )
+    assert error.value.code == "INVALID_REQUEST"
+
+    padding = "=" * (-len(cursor) % 4)
+    decoded = base64.urlsafe_b64decode(cursor + padding).decode("ascii")
+    tampered = decoded.replace(str(today), str(today - timedelta(days=1)), 1)
+    tampered_cursor = base64.urlsafe_b64encode(tampered.encode("ascii")).decode("ascii").rstrip("=")
+    with pytest.raises(AppError) as error:
+        await list_trips(
+            session_factory,
+            user_id,
+            query="서울",
+            status=TripStatus.UPCOMING,
+            cursor=tampered_cursor,
+            limit=1,
+        )
+    assert error.value.code == "INVALID_REQUEST"
