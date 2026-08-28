@@ -54,7 +54,7 @@
   - 담당: ts
   - 선행: T003, T004
   - 검증: 5개 endpoint(TRIP-001~005) 시그니처만 있는 상태로 앱 기동 성공, `Authorization` dependency는 F001 것을 재사용
-- [ ] T006 [P] Android Trip DTO·Retrofit 인터페이스 구현 in `android/app/src/main/java/com/gilpick/trip/TripApi.kt`
+- [x] T006 [P] Android Trip DTO·Retrofit 인터페이스 구현 in `android/app/src/main/java/com/gilpick/trip/TripApi.kt`
   - 영역: FE
   - 담당: hs
   - 선행: 없음
@@ -84,7 +84,7 @@
   - 담당: ts
   - 선행: T005
   - 검증: FR-003, 동일 키 재전송 2회가 동일한 `tripId` 1건만 반환
-- [ ] T009 [P] [US1] Android unit test: 생성 폼 검증(길이, 기간 초과, 시작일>종료일, 공백 이름) in `android/app/src/test/java/com/gilpick/trip/TripFormValidationTest.kt`
+- [x] T009 [P] [US1] Android unit test: 생성 폼 검증(길이, 기간 초과, 시작일>종료일, 공백 이름) in `android/app/src/test/java/com/gilpick/trip/TripFormValidationTest.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T006
@@ -107,12 +107,12 @@
   - 담당: ts
   - 선행: T011
   - 검증: `201` 응답이 [contracts/trips.openapi.yaml](contracts/trips.openapi.yaml) `TripEnvelope`와 일치
-- [ ] T013 [P] [US1] `TripRepository.createTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
+- [x] T013 [P] [US1] `TripRepository.createTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T006
   - 검증: MockWebServer로 `201`/`422` 응답 매핑 확인
-- [ ] T014 [US1] `TripFormScreen`(생성 모드)·`TripFormViewModel` 구현 in `android/app/src/main/java/com/gilpick/trip/TripFormScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripFormViewModel.kt`
+- [x] T014 [US1] `TripFormScreen`(생성 모드)·`TripFormViewModel` 구현 in `android/app/src/main/java/com/gilpick/trip/TripFormScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripFormViewModel.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T009, T013
