@@ -418,7 +418,9 @@ Response `200`:
         "startDate": "2026-08-22",
         "endDate": "2026-08-24",
         "status": "IN_PROGRESS",
-        "dayCount": 3
+        "dayCount": 3,
+        "version": 1,
+        "createdAt": "2026-08-22T13:30:00+09:00"
       }
     ]
   },
@@ -467,6 +469,7 @@ Response `201`:
     "startDate": "2026-08-22",
     "endDate": "2026-08-24",
     "status": "IN_PROGRESS",
+    "dayCount": 3,
     "createdAt": "2026-08-22T13:30:00+09:00",
     "version": 1
   },
@@ -493,14 +496,9 @@ Response `200`:
     "startDate": "2026-08-22",
     "endDate": "2026-08-24",
     "status": "IN_PROGRESS",
+    "dayCount": 3,
     "version": 3,
-    "days": [
-      {
-        "date": "2026-08-22",
-        "itemCount": 4,
-        "routeStatus": "READY"
-      }
-    ]
+    "createdAt": "2026-08-22T13:30:00+09:00"
   },
   "meta": {
     "requestId": "uuid"

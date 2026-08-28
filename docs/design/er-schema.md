@@ -528,7 +528,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 |---|---|
 | `users` | unique `(social_provider, social_subject)` |
 | `device_sessions` | unique `(user_id, client_device_id)`, partial unique active `fcm_token` |
-| `trips` | `(user_id, start_date, end_date)` 및 `(user_id, lower(name))` where `deleted_at is null` |
+| `trips` | `(user_id, deleted_at)` 및 `(user_id, lower(name))` where `deleted_at is null` |
 | `trip_days` | unique `(trip_id, visit_date)`, unique `(trip_id, day_number)` |
 | `itinerary_items` | unique `(trip_day_id, sequence)`, `(trip_day_id, status, sequence)` |
 | `places` | unique `(tour_content_id)`, GiST `(location)` |
