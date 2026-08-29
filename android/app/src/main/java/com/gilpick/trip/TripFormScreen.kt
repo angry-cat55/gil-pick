@@ -330,6 +330,15 @@ private val DISPLAY_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val FIELD_HEIGHT = Dp(56f)
 private val PROGRESS_SIZE = Dp(24f)
+
+/**
+ * 달력 다이얼로그가 작은 화면을 넘지 않도록 하는 상한.
+ *
+ * spacing·radius 토큰(최대 24dp)으로 표현할 수 없는 일회성 값이라 리터럴을 쓴다
+ * (가이드라인 11절 예외). DateRangePicker는 내부에서 스크롤하므로 이 상한이 달력을
+ * 자르지 않는다. API 26 기기에서 시스템 글자 크기 1.0과 1.3 모두 확인·취소 버튼에
+ * 도달할 수 있음을 확인했다.
+ */
 private val PICKER_MAX_HEIGHT = Dp(480f)
 
 @Preview(showBackground = true)
