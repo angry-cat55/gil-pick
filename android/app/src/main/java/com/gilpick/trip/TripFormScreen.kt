@@ -30,8 +30,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import com.gilpick.R
+import com.gilpick.ui.theme.GilpickTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -329,3 +331,60 @@ private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val FIELD_HEIGHT = Dp(56f)
 private val PROGRESS_SIZE = Dp(24f)
 private val PICKER_MAX_HEIGHT = Dp(480f)
+
+@Preview(showBackground = true)
+@Composable
+private fun TripFormScreenPreview() {
+    GilpickTheme {
+        TripFormScreen(
+            state = TripFormUiState(
+                name = "제주도 여행",
+                startDate = LocalDate.of(2026, 9, 1),
+                endDate = LocalDate.of(2026, 9, 5)
+            ),
+            onNameChange = {},
+            onPeriodChange = { _, _ -> },
+            onSubmit = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripFormScreenErrorPreview() {
+    GilpickTheme {
+        TripFormScreen(
+            state = TripFormUiState(
+                name = "A",
+                startDate = LocalDate.of(2026, 9, 1),
+                endDate = LocalDate.of(2026, 8, 30),
+                showErrors = true,
+                validation = TripFormValidation(
+                    nameError = TripNameError.TOO_SHORT,
+                    periodError = TripPeriodError.END_BEFORE_START
+                )
+            ),
+            onNameChange = {},
+            onPeriodChange = { _, _ -> },
+            onSubmit = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripFormScreenSubmittingPreview() {
+    GilpickTheme {
+        TripFormScreen(
+            state = TripFormUiState(
+                name = "제주도 여행",
+                startDate = LocalDate.of(2026, 9, 1),
+                endDate = LocalDate.of(2026, 9, 5),
+                submitting = true
+            ),
+            onNameChange = {},
+            onPeriodChange = { _, _ -> },
+            onSubmit = {}
+        )
+    }
+}

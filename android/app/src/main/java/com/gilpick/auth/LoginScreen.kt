@@ -24,7 +24,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import com.gilpick.R
+import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -222,3 +224,39 @@ private val LOGO_SIZE = androidx.compose.ui.unit.Dp(88f)
 /** 가이드라인 5절: 주요 CTA 52~56dp, 보조 버튼 44~48dp. */
 private val PRIMARY_BUTTON_HEIGHT = androidx.compose.ui.unit.Dp(56f)
 private val SECONDARY_BUTTON_HEIGHT = androidx.compose.ui.unit.Dp(48f)
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenSignedOutPreview() {
+    GilpickTheme {
+        LoginScreen(
+            state = AuthUiState.SignedOut,
+            onKakaoLogin = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenLoggingInPreview() {
+    GilpickTheme {
+        LoginScreen(
+            state = AuthUiState.LoggingIn,
+            onKakaoLogin = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenFailedPreview() {
+    GilpickTheme {
+        LoginScreen(
+            state = AuthUiState.LoginFailed(code = "ERROR", retryable = true),
+            onKakaoLogin = {},
+            onRetry = {},
+        )
+    }
+}
