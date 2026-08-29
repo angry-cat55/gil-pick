@@ -33,7 +33,7 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
  * 로그인 화면.
  *
  * 위쪽 hero가 서비스가 무엇을 해주는지 알리고, 아래쪽 action 묶음이 로그인 수단을
- * 모은다. 시각 구조는 `gilpick-design-reference.pen`의 `01 로그인`을 따른다.
+ * 모은다. 시각 구조는 `docs/design/gilpick-design-reference.pen`의 `01 로그인`을 따른다.
  *
  * 진행 중에는 진행 상태를, 실패 후에는 오류와 다음 행동을 함께 보여준다. 재시도는
  * 언제나 새 Kakao 인증이며 앱이 같은 ticket이나 인가 코드를 다시 쓰지 않는다.

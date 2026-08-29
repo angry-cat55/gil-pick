@@ -98,6 +98,20 @@
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
+### UI Requirements *(include if feature contains user-facing UI)*
+
+<!--
+  Before writing this section, review docs/design/ui-guidelines.md and the relevant
+  screen/component in docs/design/gilpick-design-reference.pen.
+  Record technology-agnostic, testable requirements for screen structure, applicable
+  loading/empty/error/content states, interaction, accessibility, adaptive behavior,
+  and visual acceptance. State why a common state does not apply instead of inventing it.
+-->
+
+- **UI-001**: [Testable screen structure or interaction requirement]
+- **UI-002**: [Applicable state and accessibility requirement]
+- **UI-003**: [Device or screenshot acceptance criterion]
+
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]

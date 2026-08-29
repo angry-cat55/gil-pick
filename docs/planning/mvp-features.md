@@ -40,7 +40,7 @@
 - 현재 구현 중인 Feature보다 앞서 상세 설계할 수 있는 후속 Feature는 최대 1개이다.
 - 다음 Feature는 선행 Feature, 현재 구현 상태, GitHub Issue 상황을 확인한 뒤 선택한다.
 - 뒤쪽 Feature를 여러 개 미리 `spec`·`plan`·`tasks`까지 상세화하지 않는다.
-- Feature Owner는 해당 Feature의 `spec → clarify → plan → tasks` 준비를 책임진다.
+- Feature Owner는 해당 Feature의 `spec → clarify → plan → tasks` 준비를 책임진다. 사용자 화면 또는 UI 요소가 포함되면 `AGENTS.md`의 "UI가 포함된 Feature 산출물" 규칙에 따라 UI 가이드·시각 레퍼런스와 관련 skill을 확인하고 검증 가능한 UI 기준을 산출물에 반영한다.
 - 실제 구현은 `tasks.md`의 task를 GitHub Issue로 나눈 뒤 팀원들이 분담한다.
 - Feature 상태는 관련 산출물과 GitHub Issue·PR 상태가 바뀔 때 함께 갱신한다.
 
