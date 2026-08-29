@@ -36,6 +36,25 @@
 
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
+## UI Implementation & Validation *(include if feature contains user-facing UI)*
+
+<!--
+  Trace the approved UI requirements from spec.md to the repository design sources.
+  Identify theme tokens, reusable components, state models, accessibility/adaptive
+  implementation, and device or screenshot validation. Explain non-applicable common
+  states or checks instead of creating unnecessary UI behavior.
+-->
+
+**Design Sources**: `docs/design/ui-guidelines.md`, relevant screen/component in `docs/design/gilpick-design-reference.pen`
+
+**Tokens & Components**: [Existing theme tokens and reusable components; identify justified additions]
+
+**State & Interaction**: [Applicable loading/empty/error/content states, navigation, and interaction behavior]
+
+**Accessibility & Adaptive Layout**: [Semantics, touch targets, text scaling, screen-size behavior]
+
+**Visual Validation**: [Device/AVD and screenshot scenarios with expected outcomes]
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*

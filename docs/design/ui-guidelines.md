@@ -4,7 +4,7 @@
 
 이 문서가 값의 단일 기준이며, `com.gilpick.ui.theme`의 Compose 토큰이 그 실행 가능한 버전이다. 둘이 어긋나면 이 문서를 고치고 토큰을 맞춘다.
 
-시각 레퍼런스는 `gilpick-design-reference.pen`이다. 이 문서의 값은 레퍼런스에서 추출한 뒤 접근성 기준으로 검증·조정한 결과다.
+시각 레퍼런스는 `docs/design/gilpick-design-reference.pen`이다. 이 문서의 값은 레퍼런스에서 추출한 뒤 접근성 기준으로 검증·조정한 결과다.
 
 ## 1. 제품 성격과 디자인 방향
 
@@ -104,7 +104,7 @@ WCAG 2.x 상대 휘도 공식으로 계산했다. 본문 4.5:1, 컨트롤 경계
 
 ### 출처와 조정 기록
 
-값은 `gilpick-design-reference.pen`에서 가져왔고, 채택 전 아래를 조정했다. 레퍼런스와 skill의 제안은 권고이며 저장소 기준으로 검증한 뒤 쓴다(`AGENTS.md` 9절).
+값은 `docs/design/gilpick-design-reference.pen`에서 가져왔고, 채택 전 아래를 조정했다. 레퍼런스와 skill의 제안은 권고이며 저장소 기준으로 검증한 뒤 쓴다(`AGENTS.md` 9절).
 
 | 조정 | 이유 |
 |---|---|
@@ -390,7 +390,7 @@ val LocalGilpickSpacing = compositionLocalOf<GilpickSpacing> { error("GilpickThe
 
 ## 13. 관련 문서
 
-- 시각 레퍼런스: `gilpick-design-reference.pen`
+- 시각 레퍼런스: `docs/design/gilpick-design-reference.pen`
 - 기능별 화면 요구사항: 각 feature의 `specs/<feature>/spec.md`
 - 적용 절차: `AGENTS.md` 9절, 10절
 - API 계약: `docs/design/api-spec.md`
