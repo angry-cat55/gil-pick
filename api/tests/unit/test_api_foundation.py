@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from uvicorn.logging import AccessFormatter
 
 from app.api.errors import AppError, install_error_handling, success_response
 from app.core.logging import (
@@ -108,6 +109,48 @@ def test_process_logging_factory_redacts_child_logger(caplog) -> None:
 
     assert raw_ticket not in caplog.records[-1].getMessage()
     assert "[REDACTED]" in caplog.records[-1].getMessage()
+
+
+def test_process_logging_factory_redacts_plain_interpolation_value(caplog) -> None:
+    configure_logging()
+    logger = logging.getLogger("gilpick.test.plain-secret")
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        logger.info("api_key=%s", "plain-secret-value")
+
+    assert "plain-secret-value" not in caplog.records[-1].getMessage()
+    assert "api_key=[REDACTED]" in caplog.records[-1].getMessage()
+
+
+def test_sensitive_filter_preserves_uvicorn_access_log_arguments() -> None:
+    raw_token = "eyJheader.payload.signature"
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        1,
+        '%s - "%s %s HTTP/%s" %d',
+        (
+            "127.0.0.1:54321",
+            "GET",
+            f"/api/v1/trips?code=%2Fprovider-secret&token={raw_token}",
+            "1.1",
+            200,
+        ),
+        None,
+    )
+    formatter = AccessFormatter(
+        '%(client_addr)s - "%(request_line)s" %(status_code)s'
+    )
+
+    SensitiveDataFilter().filter(record)
+    message = formatter.format(record)
+
+    assert len(record.args) == 5
+    assert "GET /api/v1/trips?code=[REDACTED]&token=[REDACTED] HTTP/1.1" in message
+    assert raw_token not in message
+    assert "%2Fprovider-secret" not in message
+    assert "200 OK" in message
 
 
 def test_unexpected_error_keeps_request_id_in_envelope_header_and_log(caplog) -> None:

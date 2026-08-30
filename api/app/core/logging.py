@@ -70,9 +70,12 @@ class SensitiveDataFilter(logging.Filter):
         """Redact the message and interpolation arguments before handlers format them."""
         if isinstance(record.msg, (dict, list, tuple)) and not record.args:
             record.msg = str(_redact(record.msg))
+        elif record.name == "uvicorn.access":
+            record.msg = _redact(record.msg)
+            record.args = _redact(record.args)
         else:
             record.msg = _redact(record.getMessage())
-        record.args = ()
+            record.args = ()
         for key, value in vars(record).items():
             if key not in {"msg", "args"}:
                 setattr(record, key, _redact(value, key))
