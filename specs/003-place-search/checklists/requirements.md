@@ -32,5 +32,5 @@
 ## Notes
 
 - 2026-08-30 clarification에서 `문화·역사`를 합친 6개 카테고리를 선택했고, 충돌하던 `requirements.md`를 기존 기능 명세·ERD·API 예시와 동기화했다.
-- Google Places 데이터는 F009 범위이므로 F003에서 제외했다. `docs/design/api-spec.md`의 PLACE-002도 TourAPI 운영 안내만 반환하도록 plan 단계에서 동기화했다.
+- 음식·카페·쇼핑의 TourAPI 결과가 요청 `limit`보다 적을 때만 Google Places로 부족분을 보완하고, 동일 장소는 TourAPI 기준 정보에 Google 평점·영업정보만 병합하도록 확정했다. 장소별 제공자 배지는 제외하되 Google의 필수 attribution은 준수한다.
 - `ui-ux-pro-max`의 검색·빈 상태·오류 복구·접근성 권고를 저장소 UI 가이드 기준으로 조정해 UI-002, UI-005~UI-009에 반영했다.

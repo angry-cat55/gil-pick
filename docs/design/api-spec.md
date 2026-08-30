@@ -143,8 +143,8 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | TRIP-005 | 여행 | 여행 삭제 | [ ] | [ ] | DELETE | `/api/v1/trips/{tripId}` |
 | ITIN-001 | 일정 | 날짜별 일정 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
 | ITIN-002 | 일정 | 날짜별 일정 저장 | [ ] | [ ] | PUT | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
-| PLACE-001 | 장소 | 관광지 검색 | [ ] | [ ] | GET | `/api/v1/places/search` |
-| PLACE-002 | 장소 | 관광지 상세 조회 | [ ] | [ ] | GET | `/api/v1/places/{placeId}` |
+| PLACE-001 | 장소 | 장소 검색 | [ ] | [ ] | GET | `/api/v1/places/search` |
+| PLACE-002 | 장소 | 장소 상세 조회 | [ ] | [ ] | GET | `/api/v1/places/{placeId}` |
 | ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
 | ROUTE-002 | 경로 | 남은 경로 재계산 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/recalculate` |
 | PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
@@ -728,7 +728,7 @@ Response `200` 또는 신규 일자 `201`:
 
 주요 오류: `400`, `403`, `404`, `409 VERSION_CONFLICT`, `422`
 
-### PLACE-001 관광지 검색
+### PLACE-001 장소 검색
 
 `GET /api/v1/places/search`
 
@@ -761,7 +761,13 @@ Response `200`:
         "latitude": 37.579617,
         "longitude": 126.977041,
         "imageUrl": "https://...",
-        "recommendedStayMinutes": 90
+        "recommendedStayMinutes": 90,
+        "rating": 4.6,
+        "userRatingCount": 1203,
+        "businessStatus": "OPERATIONAL",
+        "regularOpeningHours": null,
+        "currentOpeningHours": null,
+        "googleAttributions": ["Google Maps"]
       }
     ]
   },
@@ -777,7 +783,7 @@ Response `200`:
 
 주요 오류: `400 INVALID_REQUEST | INVALID_CURSOR`, `401 INVALID_ACCESS_TOKEN`, `429 TOUR_API_RATE_LIMITED`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`
 
-### PLACE-002 관광지 상세 조회
+### PLACE-002 장소 상세 조회
 
 `GET /api/v1/places/{placeId}`
 
@@ -804,7 +810,13 @@ Response `200`:
     "description": "...",
     "phone": "02-...",
     "recommendedStayMinutes": 90,
-    "operatingGuide": "매주 화요일 휴무, 관람 시간은 계절별로 다름"
+    "operatingGuide": "매주 화요일 휴무, 관람 시간은 계절별로 다름",
+    "rating": 4.6,
+    "userRatingCount": 1203,
+    "businessStatus": "OPERATIONAL",
+    "regularOpeningHours": null,
+    "currentOpeningHours": null,
+    "googleAttributions": ["Google Maps"]
   },
   "meta": {
     "requestId": "uuid"
@@ -816,7 +828,11 @@ Response `200`:
 - TourAPI가 제공하는 콘텐츠 유형별 운영 안내를 nullable 문자열로 정규화
 - 제공되지 않은 운영 안내는 `null`
 - `openNow` 또는 정확한 종료 시각을 추론하지 않음
-- Google Places 평점·리뷰·영업 상태 보강은 F009 범위
+- 관광지·문화시설·자연·축제·숙박은 TourAPI만 사용하고, 음식·카페·쇼핑은 페이지의 TourAPI 결과가 `limit` 미만일 때만 Google Places로 부족분 보완
+- 확정 매칭은 TourAPI ID·기본·상세정보를 유지하고 Google 평점·평점 수·영업정보만 병합하며 모호한 Google 후보는 제외
+- Google 전용 결과는 `google:{placeId}`를 사용하고 Google 사진·리뷰는 반환하지 않음
+- Google 실패 시 TourAPI 결과를 유지하고 Google 필드만 제외하며, TourAPI 실패를 Google 결과로 대체하지 않음
+- 장소별 provider 배지는 화면에 표시하지 않지만 Google 데이터 영역의 필수 attribution은 준수
 - 검색 결과와 상세 응답은 DB나 server cache에 저장하지 않음
 
 주요 오류: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`, `404 PLACE_NOT_FOUND`, `429 TOUR_API_RATE_LIMITED`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`

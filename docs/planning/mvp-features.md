@@ -13,13 +13,13 @@
 |---|---|---|---|---|---|
 | F001 | 인증 | 카카오 로그인, 토큰 재발급, 현재 기기 로그아웃 | - | IN_PROGRESS | jh |
 | F002 | 여행 관리 | 여행 생성·조회·수정·삭제와 목록 검색·필터 | F001 | IN_PROGRESS | hs |
-| F003 | 장소 검색 | TourAPI 기반 관광지 검색 및 상세 조회 | F001 | READY | ts |
+| F003 | 장소 검색 | TourAPI 중심 장소 검색·상세와 음식·카페·쇼핑의 제한적 Google Places 보완 | F001 | READY | ts |
 | F004 | 일정 구성 | 날짜별 장소 추가와 순서·체류시간·이동수단 편집 | F002, F003 | TODO | - |
 | F005 | 경로 계산 | 일정 기반 이동 경로 계산·재계산 및 지도 표시 | F004 | TODO | - |
 | F006 | 여행 진행 | 여행 시작, ETA 관리, 수동 상태 전환과 당일 완료 | F004, F005 | TODO | - |
 | F007 | 위치 기반 감지 | 위치 이벤트 기반 도착·출발 감지와 확인·되돌리기 | F006 | TODO | - |
 | F008 | 여행 변수 감지 | 남은 일정의 혼잡도·날씨·운영시간 평가 | F006 | TODO | - |
-| F009 | 대체 장소 추천 | 변수 발생 시 조건에 맞는 대체 장소 후보 추천 | F003, F008 | TODO | - |
+| F009 | 대체 장소 추천 | F003의 장소·Google 보강 계약을 재사용해 변동 조건에 맞는 대체 후보 추천 | F003, F008 | TODO | - |
 | F010 | 일정 변경 | 대체 장소 미리보기·승인 후 일정과 경로 변경·되돌리기 | F004, F005, F009 | TODO | - |
 | F011 | 알림 | 도착·출발 확인과 장소 변경 제안 알림 | F006, F007, F008 | TODO | - |
 | F012 | 사용자 설정 | 장소 변경 제안 알림 설정과 정책 문서·로그아웃 진입 | F001 | TODO | - |
@@ -54,10 +54,10 @@
 - 공유 환경에는 외부에서 접근 가능한 HTTPS Backend, PostgreSQL·PostGIS 연결, 환경변수·secret 주입, 필요한 callback·domain 등록이 포함된다.
 - 외부 연동 자격은 다음 시점까지 준비한다.
   - F001: Kakao test app, Backend HTTPS callback, Android App Link domain과 `assetlinks.json`
-  - F003: TourAPI
+  - F003: TourAPI, Google Places
   - F005: TMAP·ODsay
   - F008: 기상청·서울시 데이터
-  - F009: Google Places
+  - F009: F003에서 확정한 Google Places 계약 재사용
   - F011: Firebase·FCM
 - 실제 환경이 필요한 task는 관련 환경 Issue를 `blocked by #번호`로 연결한다. mock·local test만 필요한 선행 task까지 불필요하게 차단하지 않는다.
 

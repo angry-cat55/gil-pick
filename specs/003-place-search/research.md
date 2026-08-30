@@ -9,7 +9,7 @@
 **Alternatives considered**:
 
 - Android가 TourAPI 직접 호출: APK와 network log에 service key가 노출되고 provider 계약이 Android DTO에 결합되어 제외.
-- 범용 관광 provider interface: F003은 TourAPI 하나만 사용하며 후속 provider 요구가 확정되지 않아 제외.
+- 범용 provider interface: F003은 고정된 TourAPI·Google Places 조합만 필요하므로 service가 두 client를 직접 조합한다.
 
 **Official source**: [한국관광공사 국문 관광정보 서비스](https://www.data.go.kr/data/15101578/openapi.do), [한국관광콘텐츠랩](https://api.visitkorea.or.kr/)
 
@@ -44,7 +44,7 @@
 **Alternatives considered**:
 
 - `openNow`, `closesAt` 계산: TourAPI 원문만으로 신뢰 가능한 실시간 상태를 보장할 수 없어 제외.
-- Google Places로 보강: F009 범위라 제외.
+- Google Places의 평점·영업정보로 보강: 확정 매칭된 경우에만 적용하며 TourAPI 기본·상세정보를 덮어쓰지 않는다.
 - 상세 endpoint 순차 호출: 독립 read이므로 불필요하게 latency가 늘어 제외.
 
 ## 5. Pagination, 정렬과 중복 제거
@@ -106,7 +106,35 @@
 - 일정 편집의 장소 타임라인 화면을 그대로 사용: F004 전용 순서·핀 의미가 검색 결과에는 없어 제외.
 - 모든 결과를 card로 감싸기: 저장소의 낮은 card 장식 원칙과 충돌해 제외.
 
-## 10. 공식 계약에서 구현 전 확인할 항목
+## 10. Google Places 보완과 동일 장소 매칭
+
+**Decision**: 음식·카페·쇼핑의 각 페이지에서 TourAPI가 정상 반환한 결과를 중복 제거한 뒤 `limit`보다 적을 때만 Places API (New) Text Search를 순차 호출해 부족분을 채운다. 장소명 정규화, 50m 이내 좌표, 주소 일치를 함께 만족한 확정 매칭만 TourAPI 항목에 병합하고 모호한 Google 후보는 제외한다. Google 전용 결과는 `google:{placeId}`, TourAPI 기준 결과는 `tourapi:{contentId}`를 사용한다.
+
+**Rationale**: TourAPI 중심성을 유지하면서 상업 장소의 결과 부족만 보완하고, 제공자 간 공통 ID가 없는 상황에서 잘못된 병합과 화면 중복을 줄인다. Places ID는 Google 내부 식별자이지 TourAPI `contentId`와 직접 동일성 증거가 아니다.
+
+**Alternatives considered**:
+
+- 상업 카테고리마다 항상 Google 병렬 호출: TourAPI가 충분할 때도 비용과 attribution 범위를 늘려 제외.
+- TourAPI 장애를 Google 결과로 대체: 장애를 성공으로 숨기므로 constitution IV에 따라 제외.
+- 모호한 후보를 별도 결과로 표시: 동일 장소 중복 가능성이 커 제외.
+
+**Official sources**: [Places API Text Search](https://developers.google.com/maps/documentation/places/web-service/text-search), [Place IDs](https://developers.google.com/maps/documentation/places/web-service/place-id)
+
+## 11. Google 필드, attribution과 부분 실패
+
+**Decision**: Text Search와 Place Details는 `id`, 장소명, 주소, 좌표, 유형, 전화번호 및 필요한 `rating`, `userRatingCount`, `regularOpeningHours`, `currentOpeningHours`, `businessStatus`, `attributions`만 명시적 field mask로 요청한다. Google 사진·리뷰는 요청하지 않는다. Google 호출 실패는 TourAPI 결과·상세를 유지한 채 Google 필드만 null로 처리한다. 화면의 장소별 provider 배지는 제거하지만 Google 데이터와 같은 시각 컨테이너에는 정책상 필수 `Google Maps` 및 제3자 attribution을 표시한다.
+
+**Rationale**: Places API (New)는 field mask가 필수이고 일부 필드는 과금 SKU를 결정한다. 공식 정책은 Google 콘텐츠가 다른 출처 데이터와 구분되고 attribution이 가까이 표시되도록 요구하므로 모든 출처 표시 제거는 허용되지 않는다.
+
+**Alternatives considered**:
+
+- wildcard field mask: 불필요한 데이터·비용이 증가해 제외.
+- Google 사진·리뷰 포함: 저자 attribution과 원문 링크 의무가 늘어 현재 범위를 넘으므로 제외.
+- attribution 완전 제거: Google 정책과 충돌해 제외.
+
+**Official sources**: [Place 리소스와 필드](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places), [Places API 정책](https://developers.google.com/maps/documentation/places/web-service/policies)
+
+## 12. 공식 계약에서 구현 전 확인할 항목
 
 다음은 제품 요구의 미확정이 아니라 credential과 최신 공식 활용매뉴얼로 확인할 provider 세부사항이다.
 
@@ -115,5 +143,7 @@
 - `detailIntro2` 콘텐츠 유형별 운영 안내 field명과 빈 값 형태
 - 신분류·법정동 코드의 최신 fixture와 내부 6개 category mapping
 - 개발·운영 quota와 운영계정 증설 승인 상태
+- Google Places field별 실제 billing SKU, quota와 허용 attribution asset
+- TourAPI 이미지별 라이선스·출처 메타데이터와 표시 의무
 
-이 검증은 TourAPI 환경 준비 Issue에 포함하고 실제 값이나 key를 repository·test output에 남기지 않는다.
+이 검증은 TourAPI·Google Places 환경 준비 Issue에 포함하고 실제 값이나 key를 repository·test output에 남기지 않는다.

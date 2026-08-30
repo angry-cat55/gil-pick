@@ -9,7 +9,7 @@ paths:
   /places/search:
     get:
       operationId: searchPlaces
-      summary: 관광지 검색
+      summary: 장소 검색
       description: >-
         query와 category는 각각 단독으로 사용할 수 있고 함께 사용할 수도 있다.
         둘 다 없으면 INVALID_REQUEST를 반환한다.
@@ -64,7 +64,7 @@ paths:
   /places/{placeId}:
     get:
       operationId: getPlace
-      summary: 관광지 상세 조회
+      summary: 장소 상세 조회
       security:
         - bearerAuth: []
       parameters:
@@ -73,7 +73,7 @@ paths:
           required: true
           schema:
             type: string
-            pattern: '^tourapi:[A-Za-z0-9_-]+$'
+            pattern: '^(tourapi|google):[A-Za-z0-9_-]+$'
       responses:
         '200':
           description: 상세 조회 성공
@@ -121,18 +121,24 @@ components:
         - sourcePlaceId
         - name
         - category
-        - tourApiCategory
         - address
         - latitude
         - longitude
         - imageUrl
         - recommendedStayMinutes
+        - rating
+        - userRatingCount
+        - businessStatus
+        - regularOpeningHours
+        - currentOpeningHours
+        - googleAttributions
       properties:
         placeId:
           type: string
-          pattern: '^tourapi:[A-Za-z0-9_-]+$'
+          pattern: '^(tourapi|google):[A-Za-z0-9_-]+$'
         source:
-          const: TOUR_API
+          type: string
+          enum: [TOUR_API, GOOGLE_PLACES]
         sourcePlaceId:
           type: string
         name:
@@ -141,7 +147,9 @@ components:
         category:
           $ref: '#/components/schemas/PlaceCategory'
         tourApiCategory:
-          $ref: '#/components/schemas/TourApiCategory'
+          oneOf:
+            - $ref: '#/components/schemas/TourApiCategory'
+            - type: 'null'
         address:
           type: [string, 'null']
         latitude:
@@ -158,6 +166,28 @@ components:
         recommendedStayMinutes:
           type: integer
           enum: [60, 90, 120]
+        rating:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 5
+        userRatingCount:
+          type: [integer, 'null']
+          minimum: 0
+        businessStatus:
+          type: [string, 'null']
+        regularOpeningHours:
+          type: [array, 'null']
+          items:
+            type: string
+        currentOpeningHours:
+          type: [array, 'null']
+          items:
+            type: string
+        googleAttributions:
+          type: [array, 'null']
+          description: Google 데이터 표시 시 필요한 Google Maps·제3자 attribution 정보
+          items:
+            type: string
     PlaceDetail:
       allOf:
         - $ref: '#/components/schemas/PlaceSummary'
@@ -170,7 +200,7 @@ components:
               type: [string, 'null']
             operatingGuide:
               type: [string, 'null']
-              description: TourAPI가 제공한 운영 안내. 실시간 영업 여부를 추론하지 않는다.
+              description: TourAPI 기준 장소의 운영 안내. 실시간 영업 여부를 추론하지 않는다.
     PaginationMeta:
       type: object
       required: [nextCursor, hasNext]
@@ -229,6 +259,9 @@ components:
             - TOUR_API_RATE_LIMITED
             - TOUR_API_FAILED
             - TOUR_API_TIMEOUT
+            - GOOGLE_PLACES_RATE_LIMITED
+            - GOOGLE_PLACES_FAILED
+            - GOOGLE_PLACES_TIMEOUT
         message:
           type: string
         retryable:

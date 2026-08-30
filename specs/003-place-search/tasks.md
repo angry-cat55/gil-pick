@@ -19,9 +19,9 @@ description: "F003 장소 검색 구현 task 목록"
 
 ## Phase 1: Setup
 
-**Purpose**: TourAPI와 Android 화면 구현에 필요한 최소 환경을 준비한다.
+**Purpose**: TourAPI·Google Places와 Android 화면 구현에 필요한 최소 환경을 준비한다.
 
-- [ ] T001 [P] TourAPI base URL·service key·timeout 설정 추가 in api/app/core/config.py, api/.env.example
+- [ ] T001 [P] TourAPI·Google Places base URL·service key·timeout 설정 추가 in api/app/core/config.py, api/.env.example
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -31,11 +31,11 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: jy
   - 선행: 없음
   - 검증: `android\gradlew.bat -p android :app:dependencies`와 `:app:compileDebugKotlin` 성공
-- [ ] T003 TourAPI 최신 활용가이드와 실제 fixture로 endpoint·분류·상세 필드 확정 in api/tests/fixtures/tour_api/
+- [ ] T003 TourAPI·Google Places 최신 공식 계약과 fixture로 endpoint·분류·field mask·attribution 확정 in api/tests/fixtures/tour_api/, api/tests/fixtures/google_places/
   - 영역: BE
   - 담당: ts
   - 선행: T001
-  - 검증: `searchKeyword2`, `areaBasedList2`, `detailCommon2`, `detailIntro2`, 지역·신분류 code와 빈 필드 fixture를 공식 문서 및 공유 개발계정에서 대조하고 credential을 산출물에 남기지 않음
+  - 검증: TourAPI 검색·상세 endpoint와 Google Text Search·Details 최소 field mask·attribution·빈 필드 fixture를 공식 문서 및 공유 개발계정에서 대조하고 credential을 산출물에 남기지 않음
 
 ---
 
@@ -50,17 +50,17 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T003
   - 검증: place DTO, category enum, nullable field, cursor, 오류 code와 navigation 진입점을 BE `ts`와 FE `jy`가 확인한 기록을 남기고 불일치를 구현 전에 문서에 반영
-- [ ] T004 Backend 장소 DTO·6개 category·공통 envelope 모델 구현 in api/app/schemas/place.py
+- [ ] T004 Backend 다중 provider 장소 DTO·6개 category·공통 envelope 모델 구현 in api/app/schemas/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T003, T035
-  - 검증: `places.openapi.yaml`의 nullable field, enum, `tourapi:{contentId}`, 추천 체류시간과 pagination 구조가 일치하는 schema test 통과
-- [ ] T005 TourAPI HTTP client와 응답·오류 parsing 구현 in api/app/clients/tour_api.py
+  - 검증: `places.openapi.yaml`의 nullable field, enum, `tourapi:`·`google:` ID, Google 보강 필드와 pagination 구조가 일치하는 schema test 통과
+- [ ] T005 TourAPI·Google Places HTTP client와 응답·오류 parsing 구현 in api/app/clients/tour_api.py, api/app/clients/google_places.py
   - 영역: BE
   - 담당: ts
   - 선행: T001, T003
   - 검증: MockTransport로 JSON 성공, 빈 응답, application error, timeout, 4xx, 5xx, quota 응답 parsing test 통과
-- [ ] T006 TourAPI credential·URL query·원문 응답 redaction 적용 in api/app/core/logging.py
+- [ ] T006 TourAPI·Google Places credential·URL query·원문 응답 redaction 적용 in api/app/core/logging.py
   - 영역: BE
   - 담당: ts
   - 선행: T005
@@ -85,7 +85,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ---
 
-## Phase 3: User Story 1 - 관광지 검색 (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - 장소 검색 (Priority: P1) 🎯 MVP
 
 **Goal**: 인증된 사용자가 키워드·category·지역 조건으로 명시적으로 검색하고 중복 없는 다음 결과를 조회한다.
 
@@ -98,11 +98,11 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T004, T007
   - 검증: query/category 단독·조합, trim 후 2글자, areaCode, limit, cursor, nullable field와 `400` 계약을 구현 전 실패 test로 확인
-- [ ] T011 [P] [US1] 검색 mapping·cursor·중복 정책 unit test 작성 in api/tests/unit/test_place_service.py
+- [ ] T011 [P] [US1] TourAPI 우선 routing·Google 부족분·매칭·cursor·중복 정책 unit test 작성 in api/tests/unit/test_place_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, T005
-  - 검증: 6개 category와 체류시간, provider 정렬 유지, 서명·criteria fingerprint cursor, 변조 거부 test를 구현 전 실패로 확인
+  - 검증: 6개 category·체류시간, 상업 category의 `limit` 부족분만 Google 호출, 50m·이름·주소 확정 매칭, 모호 후보 제외, 복합 cursor·변조 거부 test를 구현 전 실패로 확인
 - [ ] T012 [P] [US1] Android 검색 repository와 ViewModel unit test 작성 in android/app/src/test/java/com/gilpick/place/PlaceRepositoryTest.kt, android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt
   - 영역: FE
   - 담당: jy
@@ -116,11 +116,11 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] TourAPI 검색 routing·category mapping·서명 cursor 서비스 구현 in api/app/services/place.py
+- [ ] T014 [US1] TourAPI 우선 검색·category mapping·조건부 Google 보완·확정 매칭·서명 cursor 구현 in api/app/services/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T010, T011, T035
-  - 검증: keyword는 `searchKeyword2`, category-only는 `areaBasedList2`를 호출하고 mapping·cursor unit test 통과
+  - 검증: TourAPI를 먼저 호출하고 상업 category의 정상 결과가 `limit` 미만일 때만 Google 부족분을 요청하며 mapping·매칭·cursor unit test 통과
 - [ ] T015 [US1] PLACE-001 validation과 검색 endpoint 구현 in api/app/api/v1/places.py
   - 영역: BE
   - 담당: ts
@@ -146,7 +146,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ---
 
-## Phase 4: User Story 2 - 관광지 상세 조회 (Priority: P2)
+## Phase 4: User Story 2 - 장소 상세 조회 (Priority: P2)
 
 **Goal**: 사용자가 검색 결과의 장소를 선택해 제공 가능한 상세를 확인하고 누락·not found를 구분한다.
 
@@ -154,12 +154,12 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] PLACE-002 contract·상세 조합 test 작성 in api/tests/contract/test_place_contract.py, api/tests/integration/test_place_flow.py
+- [ ] T019 [P] [US2] PLACE-002 TourAPI 기준 병합·Google 전용 상세 contract test 작성 in api/tests/contract/test_place_contract.py, api/tests/integration/test_place_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, T005
-  - 검증: 상세 성공·nullable field·invalid ID·not found와 `operatingGuide`만 노출하는 구현 전 실패 test 확인
-- [ ] T020 [P] [US2] Android 상세 ViewModel·화면 test 작성 in android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceDetailScreenTest.kt
+  - 검증: `tourapi:` 기준 상세·Google 허용 필드 병합, `google:` 전용 상세, nullable field·invalid ID·not found·사진·리뷰 제외를 구현 전 실패 test로 확인
+- [ ] T020 [P] [US2] Android 상세·Google 필드·attribution·provider 배지 미표시 test 작성 in android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceDetailScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008, T009
@@ -167,7 +167,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] TourAPI 공통·소개 상세 병렬 조회와 nullable 정규화 구현 in api/app/services/place.py
+- [ ] T021 [US2] TourAPI 기준 상세·선택적 Google 보강·Google 전용 상세 정규화 구현 in api/app/services/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T014, T019, T035
@@ -205,11 +205,11 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] TourAPI retry·오류 분류·redaction unit test 작성 in api/tests/unit/test_tour_api_client.py
+- [ ] T026 [P] [US3] TourAPI·Google Places retry·오류 분류·redaction unit test 작성 in api/tests/unit/test_tour_api_client.py, api/tests/unit/test_google_places_client.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T006
-  - 검증: timeout·일시적 5xx만 1회 재시도하고 TourAPI application error·request·auth·quota/rate limit은 재시도하지 않는 실패 test 확인
+  - 검증: 두 provider의 timeout·일시적 5xx만 1회 재시도하고 application·request·auth·quota/rate limit은 재시도하지 않으며 Google 실패 시 TourAPI 결과가 유지되는 실패 test 확인
 - [ ] T027 [P] [US3] Android 검색·상세 장애 복구 UI test 보강 in android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt, android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceSearchScreenTest.kt
   - 영역: FE
   - 담당: jy
@@ -218,11 +218,11 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] TourAPI 5초 timeout·최대 1회 retry와 안정적 오류 mapping 적용 in api/app/clients/tour_api.py, api/app/services/place.py
+- [ ] T028 [US3] provider별 5초 timeout·최대 1회 retry와 Google 부분 실패 격리 적용 in api/app/clients/tour_api.py, api/app/clients/google_places.py, api/app/services/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T021, T026
-  - 검증: client·service·integration test에서 `TOUR_API_TIMEOUT`, `TOUR_API_FAILED`, `TOUR_API_RATE_LIMITED`와 실제 호출 횟수 통과
+  - 검증: client·service·integration test에서 provider별 timeout·failed·rate limited와 Google 부분 실패 격리 및 실제 호출 횟수 통과
 - [ ] T029 [US3] Android 검색·상세 오류별 복구 행동과 인증 만료 연결 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchViewModel.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailViewModel.kt
   - 영역: FE
   - 담당: jy
@@ -242,7 +242,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 **Purpose**: 전체 계약, 보안, 문서와 실제 검증 결과를 최종 정합화한다.
 
-- [ ] T031 Backend F003 전체 자동 test와 정적 검증 실행 against api/tests/contract/test_place_contract.py, api/tests/unit/test_tour_api_client.py, api/tests/unit/test_place_service.py, api/tests/integration/test_place_flow.py
+- [ ] T031 Backend F003 전체 자동 test와 정적 검증 실행 against api/tests/contract/test_place_contract.py, api/tests/unit/test_tour_api_client.py, api/tests/unit/test_google_places_client.py, api/tests/unit/test_place_service.py, api/tests/integration/test_place_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T015, T022, T028
@@ -252,16 +252,16 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: jy
   - 선행: T018, T025, T030
   - 검증: `testDebugUnitTest`, `connectedDebugAndroidTest`, `assembleDebug`, 필수 KDoc 확인 결과와 실제 기기·screenshot 증빙 기록
-- [ ] T033 Backend·Android 계약과 문서 최종 동기화 in specs/003-place-search/contracts/places.openapi.yaml, docs/design/api-spec.md, specs/003-place-search/quickstart.md
+- [ ] T033 Backend·Android 다중 provider 계약과 문서 최종 동기화 in specs/003-place-search/contracts/places.openapi.yaml, docs/design/api-spec.md, specs/003-place-search/quickstart.md
   - 영역: 통합
   - 담당: ts
   - 선행: T031, T032
-  - 검증: enum·nullable field·cursor·오류 code가 양쪽 구현과 일치하고 Google Places·DB 저장이 포함되지 않았음을 BE `ts`와 FE `jy`가 교차 확인
-- [ ] T034 TourAPI 공유 환경 수동 smoke test와 quota 운영 확인 against specs/003-place-search/quickstart.md
+  - 검증: enum·nullable field·cursor·provider별 오류 code·Google 보완 필드·attribution이 양쪽 구현과 일치하고 DB 저장·Google 사진·리뷰가 포함되지 않았음을 BE `ts`와 FE `jy`가 교차 확인
+- [ ] T034 TourAPI·Google Places 공유 환경 smoke test와 quota·billing·attribution 확인 against specs/003-place-search/quickstart.md
   - 영역: 통합
   - 담당: ts
-  - 선행: T031, TourAPI credential 환경 준비 Issue
-  - 검증: 정상 검색·empty·상세 누락·다음 cursor를 공유 환경에서 확인하고 정상 흐름 5초·재시도 흐름 11초 이내인지 기록하며, credential 미준비 시 통과로 표시하지 않고 미실행 사유 기록
+  - 선행: T031, TourAPI·Google Places credential·billing 환경 준비 Issue
+  - 검증: TourAPI 정상·empty·상세·cursor와 Google 조건부 보완·확정 매칭·부분 실패·attribution을 확인하고 5초·10초·provider별 11초 경계를 기록하며, 환경 미준비 시 통과로 표시하지 않음
 
 ---
 
@@ -323,7 +323,7 @@ FE jy: T027 Android 오류 복구 test
 ### MVP First
 
 1. T001~T009 Setup·Foundational과 T035 구현 전 계약 교차 review 완료
-2. T010~T018 US1 관광지 검색 구현·검증
+2. T010~T018 US1 장소 검색·조건부 Google 보완 구현·검증
 3. 검색 결과, empty, pagination과 접근성을 독립 시연
 4. US2 상세와 US3 장애 복구는 후속 증분으로 추가
 
@@ -333,12 +333,12 @@ FE jy: T027 Android 오류 복구 test
 - US1·US2·US3 Backend 구현은 외부 계약과 파일 소유권이 겹치므로 순차 Issue 또는 명확한 선행 관계로 분리한다.
 - Android setup·navigation, US1 검색, US2 상세, US3 장애 복구는 `jy`가 각각 독립 review 가능한 Issue로 나눈다.
 - T033은 양쪽 구현 완료 후 통합 계약 검증 Issue로 두고 `ts`가 수행하며 `jy`의 교차 확인을 완료 조건에 둔다.
-- T034는 TourAPI credential 환경 준비 Issue에 `blocked by`를 기록하며, mock 기반 구현 전체를 차단하지 않는다.
+- T034는 TourAPI·Google Places credential·billing 환경 준비 Issue에 `blocked by`를 기록하며, mock 기반 구현 전체를 차단하지 않는다.
 
 ## Notes
 
 - `[P]`는 다른 파일과 계약을 독립적으로 다룰 때만 표시했다.
 - 구현 test는 먼저 실패를 확인한 뒤 해당 구현 task를 진행한다.
 - 화면 완료에는 loading·empty·error·content, 접근성, 360dp·최대 font scale과 실제 기기 또는 screenshot 검증이 포함된다.
-- F003은 검색 결과를 DB·Redis에 저장하지 않고 Google Places 정보도 제공하지 않는다.
+- F003은 검색 결과를 DB·Redis에 저장하지 않고 Google Places는 음식·카페·쇼핑 부족분과 평점·영업정보에만 사용한다. 사진·리뷰와 장소별 provider 배지는 제외하고 필수 attribution은 유지한다.
 - 구현 중 API나 UI 계약이 바뀌면 관련 문서를 동기화하고 `speckit-analyze`를 다시 수행한다.
