@@ -24,7 +24,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import com.gilpick.R
+import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -33,7 +35,7 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
  * 로그인 화면.
  *
  * 위쪽 hero가 서비스가 무엇을 해주는지 알리고, 아래쪽 action 묶음이 로그인 수단을
- * 모은다. 시각 구조는 `gilpick-design-reference.pen`의 `01 로그인`을 따른다.
+ * 모은다. 시각 구조는 `docs/design/gilpick-design-reference.pen`의 `01 로그인`을 따른다.
  *
  * 진행 중에는 진행 상태를, 실패 후에는 오류와 다음 행동을 함께 보여준다. 재시도는
  * 언제나 새 Kakao 인증이며 앱이 같은 ticket이나 인가 코드를 다시 쓰지 않는다.
@@ -222,3 +224,39 @@ private val LOGO_SIZE = androidx.compose.ui.unit.Dp(88f)
 /** 가이드라인 5절: 주요 CTA 52~56dp, 보조 버튼 44~48dp. */
 private val PRIMARY_BUTTON_HEIGHT = androidx.compose.ui.unit.Dp(56f)
 private val SECONDARY_BUTTON_HEIGHT = androidx.compose.ui.unit.Dp(48f)
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenSignedOutPreview() {
+    GilpickTheme {
+        LoginScreen(
+            state = AuthUiState.SignedOut,
+            onKakaoLogin = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenLoggingInPreview() {
+    GilpickTheme {
+        LoginScreen(
+            state = AuthUiState.LoggingIn,
+            onKakaoLogin = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenFailedPreview() {
+    GilpickTheme {
+        LoginScreen(
+            state = AuthUiState.LoginFailed(code = "ERROR", retryable = true),
+            onKakaoLogin = {},
+            onRetry = {},
+        )
+    }
+}

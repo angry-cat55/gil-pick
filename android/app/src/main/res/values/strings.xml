@@ -54,10 +54,10 @@
     <string name="trip_form_cancel">취소</string>
 
     <string name="trip_form_error_name_short">여행 이름은 공백을 빼고 2자 이상 입력해 주세요.</string>
-    <string name="trip_form_error_name_long">여행 이름은 30자까지 입력할 수 있습니다.</string>
+    <string name="trip_form_error_name_long">여행 이름은 30자까지입니다. 조금 줄여 주세요.</string>
     <string name="trip_form_error_period_required">여행 기간을 선택해 주세요.</string>
-    <string name="trip_form_error_period_order">종료일은 시작일보다 빠를 수 없습니다.</string>
-    <string name="trip_form_error_period_long">여행 기간은 최대 7일까지 설정할 수 있습니다.</string>
+    <string name="trip_form_error_period_order">종료일은 시작일보다 빠를 수 없습니다. 날짜를 다시 선택해 주세요.</string>
+    <string name="trip_form_error_period_long">여행 기간은 최대 7일입니다. 종료일을 앞당겨 주세요.</string>
     <string name="trip_form_error_network">연결을 확인한 뒤 다시 시도해 주세요. 입력한 내용은 그대로 있습니다.</string>
     <string name="trip_form_error_invalid">입력한 이름이나 기간을 다시 확인해 주세요.</string>
     <string name="trip_form_error_unexpected">지금은 여행을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.</string>

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -125,6 +126,25 @@ class TripFormScreenTest {
         composeRule.onNodeWithText(string(R.string.trip_form_period_empty))
             .assertHeightIsAtLeast(48.dp)
             .assertHasClickAction()
+    }
+
+    @Test
+    fun 기간_선택_다이얼로그의_확인과_취소를_쓸_수_있다() {
+        setContent(TripFormUiState())
+
+        composeRule.onNodeWithText(string(R.string.trip_form_period_empty)).performClick()
+
+        // PICKER_MAX_HEIGHT 상한이 달력을 잘라 버튼을 밀어내지 않는지 고정한다.
+        // DateRangePicker는 내부에서 스크롤하므로 상한을 둬도 두 버튼은 남아 있어야 한다.
+        composeRule.onNodeWithText(string(R.string.trip_form_confirm)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trip_form_cancel)).assertIsDisplayed()
+
+        // 다이얼로그 버튼은 시각 높이가 Material 3 기본 40dp지만 Compose가 터치 영역을
+        // 48dp로 넓힌다. 가이드라인 10절이 요구하는 것은 터치 영역이므로 그쪽을 잰다.
+        composeRule.onNodeWithText(string(R.string.trip_form_confirm))
+            .assertTouchHeightIsEqualTo(48.dp)
+        composeRule.onNodeWithText(string(R.string.trip_form_cancel))
+            .assertTouchHeightIsEqualTo(48.dp)
     }
 
     @Test

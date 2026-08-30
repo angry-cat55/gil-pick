@@ -202,7 +202,7 @@ erDiagram
 | 컬럼 | 타입 | NULL | 설명 |
 |---|---|---:|---|
 | `place_id` | uuid | N | PK |
-| `tour_content_id` | varchar(255) | N | TourAPI 장소 ID |
+| `tour_content_id` | varchar(255) | Y | TourAPI 기준 장소 ID |
 | `name` | varchar(255) | N | 장소명 |
 | `category` | varchar(30) | N | 내부 6개 카테고리 |
 | `tour_category_1` | varchar(120) | Y | TourAPI 대분류 |
@@ -217,7 +217,9 @@ erDiagram
 
 제약:
 
-- `UNIQUE(tour_content_id)`
+- `tour_content_id`와 `google_place_id` 중 하나 이상 필수
+- `tour_content_id IS NOT NULL`인 행의 partial `UNIQUE(tour_content_id)`
+- `google_place_id IS NOT NULL`인 행의 partial `UNIQUE(google_place_id)`
 - `GIST(location)`
 - 평점, 리뷰 수, 운영시간, 외부 API 원문은 저장하지 않고 필요할 때 조회한다.
 - 카테고리 추천 체류시간과 TourAPI 매핑은 서버의 버전 관리된 설정 파일로 관리한다.
@@ -531,7 +533,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `trips` | `(user_id, deleted_at)` 및 `(user_id, lower(name))` where `deleted_at is null` |
 | `trip_days` | unique `(trip_id, visit_date)`, unique `(trip_id, day_number)` |
 | `itinerary_items` | unique `(trip_day_id, sequence)`, `(trip_day_id, status, sequence)` |
-| `places` | unique `(tour_content_id)`, GiST `(location)` |
+| `places` | partial unique `(tour_content_id)`, partial unique `(google_place_id)`, GiST `(location)` |
 | `routes` | `(trip_day_id, schedule_version)`, partial unique `(trip_day_id)` where `is_active=true` |
 | `progress_events` | unique `(client_event_id)`, `(trip_day_id, occurred_at)` |
 | `progress_transitions` | `(trip_day_id, status, detected_at)`, `(auto_finalize_at)` for pending rows |
