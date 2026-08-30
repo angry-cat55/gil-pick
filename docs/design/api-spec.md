@@ -733,9 +733,11 @@ Response `200` 또는 신규 일자 `201`:
 `GET /api/v1/places/search`
 
 Query:
-- `query` 또는 `category`
-- 선택 `areaCode`
-- `cursor`, `limit`
+- `query`: 선택. trim 후 2글자 이상
+- `category`: 선택. `NATURE | HISTORY_CULTURE | FOOD | CAFE | SHOPPING | OTHER`
+- `query`와 `category`는 단독 또는 조합 가능하며 둘 다 없으면 `400 INVALID_REQUEST`
+- 선택 `areaCode`, `cursor`
+- `limit`: 선택, 기본·최대 20
 
 Response `200`:
 
@@ -749,7 +751,7 @@ Response `200`:
         "source": "TOUR_API",
         "sourcePlaceId": "126508",
         "name": "경복궁",
-        "category": "문화·역사",
+        "category": "HISTORY_CULTURE",
         "tourApiCategory": {
           "large": "A02",
           "middle": "A0201",
@@ -773,7 +775,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `400`, `429`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`
+주요 오류: `400 INVALID_REQUEST | INVALID_CURSOR`, `401 INVALID_ACCESS_TOKEN`, `429 TOUR_API_RATE_LIMITED`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`
 
 ### PLACE-002 관광지 상세 조회
 
@@ -789,7 +791,12 @@ Response `200`:
     "source": "TOUR_API",
     "sourcePlaceId": "126508",
     "name": "경복궁",
-    "category": "문화·역사",
+    "category": "HISTORY_CULTURE",
+    "tourApiCategory": {
+      "large": "A02",
+      "middle": "A0201",
+      "small": "A02010100"
+    },
     "address": "서울특별시 종로구 사직로 161",
     "latitude": 37.579617,
     "longitude": 126.977041,
@@ -797,17 +804,7 @@ Response `200`:
     "description": "...",
     "phone": "02-...",
     "recommendedStayMinutes": 90,
-    "operatingHours": {
-      "known": true,
-      "openNow": true,
-      "closesAt": "2026-08-22T18:00:00+09:00"
-    },
-    "googlePlace": {
-      "matched": true,
-      "rating": 4.6,
-      "userRatingCount": 12450,
-      "reviews": []
-    }
+    "operatingGuide": "매주 화요일 휴무, 관람 시간은 계절별로 다름"
   },
   "meta": {
     "requestId": "uuid"
@@ -815,14 +812,14 @@ Response `200`:
 }
 ```
 
-Google Places 매칭 정책:
-- 좌표 50m 이내 후보를 우선 고려
-- 장소명 유사도와 주소 부분 일치를 함께 사용
-- 모호하면 Google Places 데이터를 사용하지 않음
-- 조회 필드는 rating, userRatingCount, reviews, operating hours 최소 범위
-- 서버 캐시는 MVP 제외
+운영 안내 정책:
+- TourAPI가 제공하는 콘텐츠 유형별 운영 안내를 nullable 문자열로 정규화
+- 제공되지 않은 운영 안내는 `null`
+- `openNow` 또는 정확한 종료 시각을 추론하지 않음
+- Google Places 평점·리뷰·영업 상태 보강은 F009 범위
+- 검색 결과와 상세 응답은 DB나 server cache에 저장하지 않음
 
-주요 오류: `404`, `502`, `504`
+주요 오류: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`, `404 PLACE_NOT_FOUND`, `429 TOUR_API_RATE_LIMITED`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`
 
 ### ROUTE-001 날짜별 경로 조회
 

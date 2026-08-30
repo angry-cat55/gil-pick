@@ -1,0 +1,282 @@
+openapi: 3.1.0
+info:
+  title: 길픽 장소 검색 API
+  version: 1.0.0
+  description: F003 장소 검색과 상세 조회 계약
+servers:
+  - url: /api/v1
+paths:
+  /places/search:
+    get:
+      operationId: searchPlaces
+      summary: 관광지 검색
+      description: >-
+        query와 category는 각각 단독으로 사용할 수 있고 함께 사용할 수도 있다.
+        둘 다 없으면 INVALID_REQUEST를 반환한다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          description: 앞뒤 공백 제거 후 두 글자 이상인 검색어
+          schema:
+            type: string
+            minLength: 2
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/PlaceCategory'
+        - name: areaCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+        - name: cursor
+          in: query
+          description: 이전 응답에서 받은 불투명 커서
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 20
+      responses:
+        '200':
+          description: 검색 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TourApiRateLimited'
+        '502':
+          $ref: '#/components/responses/TourApiFailed'
+        '504':
+          $ref: '#/components/responses/TourApiTimeout'
+  /places/{placeId}:
+    get:
+      operationId: getPlace
+      summary: 관광지 상세 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: placeId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^tourapi:[A-Za-z0-9_-]+$'
+      responses:
+        '200':
+          description: 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TourApiRateLimited'
+        '502':
+          $ref: '#/components/responses/TourApiFailed'
+        '504':
+          $ref: '#/components/responses/TourApiTimeout'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PlaceCategory:
+      type: string
+      enum: [NATURE, HISTORY_CULTURE, FOOD, CAFE, SHOPPING, OTHER]
+    TourApiCategory:
+      type: object
+      required: [large, middle, small]
+      properties:
+        large:
+          type: [string, 'null']
+        middle:
+          type: [string, 'null']
+        small:
+          type: [string, 'null']
+    PlaceSummary:
+      type: object
+      required:
+        - placeId
+        - source
+        - sourcePlaceId
+        - name
+        - category
+        - tourApiCategory
+        - address
+        - latitude
+        - longitude
+        - imageUrl
+        - recommendedStayMinutes
+      properties:
+        placeId:
+          type: string
+          pattern: '^tourapi:[A-Za-z0-9_-]+$'
+        source:
+          const: TOUR_API
+        sourcePlaceId:
+          type: string
+        name:
+          type: string
+          minLength: 1
+        category:
+          $ref: '#/components/schemas/PlaceCategory'
+        tourApiCategory:
+          $ref: '#/components/schemas/TourApiCategory'
+        address:
+          type: [string, 'null']
+        latitude:
+          type: [number, 'null']
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: [number, 'null']
+          minimum: -180
+          maximum: 180
+        imageUrl:
+          type: [string, 'null']
+          format: uri
+        recommendedStayMinutes:
+          type: integer
+          enum: [60, 90, 120]
+    PlaceDetail:
+      allOf:
+        - $ref: '#/components/schemas/PlaceSummary'
+        - type: object
+          required: [description, phone, operatingGuide]
+          properties:
+            description:
+              type: [string, 'null']
+            phone:
+              type: [string, 'null']
+            operatingGuide:
+              type: [string, 'null']
+              description: TourAPI가 제공한 운영 안내. 실시간 영업 여부를 추론하지 않는다.
+    PaginationMeta:
+      type: object
+      required: [nextCursor, hasNext]
+      properties:
+        nextCursor:
+          type: [string, 'null']
+        hasNext:
+          type: boolean
+    Meta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId:
+          type: string
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+    PlaceListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaceSummary'
+    PlaceListEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success:
+          const: true
+        data:
+          $ref: '#/components/schemas/PlaceListData'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    PlaceEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success:
+          const: true
+        data:
+          $ref: '#/components/schemas/PlaceDetail'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - INVALID_CURSOR
+            - INVALID_ACCESS_TOKEN
+            - PLACE_NOT_FOUND
+            - TOUR_API_RATE_LIMITED
+            - TOUR_API_FAILED
+            - TOUR_API_TIMEOUT
+        message:
+          type: string
+        retryable:
+          type: boolean
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success:
+          const: false
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        meta:
+          $ref: '#/components/schemas/Meta'
+  responses:
+    BadRequest:
+      description: 검색 조건 또는 커서가 올바르지 않음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: 인증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: 장소를 찾을 수 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    TourApiRateLimited:
+      description: TourAPI 호출 한도 초과
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    TourApiFailed:
+      description: TourAPI 응답 또는 일시적 서버 오류
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    TourApiTimeout:
+      description: TourAPI 시간 초과
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
