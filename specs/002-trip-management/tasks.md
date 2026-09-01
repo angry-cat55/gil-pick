@@ -355,11 +355,11 @@
   - 담당: ts
   - 선행: T041
   - 검증: constitution "코드 주석과 문서화 스타일" 절 기준 충족(공개 함수·핵심 상태 변경 함수 문서화)
-- [ ] T048 [P] quickstart.md의 Android 확인 항목 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
+- [ ] T048 [P] quickstart.md의 Android 확인 항목과 F001 실제 계정 refresh 승계 검증 실행 및 결과 기록 in `specs/002-trip-management/quickstart.md`
   - 영역: FE
   - 담당: hs
   - 선행: T022, T029, T038, T044, T045
-  - 검증: Android 절의 확인 항목을 모두 실행하고 결과를 PR에 기록. `docs/design/ui-guidelines.md` 9절 4상태와 10절 접근성 최저선 확인을 포함한다. 실행하지 못한 항목은 이유를 남긴다.
+  - 검증: Android 절의 확인 항목을 모두 실행하고 결과를 PR에 기록. 실제 Kakao 계정 session에서 보호 API의 `401` 이후 refresh 1회와 원 요청 최대 1회 replay가 성공하고, Refresh Token hash가 회전하며 동일 기기 session과 다른 기기 session이 올바르게 유지되는지 확인한다. `docs/design/ui-guidelines.md` 9절 4상태와 10절 접근성 최저선 확인을 포함하고 Token 원문은 기록하지 않는다. 실행하지 못한 항목은 이유를 남긴다.
 - [ ] T049 [P] Android KDoc 보완 in `android/app/src/main/java/com/gilpick/trip/*.kt`
   - 영역: FE
   - 담당: hs
