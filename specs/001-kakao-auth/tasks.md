@@ -312,11 +312,13 @@ description: "F001 카카오 인증 구현 작업 목록"
   - 담당: jy
   - 선행: T025, T034, T042
   - 검증: API 26 기능 test, API 31+ 실제 domain의 debug·release App Link, backup·DataStore·WorkManager 평문 Token 0건, 필수 KDoc, mock App Link→빈 목록 shell 20회 중 19회 이상 10초 이내 확인
-- [ ] T046 Kakao test account 종단간 로그인·갱신·현재 기기 logout 검증 및 PR 증거 기록 according to specs/001-kakao-auth/quickstart.md
+- [x] T046 Kakao test account 종단간 로그인·현재 기기 logout 검증 및 PR 증거 기록 according to specs/001-kakao-auth/quickstart.md
   - 영역: 통합
   - 담당: jy
   - 선행: T044, T045
-  - 검증: 실제 Kakao test 계정 신규·기존·다중 기기 login 1회 이상, refresh, offline logout 흐름 통과와 Backend `jh`·Frontend `jy` 계약 영향 확인 기록
+  - 검증: 실제 Kakao test 계정 신규·기존·다중 기기 login 1회 이상, 현재 기기·offline logout 흐름 통과와 Backend `jh`·Frontend `jy` 계약 영향 확인 기록
+  - 결과: PR #109에서 실제 Kakao test 계정 로그인·재로그인·다중 기기 session 격리·현재 기기 logout을 검증했다.
+  - 범위 조정: F001 시점에는 Access Token 만료를 유도할 보호 API 호출 경로가 없어 실제 계정 session의 refresh 회전을 실행하지 못했다. 해당 검증은 F002의 보호 API 경로를 사용하는 `specs/002-trip-management/tasks.md` T048로 승계한다.
 
 ---
 
