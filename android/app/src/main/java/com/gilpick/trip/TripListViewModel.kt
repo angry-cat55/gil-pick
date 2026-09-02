@@ -15,6 +15,9 @@ import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.SessionRevocationWorker
 import com.gilpick.auth.createAuthRetrofit
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -232,3 +235,20 @@ private fun AuthError.toListError(): TripListError = when (this) {
     is AuthError.Offline -> TripListError.NETWORK
     else -> TripListError.UNEXPECTED
 }
+
+/**
+ * 진행 중인 여행이 오늘 며칠째인지.
+ *
+ * 시작일 당일이 `1일째`다. 마지막 날도 따로 다루지 않고 그대로 `N일째`로 센다.
+ *
+ * 기준 시각대는 Asia/Seoul이다. [TripStatus]를 서버가 KST 기준으로 산정하므로
+ * (`spec.md` FR-006), 화면이 다른 시각대로 세면 상태와 일수가 어긋난다.
+ *
+ * @param startDate 계약이 정한 `yyyy-MM-dd` 문자열.
+ * @param today 기준 날짜. 화면은 [KST]의 오늘을 넘긴다.
+ */
+internal fun tripDayIndex(startDate: String, today: LocalDate): Int =
+    (ChronoUnit.DAYS.between(LocalDate.parse(startDate), today) + 1).toInt()
+
+/** 여행 상태와 일수 계산의 기준 시각대. `spec.md` FR-006. */
+internal val KST: ZoneId = ZoneId.of("Asia/Seoul")

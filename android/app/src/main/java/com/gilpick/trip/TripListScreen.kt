@@ -38,6 +38,7 @@ import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.TripCard
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
+import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -287,6 +288,8 @@ private fun TripList(
     val spacing = LocalGilpickSpacing.current
     val listState = rememberLazyListState()
     val loadingMoreLabel = stringResource(R.string.trips_loading_more)
+    // 목록이 열려 있는 동안 날짜가 바뀌는 일은 드물어 한 번만 읽는다.
+    val today = remember { LocalDate.now(KST) }
 
     // 마지막에서 두 번째 항목이 보이면 미리 받아 스크롤이 멈추지 않게 한다.
     LaunchedEffect(listState, hasNext) {
@@ -309,7 +312,7 @@ private fun TripList(
             TripCard(
                 title = trip.name,
                 period = stringResource(R.string.trips_period, trip.startDate, trip.endDate),
-                supporting = stringResource(R.string.trips_day_count, trip.dayCount),
+                supporting = trip.supportingText(today),
                 badgeLabel = stringResource(trip.status.labelRes),
                 badgeTone = trip.status.tone,
             )
@@ -331,6 +334,20 @@ private fun TripList(
         }
     }
 }
+
+/**
+ * 카드 아래 한 줄 부가 정보.
+ *
+ * 진행 중인 여행만 `며칠째`를 쓴다. 진행 중일 때 알고 싶은 것은 여행이 며칠짜리인지가
+ * 아니라 지금 몇째 날인지다(pen `02. 여행 목록 화면`의 `현재 진행 중인 여행` 그룹).
+ */
+@Composable
+private fun TripDto.supportingText(today: LocalDate): String =
+    if (status == TripStatus.IN_PROGRESS) {
+        stringResource(R.string.trips_day_index, tripDayIndex(startDate, today))
+    } else {
+        stringResource(R.string.trips_day_count, dayCount)
+    }
 
 /** 상태 뱃지 문구. 색 없이도 뜻이 통해야 한다. */
 private val TripStatus.labelRes: Int

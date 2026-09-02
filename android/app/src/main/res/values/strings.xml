@@ -32,6 +32,7 @@
     <string name="trips_status_completed">완료</string>
     <string name="trips_period">%1$s ~ %2$s</string>
     <string name="trips_day_count">%1$d일 일정</string>
+    <string name="trips_day_index">%1$d일째</string>
     <string name="trips_loading">여행 목록을 불러오는 중</string>
     <string name="trips_no_results">조건에 맞는 여행이 없습니다</string>
     <string name="trips_no_results_hint">검색어나 상태 필터를 바꿔 보세요.</string>
