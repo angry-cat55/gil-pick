@@ -83,6 +83,18 @@ curl -X DELETE "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <A_AC
 - 여행 상세에서 완료 상태 여행의 기간 수정 UI가 비활성화되고 이름 수정은 가능한지 확인
 - 기간 축소 시 삭제 예정 안내 다이얼로그가 뜨고, 취소하면 서버에 반영되지 않는지 확인
 
+### F001 실제 계정 refresh 승계 검증
+
+F001 T046은 구현 당시 Access Token 만료를 유도할 보호 API 호출 경로가 없어 실제 Kakao 계정 session의 refresh 회전을 실행하지 못했다. F002의 `TripRepository`가 `AuthRepository.withAccessToken()`을 통해 보호 API를 호출하므로 T048에서 다음 흐름을 함께 검증한다.
+
+1. 실제 Kakao test 계정으로 로그인하고 현재 기기의 `device_sessions` 식별자·Refresh Token hash·다른 기기 session 상태를 원문 Token 없이 기록한다.
+2. Backend를 종료하고 `JWT_SIGNING_SECRET`을 다른 안전한 test 값으로 변경해 재시작하여 기존 Access Token의 검증 실패를 유도한 뒤 여행 생성·조회 등 보호 API를 호출한다. Refresh Token hash는 이 설정의 영향을 받지 않는다.
+3. 최초 보호 API가 `401`, `POST /api/v1/auth/token/refresh`가 `200`, 원 요청의 최대 1회 replay가 성공하는 순서를 request ID와 함께 확인한다.
+4. refresh 전후 같은 기기 session의 Refresh Token hash가 회전하고 session이 활성 상태로 유지되며, 다른 기기 session에는 영향이 없는지 확인한다.
+5. 앱 재시작 후에도 새 Token pair로 보호 API를 호출할 수 있는지 확인한다.
+
+PR에는 실행 환경·절차·HTTP 상태·DB 상태 전이만 기록하며 Access/Refresh Token, 전체 JWT, Kakao code와 login ticket 원문을 남기지 않는다.
+
 ## Backend 실행 결과 (2026-08-28)
 
 - 환경: 로컬 PostgreSQL, `uvicorn` HTTP(`127.0.0.1:8765`), 사용자 A·B용 로컬 검증 JWT
@@ -98,5 +110,5 @@ curl -X DELETE "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <A_AC
 
 ### 미실행 항목
 
-- 실제 카카오 로그인으로 발급한 운영 Access Token 검증은 외부 카카오 인증정보가 없는 로컬 환경이라 실행하지 않았다. JWT 검증 규칙과 사용자 분리는 F001 테스트와 로컬 검증 JWT로 확인했다.
+- Backend 검증에서는 실제 카카오 로그인으로 발급한 운영 Access Token을 외부 카카오 인증정보가 없는 로컬 환경이라 사용하지 않았다. JWT 검증 규칙과 사용자 분리는 F001 테스트와 로컬 검증 JWT로 확인했으며, 실제 계정 session의 refresh는 T048에서 위 Android 절에 따라 검증한다.
 - Android 확인 항목은 T048(Issue #108) 범위이므로 실행하지 않았다.
