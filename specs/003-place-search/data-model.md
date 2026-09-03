@@ -102,6 +102,13 @@ Client에는 opaque string으로만 노출한다. server 내부 payload는 다�
 
 검색 성공 envelope의 `meta.pagination`은 필수이며 `nextCursor`는 nullable, `hasNext`는 필수다. 상세·오류 envelope의 `meta`에는 `requestId`만 둔다. 오류의 `retryable`은 항상 포함한다.
 
+| 오류 code | `retryable` | 기준 |
+|---|---:|---|
+| `INVALID_REQUEST`, `INVALID_CURSOR`, `INVALID_ACCESS_TOKEN`, `PLACE_NOT_FOUND` | `false` | 같은 요청을 반복해도 복구되지 않음 |
+| `TOUR_API_RATE_LIMITED`, `GOOGLE_PLACES_RATE_LIMITED` | `false` | 자동·즉시 재시도를 허용하지 않음 |
+| `TOUR_API_TIMEOUT`, `GOOGLE_PLACES_TIMEOUT` | `true` | 이후 사용자 재시도로 복구 가능 |
+| `TOUR_API_FAILED`, `GOOGLE_PLACES_FAILED` | 조건부 | 일시적 네트워크·5xx의 최종 실패는 `true`; provider application error·응답 해석 실패·그 밖의 4xx는 `false` |
+
 - 검색 Google 보완 실패와 `tourapi:` 상세의 Google 보강 실패는 격리하고 TourAPI 결과를 유지한다.
 - `google:` 상세에서만 `GOOGLE_PLACES_RATE_LIMITED`(429, 재시도 불가), `GOOGLE_PLACES_FAILED`(502, 일시적 네트워크·5xx만 재시도 가능), `GOOGLE_PLACES_TIMEOUT`(504, 재시도 가능)을 노출한다.
 

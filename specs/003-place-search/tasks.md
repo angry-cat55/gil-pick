@@ -54,7 +54,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: BE
   - 담당: ts
   - 선행: T003, T035
-  - 검증: `places.openapi.yaml`의 nullable field, enum, `tourapi:`·`google:` ID, Google 보강 필드와 pagination 구조가 일치하는 schema test 통과
+  - 검증: `places.openapi.yaml`의 nullable field, enum, `tourapi:`·`google:` ID, Google 보강 필드, pagination 구조와 오류 원인별 `retryable` 값이 일치하는 schema test 통과
 - [x] T005 TourAPI·Google Places HTTP client와 응답·오류 parsing 구현 in api/app/clients/tour_api.py, api/app/clients/google_places.py
   - 영역: BE
   - 담당: ts
@@ -214,7 +214,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: FE
   - 담당: jy
   - 선행: T016, T023
-  - 검증: timeout·provider 장애·rate limit·인증 만료 안내, initial retry와 append retry 분리, 기존 결과 유지 test를 구현 전 실패로 확인
+  - 검증: timeout·provider 장애·rate limit·인증 만료의 오류 code별·원인별 `retryable` 안내, initial retry와 append retry 분리, 기존 결과 유지 test를 구현 전 실패로 확인
 
 ### Implementation for User Story 3
 
