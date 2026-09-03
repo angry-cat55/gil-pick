@@ -126,6 +126,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    // AppBar back 등 화면이 쓰는 표준 아이콘. BOM이 버전을 맞춘다.
+    implementation("androidx.compose.material:material-icons-core")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.19.0")
@@ -133,6 +135,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    // 목록·생성·상세 세 화면이 되면서 상태 하나로 고르던 방식이 한계에 닿았다.
+    // type-safe route는 kotlin("plugin.serialization")이 이미 적용돼 있어 그대로 쓴다.
+    implementation("androidx.navigation:navigation-compose:2.10.0")
 
     implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.datastore:datastore:1.2.1")

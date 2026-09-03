@@ -15,19 +15,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import com.gilpick.trip.TripDetailScreen
+import com.gilpick.trip.TripDetailViewModel
 import com.gilpick.trip.TripFormScreen
 import com.gilpick.trip.TripFormViewModel
 import com.gilpick.trip.TripListScreen
 import com.gilpick.trip.TripListViewModel
 import com.gilpick.ui.theme.GilpickTheme
+import kotlinx.serialization.Serializable
 
 /**
  * 앱의 단일 Activity entrypoint.
@@ -158,53 +162,95 @@ private fun AuthRoute(
 /**
  * 로그인 후 여행 화면 사이를 오간다.
  *
- * 화면이 둘뿐이라 navigation 라이브러리를 새로 들이지 않고 상태 하나로 고른다. 목록에서
- * 상세로 들어가는 이동은 US3(#105)에서 추가한다.
+ * 목록·생성·상세 세 화면이 되면서 상태 하나로 고르던 방식을 navigation-compose로
+ * 바꿨다. 상세는 어떤 여행인지를 인자로 받아야 하고 뒤로 가기가 예측 가능해야 하는데,
+ * boolean 몇 개로는 back stack을 표현할 수 없다.
+ *
+ * route는 `@Serializable` 타입을 쓴다. 문자열 route는 인자 이름과 타입을 컴파일러가
+ * 검사하지 못한다.
  */
 @Composable
 private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
-    var creating by remember { mutableStateOf(false) }
+    val navController = rememberNavController()
 
-    if (creating) {
-        val formViewModel: TripFormViewModel = viewModel(
-            factory = TripFormViewModel.factory(LocalContext.current),
-        )
-        val formState by formViewModel.state.collectAsStateWithLifecycle()
+    NavHost(
+        navController = navController,
+        startDestination = TripListRoute,
+        modifier = modifier,
+    ) {
+        composable<TripListRoute> {
+            val viewModel: TripListViewModel = viewModel(
+                factory = TripListViewModel.factory(LocalContext.current),
+            )
+            val state by viewModel.state.collectAsStateWithLifecycle()
 
-        // 생성에 성공하면 목록으로 돌아가 새 여행이 포함된 목록을 다시 받는다.
-        LaunchedEffect(formState.createdTripId) {
-            if (formState.createdTripId != null) {
-                formViewModel.consumeCreated()
-                creating = false
-            }
+            // 생성·상세에서 돌아올 때마다 다시 조회해 바뀐 내용이 목록에 반영되게 한다.
+            LaunchedEffect(Unit) { viewModel.load() }
+
+            TripListScreen(
+                state = state,
+                onQueryChange = viewModel::onQueryChange,
+                onStatusFilterChange = viewModel::onStatusFilterChange,
+                onRetry = viewModel::retry,
+                onLoadMore = viewModel::loadMore,
+                onCreateTrip = { navController.navigate(TripFormRoute) },
+                onTripClick = { tripId -> navController.navigate(TripDetailRoute(tripId)) },
+                onLogout = onLogout,
+            )
         }
 
-        TripFormScreen(
-            state = formState,
-            onNameChange = formViewModel::onNameChange,
-            onPeriodChange = formViewModel::onPeriodChange,
-            onSubmit = formViewModel::submit,
-            modifier = modifier,
-        )
-        return
+        composable<TripFormRoute> {
+            val viewModel: TripFormViewModel = viewModel(
+                factory = TripFormViewModel.factory(LocalContext.current),
+            )
+            val state by viewModel.state.collectAsStateWithLifecycle()
+
+            // 생성에 성공하면 목록으로 돌아가 새 여행이 포함된 목록을 다시 받는다.
+            LaunchedEffect(state.createdTripId) {
+                if (state.createdTripId != null) {
+                    viewModel.consumeCreated()
+                    navController.popBackStack()
+                }
+            }
+
+            TripFormScreen(
+                state = state,
+                onNameChange = viewModel::onNameChange,
+                onPeriodChange = viewModel::onPeriodChange,
+                onSubmit = viewModel::submit,
+            )
+        }
+
+        composable<TripDetailRoute> { entry ->
+            val tripId = entry.toRoute<TripDetailRoute>().tripId
+            val viewModel: TripDetailViewModel = viewModel(
+                factory = TripDetailViewModel.factory(LocalContext.current, tripId),
+            )
+            val state by viewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(tripId) { viewModel.load() }
+
+            TripDetailScreen(
+                state = state,
+                onBack = { navController.popBackStack() },
+                onRetry = viewModel::retry,
+            )
+        }
     }
-
-    val listViewModel: TripListViewModel = viewModel(
-        factory = TripListViewModel.factory(LocalContext.current),
-    )
-    val listState by listViewModel.state.collectAsStateWithLifecycle()
-
-    // 목록으로 돌아올 때마다 다시 조회해 방금 만든 여행이 보이게 한다.
-    LaunchedEffect(Unit) { listViewModel.load() }
-
-    TripListScreen(
-        state = listState,
-        onQueryChange = listViewModel::onQueryChange,
-        onStatusFilterChange = listViewModel::onStatusFilterChange,
-        onRetry = listViewModel::retry,
-        onLoadMore = listViewModel::loadMore,
-        onCreateTrip = { creating = true },
-        modifier = modifier,
-        onLogout = onLogout,
-    )
 }
+
+/** 여행 목록. 로그인 후 첫 화면이다. */
+@Serializable
+private object TripListRoute
+
+/** 여행 생성 폼. */
+@Serializable
+private object TripFormRoute
+
+/**
+ * 여행 상세.
+ *
+ * @property tripId 보여 줄 여행. 목록에서 고른 항목의 식별자다.
+ */
+@Serializable
+private data class TripDetailRoute(val tripId: String)
