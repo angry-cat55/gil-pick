@@ -45,7 +45,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 **⚠️ CRITICAL**: 이 phase가 완료되어야 user story 구현을 시작할 수 있다.
 
-- [ ] T035 Backend·Android 구현 전 장소 계약 교차 review in specs/003-place-search/contracts/places.openapi.yaml, specs/003-place-search/data-model.md, specs/003-place-search/plan.md
+- [x] T035 Backend·Android 구현 전 장소 계약 교차 review in specs/003-place-search/contracts/places.openapi.yaml, specs/003-place-search/data-model.md, specs/003-place-search/plan.md
   - 영역: 통합
   - 담당: ts
   - 선행: T003
