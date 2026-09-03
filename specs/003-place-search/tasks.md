@@ -26,7 +26,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: 없음
   - 검증: 설정 unit test에서 기본 URL·5초 timeout을 확인하고 service key가 `SecretStr`로만 노출되는지 검토
-- [ ] T002 [P] Navigation Compose와 Coil 의존성 추가 in android/gradle/libs.versions.toml, android/app/build.gradle.kts
+- [x] T002 [P] Navigation Compose와 Coil 의존성 추가 in android/gradle/libs.versions.toml, android/app/build.gradle.kts
   - 영역: FE
   - 담당: jy
   - 선행: 없음
@@ -70,12 +70,12 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T004, F001 인증 API·`401 INVALID_ACCESS_TOKEN` 계약 확정
   - 검증: 인증 없음·만료 token 요청이 F001 공통 `401 INVALID_ACCESS_TOKEN` envelope를 반환하는 integration test 통과
-- [ ] T008 Android 장소 API DTO와 Retrofit interface 구현 in android/app/src/main/java/com/gilpick/place/PlaceApi.kt
+- [x] T008 Android 장소 API DTO와 Retrofit interface 구현 in android/app/src/main/java/com/gilpick/place/PlaceApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T004, T035
   - 검증: MockWebServer serialization test에서 Backend enum, nullable field, pagination과 오류 envelope parsing 성공
-- [ ] T009 Android type-safe 장소 route를 app navigation graph에 등록 in android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T009 Android type-safe 장소 route를 app navigation graph에 등록 in android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002, T035
