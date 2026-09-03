@@ -15,8 +15,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -162,24 +164,69 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
 @Composable
 private fun StatusFilters(selected: TripStatus?, onSelect: (TripStatus?) -> Unit) {
     val spacing = LocalGilpickSpacing.current
+    val colors = filterChipColors()
 
     Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
-        FilterChip(
+        StatusFilterChip(
             selected = selected == null,
             onClick = { onSelect(null) },
-            label = { Text(stringResource(R.string.trips_filter_all)) },
-            modifier = Modifier.heightIn(min = MIN_TOUCH),
+            labelRes = R.string.trips_filter_all,
+            colors = colors,
         )
         TripStatus.entries.forEach { status ->
-            FilterChip(
+            StatusFilterChip(
                 selected = selected == status,
                 onClick = { onSelect(if (selected == status) null else status) },
-                label = { Text(stringResource(status.filterLabelRes)) },
-                modifier = Modifier.heightIn(min = MIN_TOUCH),
+                labelRes = status.filterLabelRes,
+                colors = colors,
             )
         }
     }
 }
+
+/**
+ * 상태 필터 칩 하나.
+ *
+ * 경계는 Material 3 기본값인 `outlineVariant` 대신 `outline`을 쓴다. 기본값은 화면
+ * 바탕 대비 1.31:1이라 가이드라인 10절의 컨트롤 경계 3:1을 만족하지 못한다.
+ * 선택 상태는 `FilterChip`이 semantics로 노출하므로 색 단독 전달이 아니다.
+ */
+@Composable
+private fun StatusFilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    labelRes: Int,
+    colors: SelectableChipColors,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(stringResource(labelRes)) },
+        modifier = Modifier.heightIn(min = MIN_TOUCH),
+        colors = colors,
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outline,
+        ),
+    )
+}
+
+/**
+ * 필터 칩의 색.
+ *
+ * pen `02. 여행 목록 화면`의 `Filters`를 따른다. 선택은 `primary` 배경에 `onPrimary`
+ * 라벨(5.80:1), 비선택은 `surfaceVariant` 배경에 `onSurfaceVariant` 라벨(4.65:1)이다.
+ * Material 3 기본값은 이 앱이 정의하지 않은 `secondaryContainer`로 떨어져 연보라가
+ * 나온다(#153).
+ */
+@Composable
+private fun filterChipColors(): SelectableChipColors = FilterChipDefaults.filterChipColors(
+    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    selectedContainerColor = MaterialTheme.colorScheme.primary,
+    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+)
 
 /**
  * 조회 대기 표시.

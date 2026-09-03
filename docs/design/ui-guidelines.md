@@ -56,7 +56,7 @@ pen에는 48dp 터치 영역도, 4.5:1 대비도, 빈 목록 화면도 그려지
 | `onSurfaceVariant` | `#64706D` | 주소, 기간, 보조 정보 |
 | `primary` | `#0A7268` | 주요 버튼, 선택 상태, 현재 경로, ETA |
 | `onPrimary` | `#FFFFFF` | primary 위 텍스트 |
-| `primaryContainer` | `#D6F3EE` | 선택된 날짜·칩, 시간 뱃지 |
+| `primaryContainer` | `#D6F3EE` | 선택된 날짜·옵션, 상태 뱃지 |
 | `secondary` | `#526A64` | 보조 행동과 아이콘 |
 | `onSecondary` | `#FFFFFF` | secondary 위 텍스트 |
 | `error` | `#BA1A1A` | 실패, 파괴적 행동 |
@@ -80,10 +80,11 @@ WCAG 2.x 상대 휘도 공식으로 계산했다. 본문 4.5:1, 컨트롤 경계
 | `onSurface` / `background` | 16.00:1 | 화면 제목 |
 | `onSurfaceVariant` / `surface` | 5.15:1 | 기간, 주소 |
 | `onSurfaceVariant` / `background` | 4.96:1 | 섹션 라벨 |
-| `onSurfaceVariant` / `surfaceVariant` | 4.65:1 | 검색 placeholder |
-| `onPrimary` / `primary` | 5.80:1 | 주버튼 라벨 |
+| `onSurfaceVariant` / `surfaceVariant` | 4.65:1 | 검색 placeholder, 비선택 필터 칩 라벨 |
+| `onPrimary` / `primary` | 5.80:1 | 주버튼 라벨, 선택된 필터 칩 라벨 |
 | `primary` / `surface` | 5.80:1 | ETA, 길찾기, 경로 최적화 |
-| `primary` / `primaryContainer` | 4.95:1 | 칩 라벨, 날짜 선택, 시간 뱃지 |
+| `primary` / `background` | 5.59:1 | 선택된 필터 칩 배경 |
+| `primary` / `primaryContainer` | 4.95:1 | 날짜 선택, 상태 뱃지 |
 | `warning` / `surfaceVariant` | 4.69:1 | 변수 경고 |
 | `success` / `surface` | 5.30:1 | 완료 표시 |
 | `error` / `surface` | 6.46:1 | 실패 안내 |
@@ -114,6 +115,8 @@ WCAG 2.x 상대 휘도 공식으로 계산했다. 본문 4.5:1, 컨트롤 경계
 |---|---|
 | `primary`를 `#087F73` → `#0A7268` | `primaryContainer` 위에서 4.17:1로 본문 기준 미달. 칩·날짜 선택·시간 뱃지에 쓰이는 조합이다 |
 | `outline`을 `#D8DEDB` → `#7F8C88`, 구분선은 `outlineVariant`로 분리 | 단일 값이 1.36:1이었다. 타임라인 연결선은 이동 순서를 나타내는 의미 있는 선이라 3:1 대상이다 |
+| 선택된 필터 칩을 `primaryContainer` → `primary` 배경으로 이동 | pen `02. 여행 목록 화면`의 `Filters`가 정한 값이다. `primaryContainer` 배경은 `background` 대비 1.13:1이라 색을 빼면 선택 여부를 알 수 없다. `primary`는 5.59:1로 형태가 드러난다 (#153) |
+| 비선택 필터 칩 경계에 `outline`을 명시 | Material 3 `FilterChip` 기본 경계는 `outlineVariant`(`background` 대비 1.31:1)다. 10절 컨트롤 경계 3:1을 만족하지 못한다. pen에는 칩 경계가 없지만 10절 접근성 최저선이 pen보다 위다 (`AGENTS.md` 6절) |
 
 ## 4. 타이포그래피
 
