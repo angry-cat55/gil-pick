@@ -50,7 +50,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T003
   - 검증: place DTO, category enum, nullable field, cursor, provider별 오류 code, Navigation Compose 2.10.0, route 등록 범위와 F004 진입점 이관을 BE `ts`와 FE `jy`가 확인한 기록을 남기고 불일치를 구현 전에 문서에 반영
-- [ ] T004 Backend 다중 provider 장소 DTO·6개 category·공통 envelope 모델 구현 in api/app/schemas/place.py
+- [x] T004 Backend 다중 provider 장소 DTO·6개 category·공통 envelope 모델 구현 in api/app/schemas/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T003, T035
