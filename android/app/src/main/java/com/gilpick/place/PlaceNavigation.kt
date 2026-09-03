@@ -38,9 +38,9 @@ data class PlaceDetailRoute(val placeId: String)
  * 문자열 route가 아니라 `@Serializable` 타입을 쓴다. 인자 이름과 타입을 컴파일러가
  * 검사하고 [PlaceDetailRoute.placeId]의 `:`도 Navigation이 알아서 encode·decode한다.
  *
- * F003은 route 등록과 검색 → 상세 → 뒤로가기까지만 담당한다. 사용자가 검색 화면에
- * 도달하는 실제 진입점은 F004 일정 구성에서 연결한다. 명세와 pen에 없는 임시 진입 UI를
- * 만들지 않기로 T035에서 확정했다.
+ * F003은 route 등록과 검색 → 상세 → 뒤로가기까지만 담당한다. 진입점은 pen의
+ * `04. 일정 편집 화면`에 `장소 추가`로 설계돼 있으나 그 화면이 F004 범위여서 아직
+ * 없다. F003이 임시 진입 UI를 대신 만들지 않기로 T035에서 확정했다.
  *
  * @param navController 상세로 이동하고 뒤로 돌아오는 데 쓴다.
  */
