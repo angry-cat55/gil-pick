@@ -1,6 +1,7 @@
 package com.gilpick.trip
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,13 +22,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -64,6 +69,13 @@ fun TripFormScreen(
     val spacing = com.gilpick.ui.theme.LocalGilpickSpacing.current
     var showPeriodPicker by remember { mutableStateOf(false) }
 
+    if (state.loading) {
+        // 수정 모드는 폼을 채우기 전에 여행을 한 번 조회한다. 그동안 빈 입력창을
+        // 보여주면 값이 없는 것으로 오해한다.
+        LoadingState(modifier = modifier)
+        return
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -72,7 +84,10 @@ fun TripFormScreen(
         verticalArrangement = Arrangement.spacedBy(spacing.space5),
     ) {
         Text(
-            text = stringResource(R.string.trip_form_create_title),
+            text = stringResource(
+                if (state.mode is FormMode.Edit) R.string.trip_form_edit_title
+                else R.string.trip_form_create_title,
+            ),
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
@@ -88,13 +103,20 @@ fun TripFormScreen(
             startDate = state.startDate,
             endDate = state.endDate,
             error = state.visiblePeriodError,
-            enabled = !state.submitting,
+            // 완료된 여행은 기간을 바꿀 수 없다. 전송 중에도 입력을 막는다.
+            enabled = !state.submitting && !state.periodLocked,
+            locked = state.periodLocked,
             onClick = { showPeriodPicker = true },
         )
 
         state.submitError?.let { SubmitError(it) }
 
-        SubmitButton(submitting = state.submitting, onClick = onSubmit)
+        SubmitButton(
+            submitting = state.submitting,
+            labelRes = if (state.mode is FormMode.Edit) R.string.trip_form_edit_submit
+            else R.string.trip_form_submit,
+            onClick = onSubmit,
+        )
     }
 
     if (showPeriodPicker) {
@@ -107,6 +129,26 @@ fun TripFormScreen(
                 onPeriodChange(start, end)
             },
         )
+    }
+}
+
+/** 수정할 여행을 조회하는 동안의 표시. 1초를 넘길 때만 띄운다(가이드라인 9절). */
+@Composable
+private fun LoadingState(modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    val label = stringResource(R.string.trip_form_loading)
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(LOADING_INDICATOR_DELAY_MILLIS)
+        visible = true
+    }
+
+    if (visible) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = label },
+            )
+        }
     }
 }
 
@@ -152,10 +194,12 @@ private fun PeriodField(
     endDate: LocalDate?,
     error: TripPeriodError?,
     enabled: Boolean,
+    locked: Boolean,
     onClick: () -> Unit,
 ) {
     val spacing = com.gilpick.ui.theme.LocalGilpickSpacing.current
     val radius = com.gilpick.ui.theme.LocalGilpickRadius.current
+    val lockedState = stringResource(R.string.trip_form_period_locked_state)
 
     Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
         Text(
@@ -168,12 +212,26 @@ private fun PeriodField(
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = FIELD_HEIGHT),
+                .heightIn(min = FIELD_HEIGHT)
+                // 비활성 스타일은 눈으로만 전달된다. 화면을 못 보는 사용자에게도 왜
+                // 누를 수 없는지 알린다(가이드라인 10절).
+                .then(
+                    if (!locked) Modifier
+                    else Modifier.semantics { stateDescription = lockedState },
+                ),
             shape = RoundedCornerShape(radius.sm),
         ) {
             Text(
                 text = periodLabel(startDate, endDate),
                 style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        if (locked) {
+            // 색과 흐린 스타일만으로는 이유를 알 수 없다. 문구를 함께 둔다(10절).
+            Text(
+                text = stringResource(R.string.trip_form_period_locked),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         error?.let {
@@ -219,6 +277,13 @@ private fun SubmitError(error: TripFormSubmitError) {
         text = when (error) {
             TripFormSubmitError.NETWORK -> stringResource(R.string.trip_form_error_network)
             TripFormSubmitError.INVALID_INPUT -> stringResource(R.string.trip_form_error_invalid)
+            TripFormSubmitError.VERSION_CONFLICT ->
+                stringResource(R.string.trip_form_error_version_conflict)
+
+            TripFormSubmitError.TRIP_LOCKED -> stringResource(R.string.trip_form_error_trip_locked)
+            TripFormSubmitError.CONFIRMATION_REQUIRED ->
+                stringResource(R.string.trip_form_error_confirmation_required)
+
             TripFormSubmitError.UNEXPECTED -> stringResource(R.string.trip_form_error_unexpected)
         },
         style = MaterialTheme.typography.bodyMedium,
@@ -232,7 +297,7 @@ private fun SubmitError(error: TripFormSubmitError) {
  * 전송 중에는 비활성화해 중복 제출을 막고, 진행 중임을 TalkBack에도 알린다.
  */
 @Composable
-private fun SubmitButton(submitting: Boolean, onClick: () -> Unit) {
+private fun SubmitButton(submitting: Boolean, labelRes: Int, onClick: () -> Unit) {
     val radius = com.gilpick.ui.theme.LocalGilpickRadius.current
     val submittingLabel = stringResource(R.string.trip_form_submitting)
 
@@ -253,7 +318,7 @@ private fun SubmitButton(submitting: Boolean, onClick: () -> Unit) {
             )
         } else {
             Text(
-                text = stringResource(R.string.trip_form_submit),
+                text = stringResource(labelRes),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )
@@ -397,3 +462,6 @@ private fun TripFormScreenSubmittingPreview() {
         )
     }
 }
+
+/** 가이드라인 9절: 1초를 넘길 때만 대기 표시를 띄운다. */
+private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L

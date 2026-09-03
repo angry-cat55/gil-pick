@@ -207,9 +207,9 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
             val state by viewModel.state.collectAsStateWithLifecycle()
 
             // 생성에 성공하면 목록으로 돌아가 새 여행이 포함된 목록을 다시 받는다.
-            LaunchedEffect(state.createdTripId) {
-                if (state.createdTripId != null) {
-                    viewModel.consumeCreated()
+            LaunchedEffect(state.savedTripId) {
+                if (state.savedTripId != null) {
+                    viewModel.consumeSaved()
                     navController.popBackStack()
                 }
             }
@@ -229,12 +229,44 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
 
-            LaunchedEffect(tripId) { viewModel.load() }
+            // 화면에 들어올 때마다 다시 조회한다. tripId를 key로 두면 수정하고 돌아와도
+            // 같은 값이라 재조회가 일어나지 않아 낡은 version이 남고, 이어서 수정하면
+            // 서버가 409 VERSION_CONFLICT로 거절한다.
+            LaunchedEffect(Unit) { viewModel.load() }
 
             TripDetailScreen(
                 state = state,
                 onBack = { navController.popBackStack() },
                 onRetry = viewModel::retry,
+                onEdit = { navController.navigate(TripEditRoute(tripId)) },
+            )
+        }
+
+        composable<TripEditRoute> { entry ->
+            val tripId = entry.toRoute<TripEditRoute>().tripId
+            val viewModel: TripFormViewModel = viewModel(
+                factory = TripFormViewModel.factory(LocalContext.current),
+            )
+            val state by viewModel.state.collectAsStateWithLifecycle()
+
+            // 상세가 가진 값을 route로 나르지 않고 여기서 다시 조회한다. 상세를 열어 둔
+            // 사이에 여행이 바뀌었을 수 있고, 그때 낡은 version으로 저장하면 실패한다.
+            LaunchedEffect(tripId) { viewModel.loadForEdit(tripId) }
+
+            // 저장에 성공하면 상세로 돌아간다. 상세는 진입할 때마다 다시 조회하므로
+            // 최신 version이 반영된다.
+            LaunchedEffect(state.savedTripId) {
+                if (state.savedTripId != null) {
+                    viewModel.consumeSaved()
+                    navController.popBackStack()
+                }
+            }
+
+            TripFormScreen(
+                state = state,
+                onNameChange = viewModel::onNameChange,
+                onPeriodChange = viewModel::onPeriodChange,
+                onSubmit = viewModel::submit,
             )
         }
 
@@ -260,3 +292,14 @@ private object TripFormRoute
  */
 @Serializable
 private data class TripDetailRoute(val tripId: String)
+
+/**
+ * 여행 수정.
+ *
+ * 생성 폼과 화면은 공용이지만 destination을 나눈다. 진입점(상세)과 복귀 지점이 생성과
+ * 다르고, 수정 대상을 인자로 받아야 한다.
+ *
+ * @property tripId 수정할 여행.
+ */
+@Serializable
+private data class TripEditRoute(val tripId: String)

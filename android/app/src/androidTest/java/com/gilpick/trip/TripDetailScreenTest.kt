@@ -1,5 +1,6 @@
 package com.gilpick.trip
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,9 @@ class TripDetailScreenTest {
 
     @Serializable
     private data class DetailRoute(val tripId: String)
+
+    @Serializable
+    private data class EditRoute(val tripId: String)
 
     // --- 1. 목록에서 카드 탭 → 상세 진입 ---
 
@@ -194,6 +198,9 @@ class TripDetailScreenTest {
                             onTripClick = { navController.navigate(DetailRoute(it)) },
                         )
                     }
+                    composable<EditRoute> { entry ->
+                        Text("수정 화면 " + entry.toRoute<EditRoute>().tripId)
+                    }
                     composable<DetailRoute> { entry ->
                         val tripId = entry.toRoute<DetailRoute>().tripId
                         TripDetailScreen(
@@ -203,6 +210,7 @@ class TripDetailScreenTest {
                                 ),
                             onBack = { navController.popBackStack() },
                             onRetry = {},
+                            onEdit = { navController.navigate(EditRoute(tripId)) },
                         )
                     }
                 }
@@ -214,7 +222,7 @@ class TripDetailScreenTest {
     private fun setDetail(state: TripDetailUiState) {
         composeRule.setContent {
             GilpickTheme {
-                TripDetailScreen(state = state, onBack = {}, onRetry = {})
+                TripDetailScreen(state = state, onBack = {}, onRetry = {}, onEdit = {})
             }
         }
     }

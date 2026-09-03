@@ -123,8 +123,58 @@ enum class TripFormSubmitError {
     /** 서버가 이름 또는 기간을 거절했다. 입력을 고쳐야 한다. */
     INVALID_INPUT,
 
+    /**
+     * `409 VERSION_CONFLICT`. 조회한 뒤 다른 요청이 여행을 바꿨다.
+     *
+     * 입력을 고쳐서 풀리는 문제가 아니다. 최신 정보를 다시 조회한 뒤 재시도해야 한다
+     * (`spec.md` FR-011a, US4 Acceptance 8).
+     */
+    VERSION_CONFLICT,
+
+    /**
+     * `409 TRIP_LOCKED`. 완료된 여행의 기간을 수정하려 했다.
+     *
+     * 이름은 상태와 무관하게 수정할 수 있다(FR-010, FR-010a, US4 Acceptance 7).
+     */
+    TRIP_LOCKED,
+
+    /**
+     * `409 CONFIRMATION_REQUIRED`. 기간 축소로 삭제될 일정이 있어 확인이 필요하다.
+     *
+     * F002 시점에는 일정(`trip_days`/`itinerary_items`)이 없어 서버가 삭제 개수를 항상
+     * 0으로 보므로 실제로 발동하지 않는다. 화면 표현은 F004에서 만들고 여기서는 원인만
+     * 구분해 둔다(FR-012).
+     */
+    CONFIRMATION_REQUIRED,
+
     /** 그 밖의 실패. 잠시 후 다시 시도한다. */
     UNEXPECTED,
+}
+
+/**
+ * 폼이 생성 중인지 수정 중인지.
+ *
+ * 두 흐름은 검증 규칙이 같고 화면도 공용이지만 제출 경로, 오류 종류, 기간 입력 잠금이
+ * 다르다. 어느 쪽인지를 이 한 값으로만 판단해 화면과 view model에 분기가 흩어지지
+ * 않게 한다(`tasks.md` T037).
+ */
+sealed interface FormMode {
+
+    /** 새 여행을 만든다. */
+    data object Create : FormMode
+
+    /**
+     * 이미 있는 여행을 고친다.
+     *
+     * @property tripId 수정 대상.
+     * @property version 조회 시점의 버전. 수정 요청에 그대로 실어 보낸다(FR-011a).
+     * @property status 조회 시점의 상태. 완료 상태면 기간 입력을 잠근다(FR-010a).
+     */
+    data class Edit(
+        val tripId: String,
+        val version: Int,
+        val status: TripStatus,
+    ) : FormMode
 }
 
 /**
@@ -132,7 +182,9 @@ enum class TripFormSubmitError {
  *
  * @property showErrors 검증 오류를 화면에 표시할지 여부. 입력 도중에 빨간 글씨를 띄우지
  *   않고 제출을 한 번 시도한 뒤부터 보여준다.
- * @property createdTripId 생성에 성공한 여행 ID. 화면 이동 뒤 [TripFormViewModel.consumeCreated]로 비운다.
+ * @property savedTripId 생성 또는 수정에 성공한 여행 ID. 화면 이동 뒤
+ *   [TripFormViewModel.consumeSaved]로 비운다.
+ * @property mode 생성 중인지 수정 중인지. 제출 경로와 기간 입력 잠금이 여기서 갈린다.
  */
 data class TripFormUiState(
     val name: String = "",
@@ -142,8 +194,19 @@ data class TripFormUiState(
     val showErrors: Boolean = false,
     val submitting: Boolean = false,
     val submitError: TripFormSubmitError? = null,
-    val createdTripId: String? = null,
-)
+    val savedTripId: String? = null,
+    val mode: FormMode = FormMode.Create,
+    val loading: Boolean = false,
+) {
+    /**
+     * 기간 입력을 잠글지 여부.
+     *
+     * 완료된 여행은 이름만 수정할 수 있다(`spec.md` FR-010a). 서버가 최종 판정하지만
+     * 화면도 같은 규칙으로 먼저 막아 사용자가 고칠 수 없는 값을 건드리지 않게 한다.
+     */
+    val periodLocked: Boolean
+        get() = mode is FormMode.Edit && mode.status == TripStatus.COMPLETED
+}
 
 /**
  * 여행 생성 화면의 상태 보유자.
@@ -183,10 +246,55 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
     }
 
     /**
-     * 여행 생성을 요청한다.
+     * 수정할 여행을 조회해 폼에 채운다.
      *
-     * 검증에 실패하면 서버로 보내지 않고 오류만 표시한다. 이미 전송 중이면 중복
-     * 요청을 만들지 않는다.
+     * 상세 화면이 이미 가진 값을 route로 넘기지 않고 `tripId`로 다시 조회한다. 상세를
+     * 열어 둔 사이에 다른 기기가 여행을 바꿨을 수 있고, 그때 낡은 `version`으로
+     * 저장하면 `409 VERSION_CONFLICT`가 난다. 수정 직전 값이 가장 정확하다.
+     *
+     * @param tripId 수정할 여행 식별자. navigation route가 넘긴다.
+     */
+    fun loadForEdit(tripId: String) {
+        if (_state.value.loading) return
+
+        _state.value = TripFormUiState(loading = true)
+        viewModelScope.launch {
+            when (val result = repository.getTrip(tripId)) {
+                is AuthResult.Success -> startEditing(result.value)
+                is AuthResult.Failure -> _state.update {
+                    it.copy(loading = false, submitError = result.error.toSubmitError())
+                }
+            }
+        }
+    }
+
+    /**
+     * 수정할 여행을 폼에 채운다.
+     *
+     * 조회 시점의 `version`과 `status`를 [FormMode.Edit]에 담는다. 서버가 낙관적
+     * 동시성 제어에 쓰고(FR-011a), 완료 상태면 화면이 기간 입력을 잠근다(FR-010a).
+     *
+     * @param trip 수정 대상. 상세 화면이 이미 받아 둔 값을 그대로 넘긴다.
+     */
+    fun startEditing(trip: TripDto) {
+        _state.value = TripFormUiState(
+            name = trip.name,
+            startDate = LocalDate.parse(trip.startDate),
+            endDate = LocalDate.parse(trip.endDate),
+            mode = FormMode.Edit(
+                tripId = trip.tripId,
+                version = trip.version,
+                status = trip.status,
+            ),
+        )
+    }
+
+    /**
+     * 폼 내용을 서버에 보낸다.
+     *
+     * 생성이면 만들고 수정이면 고친다. 어느 쪽인지는 [TripFormUiState.mode]만 보고
+     * 정한다. 검증에 실패하면 서버로 보내지 않고 오류만 표시한다. 이미 전송 중이면
+     * 중복 요청을 만들지 않는다.
      */
     fun submit() {
         val current = _state.value
@@ -200,16 +308,35 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
 
         val start = current.startDate ?: return
         val end = current.endDate ?: return
-        val key = idempotencyKey ?: UUID.randomUUID().toString().also { idempotencyKey = it }
 
         _state.update { it.copy(submitting = true, showErrors = true, submitError = null) }
         viewModelScope.launch {
-            val result = repository.createTrip(current.name, start, end, key)
+            val mode = current.mode
+            val result = when (mode) {
+                is FormMode.Create -> {
+                    // 같은 입력의 재시도는 같은 키로 보낸다. 통신 실패 후 다시 눌렀을 때
+                    // 여행이 두 건 생기지 않게 한다.
+                    val key = idempotencyKey
+                        ?: UUID.randomUUID().toString().also { idempotencyKey = it }
+                    repository.createTrip(current.name, start, end, key)
+                }
+
+                is FormMode.Edit -> repository.updateTrip(
+                    tripId = mode.tripId,
+                    version = mode.version,
+                    name = current.name,
+                    // 완료된 여행은 기간을 보내지 않는다. 값이 그대로여도 서버가
+                    // TRIP_LOCKED로 거절한다(FR-010a).
+                    startDate = start.takeUnless { current.periodLocked },
+                    endDate = end.takeUnless { current.periodLocked },
+                )
+            }
+
             _state.update { state ->
                 when (result) {
                     is AuthResult.Success -> {
                         idempotencyKey = null
-                        state.copy(submitting = false, createdTripId = result.value.tripId)
+                        state.copy(submitting = false, savedTripId = result.value.tripId)
                     }
 
                     is AuthResult.Failure ->
@@ -219,9 +346,9 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
         }
     }
 
-    /** 상세 화면으로 이동한 뒤 생성 결과를 비운다. 되돌아왔을 때 다시 이동하지 않게 한다. */
-    fun consumeCreated() {
-        _state.update { it.copy(createdTripId = null) }
+    /** 화면을 이동한 뒤 저장 결과를 비운다. 되돌아왔을 때 다시 이동하지 않게 한다. */
+    fun consumeSaved() {
+        _state.update { it.copy(savedTripId = null) }
     }
 
     /** 이미 오류를 표시 중일 때만 검증을 다시 돌려 고치는 즉시 반영되게 한다. */
@@ -260,12 +387,22 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
     }
 }
 
-/** 서버·통신 실패를 화면이 안내할 수 있는 원인으로 좁힌다. */
-private fun AuthError.toSubmitError(): TripFormSubmitError = when (this) {
+/**
+ * 서버·통신 실패를 화면이 안내할 수 있는 원인으로 좁힌다.
+ *
+ * HTTP 상태 코드가 아니라 계약이 정한 error code로 판정한다. 수정 endpoint는 `409`
+ * 하나에 버전 충돌·기간 잠금·삭제 확인 세 가지를 담으므로 상태 코드로는 갈라지지
+ * 않는다.
+ */
+internal fun AuthError.toSubmitError(): TripFormSubmitError = when (this) {
     is AuthError.Offline -> TripFormSubmitError.NETWORK
-    is AuthError.Server ->
-        if (code in INPUT_ERROR_CODES) TripFormSubmitError.INVALID_INPUT
-        else TripFormSubmitError.UNEXPECTED
+    is AuthError.Server -> when (code) {
+        TripErrorCodes.VERSION_CONFLICT -> TripFormSubmitError.VERSION_CONFLICT
+        TripErrorCodes.TRIP_LOCKED -> TripFormSubmitError.TRIP_LOCKED
+        TripErrorCodes.CONFIRMATION_REQUIRED -> TripFormSubmitError.CONFIRMATION_REQUIRED
+        in INPUT_ERROR_CODES -> TripFormSubmitError.INVALID_INPUT
+        else -> TripFormSubmitError.UNEXPECTED
+    }
 
     is AuthError.Malformed, is AuthError.Callback -> TripFormSubmitError.UNEXPECTED
 }

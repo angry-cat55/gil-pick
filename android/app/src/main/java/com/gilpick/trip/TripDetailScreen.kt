@@ -1,5 +1,6 @@
 package com.gilpick.trip
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,8 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +65,7 @@ import kotlinx.coroutines.delay
  * @param state 현재 상세 상태.
  * @param onBack 이전 화면으로 돌아간다.
  * @param onRetry 실패한 조회를 다시 시도한다.
+ * @param onEdit 수정 화면으로 이동한다. 여행을 받아 둔 상태에서만 쓸 수 있다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,9 +73,11 @@ fun TripDetailScreen(
     state: TripDetailUiState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
+    var menuOpen by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
@@ -88,10 +96,34 @@ fun TripDetailScreen(
                     )
                 }
             },
+            actions = {
+                // 여행을 받아 둔 상태에서만 할 수 있는 일이다. 실패·대기 중에는 메뉴를
+                // 열어도 누를 것이 없다.
+                if (state.phase is TripDetailPhase.Content) {
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.size(MIN_TOUCH),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.trip_detail_more),
+                        )
+                    }
+                    TripDetailMenu(
+                        expanded = menuOpen,
+                        onDismiss = { menuOpen = false },
+                        onEdit = {
+                            menuOpen = false
+                            onEdit()
+                        },
+                    )
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 titleContentColor = MaterialTheme.colorScheme.onSurface,
                 navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         )
 
@@ -112,6 +144,36 @@ fun TripDetailScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * AppBar 더보기 메뉴.
+ *
+ * pen의 `Menu` 요소다. `삭제`는 pen에 함께 정의돼 있지만 삭제 기능이 아직 없어
+ * 넣지 않는다. 눌러서 할 수 있는 일이 없는 항목을 만들지 않는다(AGENTS.md 6절).
+ * #107에서 같은 메뉴에 추가한다.
+ */
+@Composable
+private fun TripDetailMenu(expanded: Boolean, onDismiss: () -> Unit, onEdit: () -> Unit) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        // Material 3 기본 메뉴 배경은 이 앱이 정의하지 않은 surface 계열 색이라 연보라로
+        // 나온다. pen의 Menu는 $surface다(가이드라인 3절).
+        modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+    ) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.trip_detail_edit)) },
+            onClick = onEdit,
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
+                    contentDescription = null,
+                )
+            },
+        )
     }
 }
 

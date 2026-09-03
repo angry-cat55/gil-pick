@@ -86,6 +86,49 @@ class TripRepository(
         }
 
     /**
+     * 여행의 이름과 기간을 수정한다.
+     *
+     * 계약이 `version`을 required로 정의한다. 조회 시점의 버전을 그대로 실어 보내고,
+     * 서버가 저장된 버전과 다르다고 판단하면 `409 VERSION_CONFLICT`로 거절한다
+     * (`spec.md` FR-011a).
+     *
+     * 완료 상태 여행의 기간 수정은 서버가 `409 TRIP_LOCKED`로 거절한다(FR-010a).
+     * 화면도 같은 규칙으로 기간 입력을 미리 잠그지만 최종 판정은 서버가 한다.
+     *
+     * @param tripId 수정할 여행 식별자.
+     * @param version 조회했던 여행의 버전. 낙관적 동시성 제어에 쓴다.
+     * @param name 새 여행명. 바꾸지 않으면 `null`이다.
+     * @param startDate 새 시작일. 바꾸지 않으면 `null`이다.
+     * @param endDate 새 종료일. 바꾸지 않으면 `null`이다.
+     * @param confirmDeleteOutOfRangeItems 기간 축소로 삭제될 일정을 사용자가 확인했는지
+     *   여부. F002 시점에는 일정이 없어 서버가 삭제 개수를 항상 0으로 보므로 실제로
+     *   쓰이지 않는다. 계약이 정의한 값이라 자리만 열어 둔다(F004에서 사용).
+     * @return 수정된 여행 또는 좁혀진 실패 원인. 실패 원인은 [AuthError.toSubmitError]로
+     *   화면이 안내할 수 있는 [TripFormSubmitError]로 좁힌다.
+     */
+    suspend fun updateTrip(
+        tripId: String,
+        version: Int,
+        name: String? = null,
+        startDate: LocalDate? = null,
+        endDate: LocalDate? = null,
+        confirmDeleteOutOfRangeItems: Boolean = false,
+    ): AuthResult<TripDto> = auth.withAccessToken { accessToken ->
+        api.updateTrip(
+            bearer = "Bearer $accessToken",
+            tripId = tripId,
+            body = UpdateTripRequest(
+                // 생성과 같은 규칙으로 앞뒤 공백을 먼저 제거한다.
+                name = name?.trim(),
+                startDate = startDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                endDate = endDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                version = version,
+                confirmDeleteOutOfRangeItems = confirmDeleteOutOfRangeItems,
+            ),
+        )
+    }
+
+    /**
      * 소유한 여행 목록을 한 페이지 조회한다.
      *
      * 검색어와 상태 필터는 cursor에 결합되어 있다. 조건을 바꾸면 [cursor]를 비워 첫

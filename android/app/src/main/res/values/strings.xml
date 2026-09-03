@@ -51,6 +51,8 @@
     <string name="trip_detail_error_not_found">이미 삭제되었거나 없는 여행입니다.</string>
     <string name="trip_detail_error_forbidden">이 여행을 볼 권한이 없습니다.</string>
     <string name="trip_detail_back_to_list">목록으로 돌아가기</string>
+    <string name="trip_detail_more">더보기</string>
+    <string name="trip_detail_edit">수정</string>
 
     <string name="trip_form_create_title">새 여행 만들기</string>
     <string name="trip_form_name_label">여행 이름</string>
@@ -72,4 +74,14 @@
     <string name="trip_form_error_network">연결을 확인한 뒤 다시 시도해 주세요. 입력한 내용은 그대로 있습니다.</string>
     <string name="trip_form_error_invalid">입력한 이름이나 기간을 다시 확인해 주세요.</string>
     <string name="trip_form_error_unexpected">지금은 여행을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <string name="trip_form_error_version_conflict">이 여행이 다른 곳에서 먼저 바뀌었습니다. 최신 내용을 불러온 뒤 다시 수정해 주세요.</string>
+    <string name="trip_form_error_trip_locked">완료된 여행은 기간을 바꿀 수 없습니다. 이름은 수정할 수 있습니다.</string>
+    <string name="trip_form_error_confirmation_required">기간을 줄이면 일정이 삭제됩니다. 삭제에 동의해야 저장할 수 있습니다.</string>
+
+    <!-- 여행 수정 모드 -->
+    <string name="trip_form_edit_title">여행 수정</string>
+    <string name="trip_form_edit_submit">변경 사항 저장</string>
+    <string name="trip_form_period_locked">완료된 여행은 이름만 수정할 수 있습니다. 기간은 최대 7일까지 설정할 수 있어요.</string>
+    <string name="trip_form_period_locked_state">수정할 수 없음</string>
+    <string name="trip_form_loading">여행 정보를 불러오는 중</string>
 </resources>

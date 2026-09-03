@@ -176,6 +176,90 @@ class TripFormScreenTest {
         assertEquals("제주", typed)
     }
 
+    // --- T037: 수정 모드 ---
+
+    @Test
+    fun 수정_모드는_제목과_버튼_문구를_바꾼다() {
+        // pen 21. 여행 수정 기준이다. 같은 화면이지만 무엇을 하는 자리인지 달라진다.
+        setContent(editState(TripStatus.UPCOMING))
+
+        composeRule.onNodeWithText(string(R.string.trip_form_edit_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trip_form_create_title)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.trip_form_submit)).assertDoesNotExist()
+    }
+
+    @Test
+    fun 생성_모드는_기존_문구를_유지한다() {
+        setContent(TripFormUiState())
+
+        composeRule.onNodeWithText(string(R.string.trip_form_create_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trip_form_submit)).assertIsDisplayed()
+    }
+
+    @Test
+    fun 완료된_여행은_기간_입력을_누를_수_없다() {
+        // FR-010a. 색과 흐린 스타일만으로는 이유를 알 수 없으므로 문구도 함께 본다.
+        setContent(editState(TripStatus.COMPLETED))
+
+        composeRule.onNodeWithText(periodLabel()).assertIsNotEnabled()
+        composeRule.onNodeWithText(string(R.string.trip_form_period_locked)).assertIsDisplayed()
+    }
+
+    @Test
+    fun 완료된_여행도_이름은_수정할_수_있다() {
+        // FR-010: 이름은 상태와 무관하게 수정할 수 있다.
+        setContent(editState(TripStatus.COMPLETED))
+
+        composeRule.onNodeWithText(string(R.string.trip_form_name_label)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).assertIsEnabled()
+    }
+
+    @Test
+    fun 예정_여행은_기간_입력을_누를_수_있다() {
+        setContent(editState(TripStatus.UPCOMING))
+
+        composeRule.onNodeWithText(periodLabel()).assertIsEnabled()
+        composeRule.onNodeWithText(string(R.string.trip_form_period_locked)).assertDoesNotExist()
+    }
+
+    @Test
+    fun 버전_충돌은_재조회_안내로_보여준다() {
+        // US4 Acceptance 8. "오류가 발생했습니다"로 끝내지 않는다.
+        setContent(
+            editState(TripStatus.UPCOMING)
+                .copy(submitError = TripFormSubmitError.VERSION_CONFLICT),
+        )
+
+        composeRule.onNodeWithText(string(R.string.trip_form_error_version_conflict))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun 완료_여행_기간_잠금_오류는_이유를_설명한다() {
+        // US4 Acceptance 7.
+        setContent(
+            editState(TripStatus.COMPLETED)
+                .copy(submitError = TripFormSubmitError.TRIP_LOCKED),
+        )
+
+        composeRule.onNodeWithText(string(R.string.trip_form_error_trip_locked)).assertIsDisplayed()
+    }
+
+    /** 수정 모드 상태 하나. 이름과 기간은 이미 채워져 있다. */
+    private fun editState(status: TripStatus) = TripFormUiState(
+        name = "서울 여행",
+        startDate = LocalDate.of(2026, 9, 1),
+        endDate = LocalDate.of(2026, 9, 3),
+        mode = FormMode.Edit(tripId = "t1", version = 3, status = status),
+    )
+
+    /** 채워진 기간 버튼에 보이는 문구. 화면과 같은 형식으로 만든다. */
+    private fun periodLabel(): String {
+        val range = context.getString(R.string.trip_form_period_value, "2026.09.01", "2026.09.03")
+        return "$range · " + context.getString(R.string.trip_form_period_days, 3)
+    }
+
     private fun setContent(
         state: TripFormUiState,
         onNameChange: (String) -> Unit = {},
