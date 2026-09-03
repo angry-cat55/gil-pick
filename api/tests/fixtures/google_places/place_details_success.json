@@ -1,0 +1,14 @@
+{
+  "id": "test-google-place-id",
+  "types": ["cafe", "food", "point_of_interest"],
+  "nationalPhoneNumber": "02-0000-0000",
+  "formattedAddress": "서울특별시 중구 테스트로 1",
+  "location": {"latitude": 37.56661, "longitude": 126.978388},
+  "rating": 4.3,
+  "regularOpeningHours": {"weekdayDescriptions": ["월요일: 오전 10:00~오후 8:00"]},
+  "businessStatus": "OPERATIONAL",
+  "userRatingCount": 12,
+  "displayName": {"text": "테스트 카페", "languageCode": "ko"},
+  "currentOpeningHours": {"openNow": true},
+  "attributions": []
+}

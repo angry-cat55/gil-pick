@@ -1,0 +1,12 @@
+{
+  "places": [
+    {
+      "id": "test-google-place-with-missing-fields",
+      "types": ["store"],
+      "displayName": {"text": "선택 필드가 없는 장소", "languageCode": "ko"},
+      "attributions": [
+        {"provider": "Example Provider", "providerUri": "https://example.com"}
+      ]
+    }
+  ]
+}

@@ -12,7 +12,7 @@
 
 **Language/Version**: Backend Python 3.13; Android Kotlin 2.4.10
 
-**Primary Dependencies**: Backend는 기존 FastAPI 0.141.1, Pydantic Settings 2.10.1, httpx2 2.10.0, PyJWT 2.10.1을 재사용한다. Android는 기존 Compose BOM 2026.08.00, Lifecycle 2.11.0, Retrofit 3.0.0, OkHttp 5.5.0, kotlinx.serialization 1.11.0에 Navigation Compose 2.9.8, Coil Compose·OkHttp 3.6.0을 추가한다.
+**Primary Dependencies**: Backend는 기존 FastAPI 0.141.1, Pydantic Settings 2.10.1, httpx2 2.10.0, PyJWT 2.10.1을 재사용한다. Android는 기존 Compose BOM 2026.08.00, Lifecycle 2.11.0, Retrofit 3.0.0, OkHttp 5.5.0, kotlinx.serialization 1.11.0에 Navigation Compose 2.10.0, Coil Compose·OkHttp 3.6.0을 추가한다.
 
 **Storage**: N/A. F003 검색·상세 결과는 영구 저장하거나 server cache하지 않는다. F004가 일정 추가 시 `places` 최소 참조정보를 저장한다.
 
@@ -36,6 +36,8 @@
 
 **State & Interaction**: `PlaceSearchUiState`는 편집 중인 `draftCriteria`, 마지막으로 실행한 `committedCriteria`, `items`, `initialLoad`, `appendLoad`, `nextCursor`, `hasNext`, validation error를 분리한다. 입력·filter 변경은 호출하지 않고 검색 버튼 또는 IME Search가 같은 event를 보낸다. 새 검색은 이전 결과와 섞지 않으며 append 중에는 기존 결과를 유지한다. `placeId`를 stable key로 사용해 append 결과를 dedupe한다. `PlaceDetailUiState`는 loading/content/notFound/error를 분리하고 nullable field를 그대로 표현한다. type-safe `PlaceSearchRoute`, `PlaceDetailRoute(placeId)`와 destination-scoped ViewModel로 상세 복귀 시 검색 조건·결과를 유지하며 `LazyListState`로 scroll 위치를 복원한다.
 
+**T035 Contract Decisions**: Navigation Compose는 F002 PR #154가 채택한 2.10.0으로 통일한다. `MainActivity.kt`는 #154 반영 후 F003 Android 브랜치를 최신 `main`에 rebase하여 수정한다. F003은 `PlaceSearchRoute`와 `PlaceDetailRoute(placeId)` 등록 및 검색→상세→뒤로가기만 구현하며, pen과 명세에 없는 임시 진입 UI는 추가하지 않는다. 실제 일정 화면의 장소 검색 진입점은 F004에서 연결한다. 검색과 `tourapi:` 상세의 Google 실패는 격리하고, `google:` 상세 실패만 provider별 429/502/504 오류로 노출한다. `tourApiCategory`, 오류 `retryable`, 검색 `meta.pagination`은 응답 필수 필드로 확정하고 nullable 여부는 OpenAPI를 따른다. `areaCode`는 TourAPI `areaCode2`의 17개 광역 code만 허용하며 `businessStatus`는 Google 원문 enum을 전달하고 Android에서 현지화한다.
+
 **Accessibility & Adaptive Layout**: 검색 입력에는 항상 보이는 label과 IME Search action을 제공하고, 결과 요약·오류는 적절한 live region으로 알린다. 결과 행 전체는 button semantics와 최소 48×48dp hit area를 가지며 이미지가 정보성이 있으면 장소명을 설명으로 사용하고 중복이면 decorative 처리한다. 읽기 순서는 검색 조건 → 결과 요약 → 결과 목록이며 색만으로 상태를 전달하지 않는다. 360dp와 최대 font scale에서 text wrapping을 우선하고 가로 scroll·잘림을 허용하지 않는다. 태블릿은 동일 단일 열의 읽기 가능한 최대 폭을 사용하며 F003에서 별도 list-detail pane을 추가하지 않는다.
 
 **Visual Validation**: 실제 기기 또는 AVD에서 검색·상세 각각 loading/empty/error/content를 screenshot으로 확인한다. 추가로 Google 보완·병합·부분 실패, 장소별 provider 배지 미표시, Google 데이터 영역의 필수 attribution, 긴 장소명·주소, 360dp, 최대 font scale, TalkBack 순서와 상세 복귀 상태를 검증한다. 다크 theme는 저장소에서 미확정이므로 제외한다.
@@ -51,7 +53,7 @@
 | III. 상태 변경의 일관성·멱등성·추적 가능성 | F003 endpoint는 read-only GET이며 DB 상태를 변경하지 않는다. request ID와 provider 오류 분류·latency만 추적한다. | PASS |
 | IV. 외부 의존성 실패 격리 | provider별 5초 timeout·제한된 retry를 적용한다. Google 실패는 Google 필드에만 격리하고 TourAPI 실패를 Google 성공으로 숨기지 않는다. | PASS |
 | V. 보안·소유권·최소 데이터 | 두 provider key를 Backend secret으로만 주입하고 최소 Google field mask만 요청한다. credential·원문 body를 노출하거나 검색 결과를 저장하지 않는다. | PASS |
-| 교차 계약 review | Backend·Android가 공유하는 place DTO, cursor, 오류 code와 navigation 진입점을 구현 PR 전에 양 영역 담당자가 확인해야 한다. | PASS WITH REVIEW CONDITION |
+| 교차 계약 review | Backend·Android가 공유하는 place DTO, cursor, 오류 code와 navigation route 등록 범위를 구현 PR 전에 양 영역 담당자가 확인해야 한다. | PASS WITH REVIEW CONDITION |
 
 Constitution 위반과 예외는 없다. 교차 계약 review는 설계 위반이 아니라 구현 전 필수 gate다.
 
@@ -105,7 +107,7 @@ api/
 android/app/
 ├── build.gradle.kts              # Navigation Compose, Coil 의존성
 ├── src/main/java/com/gilpick/
-│   ├── MainActivity.kt           # 인증 후 app navigation에 place route 연결
+│   ├── MainActivity.kt           # place route 등록; 실제 일정 진입 연결은 F004 범위
 │   ├── place/
 │   │   ├── PlaceApi.kt
 │   │   ├── PlaceRepository.kt

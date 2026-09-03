@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     kakao_redirect_uri: str
     android_app_link_base_url: str
     android_app_link_host: str
+    tour_api_base_url: str = "https://apis.data.go.kr/B551011/KorService2"
+    tour_api_service_key: SecretStr
+    google_places_base_url: str = "https://places.googleapis.com/v1"
+    google_places_api_key: SecretStr
+    place_provider_timeout_seconds: float = Field(default=5.0, gt=0)
 
     @field_validator("jwt_signing_secret")
     @classmethod

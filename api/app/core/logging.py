@@ -18,6 +18,7 @@ SENSITIVE_KEYS = {
     "client_secret",
     "clientsecret",
     "code",
+    "google_places_api_key",
     "kakao_token",
     "kakao_client_secret",
     "kakao_rest_api_key",
@@ -25,13 +26,17 @@ SENSITIVE_KEYS = {
     "loginticket",
     "profile",
     "profile_image_url",
+    "provider_response",
     "rest_api_key",
     "refresh_token",
     "refreshtoken",
     "state",
     "secret",
+    "service_key",
+    "servicekey",
     "ticket",
     "token",
+    "tour_api_service_key",
 }
 OPAQUE_TOKEN_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\."
@@ -41,8 +46,10 @@ OPAQUE_TOKEN_RE = re.compile(
 JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
 KEY_VALUE_RE = re.compile(
     r"(?i)\b(access[_-]?token|api[_-]?key|authorization|client[_-]?secret|code|"
-    r"jwt[_-]?signing[_-]?secret|kakao[_-]?(?:client[_-]?secret|rest[_-]?api[_-]?key|token)|"
+    r"google[_-]?places[_-]?api[_-]?key|jwt[_-]?signing[_-]?secret|"
+    r"kakao[_-]?(?:client[_-]?secret|rest[_-]?api[_-]?key|token)|"
     r"login[_-]?ticket|profile(?:_image_url)?|refresh[_-]?token|rest[_-]?api[_-]?key|"
+    r"service[_-]?key|tour[_-]?api[_-]?(?:service[_-]?)?key|"
     r"secret|state|ticket|token)\b([\s'\"=:]+)([^\s,}&]+)"
 )
 

@@ -18,6 +18,8 @@ def valid_settings(**overrides: str) -> dict[str, str]:
         "kakao_redirect_uri": "https://api.gilpick.example/api/v1/auth/kakao/callback",
         "android_app_link_base_url": "https://app.gilpick.example/auth/kakao/complete",
         "android_app_link_host": "app.gilpick.example",
+        "tour_api_service_key": "test-tour-api-key",
+        "google_places_api_key": "test-google-places-key",
     }
     values.update(overrides)
     return values
@@ -61,3 +63,13 @@ def test_documented_jwt_placeholder_is_rejected() -> None:
                 jwt_signing_secret="replace-with-at-least-32-random-characters"
             ),
         )
+
+
+def test_place_provider_defaults_and_secrets() -> None:
+    settings = Settings(_env_file=None, **valid_settings())
+
+    assert settings.tour_api_base_url == "https://apis.data.go.kr/B551011/KorService2"
+    assert settings.google_places_base_url == "https://places.googleapis.com/v1"
+    assert settings.place_provider_timeout_seconds == 5.0
+    assert str(settings.tour_api_service_key) == "**********"
+    assert str(settings.google_places_api_key) == "**********"
