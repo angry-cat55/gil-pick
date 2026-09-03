@@ -139,12 +139,6 @@ dependencies {
     // type-safe route는 kotlin("plugin.serialization")이 이미 적용돼 있어 그대로 쓴다.
     implementation("androidx.navigation:navigation-compose:2.10.0")
 
-    // type-safe route로 검색 → 상세 화면 이동을 구성한다. route 인자는 이미 적용된
-    // kotlinx.serialization plugin으로 직렬화한다.
-    // 버전은 F002 여행 상세(#105)가 먼저 도입한 2.10.0에 맞춘다. 같은 파일에서 두
-    // feature가 같은 의존성을 선언하므로 버전이 갈리면 merge마다 충돌한다.
-    implementation("androidx.navigation:navigation-compose:2.10.0")
-
     // 장소 썸네일은 원격 URL이므로 Coil로 비동기 로드한다. 이미 쓰는 OkHttp를
     // network layer로 재사용하려고 coil-network-okhttp를 함께 선언한다.
     implementation("io.coil-kt.coil3:coil-compose:3.6.0")

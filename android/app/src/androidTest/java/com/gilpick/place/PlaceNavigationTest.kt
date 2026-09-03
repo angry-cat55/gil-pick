@@ -19,10 +19,10 @@ import org.junit.Test
 /**
  * T009: 장소 route 등록과 검색 → 상세 → 뒤로가기 navigation 검증.
  *
- * app navigation graph 전체가 아니라 [placeGraph]만 host하는 NavHost로 검증한다.
- * F002 여행 상세(#154)가 `MainActivity.kt`의 NavHost를 만드는 중이라 그 파일을
- * 건드리지 않기로 T035에서 조율했다. #154 반영 후 rebase해 app graph에
- * `placeGraph(navController)`를 등록하면 이 동작이 그대로 이어진다.
+ * `MainActivity.kt`의 app navigation graph는 `placeGraph(navController)`로 이 graph를
+ * 등록한다. 여기서는 같은 [placeGraph]만 host하는 NavHost로 검증한다. app graph 전체를
+ * 띄우려면 인증 상태와 여행 목록 network 응답까지 필요한데, 그것은 route 등록이 아니라
+ * 다른 것을 검증하게 된다.
  *
  * 화면은 아직 임시다. 이 test가 검증하는 것은 route 등록, route 인자 전달, back
  * stack 동작이며 화면 내용은 T012·T013에서 실제 화면으로 교체된다.

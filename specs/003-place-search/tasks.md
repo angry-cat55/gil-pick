@@ -75,7 +75,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: jy
   - 선행: T004, T035
   - 검증: MockWebServer serialization test에서 Backend enum, nullable field, pagination과 오류 envelope parsing 성공
-- [ ] T009 Android type-safe 장소 route를 app navigation graph에 등록 in android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T009 Android type-safe 장소 route를 app navigation graph에 등록 in android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002, T035
