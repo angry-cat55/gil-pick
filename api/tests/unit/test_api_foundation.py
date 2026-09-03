@@ -209,6 +209,26 @@ def test_logging_redacts_secret_keys_and_extra_fields(caplog) -> None:
     assert record.api_key == "[REDACTED]"
 
 
+def test_logging_redacts_place_provider_query_key_and_response(caplog) -> None:
+    configure_logging()
+    logger = logging.getLogger("gilpick.test.place-provider")
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        logger.info(
+            "url=https://provider.example/search?serviceKey=raw-tour-key",
+            extra={
+                "google_places_api_key": "raw-google-key",
+                "provider_response": {"private": "raw-provider-body"},
+            },
+        )
+
+    record = caplog.records[-1]
+    assert "raw-tour-key" not in record.getMessage()
+    assert "serviceKey=[REDACTED]" in record.getMessage()
+    assert record.google_places_api_key == "[REDACTED]"
+    assert record.provider_response == "[REDACTED]"
+
+
 @pytest.mark.parametrize(
     ("model", "values"),
     [

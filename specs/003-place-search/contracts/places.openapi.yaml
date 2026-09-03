@@ -28,9 +28,10 @@ paths:
             $ref: '#/components/schemas/PlaceCategory'
         - name: areaCode
           in: query
+          description: TourAPI areaCode2 기준 17개 광역 지역 code
           schema:
             type: string
-            minLength: 1
+            enum: ['1', '2', '3', '4', '5', '6', '7', '8', '31', '32', '33', '34', '35', '36', '37', '38', '39']
         - name: cursor
           in: query
           description: 이전 응답에서 받은 불투명 커서
@@ -88,11 +89,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
-          $ref: '#/components/responses/TourApiRateLimited'
+          $ref: '#/components/responses/ProviderRateLimited'
         '502':
-          $ref: '#/components/responses/TourApiFailed'
+          $ref: '#/components/responses/ProviderFailed'
         '504':
-          $ref: '#/components/responses/TourApiTimeout'
+          $ref: '#/components/responses/ProviderTimeout'
 components:
   securitySchemes:
     bearerAuth:
@@ -121,6 +122,7 @@ components:
         - sourcePlaceId
         - name
         - category
+        - tourApiCategory
         - address
         - latitude
         - longitude
@@ -175,6 +177,8 @@ components:
           minimum: 0
         businessStatus:
           type: [string, 'null']
+          enum: [OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY, null]
+          description: Google Places businessStatus 원문 enum. Backend에서 표시 문구로 번역하지 않는다.
         regularOpeningHours:
           type: [array, 'null']
           items:
@@ -215,6 +219,12 @@ components:
       properties:
         requestId:
           type: string
+    PlaceListMeta:
+      type: object
+      required: [requestId, pagination]
+      properties:
+        requestId:
+          type: string
         pagination:
           $ref: '#/components/schemas/PaginationMeta'
     PlaceListData:
@@ -234,7 +244,7 @@ components:
         data:
           $ref: '#/components/schemas/PlaceListData'
         meta:
-          $ref: '#/components/schemas/Meta'
+          $ref: '#/components/schemas/PlaceListMeta'
     PlaceEnvelope:
       type: object
       required: [success, data, meta]
@@ -247,7 +257,7 @@ components:
           $ref: '#/components/schemas/Meta'
     ErrorBody:
       type: object
-      required: [code, message]
+      required: [code, message, retryable]
       properties:
         code:
           type: string
@@ -266,6 +276,13 @@ components:
           type: string
         retryable:
           type: boolean
+          description: >-
+            INVALID_REQUEST, INVALID_CURSOR, INVALID_ACCESS_TOKEN, PLACE_NOT_FOUND,
+            TOUR_API_RATE_LIMITED, GOOGLE_PLACES_RATE_LIMITED는 false다.
+            TOUR_API_TIMEOUT, GOOGLE_PLACES_TIMEOUT은 true다.
+            TOUR_API_FAILED와 GOOGLE_PLACES_FAILED는 일시적 네트워크 오류 또는 5xx가
+            자동 재시도 후에도 실패한 경우 true이고, provider application error,
+            해석할 수 없는 응답 또는 그 밖의 4xx인 경우 false다.
     ErrorEnvelope:
       type: object
       required: [success, error, meta]
@@ -296,19 +313,37 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
     TourApiRateLimited:
-      description: TourAPI 호출 한도 초과
+      description: 검색 기준 provider인 TourAPI 호출 한도 초과. retryable은 false다.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
     TourApiFailed:
-      description: TourAPI 응답 또는 일시적 서버 오류
+      description: 검색 기준 provider인 TourAPI 오류. 일시적 네트워크·5xx의 최종 실패는 retryable true, application·응답 해석·그 밖의 4xx 오류는 false다.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
     TourApiTimeout:
-      description: TourAPI 시간 초과
+      description: 검색 기준 provider인 TourAPI 시간 초과. retryable은 true다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ProviderRateLimited:
+      description: 상세 기준 provider 호출 한도 초과. tourapi 상세는 TOUR_API_RATE_LIMITED, google 상세는 GOOGLE_PLACES_RATE_LIMITED이며 retryable은 false다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ProviderFailed:
+      description: 기준 provider 오류. 일시적 네트워크·5xx의 최종 실패는 retryable true, application·응답 해석·그 밖의 4xx 오류는 false다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ProviderTimeout:
+      description: 기준 provider 시간 초과. provider별 TIMEOUT code를 사용하며 retryable은 true다.
       content:
         application/json:
           schema:

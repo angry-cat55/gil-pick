@@ -1,0 +1,39 @@
+{
+  "response": {
+    "header": {"resultCode": "0000", "resultMsg": "OK"},
+    "body": {
+      "items": {
+        "item": [
+          {
+            "contentid": "1000001",
+            "contenttypeid": "12",
+            "title": "테스트 관광지",
+            "tel": "",
+            "homepage": "",
+            "firstimage": "",
+            "firstimage2": "",
+            "areacode": "1",
+            "sigungucode": "24",
+            "lDongRegnCd": "11",
+            "lDongSignguCd": "140",
+            "lclsSystm1": "HS",
+            "lclsSystm2": "HS01",
+            "lclsSystm3": "HS010100",
+            "cat1": "A02",
+            "cat2": "A0201",
+            "cat3": "A02010100",
+            "addr1": "서울특별시 중구 세종대로 110",
+            "addr2": "",
+            "zipcode": "04524",
+            "mapx": "126.978388",
+            "mapy": "37.566610",
+            "overview": "<p>테스트용 설명입니다.</p>"
+          }
+        ]
+      },
+      "numOfRows": 1,
+      "pageNo": 1,
+      "totalCount": 1
+    }
+  }
+}

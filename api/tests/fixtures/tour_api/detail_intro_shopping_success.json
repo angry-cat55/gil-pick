@@ -1,0 +1,33 @@
+{
+  "response": {
+    "header": {"resultCode": "0000", "resultMsg": "OK"},
+    "body": {
+      "items": {
+        "item": [
+          {
+            "contentid": "1000002",
+            "contenttypeid": "38",
+            "saleitem": "",
+            "saleitemcost": "",
+            "fairday": "",
+            "opendateshopping": "",
+            "shopguide": "",
+            "culturecenter": "",
+            "restroom": "",
+            "infocentershopping": "",
+            "scaleshopping": "",
+            "restdateshopping": "매주 월요일",
+            "parkingshopping": "주차 가능",
+            "chkbabycarriageshopping": "없음",
+            "chkpetshopping": "불가",
+            "chkcreditcardshopping": "가능",
+            "opentime": "10:00~20:00"
+          }
+        ]
+      },
+      "numOfRows": 1,
+      "pageNo": 1,
+      "totalCount": 1
+    }
+  }
+}

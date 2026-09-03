@@ -21,7 +21,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 **Purpose**: TourAPI·Google Places와 Android 화면 구현에 필요한 최소 환경을 준비한다.
 
-- [ ] T001 [P] TourAPI·Google Places base URL·service key·timeout 설정 추가 in api/app/core/config.py, api/.env.example
+- [x] T001 [P] TourAPI·Google Places base URL·service key·timeout 설정 추가 in api/app/core/config.py, api/.env.example
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -31,7 +31,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: jy
   - 선행: 없음
   - 검증: `android\gradlew.bat -p android :app:dependencies`와 `:app:compileDebugKotlin` 성공
-- [ ] T003 TourAPI·Google Places 최신 공식 계약과 fixture로 endpoint·분류·field mask·attribution 확정 in api/tests/fixtures/tour_api/, api/tests/fixtures/google_places/
+- [x] T003 TourAPI·Google Places 최신 공식 계약과 fixture로 endpoint·분류·field mask·attribution 확정 in api/tests/fixtures/tour_api/, api/tests/fixtures/google_places/
   - 영역: BE
   - 담당: ts
   - 선행: T001
@@ -45,27 +45,27 @@ description: "F003 장소 검색 구현 task 목록"
 
 **⚠️ CRITICAL**: 이 phase가 완료되어야 user story 구현을 시작할 수 있다.
 
-- [ ] T035 Backend·Android 구현 전 장소 계약 교차 review in specs/003-place-search/contracts/places.openapi.yaml, specs/003-place-search/data-model.md, specs/003-place-search/plan.md
+- [x] T035 Backend·Android 구현 전 장소 계약 교차 review in specs/003-place-search/contracts/places.openapi.yaml, specs/003-place-search/data-model.md, specs/003-place-search/plan.md
   - 영역: 통합
   - 담당: ts
   - 선행: T003
-  - 검증: place DTO, category enum, nullable field, cursor, 오류 code와 navigation 진입점을 BE `ts`와 FE `jy`가 확인한 기록을 남기고 불일치를 구현 전에 문서에 반영
-- [ ] T004 Backend 다중 provider 장소 DTO·6개 category·공통 envelope 모델 구현 in api/app/schemas/place.py
+  - 검증: place DTO, category enum, nullable field, cursor, provider별 오류 code, Navigation Compose 2.10.0, route 등록 범위와 F004 진입점 이관을 BE `ts`와 FE `jy`가 확인한 기록을 남기고 불일치를 구현 전에 문서에 반영
+- [x] T004 Backend 다중 provider 장소 DTO·6개 category·공통 envelope 모델 구현 in api/app/schemas/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T003, T035
-  - 검증: `places.openapi.yaml`의 nullable field, enum, `tourapi:`·`google:` ID, Google 보강 필드와 pagination 구조가 일치하는 schema test 통과
-- [ ] T005 TourAPI·Google Places HTTP client와 응답·오류 parsing 구현 in api/app/clients/tour_api.py, api/app/clients/google_places.py
+  - 검증: `places.openapi.yaml`의 nullable field, enum, `tourapi:`·`google:` ID, Google 보강 필드, pagination 구조와 오류 원인별 `retryable` 값이 일치하는 schema test 통과
+- [x] T005 TourAPI·Google Places HTTP client와 응답·오류 parsing 구현 in api/app/clients/tour_api.py, api/app/clients/google_places.py
   - 영역: BE
   - 담당: ts
   - 선행: T001, T003
   - 검증: MockTransport로 JSON 성공, 빈 응답, application error, timeout, 4xx, 5xx, quota 응답 parsing test 통과
-- [ ] T006 TourAPI·Google Places credential·URL query·원문 응답 redaction 적용 in api/app/core/logging.py
+- [x] T006 TourAPI·Google Places credential·URL query·원문 응답 redaction 적용 in api/app/core/logging.py
   - 영역: BE
   - 담당: ts
   - 선행: T005
   - 검증: caplog 기반 보안 test에서 service key와 provider 원문 body가 출력되지 않고 request ID와 내부 오류 code만 기록됨
-- [ ] T007 Backend 장소 router 등록과 인증 경계 연결 in api/app/api/v1/places.py, api/app/main.py
+- [x] T007 Backend 장소 router 등록과 인증 경계 연결 in api/app/api/v1/places.py, api/app/main.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, F001 인증 API·`401 INVALID_ACCESS_TOKEN` 계약 확정
@@ -75,11 +75,11 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: jy
   - 선행: T004, T035
   - 검증: MockWebServer serialization test에서 Backend enum, nullable field, pagination과 오류 envelope parsing 성공
-- [ ] T009 Android type-safe 장소 route와 app navigation graph 연결 in android/app/src/main/java/com/gilpick/MainActivity.kt
+- [ ] T009 Android type-safe 장소 route를 app navigation graph에 등록 in android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002, T035
-  - 검증: navigation test에서 검색 → 상세 → 뒤로가기 route가 동작하고 F002 변경과 파일 소유권·merge 순서를 조율한 기록 확인
+  - 검증: navigation test에서 검색 → 상세 → 뒤로가기 route가 동작하고, 임시 진입 UI 없이 실제 일정 진입 연결을 F004로 이관했으며 F002 PR #154 반영 후 rebase하는 파일 소유권·merge 순서를 조율한 기록 확인
 
 **Checkpoint**: Backend와 Android가 같은 계약을 사용하고 story별 구현을 시작할 수 있다.
 
@@ -214,7 +214,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: FE
   - 담당: jy
   - 선행: T016, T023
-  - 검증: timeout·provider 장애·rate limit·인증 만료 안내, initial retry와 append retry 분리, 기존 결과 유지 test를 구현 전 실패로 확인
+  - 검증: timeout·provider 장애·rate limit·인증 만료의 오류 code별·원인별 `retryable` 안내, initial retry와 append retry 분리, 기존 결과 유지 test를 구현 전 실패로 확인
 
 ### Implementation for User Story 3
 

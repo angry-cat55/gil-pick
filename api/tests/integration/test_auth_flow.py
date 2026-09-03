@@ -51,6 +51,8 @@ def settings() -> Settings:
         kakao_redirect_uri="https://api.gilpick.example/api/v1/auth/kakao/callback",
         android_app_link_base_url="https://app.gilpick.example/auth/kakao/complete",
         android_app_link_host="app.gilpick.example",
+        tour_api_service_key="test-tour-api-key",
+        google_places_api_key="test-google-places-key",
     )
 
 

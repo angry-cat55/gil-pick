@@ -1,0 +1,19 @@
+{
+  "response": {
+    "header": {"resultCode": "0000", "resultMsg": "OK"},
+    "body": {
+      "items": {
+        "item": [
+          {"lclsSystm1Cd": "NA", "lclsSystm1Nm": "자연관광"},
+          {"lclsSystm1Cd": "HS", "lclsSystm1Nm": "역사관광"},
+          {"lclsSystm1Cd": "FD", "lclsSystm1Nm": "음식"},
+          {"lclsSystm1Cd": "SH", "lclsSystm1Nm": "쇼핑"},
+          {"lclsSystm1Cd": "VE", "lclsSystm1Nm": "문화관광"}
+        ]
+      },
+      "numOfRows": 5,
+      "pageNo": 1,
+      "totalCount": 5
+    }
+  }
+}
