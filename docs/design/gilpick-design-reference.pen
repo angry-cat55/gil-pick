@@ -12290,16 +12290,37 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "Zldfd",
+                  "id": "IASeU",
                   "name": "Name",
                   "fill": "$on-surface",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
                   "content": "서울 자유여행",
                   "lineHeight": 1.36,
                   "fontFamily": "$font",
                   "fontSize": 22,
                   "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "Y4iBiM",
+                  "name": "Pill",
+                  "fill": "$primary-container",
+                  "cornerRadius": 999,
+                  "padding": [
+                    2,
+                    7
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y9FF5",
+                      "name": "L",
+                      "fill": "$primary",
+                      "content": "여행 중",
+                      "fontFamily": "$font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
                 }
               ]
             },

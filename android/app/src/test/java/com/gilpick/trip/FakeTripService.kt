@@ -1,6 +1,9 @@
 package com.gilpick.trip
 
+import com.gilpick.auth.ResponseMeta
 import com.gilpick.auth.SuccessEnvelope
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Response
 
 /**
@@ -43,10 +46,24 @@ class FakeTripService : TripService {
         body: CreateTripRequest,
     ): Response<SuccessEnvelope<TripDto>> = error("이 test는 생성 endpoint를 호출하지 않는다")
 
+    /** 지금까지 도착한 상세 요청의 `tripId`. 호출 순서대로 쌓인다. */
+    val getCalls = mutableListOf<String>()
+
+    /**
+     * `tripId`를 받아 상세 응답을 만든다. 기본값은 계약에 없는 호출을 막는 실패다.
+     *
+     * 상세를 쓰지 않는 test가 실수로 호출하면 조용히 통과하는 대신 즉시 드러나야 한다.
+     */
+    var onGet: (String) -> Response<SuccessEnvelope<TripDto>> =
+        { error("이 test는 상세 endpoint를 호출하지 않는다") }
+
     override suspend fun getTrip(
         bearer: String,
         tripId: String,
-    ): Response<SuccessEnvelope<TripDto>> = error("이 test는 상세 endpoint를 호출하지 않는다")
+    ): Response<SuccessEnvelope<TripDto>> {
+        getCalls += tripId
+        return onGet(tripId)
+    }
 
     override suspend fun updateTrip(
         bearer: String,
@@ -95,3 +112,28 @@ fun trip(
     dayCount = 3,
     version = 1,
 )
+
+/** 여행 상세 성공 응답을 만든다. */
+fun detail(trip: TripDto): Response<SuccessEnvelope<TripDto>> = Response.success(
+    SuccessEnvelope(
+        success = true,
+        data = trip,
+        meta = ResponseMeta(requestId = REQUEST_ID),
+    ),
+)
+
+/**
+ * 계약이 정한 error envelope로 실패 응답을 만든다.
+ *
+ * repository가 code로 원인을 판정하므로 상태 코드와 code를 함께 준다.
+ */
+fun errorResponse(
+    httpStatus: Int,
+    code: String,
+): Response<SuccessEnvelope<TripDto>> = Response.error(
+    httpStatus,
+    """{"success":false,"error":{"code":"$code","message":"진단용 설명","retryable":false},"meta":{"requestId":"$REQUEST_ID"}}"""
+        .toResponseBody("application/json".toMediaType()),
+)
+
+private const val REQUEST_ID = "11111111-2222-4333-8444-555555555555"

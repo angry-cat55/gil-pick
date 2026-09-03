@@ -191,7 +191,7 @@
   - 담당: ts
   - 선행: T012
   - 검증: FR-004, FR-017, US3 Acceptance Scenario 1~3, 구현 전 실패
-- [ ] T024 [P] [US3] Android unit test: 상세 화면 상태 매핑(로딩·성공·오류) in `android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt`
+- [x] T024 [P] [US3] Android unit test: 상세 화면 상태 매핑(로딩·성공·오류) in `android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T006
@@ -209,17 +209,17 @@
   - 담당: ts
   - 선행: T025
   - 검증: 응답이 `TripEnvelope` 계약과 일치
-- [ ] T027 [P] [US3] `TripRepository.getTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
+- [x] T027 [P] [US3] `TripRepository.getTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T020
   - 검증: `403`/`404` 오류를 도메인 오류로 매핑
-- [ ] T028 [US3] `TripDetailScreen`·`TripDetailViewModel` 구현 in `android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt`
+- [x] T028 [US3] `TripDetailScreen`·`TripDetailViewModel` 구현 in `android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T024, T027
   - 검증: T024 test 통과. `docs/design/ui-guidelines.md` 9절 4상태(loading·empty·error·content) 구현, 여행 상태(예정/여행 중/완료)는 `com.gilpick.ui.component`의 상태 뱃지로 표시(색만으로 구분 금지, 텍스트 병기), 색상·간격·타이포는 `com.gilpick.ui.theme` 토큰만 사용
-- [ ] T029 [US3] 목록에서 상세로 이동하는 navigation 연결 in `android/app/src/main/java/com/gilpick/trip/TripListScreen.kt`
+- [x] T029 [US3] 목록에서 상세로 이동하는 navigation 연결 in `android/app/src/main/java/com/gilpick/trip/TripListScreen.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T021, T028

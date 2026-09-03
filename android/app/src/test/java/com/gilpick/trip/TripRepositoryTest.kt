@@ -119,6 +119,72 @@ class TripRepositoryTest {
         assertTrue((result as AuthResult.Failure).error is AuthError.Offline)
     }
 
+    @Test
+    fun `상세 성공 응답을 여행으로 읽는다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 200, body = createdTripJson()))
+
+        val result = repository.getTrip(TRIP_ID)
+
+        val trip = (result as AuthResult.Success).value
+        assertEquals(TRIP_ID, trip.tripId)
+        assertEquals("서울 여행", trip.name)
+        assertEquals(TripStatus.UPCOMING, trip.status)
+    }
+
+    @Test
+    fun `상세 조회는 계약대로 경로와 header를 보낸다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 200, body = createdTripJson()))
+
+        repository.getTrip(TRIP_ID)
+
+        val request = server.takeRequest()
+        assertEquals("GET", request.method)
+        assertEquals("/api/v1/trips/$TRIP_ID", request.url.encodedPath)
+        assertEquals("Bearer $ACCESS_TOKEN", request.headers["Authorization"])
+    }
+
+    @Test
+    fun `소유하지 않은 여행의 403을 FORBIDDEN으로 좁힌다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 403, body = errorJson(TripErrorCodes.FORBIDDEN)))
+
+        val result = repository.getTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDetailError.FORBIDDEN, error.toDetailError())
+    }
+
+    @Test
+    fun `없거나 삭제된 여행의 404를 NOT_FOUND로 좁힌다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 404, body = errorJson(TripErrorCodes.TRIP_NOT_FOUND)))
+
+        val result = repository.getTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDetailError.NOT_FOUND, error.toDetailError())
+    }
+
+    @Test
+    fun `상세 조회의 통신 실패는 NETWORK로 좁힌다`() = withRepository { server, repository ->
+        server.close()
+
+        val result = repository.getTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertTrue(error is AuthError.Offline)
+        assertEquals(TripDetailError.NETWORK, error.toDetailError())
+    }
+
+    @Test
+    fun `알 수 없는 서버 오류는 UNEXPECTED로 좁힌다`() = withRepository { server, repository ->
+        // 계약에 없는 code가 오더라도 화면이 안내할 수 있는 원인으로 떨어져야 한다.
+        server.enqueue(MockResponse(code = 500, body = errorJson("INTERNAL_ERROR")))
+
+        val result = repository.getTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDetailError.UNEXPECTED, error.toDetailError())
+    }
+
     private suspend fun createTrip(repository: TripRepository) = repository.createTrip(
         name = "서울 여행",
         startDate = LocalDate.of(2026, 9, 1),

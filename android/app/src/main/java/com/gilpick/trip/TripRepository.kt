@@ -71,6 +71,21 @@ class TripRepository(
     }
 
     /**
+     * 여행 하나의 상세를 조회한다.
+     *
+     * 상태(`예정`/`여행 중`/`완료`)는 서버가 KST 기준으로 계산해 내려주므로(`spec.md`
+     * FR-006) 앱은 응답 값을 그대로 쓴다.
+     *
+     * @param tripId 조회할 여행 식별자.
+     * @return 여행 상세 또는 좁혀진 실패 원인. 실패 원인은 [AuthError.toDetailError]로
+     *   화면이 안내할 수 있는 [TripDetailError]로 좁힌다.
+     */
+    suspend fun getTrip(tripId: String): AuthResult<TripDto> =
+        auth.withAccessToken { accessToken ->
+            api.getTrip(bearer = "Bearer $accessToken", tripId = tripId)
+        }
+
+    /**
      * 소유한 여행 목록을 한 페이지 조회한다.
      *
      * 검색어와 상태 필터는 cursor에 결합되어 있다. 조건을 바꾸면 [cursor]를 비워 첫
@@ -107,4 +122,37 @@ class TripRepository(
             AuthResult.Failure(AuthError.Offline(e))
         }
     }
+}
+
+/**
+ * 상세 조회가 실패한 이유. 화면이 원인과 다음 행동을 안내하는 데 쓴다.
+ *
+ * 계약(`contracts/trips.openapi.yaml`)은 상세 조회에 `403`과 `404`를 함께 정의한다.
+ * 둘 다 재시도해도 결과가 같지만 사용자에게 할 말이 다르므로 분리한다.
+ */
+enum class TripDetailError {
+    /** 통신 실패. 같은 요청을 그대로 다시 보낼 수 있다. */
+    NETWORK,
+
+    /** `404 TRIP_NOT_FOUND`. 없거나 이미 삭제된 여행이다. `spec.md` FR-015. */
+    NOT_FOUND,
+
+    /** `403 FORBIDDEN`. 다른 사용자의 여행이다. `spec.md` FR-004·FR-017. */
+    FORBIDDEN,
+
+    /** 그 밖의 실패. 잠시 후 다시 시도한다. */
+    UNEXPECTED,
+}
+
+/**
+ * 상세 조회 실패를 화면이 안내할 수 있는 원인으로 좁힌다.
+ *
+ * HTTP 상태 코드가 아니라 계약이 정한 error code로 판정한다. 상태 코드는 같아도 code가
+ * 다른 실패가 뒤에 생길 수 있고, code 쪽이 서버가 확정한 의미이기 때문이다.
+ */
+internal fun AuthError.toDetailError(): TripDetailError = when {
+    this is AuthError.Offline -> TripDetailError.NETWORK
+    this is AuthError.Server && code == TripErrorCodes.TRIP_NOT_FOUND -> TripDetailError.NOT_FOUND
+    this is AuthError.Server && code == TripErrorCodes.FORBIDDEN -> TripDetailError.FORBIDDEN
+    else -> TripDetailError.UNEXPECTED
 }

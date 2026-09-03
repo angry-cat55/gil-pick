@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * @param onRetry 실패한 조회를 다시 시도한다.
  * @param onLoadMore 다음 페이지를 요청한다.
  * @param onCreateTrip 여행 생성 화면으로 이동한다.
+ * @param onTripClick 고른 여행의 상세 화면으로 이동한다.
  * @param onLogout 현재 기기에서 로그아웃한다.
  */
 @Composable
@@ -67,6 +68,7 @@ fun TripListScreen(
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
     onCreateTrip: () -> Unit,
+    onTripClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     onLogout: () -> Unit = {},
 ) {
@@ -102,6 +104,7 @@ fun TripListScreen(
                     loadingMore = state.loadingMore,
                     hasNext = state.hasNext,
                     onLoadMore = onLoadMore,
+                    onTripClick = onTripClick,
                 )
             }
         }
@@ -284,6 +287,7 @@ private fun TripList(
     loadingMore: Boolean,
     hasNext: Boolean,
     onLoadMore: () -> Unit,
+    onTripClick: (String) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val listState = rememberLazyListState()
@@ -315,6 +319,7 @@ private fun TripList(
                 supporting = trip.supportingText(today),
                 badgeLabel = stringResource(trip.status.labelRes),
                 badgeTone = trip.status.tone,
+                onClick = { onTripClick(trip.tripId) },
             )
         }
         if (loadingMore) {
