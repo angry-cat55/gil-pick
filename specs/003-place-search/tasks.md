@@ -65,7 +65,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T005
   - 검증: caplog 기반 보안 test에서 service key와 provider 원문 body가 출력되지 않고 request ID와 내부 오류 code만 기록됨
-- [ ] T007 Backend 장소 router 등록과 인증 경계 연결 in api/app/api/v1/places.py, api/app/main.py
+- [x] T007 Backend 장소 router 등록과 인증 경계 연결 in api/app/api/v1/places.py, api/app/main.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, F001 인증 API·`401 INVALID_ACCESS_TOKEN` 계약 확정
