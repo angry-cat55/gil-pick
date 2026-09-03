@@ -139,6 +139,15 @@ dependencies {
     // type-safe route는 kotlin("plugin.serialization")이 이미 적용돼 있어 그대로 쓴다.
     implementation("androidx.navigation:navigation-compose:2.10.0")
 
+    // type-safe route로 검색 → 상세 화면 이동을 구성한다. route 인자는 이미 적용된
+    // kotlinx.serialization plugin으로 직렬화한다.
+    implementation("androidx.navigation:navigation-compose:2.9.8")
+
+    // 장소 썸네일은 원격 URL이므로 Coil로 비동기 로드한다. 이미 쓰는 OkHttp를
+    // network layer로 재사용하려고 coil-network-okhttp를 함께 선언한다.
+    implementation("io.coil-kt.coil3:coil-compose:3.6.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.0")
+
     implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.datastore:datastore:1.2.1")
     // okio 저장소를 직접 사용하므로 transitive 의존이 아니라 명시적으로 선언한다.

@@ -26,7 +26,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: 없음
   - 검증: 설정 unit test에서 기본 URL·5초 timeout을 확인하고 service key가 `SecretStr`로만 노출되는지 검토
-- [ ] T002 [P] Navigation Compose와 Coil 의존성 추가 in android/gradle/libs.versions.toml, android/app/build.gradle.kts
+- [x] T002 [P] Navigation Compose와 Coil 의존성 추가 in android/gradle/libs.versions.toml, android/app/build.gradle.kts
   - 영역: FE
   - 담당: jy
   - 선행: 없음
