@@ -70,7 +70,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T004, F001 인증 API·`401 INVALID_ACCESS_TOKEN` 계약 확정
   - 검증: 인증 없음·만료 token 요청이 F001 공통 `401 INVALID_ACCESS_TOKEN` envelope를 반환하는 integration test 통과
-- [ ] T008 Android 장소 API DTO와 Retrofit interface 구현 in android/app/src/main/java/com/gilpick/place/PlaceApi.kt
+- [x] T008 Android 장소 API DTO와 Retrofit interface 구현 in android/app/src/main/java/com/gilpick/place/PlaceApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T004, T035
