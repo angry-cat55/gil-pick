@@ -94,7 +94,7 @@ class AuthRefreshIntegrationTest {
         )
         setContentWithRepository()
         composeRule.onNodeWithText(string(R.string.refresh_offline_title)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.trips_empty)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.trips_title)).assertDoesNotExist()
     }
 
     @Test
@@ -109,7 +109,7 @@ class AuthRefreshIntegrationTest {
         composeRule.onNodeWithText(string(R.string.refresh_offline_retry)).performClick()
         composeRule.waitUntil(TIMEOUT_MS) { repository.state.value is AuthUiState.Authenticated }
 
-        composeRule.onNodeWithText(string(R.string.trips_empty)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
         assertEquals(SECOND_ACCESS, runBlocking { repository.currentSession() }?.accessToken)
     }
 

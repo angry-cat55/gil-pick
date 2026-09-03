@@ -3792,6 +3792,29 @@
                                       "fontFamily": "$font",
                                       "fontSize": 16,
                                       "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "nI3nO",
+                                      "name": "Pill",
+                                      "fill": "$primary-container",
+                                      "cornerRadius": 999,
+                                      "padding": [
+                                        2,
+                                        7
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "PCHSb",
+                                          "name": "L",
+                                          "fill": "$primary",
+                                          "content": "여행 중",
+                                          "fontFamily": "$font",
+                                          "fontSize": 12,
+                                          "fontWeight": "500"
+                                        }
+                                      ]
                                     }
                                   ]
                                 },
@@ -3811,7 +3834,7 @@
                                   "id": "Z4wtvL",
                                   "name": "Meta",
                                   "fill": "$outline",
-                                  "content": "D-37 · 장소 12곳",
+                                  "content": "2일째 · 장소 12곳",
                                   "fontFamily": "$font",
                                   "fontSize": 12,
                                   "fontWeight": "500"

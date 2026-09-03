@@ -88,13 +88,16 @@ class AuthLogoutIntegrationTest {
     fun 오프라인_로그아웃은_즉시_보호_화면을_차단한다() {
         runBlocking { signIn(refreshToken = FIRST_REFRESH) }
         setContentWithRepository()
-        composeRule.onNodeWithText(string(R.string.trips_empty)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
 
         composeRule.onNodeWithText(string(R.string.logout)).performClick()
         composeRule.waitUntil(TIMEOUT_MS) { repository.state.value == AuthUiState.SignedOut }
 
         composeRule.onNodeWithText(string(R.string.login_kakao)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.trips_empty)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.trips_title)).assertDoesNotExist()
+        // 로그인 화면 전환은 저장소 정리를 기다리지 않는다. network가 느려도 즉시
+        // 로그아웃되어야 하기 때문이다. 저장소가 비는 것은 조금 뒤에 확정된다.
+        composeRule.waitUntil(TIMEOUT_MS) { runBlocking { repository.currentSession() } == null }
         assertNull("활성 session이 남으면 안 된다", runBlocking { repository.currentSession() })
     }
 

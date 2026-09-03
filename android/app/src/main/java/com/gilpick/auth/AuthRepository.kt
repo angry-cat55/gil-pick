@@ -233,16 +233,30 @@ class AuthRepository(
      */
     suspend fun <T> withAccessToken(
         request: suspend (accessToken: String) -> Response<SuccessEnvelope<T>>,
+    ): AuthResult<T> = withAuthorizedCall { accessToken -> call { request(accessToken) } }
+
+    /**
+     * 공통 envelope가 아닌 응답에도 같은 Access Token·갱신·replay 정책을 적용한다.
+     *
+     * 목록 endpoint처럼 `meta`에 pagination이 붙어 [SuccessEnvelope]로 표현할 수 없는
+     * 응답이 있다. 그 경우 응답을 [AuthResult]로 옮기는 방법만 [call]로 받고, 갱신
+     * 정책은 [withAccessToken]과 같은 구현을 공유해 두 경로가 갈라지지 않게 한다.
+     *
+     * @param call Access Token을 받아 요청하고 결과를 [AuthResult]로 좁힌다. 통신 실패는
+     *   호출자가 [AuthError.Offline]으로 옮겨야 한다.
+     */
+    suspend fun <T> withAuthorizedCall(
+        call: suspend (accessToken: String) -> AuthResult<T>,
     ): AuthResult<T> {
         val session = store.loadSession()
             ?: return AuthResult.Failure(AuthError.Server(AuthErrorCodes.INVALID_REFRESH_TOKEN, false, 401))
 
-        val first = call { request(session.accessToken) }
+        val first = call(session.accessToken)
         if (!first.isUnauthorized()) return first
 
         return when (val outcome = refresh()) {
             is RefreshOutcome.Refreshed -> {
-                val replayed = call { request(outcome.accessToken) }
+                val replayed = call(outcome.accessToken)
                 if (replayed.isUnauthorized()) onSignedOut()
                 replayed
             }

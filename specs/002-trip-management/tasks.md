@@ -140,7 +140,7 @@
   - 담당: ts
   - 선행: T012
   - 검증: FR-004, FR-005, SC-005
-- [ ] T017 [P] [US2] Android unit test: 검색어·상태 필터 조합 상태 관리·무결과 상태 표시 in `android/app/src/test/java/com/gilpick/trip/TripListViewModelTest.kt`
+- [x] T017 [P] [US2] Android unit test: 검색어·상태 필터 조합 상태 관리·무결과 상태 표시 in `android/app/src/test/java/com/gilpick/trip/TripListViewModelTest.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T006
@@ -158,17 +158,17 @@
   - 담당: ts
   - 선행: T018
   - 검증: 응답이 `TripListResponse`(cursor·`hasNext`) 계약과 일치
-- [ ] T020 [P] [US2] `TripRepository.listTrips` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
+- [x] T020 [P] [US2] `TripRepository.listTrips` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T006
   - 검증: cursor 페이지네이션 응답을 다음 페이지 요청에 올바르게 반영
-- [ ] T021 [US2] `TripListScreen`·`TripListViewModel`(검색·필터·무한 스크롤) 구현 in `android/app/src/main/java/com/gilpick/trip/TripListScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripListViewModel.kt`
+- [x] T021 [US2] `TripListScreen`·`TripListViewModel`(검색·필터·무한 스크롤) 구현 in `android/app/src/main/java/com/gilpick/trip/TripListScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripListViewModel.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T017, T020
   - 검증: T017 test 통과. `docs/design/ui-guidelines.md` 9절 4상태(`loading`은 1초 초과 시에만 skeleton, `empty`는 이유와 행동 버튼, `error`는 원인과 재시도 버튼, `content`) 모두 구현, `com.gilpick.ui.component`의 여행 카드·여행 목록 행·상태 뱃지 재사용, 색상·간격·타이포는 `com.gilpick.ui.theme` 토큰만 사용(리터럴 금지)
-- [ ] T022 [US2] `MainActivity` 진입점을 `AuthenticatedHomeScreen`에서 `TripListScreen`으로 교체 in `android/app/src/main/java/com/gilpick/MainActivity.kt`
+- [x] T022 [US2] `MainActivity` 진입점을 `AuthenticatedHomeScreen`에서 `TripListScreen`으로 교체 in `android/app/src/main/java/com/gilpick/MainActivity.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T021
