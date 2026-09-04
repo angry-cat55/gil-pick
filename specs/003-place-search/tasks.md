@@ -103,12 +103,12 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T004, T005
   - 검증: 6개 category·체류시간, 상업 category의 `limit` 부족분만 Google 호출, 50m·이름·주소 확정 매칭, 모호 후보 제외, 복합 cursor·변조 거부 test를 구현 전 실패로 확인
-- [ ] T012 [P] [US1] Android 검색 repository와 ViewModel unit test 작성 in android/app/src/test/java/com/gilpick/place/PlaceRepositoryTest.kt, android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt
+- [x] T012 [P] [US1] Android 검색 repository와 ViewModel unit test 작성 in android/app/src/test/java/com/gilpick/place/PlaceRepositoryTest.kt, android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008
   - 검증: 명시적 검색만 호출, draft/committed 조건 분리, 새 검색 교체, append 유지·dedupe·재시도 test를 구현 전 실패로 확인
-- [ ] T013 [P] [US1] 검색 화면 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/place/PlaceSearchScreenTest.kt
+- [x] T013 [P] [US1] 검색 화면 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/place/PlaceSearchScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002
@@ -126,21 +126,22 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T007, T014
   - 검증: `test_place_contract.py`와 검색 정상·empty·다음 cursor integration test 통과, invalid 조건에서 TourAPI 미호출 확인
-- [ ] T016 [US1] Android 검색 repository와 UI state ViewModel 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchViewModel.kt
+- [x] T016 [US1] Android 검색 repository와 UI state ViewModel 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008, T012, T015
   - 검증: repository·ViewModel unit test에서 결과 교체, `placeId` dedupe, append 실패 시 기존 결과 유지와 재시도 통과
-- [ ] T017 [US1] Android 검색 화면과 결과 목록 구현 in android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
+- [x] T017 [US1] Android 검색 화면과 결과 목록 구현 in android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T013, T016, T035
   - 검증: 기존 theme token만 사용하고 loading·empty·error·content, 1초 초과 skeleton, 이미지 fallback, live region, 48dp target을 UI test로 확인
-- [ ] T018 [US1] 검색 화면 실제 기기·접근성 검증 수행 against android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
+- [x] T018 [US1] 검색 화면 실제 기기·접근성 검증 수행 against android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T017
   - 검증: 실제 기기 또는 AVD screenshot으로 네 상태·긴 장소명·이미지 누락·360dp·최대 font scale을 기록하고 TalkBack focus가 조건 → 요약 → 목록 순서인지 확인
+  - 기록(2026-09-04, #142): AVD gilpick_api36_play에서 `PlaceSearchScreenTest` 14건·`PlaceNavigationTest` 3건 통과. `PlaceSearchScreenshotTest`가 idle/loading/content/empty/error/invalid, 긴 장소명·이미지 누락, 360dp, fontScale 2.0, 추가 조회 실패를 PNG로 남김(`adb pull /sdcard/Android/data/com.gilpick/files/screenshots`). focus 순서는 composition 순서(조건 → 요약 → 목록)로 두었고 TalkBack 실기기 수동 확인은 미수행
 
 **Checkpoint**: 검색 화면만으로 F003의 P1 MVP가 독립 동작한다.
 

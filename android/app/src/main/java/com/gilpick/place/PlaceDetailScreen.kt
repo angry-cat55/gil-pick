@@ -187,11 +187,10 @@ private fun WithAppBar(
     }
 }
 
-/** 조회 대기 표시. 1초를 넘길 때만 표시한다(가이드라인 9절). */
+/** 조회 대기 표시. 1초를 넘길 때만 표시한다(가이드라인 9절). 검색 첫 페이지도 같은 표시다. */
 @Composable
-private fun LoadingState() {
+internal fun LoadingState(label: String = stringResource(R.string.place_detail_loading)) {
     var visible by remember { mutableStateOf(false) }
-    val label = stringResource(R.string.place_detail_loading)
 
     LaunchedEffect(Unit) {
         delay(LOADING_INDICATOR_DELAY_MILLIS)
@@ -207,9 +206,9 @@ private fun LoadingState() {
     }
 }
 
-/** 가운데 정렬된 안내. 없음·오류가 같은 틀을 쓴다. */
+/** 가운데 정렬된 안내. 없음·오류가 같은 틀을 쓴다. 검색 화면의 오류·조건 안내도 같은 틀이다. */
 @Composable
-private fun StateMessage(
+internal fun StateMessage(
     title: String,
     body: String?,
     titleColor: Color = MaterialTheme.colorScheme.onBackground,
@@ -629,12 +628,13 @@ private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
 
 /**
  * Figma `Transport + duration modal`: 이동 수단 3종과 체류 시간(30~360분, 30분 단위) 선택 시트.
+ * 검색 결과 행의 `+`도 같은 시트를 연다(UI-004).
  * 기본 체류 시간은 카테고리별 추천 체류시간이다(FR-009). Figma의 이동 시간·거리 설명은
  * 경로 계산 결과라 F003에 없어 표시하지 않는다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddToScheduleSheet(
+internal fun AddToScheduleSheet(
     placeName: String,
     defaultMinutes: Int,
     onDismiss: () -> Unit,
