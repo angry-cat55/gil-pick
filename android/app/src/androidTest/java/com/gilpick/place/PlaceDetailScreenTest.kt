@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -121,13 +122,33 @@ class PlaceDetailScreenTest {
     }
 
     @Test
-    fun 일정에_추가_버튼은_콜백을_호출한다() {
+    fun 일정에_추가는_이동_수단과_체류_시간_시트를_거쳐_선택값을_전달한다() {
+        val requests = mutableListOf<AddToScheduleRequest>()
+        setScreen(content(testPlace("tourapi:1", name = "경복궁")), onAddToSchedule = { requests += it })
+
+        composeRule.onNodeWithText("일정에 추가").performClick()
+        composeRule.onNodeWithText("이동 수단 선택").assertIsDisplayed()
+        // 기본값: 대중교통, 추천 체류시간 90분.
+        composeRule.onNodeWithText("90분").assertIsDisplayed()
+
+        composeRule.onNodeWithText("도보").performClick()
+        composeRule.onNodeWithContentDescription("체류 시간 30분 늘리기").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithText("120분").assertIsDisplayed()
+        composeRule.onNodeWithTag(ADD_TO_SCHEDULE_CONFIRM_TAG).performClick()
+
+        assertEquals(listOf(AddToScheduleRequest(PlaceTransport.WALK, 120)), requests)
+    }
+
+    @Test
+    fun 시트에서_취소하면_아무것도_전달하지_않는다() {
         var adds = 0
         setScreen(content(testPlace("tourapi:1", name = "경복궁")), onAddToSchedule = { adds++ })
 
         composeRule.onNodeWithText("일정에 추가").performClick()
+        composeRule.onNodeWithText("취소").performClick()
 
-        assertEquals(1, adds)
+        assertEquals(0, adds)
+        composeRule.onAllNodes(hasText("이동 수단 선택")).assertCountEquals(0)
     }
 
     @Test
@@ -185,7 +206,7 @@ class PlaceDetailScreenTest {
         state: PlaceDetailUiState,
         onBack: () -> Unit = {},
         onRetry: () -> Unit = {},
-        onAddToSchedule: () -> Unit = {},
+        onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {

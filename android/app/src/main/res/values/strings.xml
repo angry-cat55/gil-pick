@@ -104,6 +104,16 @@
     <string name="place_detail_weather_label">날씨</string>
     <string name="place_detail_open_map">지도에서 보기</string>
     <string name="place_detail_add_to_schedule">일정에 추가</string>
+    <string name="place_detail_sheet_title">이동 수단 선택</string>
+    <string name="place_detail_sheet_subtitle">%1$s까지 어떻게 이동하시겠어요?</string>
+    <string name="place_transport_walk">도보</string>
+    <string name="place_transport_transit">대중교통</string>
+    <string name="place_transport_car">자동차</string>
+    <string name="place_detail_stay_title">체류 시간</string>
+    <string name="place_detail_stay_minutes">%1$d분</string>
+    <string name="place_detail_stay_decrease">체류 시간 30분 줄이기</string>
+    <string name="place_detail_stay_increase">체류 시간 30분 늘리기</string>
+    <string name="place_detail_cancel">취소</string>
     <string name="place_detail_not_found_title">장소를 찾을 수 없어요</string>
     <string name="place_detail_not_found_hint">더 이상 제공되지 않거나 잘못된 장소예요. 검색 결과로 돌아가 다른 장소를 골라 주세요.</string>
     <string name="place_detail_back_to_search">검색 결과로 돌아가기</string>

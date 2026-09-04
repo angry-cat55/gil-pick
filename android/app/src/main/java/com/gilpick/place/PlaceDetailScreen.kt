@@ -3,6 +3,7 @@ package com.gilpick.place
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,30 +31,36 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -81,7 +88,7 @@ import kotlinx.coroutines.delay
  * @param state 현재 상세 상태.
  * @param onBack 이전 화면(검색 결과)으로 돌아간다.
  * @param onRetry 실패한 조회를 다시 시도한다.
- * @param onAddToSchedule `일정에 추가`. F004에서 연결한다.
+ * @param onAddToSchedule 시트에서 이동 수단·체류 시간을 확정했을 때. 저장은 F004가 맡는다(FR-014).
  * @param onOpenMap 하단 지도 버튼. 지도 기능에서 연결한다.
  * @param onFavorite hero의 찜 버튼. 찜 기능은 아직 없다.
  */
@@ -91,7 +98,7 @@ fun PlaceDetailScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    onAddToSchedule: () -> Unit = {},
+    onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     onOpenMap: () -> Unit = {},
     onFavorite: () -> Unit = {},
 ) {
@@ -239,17 +246,30 @@ private fun StateMessage(
 
 /**
  * Figma `PlaceDetailScreen`: hero(고정) → 스크롤(stats·정보 행·지도) → 하단 CTA.
- * Figma처럼 hero와 CTA는 스크롤되지 않는다.
+ * Figma처럼 hero와 CTA는 스크롤되지 않는다. `일정에 추가`는 이동 수단·체류 시간 시트를 연다.
  */
 @Composable
 private fun Content(
     place: PlaceDto,
     onBack: () -> Unit,
-    onAddToSchedule: () -> Unit,
+    onAddToSchedule: (AddToScheduleRequest) -> Unit,
     onOpenMap: () -> Unit,
     onFavorite: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showSheet by remember { mutableStateOf(false) }
+
+    if (showSheet) {
+        AddToScheduleSheet(
+            placeName = place.name,
+            defaultMinutes = place.recommendedStayMinutes,
+            onDismiss = { showSheet = false },
+            onConfirm = { request ->
+                showSheet = false
+                onAddToSchedule(request)
+            },
+        )
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -269,7 +289,7 @@ private fun Content(
             MapPreview(name = place.name)
             Spacer(modifier = Modifier.height(96.dp))
         }
-        ActionBar(onOpenMap = onOpenMap, onAddToSchedule = onAddToSchedule)
+        ActionBar(onOpenMap = onOpenMap, onAddToSchedule = { showSheet = true })
     }
 }
 
@@ -613,6 +633,231 @@ private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
 }
 
 /**
+ * Figma `Transport + duration modal`: 이동 수단 3종과 체류 시간(30~360분, 30분 단위) 선택 시트.
+ * 기본 체류 시간은 카테고리별 추천 체류시간이다(FR-009). Figma의 이동 시간·거리 설명은
+ * 경로 계산 결과라 F003에 없어 표시하지 않는다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddToScheduleSheet(
+    placeName: String,
+    defaultMinutes: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (AddToScheduleRequest) -> Unit,
+) {
+    var transport by remember { mutableStateOf(PlaceTransport.TRANSIT) }
+    var minutes by remember { mutableIntStateOf(defaultMinutes.coerceIn(STAY_MIN, STAY_MAX)) }
+    val shape = RoundedCornerShape(16.dp)
+    val title = stringResource(R.string.place_detail_sheet_title)
+    val minutesText = stringResource(R.string.place_detail_stay_minutes, minutes)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        dragHandle = null,
+        scrimColor = Color.Black.copy(alpha = 0.5f),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)
+                .navigationBarsPadding(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 20.dp)
+                    .size(width = 40.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(Figma.Divider),
+            )
+            Text(
+                text = title,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                fontFamily = title.displayFont(),
+                color = Figma.Text,
+            )
+            Text(
+                text = stringResource(R.string.place_detail_sheet_subtitle, placeName),
+                fontSize = 13.sp,
+                color = Figma.Muted,
+                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+            )
+            PlaceTransport.entries.forEach { option ->
+                TransportOption(
+                    option = option,
+                    selected = transport == option,
+                    onClick = { transport = option },
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.place_detail_stay_title),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Figma.Text,
+                modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(Figma.Background)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StepButton(
+                    label = "−",
+                    contentDescription = stringResource(R.string.place_detail_stay_decrease),
+                    primary = false,
+                    onClick = { minutes = (minutes - STAY_STEP).coerceAtLeast(STAY_MIN) },
+                )
+                Text(
+                    text = minutesText,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = minutesText.displayFont(),
+                    color = Figma.Text,
+                )
+                StepButton(
+                    label = "+",
+                    contentDescription = stringResource(R.string.place_detail_stay_increase),
+                    primary = true,
+                    onClick = { minutes = (minutes + STAY_STEP).coerceAtMost(STAY_MAX) },
+                )
+            }
+            Row(
+                modifier = Modifier.padding(top = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                        .clip(shape)
+                        .background(Figma.Background)
+                        .clickable(onClick = onDismiss, role = Role.Button),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.place_detail_cancel),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Figma.Icon,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(2f)
+                        .height(50.dp)
+                        .clip(shape)
+                        .background(Brush.linearGradient(listOf(Figma.Primary, Figma.PrimaryDark)))
+                        .clickable(
+                            onClick = { onConfirm(AddToScheduleRequest(transport, minutes)) },
+                            role = Role.Button,
+                        )
+                        .testTag(ADD_TO_SCHEDULE_CONFIRM_TAG),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.place_detail_add_to_schedule),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Figma 이동 수단 카드: 2dp 테두리, 선택 시 `#3B7BF8` 테두리·`#EBF2FF` 배경·체크. */
+@Composable
+private fun TransportOption(
+    option: PlaceTransport,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val (icon, labelRes) = when (option) {
+        PlaceTransport.WALK -> R.drawable.ic_lucide_walk to R.string.place_transport_walk
+        PlaceTransport.TRANSIT -> R.drawable.ic_lucide_transit to R.string.place_transport_transit
+        PlaceTransport.CAR -> R.drawable.ic_lucide_car to R.string.place_transport_car
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (selected) Figma.PrimaryContainer else Color.White)
+            .border(2.dp, if (selected) Figma.Primary else Figma.Divider, shape)
+            .clickable(onClick = onClick, role = Role.RadioButton)
+            .semantics { this.selected = selected }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = if (selected) Figma.Primary else Figma.Muted,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = stringResource(labelRes),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) Figma.Primary else Figma.Text,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_check),
+                contentDescription = null,
+                tint = Figma.Primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/** Figma 체류 시간 ±버튼: 보이는 원 40dp(흰색+그림자 / gradient), 터치 영역 48dp. */
+@Composable
+private fun StepButton(label: String, contentDescription: String, primary: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(MIN_TOUCH)
+            .clip(CircleShape)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .then(if (primary) Modifier else Modifier.shadow(2.dp, CircleShape))
+                .clip(CircleShape)
+                .background(
+                    if (primary) Brush.linearGradient(listOf(Figma.Primary, Figma.PrimaryDark))
+                    else Brush.linearGradient(listOf(Color.White, Color.White)),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = if (primary) Color.White else Figma.Text,
+            )
+        }
+    }
+}
+
+/**
  * Figma `index.css`의 `Outfit, 'Noto Sans KR'`: 숫자·라틴은 Outfit, 한글은 시스템 폰트.
  * Outfit 패밀리에 한글을 맡기면 fallback 글리프에 굵기가 적용되지 않아 얇게 나오므로 문자열 단위로 고른다.
  */
@@ -635,6 +880,7 @@ private object Figma {
     val Divider = Color(0xFFE2E8F0)
     val Primary = Color(0xFF3B7BF8)
     val PrimaryDark = Color(0xFF2457C5)
+    val PrimaryContainer = Color(0xFFEBF2FF)
     val Success = Color(0xFF10B981)
     val SuccessContainer = Color(0xFFECFDF5)
     val MapBackground = Color(0xFFEBF2FF)
@@ -647,6 +893,14 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 /** 가이드라인 5절·10절: 주요 CTA 52~56dp, 터치 영역 48dp 이상. */
 private val PRIMARY_BUTTON_HEIGHT = 56.dp
 private val MIN_TOUCH = 48.dp
+
+/** Figma 체류 시간 stepper 범위: 30~360분, 30분 단위. */
+private const val STAY_MIN = 30
+private const val STAY_MAX = 360
+private const val STAY_STEP = 30
+
+/** UI test가 시트의 확정 버튼을 하단 CTA와 구분하는 tag. */
+internal const val ADD_TO_SCHEDULE_CONFIRM_TAG = "place_detail_add_to_schedule_confirm"
 
 /** 48dp 터치 영역 안에 36dp 원을 가운데 두면 원 밖 여백은 6dp다. Figma 위치(16/20)에서 이만큼 뺀다. */
 private val CIRCLE_INSET = 6.dp
