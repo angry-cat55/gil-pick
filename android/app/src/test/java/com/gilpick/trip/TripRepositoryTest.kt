@@ -324,6 +324,93 @@ class TripRepositoryTest {
         assertEquals(TripFormSubmitError.NETWORK, error.toSubmitError())
     }
 
+    // --- 삭제 (T043) ---
+
+    @Test
+    fun `삭제 성공 204를 성공으로 읽는다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 204))
+
+        val result = repository.deleteTrip(TRIP_ID)
+
+        assertEquals(204, (result as AuthResult.Success).httpStatus)
+    }
+
+    @Test
+    fun `삭제는 계약대로 경로와 header를 보낸다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 204))
+
+        repository.deleteTrip(TRIP_ID)
+
+        val request = server.takeRequest()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/trips/$TRIP_ID", request.url.encodedPath)
+        assertEquals("Bearer $ACCESS_TOKEN", request.headers["Authorization"])
+    }
+
+    @Test
+    fun `완료 상태 여행도 204로 삭제된다`() = withRepository { server, repository ->
+        // 상태는 서버가 판정하므로 앱은 상태별로 다른 요청을 보내지 않는다. 완료 여행의
+        // 기간 수정만 409 TRIP_LOCKED로 막히고 삭제는 막히지 않는다(spec.md FR-014).
+        server.enqueue(MockResponse(code = 204))
+
+        val result = repository.deleteTrip(TRIP_ID)
+
+        assertTrue(result is AuthResult.Success)
+    }
+
+    @Test
+    fun `삭제의 소유권 위반 403을 FORBIDDEN으로 좁힌다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 403, body = errorJson(TripErrorCodes.FORBIDDEN)))
+
+        val result = repository.deleteTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDeleteError.FORBIDDEN, error.toDeleteError())
+    }
+
+    @Test
+    fun `삭제의 미존재 404를 NOT_FOUND로 좁힌다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 404, body = errorJson(TripErrorCodes.TRIP_NOT_FOUND)))
+
+        val result = repository.deleteTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDeleteError.NOT_FOUND, error.toDeleteError())
+    }
+
+    @Test
+    fun `반복 삭제도 204면 같은 성공으로 읽는다`() = withRepository { server, repository ->
+        // 계약은 이미 삭제된 여행의 재삭제도 204로 정의한다(spec.md FR-016 멱등).
+        server.enqueue(MockResponse(code = 204))
+        server.enqueue(MockResponse(code = 204))
+
+        val first = repository.deleteTrip(TRIP_ID)
+        val second = repository.deleteTrip(TRIP_ID)
+
+        assertTrue(first is AuthResult.Success)
+        assertTrue(second is AuthResult.Success)
+    }
+
+    @Test
+    fun `삭제의 통신 실패는 NETWORK로 좁힌다`() = withRepository { server, repository ->
+        server.close()
+
+        val result = repository.deleteTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDeleteError.NETWORK, error.toDeleteError())
+    }
+
+    @Test
+    fun `삭제의 알 수 없는 서버 오류는 UNEXPECTED로 좁힌다`() = withRepository { server, repository ->
+        server.enqueue(MockResponse(code = 500, body = errorJson("INTERNAL_ERROR")))
+
+        val result = repository.deleteTrip(TRIP_ID)
+
+        val error = (result as AuthResult.Failure).error
+        assertEquals(TripDeleteError.UNEXPECTED, error.toDeleteError())
+    }
+
     private suspend fun createTrip(repository: TripRepository) = repository.createTrip(
         name = "서울 여행",
         startDate = LocalDate.of(2026, 9, 1),

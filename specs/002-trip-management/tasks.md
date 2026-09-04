@@ -321,12 +321,12 @@
   - 담당: ts
   - 선행: T041
   - 검증: 모든 상태의 `204` 응답 확인
-- [ ] T043 [P] [US5] `TripRepository.deleteTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
+- [x] T043 [P] [US5] `TripRepository.deleteTrip` 구현 in `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T027
   - 검증: 모든 여행 상태의 삭제 성공과 소유권·미존재 오류 매핑
-- [ ] T044 [US5] 상세 화면 삭제 버튼·확인 다이얼로그·목록 갱신 연결 in `android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripListViewModel.kt`
+- [x] T044 [US5] 상세 화면 삭제 버튼·확인 다이얼로그·목록 갱신 연결 in `android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt`, `android/app/src/main/java/com/gilpick/trip/TripListViewModel.kt`
   - 영역: FE
   - 담당: hs
   - 선행: T028, T043

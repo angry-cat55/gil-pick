@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -39,12 +40,40 @@ sealed interface TripDetailPhase {
 }
 
 /**
+ * 삭제 요청의 진행 단계.
+ *
+ * 확인 다이얼로그를 열었는지는 여기 담지 않는다. 그것은 화면 안에서만 쓰이는 표시
+ * 상태라 화면이 직접 들고 있는 편이 낫다. 여기에는 요청을 보낸 뒤에야 알 수 있는
+ * 결과만 둔다.
+ */
+sealed interface TripDeletePhase {
+    /** 아직 삭제를 요청하지 않았다. */
+    data object Idle : TripDeletePhase
+
+    /** 요청을 보냈고 응답을 기다린다. 다이얼로그의 버튼을 잠근다. */
+    data object Deleting : TripDeletePhase
+
+    /**
+     * 삭제됐다. 화면은 이 값을 보고 목록으로 돌아간다.
+     *
+     * 돌아간 뒤에는 [TripDetailViewModel.consumeDeleted]로 되돌려, 같은 신호가 다시
+     * 소비되지 않게 한다.
+     */
+    data object Deleted : TripDeletePhase
+
+    /** 삭제에 실패했다. 여행은 그대로 남아 있다. */
+    data class Failed(val error: TripDeleteError) : TripDeletePhase
+}
+
+/**
  * 여행 상세 화면 상태.
  *
  * @property phase 현재 표시 단계.
+ * @property deletion 삭제 요청의 진행 단계. 조회 단계와 독립적이라 [phase]에 섞지 않는다.
  */
 data class TripDetailUiState(
     val phase: TripDetailPhase = TripDetailPhase.Loading,
+    val deletion: TripDeletePhase = TripDeletePhase.Idle,
 )
 
 /**
@@ -88,6 +117,41 @@ class TripDetailViewModel(
     /** 조회에 실패한 뒤 같은 여행을 다시 조회한다. */
     fun retry() {
         load()
+    }
+
+    /**
+     * 이 여행을 삭제한다. 확인 다이얼로그에서 `삭제`를 눌렀을 때만 호출한다.
+     *
+     * 이미 요청을 보냈으면 아무 것도 하지 않는다. 응답을 기다리는 사이 버튼이 두 번
+     * 눌리면 같은 삭제가 두 번 나가고, 두 번째 요청은 서버가 `404`로 거절해 성공한
+     * 삭제가 실패로 보인다.
+     */
+    fun delete() {
+        if (_state.value.deletion is TripDeletePhase.Deleting) return
+
+        // 조회와 달리 앞선 요청을 취소하지 않는다. 취소해도 서버에 이미 도착한 삭제는
+        // 되돌아가지 않으므로, 결과를 못 받는 쪽이 더 나쁘다.
+        _state.update { it.copy(deletion = TripDeletePhase.Deleting) }
+
+        viewModelScope.launch {
+            val deletion = when (val result = repository.deleteTrip(tripId)) {
+                is AuthResult.Success -> TripDeletePhase.Deleted
+                is AuthResult.Failure -> TripDeletePhase.Failed(result.error.toDeleteError())
+            }
+            _state.update { it.copy(deletion = deletion) }
+        }
+    }
+
+    /** 삭제 완료 신호를 소비한다. 목록으로 돌아간 뒤 화면이 호출한다. */
+    fun consumeDeleted() {
+        _state.update { it.copy(deletion = TripDeletePhase.Idle) }
+    }
+
+    /** 삭제 실패 안내를 지운다. 사용자가 다이얼로그를 닫으면 화면이 호출한다. */
+    fun clearDeleteError() {
+        if (_state.value.deletion is TripDeletePhase.Failed) {
+            _state.update { it.copy(deletion = TripDeletePhase.Idle) }
+        }
     }
 
     companion object {

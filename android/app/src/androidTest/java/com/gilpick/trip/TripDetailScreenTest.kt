@@ -211,6 +211,8 @@ class TripDetailScreenTest {
                             onBack = { navController.popBackStack() },
                             onRetry = {},
                             onEdit = { navController.navigate(EditRoute(tripId)) },
+                            onDelete = {},
+                            onDeleteErrorShown = {},
                         )
                     }
                 }
@@ -222,7 +224,14 @@ class TripDetailScreenTest {
     private fun setDetail(state: TripDetailUiState) {
         composeRule.setContent {
             GilpickTheme {
-                TripDetailScreen(state = state, onBack = {}, onRetry = {}, onEdit = {})
+                TripDetailScreen(
+                    state = state,
+                    onBack = {},
+                    onRetry = {},
+                    onEdit = {},
+                    onDelete = {},
+                    onDeleteErrorShown = {},
+                )
             }
         }
     }
