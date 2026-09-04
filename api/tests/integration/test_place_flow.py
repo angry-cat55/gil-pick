@@ -39,12 +39,26 @@ class TourStub:
     async def search_by_area(self, **params: Any) -> dict[str, Any]:
         return await self.search_keyword(**params)
 
+    async def get_common_detail(self, content_id: str) -> dict[str, Any]:
+        matches = [item for page in self.pages for item in page if item["contentid"] == content_id]
+        item = (matches[0] | {"contenttypeid": "12", "overview": "<p>상세 설명</p>"}) if matches else None
+        return {"response": {"body": {"items": {"item": [item]} if item else ""}}}
+
+    async def get_intro_detail(self, content_id: str, content_type_id: str) -> dict[str, Any]:
+        return {"response": {"body": {"items": ""}}}
+
 
 class GoogleStub:
     """보완 결과가 없는 Google Places 대역이다."""
 
+    def __init__(self, detail: dict[str, Any] | None = None) -> None:
+        self.detail = detail or {}
+
     async def search_text(self, text_query: str, **params: Any) -> dict[str, Any]:
         return {"places": []}
+
+    async def get_place(self, place_id: str) -> dict[str, Any]:
+        return deepcopy(self.detail)
 
 
 def tour_item(content_id: str) -> dict[str, str]:
@@ -114,3 +128,37 @@ def test_search_follows_next_cursor_without_duplicate() -> None:
     assert [item["placeId"] for item in second.json()["data"]["items"]] == [
         "tourapi:2"
     ]
+
+
+@pytest.mark.usefixtures("principal_override")
+def test_tour_detail_endpoint_combines_provider_response() -> None:
+    """TourAPI 상세을 PLACE-002 envelope로 반환한다."""
+    service = PlaceService(
+        TourStub([[tour_item("1")]]), GoogleStub(), cursor_secret="test-secret"
+    )
+    app.dependency_overrides[_place_service] = lambda: service
+
+    response = TestClient(app).get("/api/v1/places/tourapi:1")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["placeId"] == "tourapi:1"
+    assert response.json()["data"]["description"] == "상세 설명"
+
+
+@pytest.mark.usefixtures("principal_override")
+def test_google_detail_endpoint_returns_allowed_fields() -> None:
+    """Google 전용 장소의 허용된 상세 필드를 반환한다."""
+    detail = {
+        "id": "g1", "displayName": {"text": "테스트 카페"},
+        "formattedAddress": "서울특별시 중구", "types": ["cafe"],
+        "location": {"latitude": 37.5, "longitude": 127.0},
+        "rating": 4.5, "userRatingCount": 10, "attributions": [],
+    }
+    service = PlaceService(TourStub([[]]), GoogleStub(detail), cursor_secret="test-secret")
+    app.dependency_overrides[_place_service] = lambda: service
+
+    response = TestClient(app).get("/api/v1/places/google:g1")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["placeId"] == "google:g1"
+    assert response.json()["data"]["description"] is None

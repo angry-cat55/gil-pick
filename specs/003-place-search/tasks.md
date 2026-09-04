@@ -155,7 +155,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] PLACE-002 TourAPI 기준 병합·Google 전용 상세 contract test 작성 in api/tests/contract/test_place_contract.py, api/tests/integration/test_place_flow.py
+- [x] T019 [P] [US2] PLACE-002 TourAPI 기준 병합·Google 전용 상세 contract test 작성 in api/tests/contract/test_place_contract.py, api/tests/integration/test_place_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, T005
@@ -168,12 +168,12 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] TourAPI 기준 상세·선택적 Google 보강·Google 전용 상세 정규화 구현 in api/app/services/place.py
+- [x] T021 [US2] TourAPI 기준 상세·선택적 Google 보강·Google 전용 상세 정규화 구현 in api/app/services/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T014, T019, T035
   - 검증: `detailCommon2`·`detailIntro2` fixture 조합, HTML plain text 처리, `openNow` 미생성, not found test 통과
-- [ ] T022 [US2] PLACE-002 상세 endpoint 구현 in api/app/api/v1/places.py
+- [x] T022 [US2] PLACE-002 상세 endpoint 구현 in api/app/api/v1/places.py
   - 영역: BE
   - 담당: ts
   - 선행: T021

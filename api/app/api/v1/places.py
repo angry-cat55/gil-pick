@@ -4,11 +4,11 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Literal
 
 import httpx2
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_current_principal
-from app.api.errors import AppError, get_request_id
+from app.api.errors import AppError, get_request_id, success_response
 from app.clients.google_places import GooglePlacesClient
 from app.clients.tour_api import TourApiClient
 from app.core.config import Settings, get_settings
@@ -19,6 +19,7 @@ from app.schemas.place import (
     PlaceListData,
     PlaceListEnvelope,
     PlaceListMeta,
+    PlaceEnvelope,
 )
 from app.services.place import PlaceService
 
@@ -91,3 +92,17 @@ async def search_places(
         ),
     )
     return JSONResponse(content=response.model_dump(mode="json", by_alias=True))
+
+
+@router.get("/{placeId}", response_model=PlaceEnvelope, responses={
+    400: {"model": ErrorEnvelope}, 401: {"model": ErrorEnvelope},
+    404: {"model": ErrorEnvelope}, 429: {"model": ErrorEnvelope},
+    502: {"model": ErrorEnvelope}, 504: {"model": ErrorEnvelope},
+})
+async def get_place(
+    request: Request,
+    service: Annotated[PlaceService, Depends(_place_service)],
+    place_id: Annotated[str, Path(alias="placeId", pattern=r"^(tourapi|google):[A-Za-z0-9_-]+$")],
+) -> JSONResponse:
+    """provider 이름공간 ID로 장소 상세를 조회한다."""
+    return success_response(request, await service.get_place(place_id))

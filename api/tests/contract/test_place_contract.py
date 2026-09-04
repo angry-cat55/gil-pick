@@ -18,6 +18,7 @@ from app.schemas.place import (
     PlaceSource,
     PlaceSummary,
     TourApiCategory,
+    PlaceDetail,
 )
 
 
@@ -74,6 +75,24 @@ class StubPlaceSearchService:
             ],
             "next-page",
             True,
+        )
+
+    async def get_place(self, place_id: str) -> PlaceDetail:
+        """상세 path 전달과 nullable 응답을 검증한다."""
+        if place_id.endswith("missing"):
+            raise AppError(404, "PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.")
+        return PlaceDetail(
+            place_id=place_id,
+            source=PlaceSource.TOUR_API,
+            source_place_id=place_id.split(":", 1)[1],
+            name="경복궁",
+            category=PlaceCategory.HISTORY_CULTURE,
+            tour_api_category=TourApiCategory(large="HS", middle="HS01", small=None),
+            address=None, latitude=None, longitude=None, image_url=None,
+            recommended_stay_minutes=90, rating=None, user_rating_count=None,
+            business_status=None, regular_opening_hours=None,
+            current_opening_hours=None, google_attributions=None,
+            description=None, phone=None, operating_guide=None,
         )
 
 
@@ -197,3 +216,45 @@ def test_search_openapi_declares_parameters_and_responses() -> None:
         "title": "Limit",
     }
     assert set(operation["responses"]) == {"200", "400", "401", "429", "502", "504"}
+
+
+def test_detail_contract_returns_nullable_fields(
+    place_client: tuple[TestClient, StubPlaceSearchService],
+) -> None:
+    """PLACE-002가 상세 nullable 필드를 빠짐없이 반환한다."""
+    client, _ = place_client
+
+    response = client.get("/api/v1/places/tourapi:126508")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["description"] is None
+    assert response.json()["data"]["phone"] is None
+    assert response.json()["data"]["operatingGuide"] is None
+
+
+@pytest.mark.parametrize(
+    ("place_id", "code"),
+    [("invalid", "INVALID_REQUEST"), ("tourapi:missing", "PLACE_NOT_FOUND")],
+)
+def test_detail_contract_rejects_invalid_or_missing_place(
+    place_client: tuple[TestClient, StubPlaceSearchService],
+    place_id: str,
+    code: str,
+) -> None:
+    """잘못된 ID와 존재하지 않는 장소를 구분한다."""
+    client, _ = place_client
+
+    response = client.get(f"/api/v1/places/{place_id}")
+
+    assert response.status_code == (400 if code == "INVALID_REQUEST" else 404)
+    assert response.json()["error"]["code"] == code
+
+
+def test_detail_openapi_declares_path_and_responses() -> None:
+    """PLACE-002 OpenAPI가 path 형식과 공개 응답을 선언한다."""
+    operation = app.openapi()["paths"]["/api/v1/places/{placeId}"]["get"]
+
+    assert operation["parameters"][0]["name"] == "placeId"
+    assert set(operation["responses"]) == {
+        "200", "400", "401", "404", "429", "502", "504"
+    }

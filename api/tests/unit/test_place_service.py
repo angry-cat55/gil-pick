@@ -318,3 +318,163 @@ async def test_cursor_rejects_tampering_and_other_criteria(
         )
 
     assert error.value.code == "INVALID_CURSOR"
+
+
+class DetailTourClient:
+    """TourAPI 공통·소개 상세 응답 대역."""
+
+    def __init__(self, common: dict[str, Any], intro: dict[str, Any]) -> None:
+        self.common = common
+        self.intro = intro
+        self.intro_calls: list[tuple[str, str]] = []
+
+    async def get_common_detail(self, content_id: str) -> dict[str, Any]:
+        return deepcopy(self.common)
+
+    async def get_intro_detail(
+        self, content_id: str, content_type_id: str
+    ) -> dict[str, Any]:
+        self.intro_calls.append((content_id, content_type_id))
+        return deepcopy(self.intro)
+
+
+class DetailGoogleClient(StubGoogleClient):
+    """Google 검색·상세 응답 대역."""
+
+    def __init__(self, detail: dict[str, Any] | None = None) -> None:
+        super().__init__()
+        self.detail = detail or {}
+
+    async def get_place(self, place_id: str) -> dict[str, Any]:
+        return deepcopy(self.detail)
+
+
+def detail_response(item: dict[str, Any] | None) -> dict[str, Any]:
+    """TourAPI 상세 envelope를 만든다."""
+    return {
+        "response": {
+            "body": {
+                "items": {"item": [item]} if item else "",
+                "totalCount": 1 if item else 0,
+            }
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_tour_detail_combines_common_and_intro_without_inventing_open_now() -> None:
+    """TourAPI 공통·소개 상세를 조합하고 HTML을 plain text로 바꾼다."""
+    common = tour_item("1", name="테스트 상점", large="SH", middle="SH01") | {
+        "contenttypeid": "38",
+        "overview": "<p>안전한 <strong>설명</strong>입니다.</p>",
+        "tel": "02-0000-0000",
+    }
+    intro = {
+        "contentid": "1",
+        "contenttypeid": "38",
+        "opentime": "10:00~20:00",
+        "restdateshopping": "매주 월요일",
+    }
+    place_service = PlaceService(
+        DetailTourClient(detail_response(common), detail_response(intro)),
+        DetailGoogleClient(), cursor_secret="test-secret",
+    )
+
+    detail = await place_service.get_place("tourapi:1")
+
+    assert detail.place_id == "tourapi:1"
+    assert detail.description == "안전한 설명입니다."
+    assert detail.phone == "02-0000-0000"
+    assert detail.operating_guide == "10:00~20:00, 매주 월요일"
+    assert detail.business_status is None
+
+
+@pytest.mark.asyncio
+async def test_google_detail_returns_only_allowed_fields() -> None:
+    """Google 전용 상세는 사진·리뷰 없이 허용된 필드만 반환한다."""
+    raw = google_place(
+        "g1", name="테스트 카페", address="서울특별시 중구 테스트로 1",
+        latitude=37.5666, longitude=126.9784,
+    ) | {
+        "nationalPhoneNumber": "02-1111-2222",
+        "photos": [{"name": "should-not-leak"}],
+        "reviews": [{"text": "should-not-leak"}],
+    }
+    place_service = PlaceService(
+        DetailTourClient(detail_response(None), detail_response(None)),
+        DetailGoogleClient(raw), cursor_secret="test-secret",
+    )
+
+    detail = await place_service.get_place("google:g1")
+    payload = detail.model_dump(mode="json", by_alias=True)
+
+    assert detail.place_id == "google:g1"
+    assert detail.category is PlaceCategory.CAFE
+    assert detail.phone == "02-1111-2222"
+    assert detail.description is None
+    assert detail.operating_guide is None
+    assert "photos" not in payload
+    assert "reviews" not in payload
+
+
+@pytest.mark.asyncio
+async def test_google_detail_normalizes_structured_attribution() -> None:
+    """Google attribution 객체를 Android가 표시할 문자열로 정규화한다."""
+    raw = google_place(
+        "g1", name="테스트 카페", address="서울특별시 중구",
+        latitude=37.5, longitude=127.0,
+    )
+    raw["attributions"] = [
+        {"provider": "Example Provider", "providerUri": "https://example.com"}
+    ]
+    place_service = PlaceService(
+        DetailTourClient(detail_response(None), detail_response(None)),
+        DetailGoogleClient(raw), cursor_secret="test-secret",
+    )
+
+    detail = await place_service.get_place("google:g1")
+
+    assert detail.google_attributions == ["Example Provider (https://example.com)"]
+
+
+@pytest.mark.asyncio
+async def test_tour_commercial_detail_merges_confirmed_google_fields() -> None:
+    """상업 Tour 상세은 확정 매칭된 Google 평점·영업정보만 보강한다."""
+    common = tour_item(
+        "1", name="테스트 카페", large="FD", middle="FD05"
+    ) | {"contenttypeid": "39"}
+    google = DetailGoogleClient()
+    google.response = {
+        "places": [
+            google_place(
+                "g1", name="테스트 카페", address="서울특별시 중구 세종대로 110",
+                latitude=37.56661, longitude=126.978388,
+            )
+        ]
+    }
+    place_service = PlaceService(
+        DetailTourClient(detail_response(common), detail_response({})),
+        google, cursor_secret="test-secret",
+    )
+
+    detail = await place_service.get_place("tourapi:1")
+
+    assert detail.place_id == "tourapi:1"
+    assert detail.rating == 4.6
+    assert detail.google_attributions == ["Google Maps"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("place_id", ["tourapi:missing", "google:missing"])
+async def test_detail_maps_empty_provider_result_to_not_found(place_id: str) -> None:
+    """기준 provider에 장소가 없으면 PLACE_NOT_FOUND를 반환한다."""
+    place_service = PlaceService(
+        DetailTourClient(detail_response(None), detail_response(None)),
+        DetailGoogleClient({}), cursor_secret="test-secret",
+    )
+
+    with pytest.raises(AppError) as error:
+        await place_service.get_place(place_id)
+
+    assert error.value.code == "PLACE_NOT_FOUND"
+    assert error.value.status_code == 404

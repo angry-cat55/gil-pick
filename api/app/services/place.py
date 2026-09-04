@@ -7,15 +7,19 @@ import hashlib
 import hmac
 import json
 import math
+from html import unescape
+from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from app.api.errors import AppError
+from app.clients.google_places import GooglePlacesClientError
 from app.clients.tour_api import TourApiClientError
 from app.schemas.place import (
     BusinessStatus,
     PlaceCategory,
     PlaceSource,
+    PlaceDetail,
     PlaceSummary,
     TourApiCategory,
 )
@@ -41,6 +45,17 @@ _CATEGORY_LABEL = {
     PlaceCategory.CAFE: "카페",
     PlaceCategory.SHOPPING: "쇼핑",
 }
+
+
+class _PlainTextParser(HTMLParser):
+    """HTML markup을 제외한 text node만 모은다."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
 
 
 class PlaceService:
@@ -136,6 +151,88 @@ class PlaceService:
             )
         return items[:limit], next_cursor, has_next
 
+    async def get_place(self, place_id: str) -> PlaceDetail:
+        """provider prefix에 따라 장소 상세를 조회한다."""
+        provider, source_id = place_id.split(":", 1)
+        if provider == "google":
+            try:
+                raw = await self.google_client.get_place(source_id)
+            except GooglePlacesClientError as exc:
+                raise self._provider_error(exc) from exc
+            category = self._google_category(raw.get("types", []))
+            item = self._google_place(raw, category)
+            if item is None:
+                raise AppError(404, "PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.")
+            return self._detail(item, phone=raw.get("nationalPhoneNumber"))
+
+        try:
+            common_payload = await self.tour_client.get_common_detail(source_id)
+        except TourApiClientError as exc:
+            raise self._provider_error(exc) from exc
+        common = self._first_item(common_payload)
+        item = self._tour_place(common) if common else None
+        if item is None:
+            raise AppError(404, "PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.")
+        intro = {}
+        content_type = str(common.get("contenttypeid") or "")
+        if content_type:
+            try:
+                intro = self._first_item(
+                    await self.tour_client.get_intro_detail(source_id, content_type)
+                ) or {}
+            except TourApiClientError as exc:
+                raise self._provider_error(exc) from exc
+        if item.category in _COMMERCIAL:
+            google = await self.google_client.search_text(item.name, maxResultCount=5)
+            for raw in google.get("places", []):
+                candidate = self._google_place(raw, item.category)
+                if candidate is not None and self._find_match([item], candidate)[0]:
+                    self._merge_google(item, candidate)
+                    break
+        guide = [intro.get(key) for key in ("opentime", "usetime", "restdate", "restdateshopping")]
+        return self._detail(
+            item,
+            description=self._plain_text(common.get("overview")),
+            phone=common.get("tel") or None,
+            operating_guide=", ".join(value for value in guide if value) or None,
+        )
+
+    @staticmethod
+    def _detail(item: PlaceSummary, **extra: Any) -> PlaceDetail:
+        fields = {"description": None, "phone": None, "operating_guide": None} | extra
+        return PlaceDetail(**item.model_dump(), **fields)
+
+    @staticmethod
+    def _provider_error(exc: TourApiClientError | GooglePlacesClientError) -> AppError:
+        status = 504 if exc.code.endswith("_TIMEOUT") else 429 if exc.code.endswith("_RATE_LIMITED") else 502
+        return AppError(status, exc.code, "장소 제공자 요청에 실패했습니다.", retryable=exc.retryable)
+
+    @staticmethod
+    def _first_item(payload: dict[str, Any]) -> dict[str, Any] | None:
+        items = payload.get("response", {}).get("body", {}).get("items", {})
+        raw = items.get("item", []) if isinstance(items, dict) else []
+        if isinstance(raw, dict):
+            return raw
+        return raw[0] if isinstance(raw, list) and raw else None
+
+    @staticmethod
+    def _plain_text(value: Any) -> str | None:
+        if not value:
+            return None
+        parser = _PlainTextParser()
+        parser.feed(str(value))
+        return " ".join(unescape("".join(parser.parts)).split()) or None
+
+    @staticmethod
+    def _google_category(types: list[str]) -> PlaceCategory:
+        if "cafe" in types:
+            return PlaceCategory.CAFE
+        if {"restaurant", "food"} & set(types):
+            return PlaceCategory.FOOD
+        if {"store", "shopping_mall"} & set(types):
+            return PlaceCategory.SHOPPING
+        return PlaceCategory.OTHER
+
     @staticmethod
     def _category(large: str | None, middle: str | None) -> PlaceCategory:
         if large == "NA":
@@ -197,8 +294,24 @@ class PlaceService:
             business_status=BusinessStatus(status) if status in BusinessStatus else None,
             regular_opening_hours=raw.get("regularOpeningHours", {}).get("weekdayDescriptions"),
             current_opening_hours=raw.get("currentOpeningHours", {}).get("weekdayDescriptions"),
-            google_attributions=raw.get("attributions") or None,
+            google_attributions=cls._attributions(raw.get("attributions")),
         )
+
+    @staticmethod
+    def _attributions(values: Any) -> list[str] | None:
+        if not isinstance(values, list):
+            return None
+        result: list[str] = []
+        for value in values:
+            if isinstance(value, str) and value:
+                result.append(value)
+            elif isinstance(value, dict):
+                provider = str(value.get("provider") or "").strip()
+                uri = str(value.get("providerUri") or "").strip()
+                text = f"{provider} ({uri})" if provider and uri else provider or uri
+                if text:
+                    result.append(text)
+        return result or None
 
     @staticmethod
     def _coordinates(latitude: Any, longitude: Any) -> tuple[float | None, float | None]:
