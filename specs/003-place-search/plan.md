@@ -30,7 +30,7 @@
 
 ## UI Implementation & Validation
 
-**Design Sources**: [ui-guidelines.md](../../docs/design/ui-guidelines.md), [gilpick-design-reference.pen](../../docs/design/gilpick-design-reference.pen), [spec.md](spec.md)의 UI-001~UI-012. `.pen`에는 F003 전용 검색·상세 화면이 없으므로 여행명 검색창과 일정 장소 행은 시각 힌트로만 사용하고 승인 화면으로 간주하지 않는다.
+**Design Sources**: Figma Make `Design UI from Reference`(https://www.figma.com/make/H7SpIPF8iNYyxb5jPlo7xM)의 `AddPlaceScreen`·`PlaceDetailScreen`이 정본이다(2026-09-04 팀 결정, [spec.md](spec.md) UI-010). 색·글자·간격은 Figma 값을 그대로 쓰며 `.pen`과 테마 토큰보다 우선한다. [ui-guidelines.md](../../docs/design/ui-guidelines.md)는 48dp 터치 영역·화면 상태·접근성 최저선에만 적용한다.
 
 **Tokens & Components**: `GilpickTheme`, `MaterialTheme.colorScheme`, `LocalGilpickColors`, `LocalGilpickSpacing`, `LocalGilpickRadius`를 그대로 사용하며 새 색상·타이포·간격 토큰은 추가하지 않는다. 검색 입력과 버튼은 기존 입력·버튼 규칙을 따르고, 장소 결과 행과 이미지 fallback이 검색·상세에서 실제 재사용될 때만 `com.gilpick.ui.component`로 추출한다. 네트워크 이미지는 Coil `AsyncImage`를 사용하고 고정 썸네일 영역으로 layout shift를 방지한다.
 
