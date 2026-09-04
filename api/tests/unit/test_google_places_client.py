@@ -108,7 +108,11 @@ async def test_http_error_is_classified(
 
 @pytest.mark.asyncio
 async def test_invalid_json_is_failed() -> None:
+    calls = 0
+
     async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
         return httpx2.Response(200, text="not-json")
 
     client = GooglePlacesClient(
@@ -118,10 +122,16 @@ async def test_invalid_json_is_failed() -> None:
     with pytest.raises(GooglePlacesClientError, match="GOOGLE_PLACES_FAILED"):
         await client.get_place("test-google-place-id")
 
+    assert calls == 1
+
 
 @pytest.mark.asyncio
 async def test_timeout_is_retryable() -> None:
+    calls = 0
+
     async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
         raise httpx2.ReadTimeout("timeout", request=request)
 
     client = GooglePlacesClient(
@@ -133,3 +143,45 @@ async def test_timeout_is_retryable() -> None:
 
     assert captured.value.code == "GOOGLE_PLACES_TIMEOUT"
     assert captured.value.retryable is True
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_transient_server_error_is_retried_once() -> None:
+    calls = 0
+
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx2.Response(503, json={})
+        return httpx2.Response(200, json=fixture("text_search_success.json"))
+
+    client = GooglePlacesClient(
+        settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    result = await client.search_text("서울 카페")
+
+    assert result["places"][0]["id"] == "test-google-place-id"
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 429])
+async def test_permanent_http_error_is_not_retried(status: int) -> None:
+    calls = 0
+
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        return httpx2.Response(status, json={})
+
+    client = GooglePlacesClient(
+        settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    with pytest.raises(GooglePlacesClientError):
+        await client.search_text("서울 카페")
+
+    assert calls == 1

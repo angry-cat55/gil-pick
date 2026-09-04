@@ -207,7 +207,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] TourAPI·Google Places retry·오류 분류·redaction unit test 작성 in api/tests/unit/test_tour_api_client.py, api/tests/unit/test_google_places_client.py
+- [x] T026 [P] [US3] TourAPI·Google Places retry·오류 분류·redaction unit test 작성 in api/tests/unit/test_tour_api_client.py, api/tests/unit/test_google_places_client.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T006
@@ -220,7 +220,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] provider별 5초 timeout·최대 1회 retry와 Google 부분 실패 격리 적용 in api/app/clients/tour_api.py, api/app/clients/google_places.py, api/app/services/place.py
+- [x] T028 [US3] provider별 5초 timeout·최대 1회 retry와 Google 부분 실패 격리 적용 in api/app/clients/tour_api.py, api/app/clients/google_places.py, api/app/services/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T021, T026

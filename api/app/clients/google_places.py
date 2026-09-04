@@ -96,6 +96,25 @@ class GooglePlacesClient:
         field_mask: str,
         json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        for attempt in range(2):
+            try:
+                return await self._request_once(
+                    method, path, field_mask=field_mask, json=json
+                )
+            except GooglePlacesClientError as exc:
+                if attempt == 0 and exc.retryable:
+                    continue
+                raise
+        raise AssertionError("unreachable")
+
+    async def _request_once(
+        self,
+        method: str,
+        path: str,
+        *,
+        field_mask: str,
+        json: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
             response = await self.client.request(
                 method,
