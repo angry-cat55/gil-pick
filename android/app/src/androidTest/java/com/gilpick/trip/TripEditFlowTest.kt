@@ -189,6 +189,8 @@ class TripEditFlowTest {
                             onBack = { navController.popBackStack() },
                             onRetry = viewModel::retry,
                             onEdit = { navController.navigate(EditRoute(tripId)) },
+                            onDelete = {},
+                            onDeleteErrorShown = {},
                         )
                     }
                     composable<EditRoute> { entry ->

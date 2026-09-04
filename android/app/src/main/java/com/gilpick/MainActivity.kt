@@ -25,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.gilpick.trip.TripDeletePhase
 import com.gilpick.trip.TripDetailScreen
 import com.gilpick.trip.TripDetailViewModel
 import com.gilpick.trip.TripFormScreen
@@ -234,11 +235,23 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
             // 서버가 409 VERSION_CONFLICT로 거절한다.
             LaunchedEffect(Unit) { viewModel.load() }
 
+            // 삭제에 성공하면 목록으로 돌아간다. 목록도 진입할 때마다 다시 조회하므로
+            // (위 TripListRoute) 삭제된 여행은 돌아간 화면에서 이미 빠져 있다.
+            // TripListViewModel에 삭제를 알리는 경로를 따로 두지 않는 이유다.
+            LaunchedEffect(state.deletion) {
+                if (state.deletion is TripDeletePhase.Deleted) {
+                    viewModel.consumeDeleted()
+                    navController.popBackStack()
+                }
+            }
+
             TripDetailScreen(
                 state = state,
                 onBack = { navController.popBackStack() },
                 onRetry = viewModel::retry,
                 onEdit = { navController.navigate(TripEditRoute(tripId)) },
+                onDelete = viewModel::delete,
+                onDeleteErrorShown = viewModel::clearDeleteError,
             )
         }
 
