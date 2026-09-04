@@ -4,6 +4,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.NavHostController
@@ -17,15 +19,16 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * T009: 장소 route 등록과 검색 → 상세 → 뒤로가기 navigation 검증.
+ * T009·T024: 장소 route 등록과 검색 → 상세 → 뒤로가기 navigation 검증.
  *
  * `MainActivity.kt`의 app navigation graph는 `placeGraph(navController)`로 이 graph를
  * 등록한다. 여기서는 같은 [placeGraph]만 host하는 NavHost로 검증한다. app graph 전체를
  * 띄우려면 인증 상태와 여행 목록 network 응답까지 필요한데, 그것은 route 등록이 아니라
  * 다른 것을 검증하게 된다.
  *
- * 화면은 아직 임시다. 이 test가 검증하는 것은 route 등록, route 인자 전달, back
- * stack 동작이며 화면 내용은 T012·T013에서 실제 화면으로 교체된다.
+ * 검색 화면은 #142 전까지 임시다. 상세는 실제 화면이며 network 없이 실패 상태가 되지만
+ * AppBar 제목 `장소 상세`로 도착을 확인할 수 있다. 상세 내용 표현은
+ * `PlaceDetailScreenTest`가 stateless 화면으로 검증한다.
  */
 class PlaceNavigationTest {
 
@@ -37,13 +40,15 @@ class PlaceNavigationTest {
     @Test
     fun 검색에서_상세로_이동하고_뒤로_돌아온다() {
         composeRule.setContent { PlaceNavHostUnderTest() }
-
         composeRule.onNodeWithText("장소 검색").assertIsDisplayed()
 
         composeRule.onNodeWithText("첫 번째 결과 열기").performClick()
+        composeRule.waitUntil(WAIT_MILLIS) {
+            composeRule.onAllNodesWithText("장소 상세").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("장소 상세").assertIsDisplayed()
 
-        composeRule.onNodeWithText("뒤로").performClick()
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
         composeRule.onNodeWithText("장소 검색").assertIsDisplayed()
     }
 
@@ -57,7 +62,10 @@ class PlaceNavigationTest {
         composeRule.setContent { PlaceNavHostUnderTest() }
 
         composeRule.onNodeWithText("첫 번째 결과 열기").performClick()
-        composeRule.onNodeWithText("뒤로").performClick()
+        composeRule.waitUntil(WAIT_MILLIS) {
+            composeRule.onAllNodesWithText("장소 상세").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
         composeRule.waitForIdle()
 
         composeRule.runOnIdle {
@@ -76,8 +84,8 @@ class PlaceNavigationTest {
         composeRule.setContent { PlaceNavHostUnderTest() }
 
         composeRule.onNodeWithText("첫 번째 결과 열기").performClick()
+        composeRule.waitForIdle()
 
-        composeRule.onNodeWithText(PLACEHOLDER_PLACE_ID).assertIsDisplayed()
         composeRule.runOnIdle {
             val route = navController.currentBackStackEntry?.toRoute<PlaceDetailRoute>()
             assertEquals(PLACEHOLDER_PLACE_ID, route?.placeId)
@@ -93,5 +101,9 @@ class PlaceNavigationTest {
                 placeGraph(navController)
             }
         }
+    }
+
+    private companion object {
+        const val WAIT_MILLIS = 5_000L
     }
 }
