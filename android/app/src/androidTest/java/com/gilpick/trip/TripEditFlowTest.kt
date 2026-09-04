@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,6 +44,11 @@ import org.junit.runner.RunWith
  * repository를 그대로 쓰고 서버만 [MockWebServer]로 바꾼다. 낙관적 동시성 제어는
  * 요청에 실린 `version`이 맞아야 통과하므로, 화면이 최신 값을 다시 받아 오는지까지
  * 봐야 검증이 된다.
+ *
+ * 상세와 수정 화면은 진입할 때마다 서버에서 여행을 다시 받는다. `waitForIdle`은 그
+ * 조회를 기다리지 않는다. compose의 idle 판정에는 view model coroutine과 network 왕복이
+ * 들어가지 않기 때문이다. 그래서 화면을 만지기 전에 [awaitTrip]으로 값이 실제로 그려질
+ * 때까지 기다린다.
  *
  * 실제 백엔드를 붙인 종단간 확인은 #108이 다룬다.
  */
@@ -118,6 +124,7 @@ class TripEditFlowTest {
     fun 상세에서_메뉴로_수정에_들어가_저장하면_상세로_돌아온다() {
         setGraph()
 
+        awaitTrip()
         composeRule.onNodeWithText("서울 여행").assertIsDisplayed()
         openEditor()
 
@@ -156,8 +163,22 @@ class TripEditFlowTest {
         assertEquals(emptyList<Int>(), conflicts)
     }
 
+    /**
+     * 현재 여행명이 화면에 그려질 때까지 기다린다.
+     *
+     * 상세와 수정 화면 모두 진입 시 서버에서 여행을 다시 받는다. 조회가 끝나기 전에는
+     * 상세의 `더보기`가 아예 없고(`phase`가 `Content`일 때만 그린다) 수정 폼의 입력란도
+     * 비어 있다. 기다리지 않으면 기기 성능에 따라 결과가 갈린다.
+     */
+    private fun awaitTrip() {
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            composeRule.onAllNodesWithText(storedName).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     /** 상세에서 더보기 메뉴를 열어 수정 화면으로 들어간다. */
     private fun openEditor() {
+        awaitTrip()
         composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).performClick()
         composeRule.onNodeWithText(string(R.string.trip_detail_edit)).performClick()
         composeRule.waitForIdle()
@@ -165,6 +186,7 @@ class TripEditFlowTest {
 
     /** 이름 입력을 비우고 새 이름을 넣는다. */
     private fun rename(name: String) {
+        awaitTrip()
         composeRule.onNodeWithText(storedName).performTextClearance()
         composeRule.onNodeWithText(string(R.string.trip_form_name_label)).performTextInput(name)
     }
@@ -251,6 +273,7 @@ class TripEditFlowTest {
     private companion object {
         const val TRIP_ID = "33333333-4444-4555-8666-777777777777"
         const val REQUEST_ID = "11111111-2222-4333-8444-555555555555"
+        const val TIMEOUT_MILLIS = 5_000L
         val VERSION = """"version":(\d+)""".toRegex()
         val NAME = """"name":"([^"]*)"""".toRegex()
     }
