@@ -1,0 +1,303 @@
+"""TourAPI 중심 장소 검색과 Google Places 보완 로직."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import math
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
+
+from app.api.errors import AppError
+from app.clients.tour_api import TourApiClientError
+from app.schemas.place import (
+    BusinessStatus,
+    PlaceCategory,
+    PlaceSource,
+    PlaceSummary,
+    TourApiCategory,
+)
+
+_STAY_MINUTES = {
+    PlaceCategory.NATURE: 120,
+    PlaceCategory.HISTORY_CULTURE: 90,
+    PlaceCategory.FOOD: 60,
+    PlaceCategory.CAFE: 60,
+    PlaceCategory.SHOPPING: 90,
+    PlaceCategory.OTHER: 60,
+}
+_COMMERCIAL = {PlaceCategory.FOOD, PlaceCategory.CAFE, PlaceCategory.SHOPPING}
+_TOUR_LARGE = {
+    PlaceCategory.NATURE: "NA",
+    PlaceCategory.HISTORY_CULTURE: "HS",
+    PlaceCategory.FOOD: "FD",
+    PlaceCategory.CAFE: "FD",
+    PlaceCategory.SHOPPING: "SH",
+}
+_CATEGORY_LABEL = {
+    PlaceCategory.FOOD: "음식점",
+    PlaceCategory.CAFE: "카페",
+    PlaceCategory.SHOPPING: "쇼핑",
+}
+
+
+class PlaceService:
+    """외부 provider 결과를 길픽 장소 계약으로 정규화한다."""
+
+    def __init__(self, tour_client: Any, google_client: Any, *, cursor_secret: str) -> None:
+        self.tour_client = tour_client
+        self.google_client = google_client
+        self._cursor_secret = cursor_secret.encode()
+
+    async def search_places(
+        self,
+        *,
+        query: str | None,
+        category: PlaceCategory | None,
+        area_code: str | None,
+        cursor: str | None,
+        limit: int,
+    ) -> tuple[list[PlaceSummary], str | None, bool]:
+        """검색 조건에 맞는 장소 한 페이지를 반환한다."""
+        criteria = self._criteria_hash(query, category, area_code, limit)
+        state = self._decode_cursor(cursor, criteria) if cursor else {}
+        page_no = int(state.get("tour_page_no", 1))
+        seen = set(state.get("seen_place_ids", []))
+
+        params: dict[str, Any] = {"pageNo": page_no, "numOfRows": limit}
+        if area_code:
+            params["areaCode"] = area_code
+        if category in _TOUR_LARGE:
+            params["lclsSystm1"] = _TOUR_LARGE[category]
+            if category is PlaceCategory.CAFE:
+                params["lclsSystm2"] = "FD05"
+
+        try:
+            if query:
+                payload = await self.tour_client.search_keyword(keyword=query, **params)
+            else:
+                payload = await self.tour_client.search_by_area(**params)
+        except TourApiClientError as exc:
+            status = {"TOUR_API_RATE_LIMITED": 429, "TOUR_API_TIMEOUT": 504}.get(
+                exc.code, 502
+            )
+            raise AppError(
+                status, exc.code, "장소 제공자 요청에 실패했습니다.", retryable=exc.retryable
+            ) from exc
+
+        body = payload.get("response", {}).get("body", {})
+        raw_items = body.get("items", {}).get("item", [])
+        if isinstance(raw_items, dict):
+            raw_items = [raw_items]
+        items: list[PlaceSummary] = []
+        for raw in raw_items if isinstance(raw_items, list) else []:
+            item = self._tour_place(raw)
+            if item is None or item.place_id in seen:
+                continue
+            if category is not None and item.category is not category:
+                continue
+            if item.place_id not in {entry.place_id for entry in items}:
+                items.append(item)
+
+        google_token = state.get("google_page_token")
+        if category in _COMMERCIAL and len(items) < limit:
+            params = {"maxResultCount": limit - len(items)}
+            if google_token:
+                params["pageToken"] = google_token
+            google = await self.google_client.search_text(
+                query or _CATEGORY_LABEL[category], **params
+            )
+            google_token = google.get("nextPageToken")
+            for raw in google.get("places", []):
+                candidate = self._google_place(raw, category)
+                if candidate is None or candidate.place_id in seen:
+                    continue
+                match, ambiguous = self._find_match(items, candidate)
+                if match:
+                    self._merge_google(match, candidate)
+                elif not ambiguous and len(items) < limit:
+                    items.append(candidate)
+
+        total = int(body.get("totalCount") or len(raw_items))
+        tour_has_next = page_no * limit < total
+        has_next = tour_has_next or bool(google_token)
+        next_cursor = None
+        if has_next:
+            next_cursor = self._encode_cursor(
+                {
+                    "v": 1,
+                    "tour_page_no": page_no + 1 if tour_has_next else page_no,
+                    "google_page_token": google_token,
+                    "seen_place_ids": [*(list(seen)[-80:]), *[i.place_id for i in items]][-100:],
+                    "criteria_hash": criteria,
+                }
+            )
+        return items[:limit], next_cursor, has_next
+
+    @staticmethod
+    def _category(large: str | None, middle: str | None) -> PlaceCategory:
+        if large == "NA":
+            return PlaceCategory.NATURE
+        if large == "HS":
+            return PlaceCategory.HISTORY_CULTURE
+        if large == "FD" and middle == "FD05":
+            return PlaceCategory.CAFE
+        if large == "FD":
+            return PlaceCategory.FOOD
+        if large == "SH":
+            return PlaceCategory.SHOPPING
+        return PlaceCategory.OTHER
+
+    @classmethod
+    def _tour_place(cls, raw: dict[str, Any]) -> PlaceSummary | None:
+        source_id = str(raw.get("contentid") or "").strip()
+        name = str(raw.get("title") or "").strip()
+        if not source_id or not name:
+            return None
+        large = raw.get("lclsSystm1") or None
+        middle = raw.get("lclsSystm2") or None
+        category = cls._category(large, middle)
+        latitude, longitude = cls._coordinates(raw.get("mapy"), raw.get("mapx"))
+        return PlaceSummary(
+            place_id=f"tourapi:{source_id}", source=PlaceSource.TOUR_API,
+            source_place_id=source_id, name=name, category=category,
+            tour_api_category=TourApiCategory(
+                large=large, middle=middle, small=raw.get("lclsSystm3") or None
+            ),
+            address=raw.get("addr1") or None, latitude=latitude, longitude=longitude,
+            image_url=cls._https_url(raw.get("firstimage")),
+            recommended_stay_minutes=_STAY_MINUTES[category], rating=None,
+            user_rating_count=None, business_status=None,
+            regular_opening_hours=None, current_opening_hours=None,
+            google_attributions=None,
+        )
+
+    @classmethod
+    def _google_place(
+        cls, raw: dict[str, Any], category: PlaceCategory
+    ) -> PlaceSummary | None:
+        source_id = str(raw.get("id") or "").strip()
+        name = str(raw.get("displayName", {}).get("text") or "").strip()
+        if not source_id or not name:
+            return None
+        location = raw.get("location", {})
+        latitude, longitude = cls._coordinates(
+            location.get("latitude"), location.get("longitude")
+        )
+        status = raw.get("businessStatus")
+        return PlaceSummary(
+            place_id=f"google:{source_id}", source=PlaceSource.GOOGLE_PLACES,
+            source_place_id=source_id, name=name, category=category,
+            tour_api_category=None, address=raw.get("formattedAddress") or None,
+            latitude=latitude, longitude=longitude, image_url=None,
+            recommended_stay_minutes=_STAY_MINUTES[category], rating=raw.get("rating"),
+            user_rating_count=raw.get("userRatingCount"),
+            business_status=BusinessStatus(status) if status in BusinessStatus else None,
+            regular_opening_hours=raw.get("regularOpeningHours", {}).get("weekdayDescriptions"),
+            current_opening_hours=raw.get("currentOpeningHours", {}).get("weekdayDescriptions"),
+            google_attributions=raw.get("attributions") or None,
+        )
+
+    @staticmethod
+    def _coordinates(latitude: Any, longitude: Any) -> tuple[float | None, float | None]:
+        try:
+            return float(latitude), float(longitude)
+        except (TypeError, ValueError):
+            return None, None
+
+    @staticmethod
+    def _https_url(value: Any) -> str | None:
+        if not value:
+            return None
+        try:
+            parts = urlsplit(str(value))
+            if parts.scheme not in {"http", "https"} or not parts.netloc:
+                return None
+            return urlunsplit(("https", parts.netloc, parts.path, parts.query, parts.fragment))
+        except ValueError:
+            return None
+
+    @classmethod
+    def _find_match(
+        cls, items: list[PlaceSummary], candidate: PlaceSummary
+    ) -> tuple[PlaceSummary | None, bool]:
+        ambiguous = False
+        for item in items:
+            same_name = cls._normalize(item.name) == cls._normalize(candidate.name)
+            same_address = bool(
+                item.address and candidate.address
+                and cls._normalize(item.address) == cls._normalize(candidate.address)
+            )
+            close = cls._distance(item, candidate) <= 50
+            if same_name and same_address and close:
+                return item, False
+            ambiguous |= sum((same_name, same_address, close)) >= 2
+        return None, ambiguous
+
+    @staticmethod
+    def _merge_google(target: PlaceSummary, source: PlaceSummary) -> None:
+        for field in (
+            "rating", "user_rating_count", "business_status",
+            "regular_opening_hours", "current_opening_hours", "google_attributions",
+        ):
+            setattr(target, field, getattr(source, field))
+
+    @staticmethod
+    def _normalize(value: str) -> str:
+        return "".join(char.lower() for char in value if char.isalnum())
+
+    @staticmethod
+    def _distance(left: PlaceSummary, right: PlaceSummary) -> float:
+        if None in (left.latitude, left.longitude, right.latitude, right.longitude):
+            return math.inf
+        lat1, lat2 = math.radians(left.latitude), math.radians(right.latitude)
+        dlat = lat2 - lat1
+        dlon = math.radians(right.longitude - left.longitude)
+        value = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        return 6_371_000 * 2 * math.asin(math.sqrt(value))
+
+    @staticmethod
+    def _criteria_hash(
+        query: str | None, category: PlaceCategory | None, area_code: str | None, limit: int
+    ) -> str:
+        raw = json.dumps(
+            {"query": query, "category": category, "areaCode": area_code, "limit": limit},
+            ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        )
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def _encode_cursor(self, payload: dict[str, Any]) -> str:
+        body = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        signature = hmac.new(self._cursor_secret, body, hashlib.sha256).digest()
+        return f"{self._b64encode(body)}.{self._b64encode(signature)}"
+
+    def _decode_cursor(self, cursor: str, criteria: str) -> dict[str, Any]:
+        try:
+            body_value, signature_value = cursor.split(".")
+            body = self._b64decode(body_value)
+            signature = self._b64decode(signature_value)
+            expected = hmac.new(self._cursor_secret, body, hashlib.sha256).digest()
+            payload = json.loads(body)
+            if not hmac.compare_digest(signature, expected):
+                raise ValueError
+            if payload.get("v") != 1 or payload.get("criteria_hash") != criteria:
+                raise ValueError
+            return payload
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+            raise AppError(400, "INVALID_CURSOR", "유효하지 않은 cursor입니다.") from exc
+
+    @staticmethod
+    def _b64encode(value: bytes) -> str:
+        return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+    @classmethod
+    def _b64decode(cls, value: str) -> bytes:
+        decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+        if cls._b64encode(decoded) != value:
+            raise ValueError
+        return decoded
+
+
+__all__ = ["PlaceService"]
