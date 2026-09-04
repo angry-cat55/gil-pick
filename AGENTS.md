@@ -108,16 +108,16 @@
 
 ### UI가 포함된 Feature 산출물
 
-- 사용자 화면 또는 UI 요소가 포함된 Feature의 Owner는 `spec.md` 작성 전에 `docs/design/ui-guidelines.md`와 `docs/design/gilpick-design-reference.pen`의 관련 화면·컴포넌트를 확인한다.
+- 사용자 화면 또는 UI 요소가 포함된 Feature의 Owner는 `spec.md` 작성 전에 `docs/design/ui-guidelines.md`와 Figma Make `Design UI from Reference`(저장소 사본 `docs/design/figma-make/src/screens/*.tsx`)의 관련 화면·컴포넌트를 확인한다.
 - `spec.md`에는 적용 가능한 `loading`·`empty`·`error`·`content` 상태, 상호작용, 접근성, adaptive 요구사항과 검증 가능한 완료 조건을 기록한다. 적용되지 않는 상태는 억지로 만들지 않고 그 이유를 명시한다.
-- **화면이 어떻게 생겼는지는 `spec.md`에 글로 적지 않는다.** 모양의 정본은 pen이므로 해당 화면을 가리키기만 한다. `spec.md`가 화면에 대해 적는 것은 "사용자가 무엇을 할 수 있어야 하는가"이지 "어떻게 배치하는가"가 아니다.
+- **화면이 어떻게 생겼는지는 `spec.md`에 글로 적지 않는다.** 모양의 정본은 Figma이므로 해당 화면을 가리키기만 한다. `spec.md`가 화면에 대해 적는 것은 "사용자가 무엇을 할 수 있어야 하는가"이지 "어떻게 배치하는가"가 아니다.
 - 새로운 시각·UX 판단이나 명세의 빈틈을 점검할 때는 `ui-ux-pro-max`를 사용한다. Compose 구현 제약, Material 3, adaptive layout, semantics 또는 UI test 가능성을 구체화할 필요가 있을 때는 `compose-expert`를 보조적으로 사용한다.
 - UI가 포함된 Feature의 `plan.md`에는 승인된 `spec.md`의 UI 요구사항을 구현할 theme token·재사용 component·상태 모델과 접근성·실제 기기 또는 screenshot 검증 방법을 기록한다.
 - 관련 Frontend task의 검증 기준에는 `spec.md`와 `plan.md`의 UI 완료 조건을 추적 가능하게 반영한다. 적용하지 않는 공통 상태나 검증 항목이 있으면 그 이유를 기록한다.
-- **`docs/design/gilpick-design-reference.pen`은 화면 모양의 정본이다.** 화면 구성·배치·어떤 요소를 넣고 뺄지가 `spec.md`나 구현과 다르면 pen에 맞춘다.
-- 단 pen이 이기는 범위는 모양까지다. `spec.md`의 `FR-***`과 승인된 동작·데이터 요구, `ui-guidelines.md` 9절 화면 상태와 10절 접근성 최저선은 pen보다 위다. pen에 없는 화면이나 항목을 기능 요구가 필요로 하면 요구를 버리지 말고 pen을 고친다. 상세 기준과 경계 판단은 `ui-guidelines.md` 12절을 따른다.
+- **Figma Make `Design UI from Reference`(https://www.figma.com/make/H7SpIPF8iNYyxb5jPlo7xM)가 화면 모양의 정본이다(2026-09-04 팀 결정).** 화면 구성·배치·어떤 요소를 넣고 뺄지·색·글자·간격이 `spec.md`나 구현과 다르면 Figma에 맞추고, `spec.md`도 Figma 기준으로 고친다. `docs/design/gilpick-design-reference.pen`은 참고용이다.
+- Figma보다 위에 있는 것은 `ui-guidelines.md` 9절 화면 상태, 10절 접근성 최저선(48dp 터치, 색 단독 의미 전달 금지), 정책상 필수 표시(Google attribution)뿐이다. 이는 모양을 바꾸지 않는 방식으로 지킨다. API에 없는 값은 지어내지 않고 `정보 없음`으로 두며 Backend 계약 추가를 요청한다. 상세 기준과 경계 판단은 `ui-guidelines.md` 12절을 따른다.
 - skill의 제안은 참고 자료다. 저장소 기준으로 검증한 뒤 쓰고, 검증 결과를 PR에 기록한다.
-- pen에도 명세에도 없는 화면이나 기능을 임의로 범위에 추가하지 않는다.
+- Figma에도 명세에도 없는 화면이나 기능을 임의로 범위에 추가하지 않는다.
 
 - 새로운 기능을 임의로 추가하지 않고 합의된 MVP 범위 안에서 다음 Feature를 선정한다.
 - 다음 Feature는 MVP Feature 목록, 완료·진행 중인 Feature, GitHub Issues, Feature 간 의존성을 확인한 뒤 선택한다.
@@ -200,7 +200,7 @@
 ## 10. 사용자 화면 작업 규칙
 
 - Android 화면을 새로 만들거나 수정하기 전에 `docs/design/ui-guidelines.md`와 해당 feature의 화면 요구사항을 먼저 읽는다.
-- Frontend Issue에서 화면을 새로 만들거나 시각·UX 결정을 수정하는 AI는 구현 전에 현재 Issue에 포함된 `tasks.md` task와 해당 feature의 `spec.md`·`plan.md`, `docs/design/ui-guidelines.md`, `docs/design/gilpick-design-reference.pen`의 관련 화면을 확인한다.
+- Frontend Issue에서 화면을 새로 만들거나 시각·UX 결정을 수정하는 AI는 구현 전에 현재 Issue에 포함된 `tasks.md` task와 해당 feature의 `spec.md`·`plan.md`, `docs/design/ui-guidelines.md`, Figma Make 저장소 사본(`docs/design/figma-make`)의 관련 화면을 확인한다.
 - 위 작업에서 AI는 `ui-ux-pro-max`를 시각·UX 결정과 완성도 검토에, `compose-expert`를 Jetpack Compose 구현과 review에 사용한다. 각 도구가 skill을 자동 발견하지 못하면 해당 도구용 경로의 `SKILL.md`를 직접 읽고 적용한다.
 - 색상·간격·타이포 값을 화면 코드에 직접 쓰지 않는다. `com.gilpick.ui.theme`의 토큰에서 읽고, 필요한 값이 없으면 가이드라인에 토큰을 먼저 추가한다.
 - 기능 동작만 구현한 임시 화면을 완료 상태로 간주하지 않는다. 임시 화면이면 task와 PR에 임시임을 명시하고 후속 작업을 남긴다.
