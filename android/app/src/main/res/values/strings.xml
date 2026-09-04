@@ -19,8 +19,10 @@
     <string name="logout">로그아웃</string>
 
     <string name="trips_title">내 여행</string>
-    <string name="trips_empty">아직 등록한 여행이 없습니다</string>
-    <string name="trips_empty_hint">첫 여행을 만들면 일정과 경로를 관리할 수 있습니다.</string>
+    <string name="trips_empty">아직 만든 여행이 없어요</string>
+    <string name="trips_empty_hint">여행을 만들면 날짜별 일정과 이동 경로를 한 번에 정리할 수 있어요.</string>
+    <!-- 빈 상태 전용. 헤더의 trips_create와 문구가 다르다. -->
+    <string name="trips_empty_create">첫 여행 만들기</string>
     <string name="trips_create">여행 만들기</string>
     <string name="trips_search_label">여행 이름 검색</string>
     <string name="trips_filter_all">전체</string>
@@ -34,8 +36,8 @@
     <string name="trips_day_count">%1$d일 일정</string>
     <string name="trips_day_index">%1$d일째</string>
     <string name="trips_loading">여행 목록을 불러오는 중</string>
-    <string name="trips_no_results">조건에 맞는 여행이 없습니다</string>
-    <string name="trips_no_results_hint">검색어나 상태 필터를 바꿔 보세요.</string>
+    <string name="trips_no_results">조건에 맞는 여행이 없어요</string>
+    <string name="trips_no_results_hint">검색어를 다시 확인하거나 상태 필터를 바꿔 보세요.</string>
     <string name="trips_reset_filters">조건 초기화</string>
     <string name="trips_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
     <string name="trips_error_unexpected">지금은 여행 목록을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
@@ -51,6 +53,19 @@
     <string name="trip_detail_error_not_found">이미 삭제되었거나 없는 여행입니다.</string>
     <string name="trip_detail_error_forbidden">이 여행을 볼 권한이 없습니다.</string>
     <string name="trip_detail_back_to_list">목록으로 돌아가기</string>
+    <string name="trip_detail_more">더보기</string>
+    <string name="trip_detail_edit">수정</string>
+    <string name="trip_detail_delete">삭제</string>
+    <string name="trip_delete_title">여행을 삭제할까요?</string>
+    <!-- %1$s는 삭제할 여행명. pen `Dialog`의 Body와 같은 문구다. -->
+    <string name="trip_delete_body">‘%1$s’의 모든 일정과 방문 기록이 사라집니다. 삭제한 여행은 복구할 수 없습니다.</string>
+    <string name="trip_delete_confirm">삭제</string>
+    <string name="trip_delete_cancel">취소</string>
+    <string name="trip_delete_progress">여행을 삭제하는 중</string>
+    <string name="trip_delete_error_network">연결을 확인한 뒤 다시 시도해 주세요. 여행은 그대로 있습니다.</string>
+    <string name="trip_delete_error_not_found">이미 삭제되었거나 없는 여행입니다.</string>
+    <string name="trip_delete_error_forbidden">이 여행을 삭제할 권한이 없습니다.</string>
+    <string name="trip_delete_error_unexpected">지금은 여행을 삭제할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
 
     <string name="trip_form_create_title">새 여행 만들기</string>
     <string name="trip_form_name_label">여행 이름</string>
@@ -125,4 +140,14 @@
     <string name="place_detail_error_provider_permanent">장소 정보 제공자가 요청을 처리하지 못했어요. 검색 결과로 돌아가 주세요.</string>
     <string name="place_detail_error_session">로그인 상태가 만료되었어요. 다시 로그인해 주세요.</string>
     <string name="place_detail_error_unexpected">지금은 장소 정보를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="trip_form_error_version_conflict">이 여행이 다른 곳에서 먼저 바뀌었습니다. 최신 내용을 불러온 뒤 다시 수정해 주세요.</string>
+    <string name="trip_form_error_trip_locked">완료된 여행은 기간을 바꿀 수 없습니다. 이름은 수정할 수 있습니다.</string>
+    <string name="trip_form_error_confirmation_required">기간을 줄이면 일정이 삭제됩니다. 삭제에 동의해야 저장할 수 있습니다.</string>
+
+    <!-- 여행 수정 모드 -->
+    <string name="trip_form_edit_title">여행 수정</string>
+    <string name="trip_form_edit_submit">변경 사항 저장</string>
+    <string name="trip_form_period_locked">완료된 여행은 이름만 수정할 수 있습니다. 기간은 최대 7일까지 설정할 수 있어요.</string>
+    <string name="trip_form_period_locked_state">수정할 수 없음</string>
+    <string name="trip_form_loading">여행 정보를 불러오는 중</string>
 </resources>

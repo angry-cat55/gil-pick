@@ -1,5 +1,6 @@
 package com.gilpick.trip
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,14 +9,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableChipColors
@@ -30,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -39,6 +44,7 @@ import com.gilpick.R
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.TripCard
 import com.gilpick.ui.theme.LocalGilpickRadius
+import com.gilpick.ui.theme.LocalGilpickSizing
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import java.time.LocalDate
 import kotlinx.coroutines.delay
@@ -265,17 +271,21 @@ private fun EmptyState(
     onResetFilters: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
+    val sizing = LocalGilpickSizing.current
 
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = sizing.emptyBottomPadding),
         verticalArrangement = Arrangement.spacedBy(spacing.space3, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        EmptyStateIcon(filtered = filtered)
         Text(
             text = stringResource(
                 if (filtered) R.string.trips_no_results else R.string.trips_empty,
             ),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
@@ -293,10 +303,40 @@ private fun EmptyState(
         ) {
             Text(
                 stringResource(
-                    if (filtered) R.string.trips_reset_filters else R.string.trips_create,
+                    if (filtered) R.string.trips_reset_filters else R.string.trips_empty_create,
                 ),
             )
         }
+    }
+}
+
+/**
+ * 빈 상태 아이콘.
+ *
+ * pen `23. 빈 상태 – 여행 0개`와 `24. 빈 상태 – 검색 0건`의 `IconCircle > I` 구조다.
+ * `surfaceVariant` 원 위에 `outline` 색 아이콘을 올린다.
+ *
+ * 아이콘은 장식이므로 `contentDescription`을 비운다(가이드라인 10절). 왜 비었는지는
+ * 아래 제목과 본문이 이미 전달하므로, 아이콘까지 읽으면 같은 뜻을 두 번 듣게 된다.
+ */
+@Composable
+private fun EmptyStateIcon(filtered: Boolean) {
+    val sizing = LocalGilpickSizing.current
+
+    Box(
+        modifier = Modifier
+            .size(sizing.emptyIconCircle)
+            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(
+                if (filtered) R.drawable.ic_search_x else R.drawable.ic_map,
+            ),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(sizing.emptyIcon),
+        )
     }
 }
 

@@ -4,6 +4,7 @@ import com.gilpick.auth.AuthError
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
 import com.gilpick.auth.toAuthResult
+import com.gilpick.auth.toEmptyAuthResult
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -86,6 +87,49 @@ class TripRepository(
         }
 
     /**
+     * 여행의 이름과 기간을 수정한다.
+     *
+     * 계약이 `version`을 required로 정의한다. 조회 시점의 버전을 그대로 실어 보내고,
+     * 서버가 저장된 버전과 다르다고 판단하면 `409 VERSION_CONFLICT`로 거절한다
+     * (`spec.md` FR-011a).
+     *
+     * 완료 상태 여행의 기간 수정은 서버가 `409 TRIP_LOCKED`로 거절한다(FR-010a).
+     * 화면도 같은 규칙으로 기간 입력을 미리 잠그지만 최종 판정은 서버가 한다.
+     *
+     * @param tripId 수정할 여행 식별자.
+     * @param version 조회했던 여행의 버전. 낙관적 동시성 제어에 쓴다.
+     * @param name 새 여행명. 바꾸지 않으면 `null`이다.
+     * @param startDate 새 시작일. 바꾸지 않으면 `null`이다.
+     * @param endDate 새 종료일. 바꾸지 않으면 `null`이다.
+     * @param confirmDeleteOutOfRangeItems 기간 축소로 삭제될 일정을 사용자가 확인했는지
+     *   여부. F002 시점에는 일정이 없어 서버가 삭제 개수를 항상 0으로 보므로 실제로
+     *   쓰이지 않는다. 계약이 정의한 값이라 자리만 열어 둔다(F004에서 사용).
+     * @return 수정된 여행 또는 좁혀진 실패 원인. 실패 원인은 [AuthError.toSubmitError]로
+     *   화면이 안내할 수 있는 [TripFormSubmitError]로 좁힌다.
+     */
+    suspend fun updateTrip(
+        tripId: String,
+        version: Int,
+        name: String? = null,
+        startDate: LocalDate? = null,
+        endDate: LocalDate? = null,
+        confirmDeleteOutOfRangeItems: Boolean = false,
+    ): AuthResult<TripDto> = auth.withAccessToken { accessToken ->
+        api.updateTrip(
+            bearer = "Bearer $accessToken",
+            tripId = tripId,
+            body = UpdateTripRequest(
+                // 생성과 같은 규칙으로 앞뒤 공백을 먼저 제거한다.
+                name = name?.trim(),
+                startDate = startDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                endDate = endDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                version = version,
+                confirmDeleteOutOfRangeItems = confirmDeleteOutOfRangeItems,
+            ),
+        )
+    }
+
+    /**
      * 소유한 여행 목록을 한 페이지 조회한다.
      *
      * 검색어와 상태 필터는 cursor에 결합되어 있다. 조건을 바꾸면 [cursor]를 비워 첫
@@ -97,6 +141,32 @@ class TripRepository(
      * @param limit 한 페이지 최대 개수. `null`이면 서버 기본값(20)을 쓴다.
      * @return 여행 한 페이지와 다음 cursor, 또는 좁혀진 실패 원인.
      */
+    /**
+     * 여행을 논리 삭제한다.
+     *
+     * 계약(`contracts/trips.openapi.yaml`)이 정의한 성공은 body 없는 `204`다. 응답에
+     * 담을 값이 없으므로 [AuthResult] 안에도 담지 않는다.
+     *
+     * 상태와 무관하게 삭제할 수 있다(`spec.md` FR-014). 완료 상태 여행의 기간 수정은
+     * `409 TRIP_LOCKED`로 막히지만 삭제는 막히지 않으며, 계약도 이 endpoint에 `409`를
+     * 정의하지 않는다. 그래서 [updateTrip]과 달리 잠금 오류를 다루지 않는다.
+     *
+     * @param tripId 삭제할 여행 식별자.
+     * @return 성공 또는 좁혀진 실패 원인. 실패 원인은 [AuthError.toDeleteError]로 화면이
+     *   안내할 수 있는 [TripDeleteError]로 좁힌다.
+     */
+    suspend fun deleteTrip(tripId: String): AuthResult<Unit> =
+        auth.withAuthorizedCall { accessToken ->
+            try {
+                api.deleteTrip(
+                    bearer = "Bearer $accessToken",
+                    tripId = tripId,
+                ).toEmptyAuthResult()
+            } catch (e: IOException) {
+                AuthResult.Failure(AuthError.Offline(e))
+            }
+        }
+
     suspend fun listTrips(
         query: String? = null,
         status: TripStatus? = null,
@@ -155,4 +225,41 @@ internal fun AuthError.toDetailError(): TripDetailError = when {
     this is AuthError.Server && code == TripErrorCodes.TRIP_NOT_FOUND -> TripDetailError.NOT_FOUND
     this is AuthError.Server && code == TripErrorCodes.FORBIDDEN -> TripDetailError.FORBIDDEN
     else -> TripDetailError.UNEXPECTED
+}
+
+/**
+ * 삭제가 실패한 이유. 화면이 원인과 다음 행동을 안내하는 데 쓴다.
+ *
+ * 계약(`contracts/trips.openapi.yaml`)이 이 endpoint에 정의한 실패는 `403`과 `404`뿐이다.
+ * 완료 상태 여행도 삭제할 수 있으므로(`spec.md` FR-014) `409 TRIP_LOCKED`는 오지 않는다.
+ * 서버가 보내지 않는 code를 위한 자리를 만들면 검증할 수 없는 경로가 남는다.
+ *
+ * [TripDetailError]와 값이 같지만 합치지 않는다. 같은 원인이라도 조회 실패와 삭제 실패는
+ * 사용자에게 할 말이 다르고, 한쪽 계약이 바뀔 때 다른 쪽이 따라 바뀔 이유가 없다.
+ */
+enum class TripDeleteError {
+    /** 통신 실패. 같은 요청을 그대로 다시 보낼 수 있다. */
+    NETWORK,
+
+    /** `404 TRIP_NOT_FOUND`. 없거나 이미 삭제된 여행이다. `spec.md` FR-015·FR-016. */
+    NOT_FOUND,
+
+    /** `403 FORBIDDEN`. 다른 사용자의 여행이다. `spec.md` FR-017. */
+    FORBIDDEN,
+
+    /** 그 밖의 실패. 잠시 후 다시 시도한다. */
+    UNEXPECTED,
+}
+
+/**
+ * 삭제 실패를 화면이 안내할 수 있는 원인으로 좁힌다.
+ *
+ * [toDetailError]와 같은 규칙으로 HTTP 상태 코드가 아니라 계약이 정한 error code로
+ * 판정한다. 상태 코드는 같아도 code가 다른 실패가 뒤에 생길 수 있다.
+ */
+internal fun AuthError.toDeleteError(): TripDeleteError = when {
+    this is AuthError.Offline -> TripDeleteError.NETWORK
+    this is AuthError.Server && code == TripErrorCodes.TRIP_NOT_FOUND -> TripDeleteError.NOT_FOUND
+    this is AuthError.Server && code == TripErrorCodes.FORBIDDEN -> TripDeleteError.FORBIDDEN
+    else -> TripDeleteError.UNEXPECTED
 }
