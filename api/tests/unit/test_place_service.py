@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from app.api.errors import AppError
+from app.clients.google_places import GooglePlacesClientError
 from app.schemas.place import PlaceCategory
 from app.services.place import PlaceService
 
@@ -106,6 +107,14 @@ class StubGoogleClient:
         return deepcopy(self.response)
 
 
+class FailingGoogleClient(StubGoogleClient):
+    """Google 보완 호출 실패를 재현하는 대역."""
+
+    async def search_text(self, text_query: str, **params: Any) -> dict[str, Any]:
+        self.calls.append((text_query, params))
+        raise GooglePlacesClientError("GOOGLE_PLACES_TIMEOUT", retryable=True)
+
+
 def service(
     tour: StubTourClient, google: StubGoogleClient | None = None
 ) -> PlaceService:
@@ -202,6 +211,25 @@ async def test_google_is_called_only_for_commercial_category_shortage() -> None:
     )
 
     assert google.calls == []
+
+
+@pytest.mark.asyncio
+async def test_google_search_failure_keeps_tour_results() -> None:
+    """Google 보완 실패는 정상 TourAPI 검색 결과를 제거하지 않는다."""
+    tour = StubTourClient(
+        [tour_response([tour_item("1", large="FD", middle="FD05")])]
+    )
+    google = FailingGoogleClient()
+
+    items, next_cursor, has_next = await service(tour, google).search_places(
+        query="카페", category=PlaceCategory.CAFE,
+        area_code=None, cursor=None, limit=2,
+    )
+
+    assert [item.place_id for item in items] == ["tourapi:1"]
+    assert next_cursor is None
+    assert has_next is False
+    assert len(google.calls) == 1
 
 
 @pytest.mark.asyncio
@@ -462,6 +490,22 @@ async def test_tour_commercial_detail_merges_confirmed_google_fields() -> None:
     assert detail.place_id == "tourapi:1"
     assert detail.rating == 4.6
     assert detail.google_attributions == ["Google Maps"]
+
+
+@pytest.mark.asyncio
+async def test_google_enrichment_failure_keeps_tour_detail() -> None:
+    """Google 상세 보강 실패 시 TourAPI 상세만 반환한다."""
+    common = tour_item("1", large="FD", middle="FD05") | {"contenttypeid": "39"}
+    place_service = PlaceService(
+        DetailTourClient(detail_response(common), detail_response({})),
+        FailingGoogleClient(), cursor_secret="test-secret",
+    )
+
+    detail = await place_service.get_place("tourapi:1")
+
+    assert detail.place_id == "tourapi:1"
+    assert detail.rating is None
+    assert detail.google_attributions is None
 
 
 @pytest.mark.asyncio

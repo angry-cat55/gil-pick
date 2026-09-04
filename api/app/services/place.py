@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import math
 from html import unescape
 from html.parser import HTMLParser
@@ -23,6 +24,8 @@ from app.schemas.place import (
     PlaceSummary,
     TourApiCategory,
 )
+
+logger = logging.getLogger("gilpick.place")
 
 _STAY_MINUTES = {
     PlaceCategory.NATURE: 120,
@@ -121,19 +124,24 @@ class PlaceService:
             params = {"maxResultCount": limit - len(items)}
             if google_token:
                 params["pageToken"] = google_token
-            google = await self.google_client.search_text(
-                query or _CATEGORY_LABEL[category], **params
-            )
-            google_token = google.get("nextPageToken")
-            for raw in google.get("places", []):
-                candidate = self._google_place(raw, category)
-                if candidate is None or candidate.place_id in seen:
-                    continue
-                match, ambiguous = self._find_match(items, candidate)
-                if match:
-                    self._merge_google(match, candidate)
-                elif not ambiguous and len(items) < limit:
-                    items.append(candidate)
+            try:
+                google = await self.google_client.search_text(
+                    query or _CATEGORY_LABEL[category], **params
+                )
+            except GooglePlacesClientError as exc:
+                self._log_google_degradation("SEARCH_SUPPLEMENT", exc)
+                google_token = None
+            else:
+                google_token = google.get("nextPageToken")
+                for raw in google.get("places", []):
+                    candidate = self._google_place(raw, category)
+                    if candidate is None or candidate.place_id in seen:
+                        continue
+                    match, ambiguous = self._find_match(items, candidate)
+                    if match:
+                        self._merge_google(match, candidate)
+                    elif not ambiguous and len(items) < limit:
+                        items.append(candidate)
 
         total = int(body.get("totalCount") or len(raw_items))
         tour_has_next = page_no * limit < total
@@ -183,12 +191,18 @@ class PlaceService:
             except TourApiClientError as exc:
                 raise self._provider_error(exc) from exc
         if item.category in _COMMERCIAL:
-            google = await self.google_client.search_text(item.name, maxResultCount=5)
-            for raw in google.get("places", []):
-                candidate = self._google_place(raw, item.category)
-                if candidate is not None and self._find_match([item], candidate)[0]:
-                    self._merge_google(item, candidate)
-                    break
+            try:
+                google = await self.google_client.search_text(
+                    item.name, maxResultCount=5
+                )
+            except GooglePlacesClientError as exc:
+                self._log_google_degradation("DETAIL_ENRICHMENT", exc)
+            else:
+                for raw in google.get("places", []):
+                    candidate = self._google_place(raw, item.category)
+                    if candidate is not None and self._find_match([item], candidate)[0]:
+                        self._merge_google(item, candidate)
+                        break
         guide = [intro.get(key) for key in ("opentime", "usetime", "restdate", "restdateshopping")]
         return self._detail(
             item,
@@ -206,6 +220,19 @@ class PlaceService:
     def _provider_error(exc: TourApiClientError | GooglePlacesClientError) -> AppError:
         status = 504 if exc.code.endswith("_TIMEOUT") else 429 if exc.code.endswith("_RATE_LIMITED") else 502
         return AppError(status, exc.code, "장소 제공자 요청에 실패했습니다.", retryable=exc.retryable)
+
+    @staticmethod
+    def _log_google_degradation(
+        operation: str, exc: GooglePlacesClientError
+    ) -> None:
+        logger.warning(
+            "Google Places 보완 실패",
+            extra={
+                "operation": operation,
+                "result": "DEGRADED",
+                "error_code": exc.code,
+            },
+        )
 
     @staticmethod
     def _first_item(payload: dict[str, Any]) -> dict[str, Any] | None:

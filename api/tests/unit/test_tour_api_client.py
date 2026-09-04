@@ -97,7 +97,11 @@ async def test_http_error_is_classified(
 
 @pytest.mark.asyncio
 async def test_application_error_is_classified_without_exposing_body() -> None:
+    calls = 0
+
     async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
         return httpx2.Response(200, json=fixture("service_key_error.json"))
 
     client = TourApiClient(
@@ -109,11 +113,16 @@ async def test_application_error_is_classified_without_exposing_body() -> None:
 
     assert captured.value.code == "TOUR_API_FAILED"
     assert str(captured.value) == "TOUR_API_FAILED"
+    assert calls == 1
 
 
 @pytest.mark.asyncio
 async def test_invalid_json_is_failed() -> None:
+    calls = 0
+
     async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
         return httpx2.Response(200, text="not-json")
 
     client = TourApiClient(
@@ -123,10 +132,16 @@ async def test_invalid_json_is_failed() -> None:
     with pytest.raises(TourApiClientError, match="TOUR_API_FAILED"):
         await client.get_common_detail("1000001")
 
+    assert calls == 1
+
 
 @pytest.mark.asyncio
 async def test_timeout_is_retryable() -> None:
+    calls = 0
+
     async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
         raise httpx2.ReadTimeout("timeout", request=request)
 
     client = TourApiClient(
@@ -138,11 +153,57 @@ async def test_timeout_is_retryable() -> None:
 
     assert captured.value.code == "TOUR_API_TIMEOUT"
     assert captured.value.retryable is True
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_transient_server_error_is_retried_once() -> None:
+    calls = 0
+
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx2.Response(503, json={})
+        return httpx2.Response(200, json=fixture("search_success.json"))
+
+    client = TourApiClient(
+        settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    result = await client.search_keyword(keyword="서울")
+
+    assert result["response"]["header"]["resultCode"] == "0000"
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 429])
+async def test_permanent_http_error_is_not_retried(status: int) -> None:
+    calls = 0
+
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        return httpx2.Response(status, json={})
+
+    client = TourApiClient(
+        settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    with pytest.raises(TourApiClientError):
+        await client.search_keyword(keyword="서울")
+
+    assert calls == 1
 
 
 @pytest.mark.asyncio
 async def test_application_quota_error_is_rate_limited() -> None:
+    calls = 0
+
     async def handler(_: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
         return httpx2.Response(
             200,
             json={
@@ -161,3 +222,4 @@ async def test_application_quota_error_is_rate_limited() -> None:
 
     assert captured.value.code == "TOUR_API_RATE_LIMITED"
     assert captured.value.retryable is False
+    assert calls == 1

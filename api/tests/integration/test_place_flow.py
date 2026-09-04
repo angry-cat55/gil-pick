@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_principal
 from app.api.v1.places import _place_service
+from app.clients.google_places import GooglePlacesClientError
 from app.core.security import AuthPrincipal
 from app.main import app
 from app.services.place import PlaceService
@@ -61,6 +62,13 @@ class GoogleStub:
         return deepcopy(self.detail)
 
 
+class FailingGoogleStub(GoogleStub):
+    """Google 보완 호출 장애를 재현한다."""
+
+    async def search_text(self, text_query: str, **params: Any) -> dict[str, Any]:
+        raise GooglePlacesClientError("GOOGLE_PLACES_FAILED", retryable=True)
+
+
 def tour_item(content_id: str) -> dict[str, str]:
     """최소 TourAPI 장소 fixture를 만든다."""
     return {
@@ -99,6 +107,30 @@ def test_search_returns_empty_result() -> None:
         "nextCursor": None,
         "hasNext": False,
     }
+
+
+@pytest.mark.usefixtures("principal_override")
+def test_google_failure_returns_tour_search_result() -> None:
+    """Google 보완 장애가 발생해도 TourAPI 검색 결과를 정상 응답한다."""
+    commercial = tour_item("1") | {
+        "lclsSystm1": "FD",
+        "lclsSystm2": "FD05",
+        "lclsSystm3": "FD050100",
+    }
+    service = PlaceService(
+        TourStub([[commercial]]), FailingGoogleStub(), cursor_secret="test-secret"
+    )
+    app.dependency_overrides[_place_service] = lambda: service
+
+    response = TestClient(app).get(
+        "/api/v1/places/search",
+        params={"query": "카페", "category": "CAFE", "limit": 2},
+    )
+
+    assert response.status_code == 200
+    assert [item["placeId"] for item in response.json()["data"]["items"]] == [
+        "tourapi:1"
+    ]
 
 
 @pytest.mark.usefixtures("principal_override")

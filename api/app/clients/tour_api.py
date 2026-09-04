@@ -65,6 +65,18 @@ class TourApiClient:
         return await self._get("lclsSystmCode2", {"lclsSystmListYn": "Y"})
 
     async def _get(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
+        for attempt in range(2):
+            try:
+                return await self._get_once(endpoint, params)
+            except TourApiClientError as exc:
+                if attempt == 0 and exc.retryable:
+                    continue
+                raise
+        raise AssertionError("unreachable")
+
+    async def _get_once(
+        self, endpoint: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
         request_params = {
             "serviceKey": unquote(
                 self.settings.tour_api_service_key.get_secret_value()
