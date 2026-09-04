@@ -17,7 +17,8 @@ class PlaceLabelsTest {
 
     @Test
     fun 일곱_줄이_아니면_첫_줄을_쓰고_없으면_null이다() {
-        assertEquals("오전 10:00~오후 8:00", todayHoursLabel(listOf("월요일: 오전 10:00~오후 8:00"), DayOfWeek.FRIDAY))
+        assertEquals("10:00~20:00", todayHoursLabel(listOf("월요일: 오전 10:00~오후 8:00"), DayOfWeek.FRIDAY))
+        assertEquals("00:30~12:00", todayHoursLabel(listOf("오전 12:30~오후 12:00"), DayOfWeek.FRIDAY))
         assertEquals("상시 개방", todayHoursLabel(listOf("상시 개방"), DayOfWeek.FRIDAY))
         assertNull(todayHoursLabel(emptyList(), DayOfWeek.FRIDAY))
         assertNull(todayHoursLabel(null, DayOfWeek.FRIDAY))

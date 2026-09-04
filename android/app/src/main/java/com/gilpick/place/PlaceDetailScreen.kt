@@ -62,24 +62,24 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.gilpick.R
+import com.gilpick.ui.theme.LocalGilpickColors
+import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
+import com.gilpick.ui.theme.displayFont
 import kotlinx.coroutines.delay
 
 /**
  * 장소 상세 화면.
  *
  * 모양은 Figma Make `Design UI from Reference`의 `PlaceDetailScreen.tsx`를 그대로 따른다
- * (사용자 결정: pen 정본·테마 토큰보다 Figma 우선). 색·글자 크기·간격은 Figma 값이며
- * 이 파일 안의 [Figma] 팔레트에 모여 있다. Figma 팔레트를 앱 전체로 올리려면 `Theme.kt`로
- * 옮기면 된다.
+ * (사용자 결정: pen 정본보다 Figma 우선, UI-010·UI-013·UI-014). 색·곡률·타입 역할은
+ * `Theme.kt`(Figma 값을 옮긴 토큰)에서 읽고, 토큰에 자리가 없는 크기만 Figma 값을 그대로 쓴다.
  *
  * Figma에 있지만 API(`PlaceDto`)에 없는 값(입장료·혼잡도·날씨·운영시간 요약)은 지어내지
  * 않고 `정보 없음`으로 둔다(FR-007). Google 평점·영업정보 attribution은 Google 약관상
@@ -274,9 +274,9 @@ private fun Content(
         modifier = modifier
             .fillMaxSize()
             // 앱은 edge-to-edge라 상태 표시줄 뒤까지 그려진다. Figma처럼 그 띠는 흰색으로 두고 hero는 그 아래서 시작한다.
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding()
-            .background(Figma.Background),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         Hero(place = place, onBack = onBack, onFavorite = onFavorite)
         Column(
@@ -303,7 +303,7 @@ private fun Hero(place: PlaceDto, onBack: () -> Unit, onFavorite: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(240.dp)
-            .background(Figma.ImagePlaceholder)
+            .background(LocalGilpickColors.current.faint)
             // 이미지가 없을 때는 빈 자리 자체가 내용이므로 설명을 컨테이너에 붙인다.
             .then(if (place.imageUrl == null) Modifier.semantics { contentDescription = noImage } else Modifier),
     ) {
@@ -332,7 +332,7 @@ private fun Hero(place: PlaceDto, onBack: () -> Unit, onFavorite: () -> Unit) {
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 16.dp - CIRCLE_INSET, start = 20.dp - CIRCLE_INSET),
+                .padding(top = LocalGilpickSpacing.current.space4 - CIRCLE_INSET, start = LocalGilpickSpacing.current.space5 - CIRCLE_INSET),
         )
         CircleIconButton(
             icon = R.drawable.ic_lucide_heart,
@@ -340,35 +340,33 @@ private fun Hero(place: PlaceDto, onBack: () -> Unit, onFavorite: () -> Unit) {
             onClick = onFavorite,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 16.dp - CIRCLE_INSET, end = 20.dp - CIRCLE_INSET),
+                .padding(top = LocalGilpickSpacing.current.space4 - CIRCLE_INSET, end = LocalGilpickSpacing.current.space5 - CIRCLE_INSET),
         )
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                .padding(start = LocalGilpickSpacing.current.space5, end = LocalGilpickSpacing.current.space5, bottom = LocalGilpickSpacing.current.space4),
         ) {
             if (statusRes != null) {
                 Text(
                     text = stringResource(statusRes),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Figma.Success,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = LocalGilpickColors.current.success,
                     modifier = Modifier
-                        .padding(bottom = 8.dp)
-                        .background(Figma.SuccessContainer, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(bottom = LocalGilpickSpacing.current.space2)
+                        .background(LocalGilpickColors.current.successContainer, RoundedCornerShape(LocalGilpickRadius.current.sm))
+                        .padding(horizontal = 10.dp, vertical = LocalGilpickSpacing.current.space1),
                 )
             }
             Text(
                 text = place.name,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
+                style = MaterialTheme.typography.headlineMedium,
                 fontFamily = place.name.displayFont(),
                 color = Color.White,
             )
             Text(
                 text = place.address ?: stringResource(R.string.place_detail_missing),
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.7f),
             )
         }
@@ -410,9 +408,9 @@ private fun Stats(place: PlaceDto) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space4),
+        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space4),
     ) {
         Stat(
             value = ratingText ?: missing,
@@ -441,7 +439,7 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier, de
             fontSize = 16.sp,
             fontWeight = FontWeight.Black,
             fontFamily = value.displayFont(),
-            color = Figma.Text,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             modifier = if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
         )
@@ -449,7 +447,7 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier, de
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
-            color = Figma.Muted,
+            color = LocalGilpickColors.current.muted,
         )
     }
 }
@@ -469,15 +467,15 @@ private fun InfoRows(place: PlaceDto) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
-            .background(Color.White),
+            .padding(top = LocalGilpickSpacing.current.space2)
+            .background(MaterialTheme.colorScheme.surface),
     ) {
         InfoRow(R.drawable.ic_lucide_map_pin, stringResource(R.string.place_detail_address_label), place.address ?: missing)
-        HorizontalDivider(color = Figma.Background)
+        HorizontalDivider(color = MaterialTheme.colorScheme.background)
         InfoRow(R.drawable.ic_lucide_clock, stringResource(R.string.place_detail_hours_label), hours)
-        HorizontalDivider(color = Figma.Background)
+        HorizontalDivider(color = MaterialTheme.colorScheme.background)
         InfoRow(R.drawable.ic_lucide_users, stringResource(R.string.place_detail_crowd_label), missing)
-        HorizontalDivider(color = Figma.Background)
+        HorizontalDivider(color = MaterialTheme.colorScheme.background)
         InfoRow(R.drawable.ic_lucide_cloud_drizzle, stringResource(R.string.place_detail_weather_label), missing)
         if (place.hasGoogleData) {
             val attribution = place.googleAttributions
@@ -488,8 +486,8 @@ private fun InfoRows(place: PlaceDto) {
             Text(
                 text = stringResource(R.string.place_google_attribution, attribution),
                 fontSize = 11.sp,
-                color = Figma.Muted,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                color = LocalGilpickColors.current.muted,
+                modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space3),
             )
         }
     }
@@ -500,14 +498,14 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space4),
+        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space4),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
-            tint = Figma.Muted,
+            tint = LocalGilpickColors.current.muted,
             modifier = Modifier
                 .padding(top = 2.dp)
                 .size(16.dp),
@@ -515,17 +513,14 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String) {
         Column {
             Text(
                 text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.55.sp,
-                color = Figma.Muted,
+                style = MaterialTheme.typography.labelSmall,
+                color = LocalGilpickColors.current.muted,
                 modifier = Modifier.padding(bottom = 2.dp),
             )
             Text(
                 text = value,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Figma.Text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -536,18 +531,19 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String) {
 private fun MapPreview(name: String) {
     Box(
         modifier = Modifier
-            .padding(top = 8.dp, start = 16.dp, end = 16.dp)
+            .padding(top = LocalGilpickSpacing.current.space2, start = LocalGilpickSpacing.current.space4, end = LocalGilpickSpacing.current.space4)
             .fillMaxWidth()
             .height(130.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Figma.MapBackground),
+            .clip(RoundedCornerShape(LocalGilpickRadius.current.lg))
+            .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center,
     ) {
+        val primary = MaterialTheme.colorScheme.primary
         Canvas(modifier = Modifier.matchParentSize()) {
             // Figma SVG viewBox 340×130 좌표를 실제 크기로 늘린다.
             val sx = size.width / 340f
             val sy = size.height / 130f
-            val grid = Figma.Primary.copy(alpha = 0.5f)
+            val grid = primary.copy(alpha = 0.5f)
             var x = 0f
             while (x <= size.width) {
                 drawLine(grid, Offset(x, 0f), Offset(x, size.height), strokeWidth = 0.3f * sx)
@@ -566,8 +562,8 @@ private fun MapPreview(name: String) {
             drawPath(road, Color.White.copy(alpha = 0.7f), style = Stroke(width = 8f * sx))
             drawLine(Color.White.copy(alpha = 0.5f), Offset(170f * sx, 0f), Offset(170f * sx, size.height), strokeWidth = 5f * sx)
             val pin = Offset(170f * sx, 65f * sy)
-            drawCircle(Figma.Primary.copy(alpha = 0.2f), radius = 22f * sx, center = pin)
-            drawCircle(Figma.Primary, radius = 12f * sx, center = pin)
+            drawCircle(primary.copy(alpha = 0.2f), radius = 22f * sx, center = pin)
+            drawCircle(primary, radius = 12f * sx, center = pin)
         }
         Text(
             text = name,
@@ -582,25 +578,25 @@ private fun MapPreview(name: String) {
 /** Figma `CTA`: 지도 버튼(48×52, #F4F6FB)과 gradient `일정에 추가`(52dp). 위에 1dp 선. */
 @Composable
 private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.md)
     val openMap = stringResource(R.string.place_detail_open_map)
 
     Column(
         modifier = Modifier
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             // 제스처 바 뒤까지 흰색을 채우고 버튼은 그 위에 둔다.
             .navigationBarsPadding(),
     ) {
-        HorizontalDivider(color = Figma.Divider)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space4),
+            horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space3),
         ) {
             Box(
                 modifier = Modifier
                     .size(width = 48.dp, height = 52.dp)
                     .clip(shape)
-                    .background(Figma.Background)
+                    .background(MaterialTheme.colorScheme.background)
                     .clickable(onClick = onOpenMap, role = Role.Button)
                     .semantics { contentDescription = openMap },
                 contentAlignment = Alignment.Center,
@@ -608,7 +604,7 @@ private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_map_pin),
                     contentDescription = null,
-                    tint = Figma.Icon,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -617,14 +613,13 @@ private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
                     .weight(1f)
                     .height(52.dp)
                     .clip(shape)
-                    .background(Brush.linearGradient(listOf(Figma.Primary, Figma.PrimaryDark)))
+                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
                     .clickable(onClick = onAddToSchedule, role = Role.Button),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = stringResource(R.string.place_detail_add_to_schedule),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
                 )
             }
@@ -647,65 +642,64 @@ private fun AddToScheduleSheet(
 ) {
     var transport by remember { mutableStateOf(PlaceTransport.TRANSIT) }
     var minutes by remember { mutableIntStateOf(defaultMinutes.coerceIn(STAY_MIN, STAY_MAX)) }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
     val title = stringResource(R.string.place_detail_sheet_title)
     val minutesText = stringResource(R.string.place_detail_stay_minutes, minutes)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White,
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = LocalGilpickRadius.current.sheet, topEnd = LocalGilpickRadius.current.sheet),
         dragHandle = null,
         scrimColor = Color.Black.copy(alpha = 0.5f),
     ) {
         Column(
             modifier = Modifier
-                .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)
+                .padding(start = LocalGilpickSpacing.current.space6, end = LocalGilpickSpacing.current.space6, top = LocalGilpickSpacing.current.space5, bottom = LocalGilpickSpacing.current.space8)
                 .navigationBarsPadding(),
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(bottom = 20.dp)
+                    .padding(bottom = LocalGilpickSpacing.current.space5)
                     .size(width = 40.dp, height = 4.dp)
                     .clip(CircleShape)
-                    .background(Figma.Divider),
+                    .background(MaterialTheme.colorScheme.outlineVariant),
             )
             Text(
                 text = title,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
+                style = MaterialTheme.typography.titleLarge,
                 fontFamily = title.displayFont(),
-                color = Figma.Text,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = stringResource(R.string.place_detail_sheet_subtitle, placeName),
-                fontSize = 13.sp,
-                color = Figma.Muted,
-                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = LocalGilpickColors.current.muted,
+                modifier = Modifier.padding(top = LocalGilpickSpacing.current.space1, bottom = LocalGilpickSpacing.current.space5),
             )
             PlaceTransport.entries.forEach { option ->
                 TransportOption(
                     option = option,
                     selected = transport == option,
                     onClick = { transport = option },
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = LocalGilpickSpacing.current.space2),
                 )
             }
             Text(
                 text = stringResource(R.string.place_detail_stay_title),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Figma.Text,
-                modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = LocalGilpickSpacing.current.space3, bottom = LocalGilpickSpacing.current.space3),
             )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(shape)
-                    .background(Figma.Background)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(horizontal = LocalGilpickSpacing.current.space4, vertical = LocalGilpickSpacing.current.space3),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -717,10 +711,9 @@ private fun AddToScheduleSheet(
                 )
                 Text(
                     text = minutesText,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontFamily = minutesText.displayFont(),
-                    color = Figma.Text,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 StepButton(
                     label = "+",
@@ -730,23 +723,22 @@ private fun AddToScheduleSheet(
                 )
             }
             Row(
-                modifier = Modifier.padding(top = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(top = LocalGilpickSpacing.current.space5),
+                horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space3),
             ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp)
                         .clip(shape)
-                        .background(Figma.Background)
+                        .background(MaterialTheme.colorScheme.background)
                         .clickable(onClick = onDismiss, role = Role.Button),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = stringResource(R.string.place_detail_cancel),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Figma.Icon,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Box(
@@ -754,7 +746,7 @@ private fun AddToScheduleSheet(
                         .weight(2f)
                         .height(50.dp)
                         .clip(shape)
-                        .background(Brush.linearGradient(listOf(Figma.Primary, Figma.PrimaryDark)))
+                        .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
                         .clickable(
                             onClick = { onConfirm(AddToScheduleRequest(transport, minutes)) },
                             role = Role.Button,
@@ -764,8 +756,7 @@ private fun AddToScheduleSheet(
                 ) {
                     Text(
                         text = stringResource(R.string.place_detail_add_to_schedule),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelLarge,
                         color = Color.White,
                     )
                 }
@@ -782,7 +773,7 @@ private fun TransportOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
     val (icon, labelRes) = when (option) {
         PlaceTransport.WALK -> R.drawable.ic_lucide_walk to R.string.place_transport_walk
         PlaceTransport.TRANSIT -> R.drawable.ic_lucide_transit to R.string.place_transport_transit
@@ -793,32 +784,32 @@ private fun TransportOption(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (selected) Figma.PrimaryContainer else Color.White)
-            .border(2.dp, if (selected) Figma.Primary else Figma.Divider, shape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.White)
+            .border(2.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
             .clickable(onClick = onClick, role = Role.RadioButton)
             .semantics { this.selected = selected }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = LocalGilpickSpacing.current.space4, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
-            tint = if (selected) Figma.Primary else Figma.Muted,
+            tint = if (selected) MaterialTheme.colorScheme.primary else LocalGilpickColors.current.muted,
             modifier = Modifier.size(20.dp),
         )
         Text(
             text = stringResource(labelRes),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = if (selected) Figma.Primary else Figma.Text,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
         if (selected) {
             Icon(
                 painter = painterResource(R.drawable.ic_lucide_check),
                 contentDescription = null,
-                tint = Figma.Primary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -842,50 +833,20 @@ private fun StepButton(label: String, contentDescription: String, primary: Boole
                 .then(if (primary) Modifier else Modifier.shadow(2.dp, CircleShape))
                 .clip(CircleShape)
                 .background(
-                    if (primary) Brush.linearGradient(listOf(Figma.Primary, Figma.PrimaryDark))
+                    if (primary) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark))
                     else Brush.linearGradient(listOf(Color.White, Color.White)),
                 ),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = label,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                color = if (primary) Color.White else Figma.Text,
+                style = MaterialTheme.typography.titleLarge,
+                color = if (primary) Color.White else MaterialTheme.colorScheme.onSurface,
             )
         }
     }
 }
 
-/**
- * Figma `index.css`의 `Outfit, 'Noto Sans KR'`: 숫자·라틴은 Outfit, 한글은 시스템 폰트.
- * Outfit 패밀리에 한글을 맡기면 fallback 글리프에 굵기가 적용되지 않아 얇게 나오므로 문자열 단위로 고른다.
- */
-private fun String.displayFont(): FontFamily =
-    if (any { it in '가'..'힣' || it in 'ㄱ'..'ㆎ' }) FontFamily.Default else Outfit
-
-/** Outfit 가변 폰트(OFL — `app/OFL-Outfit.txt`). */
-private val Outfit = FontFamily(
-    Font(R.font.outfit, FontWeight.Bold),
-    Font(R.font.outfit, FontWeight.ExtraBold),
-    Font(R.font.outfit, FontWeight.Black),
-)
-
-/** Figma Make `Design UI from Reference` 팔레트. `Theme.kt`(pen 정본)와 다르며 이 화면만 쓴다. */
-private object Figma {
-    val Background = Color(0xFFF4F6FB)
-    val Text = Color(0xFF111827)
-    val Muted = Color(0xFF94A3B8)
-    val Icon = Color(0xFF6B7280)
-    val Divider = Color(0xFFE2E8F0)
-    val Primary = Color(0xFF3B7BF8)
-    val PrimaryDark = Color(0xFF2457C5)
-    val PrimaryContainer = Color(0xFFEBF2FF)
-    val Success = Color(0xFF10B981)
-    val SuccessContainer = Color(0xFFECFDF5)
-    val MapBackground = Color(0xFFEBF2FF)
-    val ImagePlaceholder = Color(0xFFCBD5E1)
-}
 
 /** 가이드라인 9절: 1초를 넘길 때만 대기 표시를 띄운다. */
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L

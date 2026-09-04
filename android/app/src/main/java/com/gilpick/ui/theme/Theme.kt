@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -197,11 +198,10 @@ val LocalGilpickRadius = compositionLocalOf<GilpickRadius> {
  * `app/OFL-Outfit.txt`), 한글은 시스템 폰트. 가이드라인 4절.
  */
 val Outfit: FontFamily = FontFamily(
-    Font(R.font.outfit, FontWeight.Medium),
-    Font(R.font.outfit, FontWeight.SemiBold),
-    Font(R.font.outfit, FontWeight.Bold),
-    Font(R.font.outfit, FontWeight.ExtraBold),
-    Font(R.font.outfit, FontWeight.Black),
+    listOf(FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold, FontWeight.ExtraBold, FontWeight.Black).map { weight ->
+        // 가변 폰트는 wght 축을 직접 지정해야 한다. 없으면 파일 기본 굵기(Thin)로 그려진다.
+        Font(R.font.outfit, weight, variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)))
+    },
 )
 
 /**

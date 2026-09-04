@@ -69,5 +69,12 @@ internal fun todayHoursLabel(
 ): String? {
     if (hours.isNullOrEmpty()) return null
     val line = hours.getOrNull(today.value - 1)?.takeIf { hours.size == 7 } ?: hours.first()
-    return line.substringAfter(": ", line)
+    // Figma stats 열은 `09:00~18:00`처럼 짧다. Google 원문 `오전 9:00~오후 6:00`은 3열 안에서 줄바꿈되므로 24시간제로 줄인다.
+    return AM_PM_TIME.replace(line.substringAfter(": ", line)) { m ->
+        val (period, hour, minute) = m.destructured
+        val h = hour.toInt() % 12 + if (period == "오후") 12 else 0
+        "%02d:%s".format(h, minute)
+    }
 }
+
+private val AM_PM_TIME = Regex("""(오전|오후) (\d{1,2}):(\d{2})""")
