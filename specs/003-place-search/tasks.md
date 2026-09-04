@@ -98,7 +98,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T004, T007
   - 검증: query/category 단독·조합, trim 후 2글자, areaCode, limit, cursor, nullable field와 `400` 계약을 구현 전 실패 test로 확인
-- [ ] T011 [P] [US1] TourAPI 우선 routing·Google 부족분·매칭·cursor·중복 정책 unit test 작성 in api/tests/unit/test_place_service.py
+- [x] T011 [P] [US1] TourAPI 우선 routing·Google 부족분·매칭·cursor·중복 정책 unit test 작성 in api/tests/unit/test_place_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, T005
@@ -116,12 +116,12 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] TourAPI 우선 검색·category mapping·조건부 Google 보완·확정 매칭·서명 cursor 구현 in api/app/services/place.py
+- [x] T014 [US1] TourAPI 우선 검색·category mapping·조건부 Google 보완·확정 매칭·서명 cursor 구현 in api/app/services/place.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T010, T011, T035
   - 검증: TourAPI를 먼저 호출하고 상업 category의 정상 결과가 `limit` 미만일 때만 Google 부족분을 요청하며 mapping·매칭·cursor unit test 통과
-- [ ] T015 [US1] PLACE-001 validation과 검색 endpoint 구현 in api/app/api/v1/places.py
+- [x] T015 [US1] PLACE-001 validation과 검색 endpoint 구현 in api/app/api/v1/places.py
   - 영역: BE
   - 담당: ts
   - 선행: T007, T014
