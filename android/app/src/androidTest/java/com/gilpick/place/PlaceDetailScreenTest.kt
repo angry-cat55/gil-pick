@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -43,38 +44,35 @@ class PlaceDetailScreenTest {
     }
 
     @Test
-    fun content는_이름과_category와_주소와_소개와_추천_체류시간을_보여준다() {
+    fun content는_hero에_이름과_주소를_정보_행에_주소와_운영_안내를_보여준다() {
         setScreen(
             content(
                 testPlace(
                     "tourapi:1",
                     name = "경복궁",
                     address = "서울특별시 종로구 사직로 161",
-                    description = "조선 왕조 제일의 법궁이다.",
-                    phone = "02-3700-3900",
                     operatingGuide = "매주 화요일 휴무",
                     imageUrl = "https://example.test/a.jpg",
                 ),
             ),
         )
 
-        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
-        composeRule.onNodeWithText("문화·역사 · 서울특별시 종로구 사직로 161").assertIsDisplayed()
-        composeRule.onNodeWithText("조선 왕조 제일의 법궁이다.").assertIsDisplayed()
-        composeRule.onNodeWithText("90분 · 일정 추가 시 자동 반영").assertIsDisplayed()
-        composeRule.onNodeWithText("02-3700-3900").assertIsDisplayed()
+        // hero 이름과 지도 핀 라벨에 한 번씩 나온다.
+        composeRule.onAllNodes(hasText("경복궁")).onFirst().assertIsDisplayed()
+        // hero와 주소 행에 한 번씩.
+        composeRule.onAllNodes(hasText("서울특별시 종로구 사직로 161")).assertCountEquals(2)
         composeRule.onNodeWithText("매주 화요일 휴무").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("경복궁 대표 사진").assertIsDisplayed()
+        composeRule.onNodeWithText("일정에 추가").assertIsDisplayed()
     }
 
     @Test
     fun 누락된_정보는_지어내지_않고_정보_없음으로_구분한다() {
         setScreen(content(testPlace("tourapi:1", name = "정보 적은 장소", address = null, imageUrl = null)))
 
-        composeRule.onNodeWithText("제공된 소개 정보가 없어요.").assertIsDisplayed()
-        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(3)
+        // hero 주소 1 + stats(평점·운영시간·입장료) 3 + 행(주소·운영시간·혼잡도·날씨) 4.
+        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(8)
         composeRule.onNodeWithContentDescription("대표 사진 없음").assertIsDisplayed()
-        composeRule.onNodeWithText("문화·역사").assertIsDisplayed()
     }
 
     @Test
@@ -93,8 +91,7 @@ class PlaceDetailScreenTest {
             ),
         )
 
-        composeRule.onNodeWithText("★ 4.6").assertIsDisplayed()
-        composeRule.onNodeWithText("리뷰 12,450").assertIsDisplayed()
+        composeRule.onNodeWithText("4.6").assertIsDisplayed()
         composeRule.onNodeWithText("운영 중").assertIsDisplayed()
         composeRule.onNodeWithText("월요일: 오전 10:00~오후 8:00").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("평점·영업정보 제공: Google").performScrollTo().assertIsDisplayed()
@@ -103,10 +100,9 @@ class PlaceDetailScreenTest {
     }
 
     @Test
-    fun google_데이터가_없으면_평점_영역과_attribution이_없다() {
+    fun google_데이터가_없으면_attribution이_없다() {
         setScreen(content(testPlace("tourapi:1", name = "경복궁")))
 
-        composeRule.onAllNodes(hasText("평점·영업정보")).assertCountEquals(0)
         composeRule.onAllNodes(hasText("평점·영업정보 제공: Google")).assertCountEquals(0)
     }
 
@@ -118,11 +114,20 @@ class PlaceDetailScreenTest {
             ),
         )
 
-        composeRule.onNodeWithText("구글 카페").assertIsDisplayed()
-        composeRule.onNodeWithText("★ 4.3").assertIsDisplayed()
-        composeRule.onNodeWithText("02-0000-0000").assertIsDisplayed()
-        // 운영 안내는 TourAPI 기준 장소만 가지므로 Google 전용 장소는 정보 없음이다.
-        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(1)
+        composeRule.onAllNodes(hasText("구글 카페")).onFirst().assertIsDisplayed()
+        composeRule.onNodeWithText("4.3").assertIsDisplayed()
+        // stats 운영시간·입장료 2 + 행 운영시간·혼잡도·날씨 3.
+        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(5)
+    }
+
+    @Test
+    fun 일정에_추가_버튼은_콜백을_호출한다() {
+        var adds = 0
+        setScreen(content(testPlace("tourapi:1", name = "경복궁")), onAddToSchedule = { adds++ })
+
+        composeRule.onNodeWithText("일정에 추가").performClick()
+
+        assertEquals(1, adds)
     }
 
     @Test
@@ -180,10 +185,11 @@ class PlaceDetailScreenTest {
         state: PlaceDetailUiState,
         onBack: () -> Unit = {},
         onRetry: () -> Unit = {},
+        onAddToSchedule: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
-                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry)
+                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry, onAddToSchedule = onAddToSchedule)
             }
         }
     }

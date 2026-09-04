@@ -58,3 +58,16 @@ val PlaceError.detailMessageRes: Int
         PlaceErrorKind.SESSION_EXPIRED -> R.string.place_detail_error_session
         PlaceErrorKind.UNEXPECTED -> R.string.place_detail_error_unexpected
     }
+
+/**
+ * Figma `Stats`의 `운영시간` 칸: Google `weekdayDescriptions`(월요일부터 7줄)에서 오늘 줄을 고르고
+ * `월요일: ` 같은 요일 접두어를 뗀다. 7줄이 아니면 첫 줄을 쓴다. 영업 여부를 계산하지는 않는다(FR-007).
+ */
+internal fun todayHoursLabel(
+    hours: List<String>?,
+    today: java.time.DayOfWeek = java.time.LocalDate.now().dayOfWeek,
+): String? {
+    if (hours.isNullOrEmpty()) return null
+    val line = hours.getOrNull(today.value - 1)?.takeIf { hours.size == 7 } ?: hours.first()
+    return line.substringAfter(": ", line)
+}
