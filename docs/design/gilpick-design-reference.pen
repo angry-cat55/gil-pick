@@ -6774,7 +6774,7 @@
     {
       "type": "frame",
       "id": "L7m8E",
-      "x": -969,
+      "x": -979,
       "y": 1600,
       "name": "05. 편집 취소 다이얼로그",
       "clip": true,
@@ -41153,6 +41153,123 @@
                   "fontWeight": "600"
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "e2XHwL",
+      "x": 819,
+      "y": 1345,
+      "name": "Menu",
+      "width": 200,
+      "fill": "$surface",
+      "cornerRadius": 16,
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#18201E33",
+        "offset": {
+          "x": 0,
+          "y": 8
+        },
+        "blur": 24
+      },
+      "layout": "vertical",
+      "padding": [
+        8,
+        0
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "Qt0LZ",
+          "name": "Edit",
+          "width": "fill_container",
+          "height": 52,
+          "gap": 12,
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "d0MZVk",
+              "name": "I",
+              "width": 20,
+              "height": 20,
+              "icon": "pencil",
+              "library": "lucide",
+              "fill": "$on-surface-variant"
+            },
+            {
+              "type": "text",
+              "id": "VMnVy",
+              "name": "L",
+              "fill": "$on-surface",
+              "content": "수정",
+              "fontFamily": "$font",
+              "fontSize": 16,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "HMl32",
+          "name": "DividerWrap",
+          "width": "fill_container",
+          "padding": [
+            4,
+            16
+          ],
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "enmav",
+              "name": "Div",
+              "fill": "$outline-variant",
+              "width": "fill_container",
+              "height": 1
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "IGzgR",
+          "name": "Delete",
+          "width": "fill_container",
+          "height": 52,
+          "gap": 12,
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "tDKa3",
+              "name": "I",
+              "width": 20,
+              "height": 20,
+              "icon": "trash-2",
+              "library": "lucide",
+              "fill": "$error"
+            },
+            {
+              "type": "text",
+              "id": "U30VS",
+              "name": "L",
+              "fill": "$error",
+              "content": "삭제",
+              "fontFamily": "$font",
+              "fontSize": 16,
+              "fontWeight": "500"
             }
           ]
         }
