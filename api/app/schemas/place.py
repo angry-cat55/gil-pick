@@ -70,7 +70,17 @@ class PlaceSummary(ApiModel):
     @field_validator("image_url")
     @classmethod
     def validate_image_https(cls, value: HttpUrl | None) -> HttpUrl | None:
-        """대표 이미지는 HTTPS URL만 허용한다."""
+        """대표 이미지는 HTTPS URL만 허용한다.
+
+        Args:
+            value: 검증할 이미지 URL 또는 ``None``.
+
+        Returns:
+            HTTPS 이미지 URL 또는 ``None``.
+
+        Raises:
+            ValueError: HTTPS가 아닌 URL인 경우.
+        """
         if value is not None and value.scheme != "https":
             raise ValueError("imageUrl must use HTTPS")
         return value

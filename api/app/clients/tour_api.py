@@ -40,28 +40,76 @@ class TourApiClient:
         )
 
     async def search_keyword(self, **params: Any) -> dict[str, Any]:
-        """키워드로 장소를 검색한다."""
+        """키워드로 장소를 검색한다.
+
+        Args:
+            **params: TourAPI 검색 query parameter.
+
+        Returns:
+            TourAPI JSON 응답 객체.
+
+        Raises:
+            TourApiClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._get("searchKeyword2", params)
 
     async def search_by_area(self, **params: Any) -> dict[str, Any]:
-        """분류와 지역 조건으로 장소를 검색한다."""
+        """분류와 지역 조건으로 장소를 검색한다.
+
+        Args:
+            **params: TourAPI 검색 query parameter.
+
+        Returns:
+            TourAPI JSON 응답 객체.
+
+        Raises:
+            TourApiClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._get("areaBasedList2", params)
 
     async def get_common_detail(self, content_id: str) -> dict[str, Any]:
-        """장소의 공통 상세정보를 조회한다."""
+        """장소의 공통 상세정보를 조회한다.
+
+        Args:
+            content_id: TourAPI 장소 식별자.
+
+        Returns:
+            TourAPI 공통 상세 JSON 응답 객체.
+
+        Raises:
+            TourApiClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._get("detailCommon2", {"contentId": content_id})
 
     async def get_intro_detail(
         self, content_id: str, content_type_id: str
     ) -> dict[str, Any]:
-        """장소 유형별 상세정보를 조회한다."""
+        """장소 유형별 상세정보를 조회한다.
+
+        Args:
+            content_id: TourAPI 장소 식별자.
+            content_type_id: TourAPI 콘텐츠 유형 식별자.
+
+        Returns:
+            TourAPI 유형별 상세 JSON 응답 객체.
+
+        Raises:
+            TourApiClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._get(
             "detailIntro2",
             {"contentId": content_id, "contentTypeId": content_type_id},
         )
 
     async def get_classifications(self) -> dict[str, Any]:
-        """TourAPI 신분류 코드 목록을 조회한다."""
+        """TourAPI 신분류 코드 목록을 조회한다.
+
+        Returns:
+            TourAPI 분류 코드 JSON 응답 객체.
+
+        Raises:
+            TourApiClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._get("lclsSystmCode2", {"lclsSystmListYn": "Y"})
 
     async def _get(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:

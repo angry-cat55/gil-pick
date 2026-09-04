@@ -72,7 +72,18 @@ class GooglePlacesClient:
         )
 
     async def search_text(self, text_query: str, **params: Any) -> dict[str, Any]:
-        """검색어에 일치하는 Google 장소를 조회한다."""
+        """검색어에 일치하는 Google 장소를 조회한다.
+
+        Args:
+            text_query: Google Text Search에 전달할 검색어.
+            **params: Text Search 요청 본문에 추가할 parameter.
+
+        Returns:
+            Google Places JSON 응답 객체.
+
+        Raises:
+            GooglePlacesClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._request(
             "POST",
             "/places:searchText",
@@ -81,7 +92,17 @@ class GooglePlacesClient:
         )
 
     async def get_place(self, place_id: str) -> dict[str, Any]:
-        """Google place ID로 상세정보를 조회한다."""
+        """Google place ID로 상세정보를 조회한다.
+
+        Args:
+            place_id: Google Places 장소 식별자.
+
+        Returns:
+            Google Place Details JSON 응답 객체.
+
+        Raises:
+            GooglePlacesClientError: provider 요청 또는 응답 검증에 실패한 경우.
+        """
         return await self._request(
             "GET",
             f"/places/{place_id}",
