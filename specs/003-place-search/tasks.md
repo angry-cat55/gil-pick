@@ -93,7 +93,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] PLACE-001 요청·응답 contract test 작성 in api/tests/contract/test_place_contract.py
+- [x] T010 [P] [US1] PLACE-001 요청·응답 contract test 작성 in api/tests/contract/test_place_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T004, T007
