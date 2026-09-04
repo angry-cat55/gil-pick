@@ -6,7 +6,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
@@ -42,6 +47,9 @@ data class PlaceDetailRoute(val placeId: String)
  * `04. 일정 편집 화면`에 `장소 추가`로 설계돼 있으나 그 화면이 F004 범위여서 아직
  * 없다. F003이 임시 진입 UI를 대신 만들지 않기로 T035에서 확정했다.
  *
+ * 상세는 #139에서 실제 화면이다. ViewModel이 상세 destination의 back stack entry에 묶여
+ * 회전·복귀에도 상태가 남고, 뒤로가면 검색 entry가 살아 있어 조건·결과가 유지된다(UI-009).
+ *
  * @param navController 상세로 이동하고 뒤로 돌아오는 데 쓴다.
  */
 fun NavGraphBuilder.placeGraph(navController: NavController) {
@@ -51,9 +59,18 @@ fun NavGraphBuilder.placeGraph(navController: NavController) {
         )
     }
     composable<PlaceDetailRoute> { entry ->
-        PlaceDetailPlaceholderScreen(
-            placeId = entry.toRoute<PlaceDetailRoute>().placeId,
+        val placeId = entry.toRoute<PlaceDetailRoute>().placeId
+        val viewModel: PlaceDetailViewModel = viewModel(
+            factory = PlaceDetailViewModel.factory(LocalContext.current, placeId),
+        )
+        val state by viewModel.state.collectAsStateWithLifecycle()
+
+        LaunchedEffect(placeId) { viewModel.load() }
+
+        PlaceDetailScreen(
+            state = state,
             onBack = { navController.popBackStack() },
+            onRetry = viewModel::retry,
         )
     }
 }
@@ -61,9 +78,9 @@ fun NavGraphBuilder.placeGraph(navController: NavController) {
 /**
  * US1 검색 화면이 들어올 자리를 지키는 임시 화면.
  *
- * **임시 화면이다.** T012·T013에서 실제 검색 화면으로 교체한다. route 등록과 back
+ * **임시 화면이다.** #142(T017)에서 실제 검색 화면으로 교체한다. route 등록과 back
  * stack 동작을 검증할 최소 요소만 두었고 `loading`·`empty`·`error`·`content` 상태와
- * 접근성·screenshot 검증은 그 task에서 수행한다. 색·간격을 직접 쓰지 않으려고
+ * 접근성·screenshot 검증은 그 Issue에서 수행한다. 색·간격을 직접 쓰지 않으려고
  * theme 토큰만 사용한다.
  */
 @Composable
@@ -79,26 +96,5 @@ private fun PlaceSearchPlaceholderScreen(
     }
 }
 
-/**
- * US2 상세 화면이 들어올 자리를 지키는 임시 화면.
- *
- * **임시 화면이다.** T013·T016에서 실제 상세 화면으로 교체한다. route 인자가 목적지까지
- * 그대로 전달되는지 확인할 수 있도록 [placeId]를 그대로 표시한다.
- */
-@Composable
-private fun PlaceDetailPlaceholderScreen(
-    placeId: String,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier.padding(LocalGilpickSpacing.current.space4)) {
-        Text(text = "장소 상세", style = MaterialTheme.typography.titleLarge)
-        Text(text = placeId)
-        Button(onClick = onBack) {
-            Text(text = "뒤로")
-        }
-    }
-}
-
-/** 임시 검색 화면이 상세로 넘기는 place ID. 실제 화면이 들어오면 사라진다. */
+/** 임시 검색 화면이 상세로 넘기는 place ID. 실제 검색 화면이 들어오면 사라진다. */
 internal const val PLACEHOLDER_PLACE_ID = "tourapi:126508"

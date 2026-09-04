@@ -159,7 +159,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T004, T005
   - 검증: `tourapi:` 기준 상세·Google 허용 필드 병합, `google:` 전용 상세, nullable field·invalid ID·not found·사진·리뷰 제외를 구현 전 실패 test로 확인
-- [ ] T020 [P] [US2] Android 상세·Google 필드·attribution·provider 배지 미표시 test 작성 in android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceDetailScreenTest.kt
+- [x] T020 [P] [US2] Android 상세·Google 필드·attribution·provider 배지 미표시 test 작성 in android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceDetailScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008, T009
@@ -177,21 +177,22 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T021
   - 검증: 상세 contract·integration test와 `400/401/404/429/502/504` envelope 검증 통과
-- [ ] T023 [US2] Android 상세 repository와 ViewModel 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailViewModel.kt
+- [x] T023 [US2] Android 상세 repository와 ViewModel 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T020, T022
   - 검증: nullable field, not found, retryable 오류 mapping과 destination-scoped 상태 test 통과
-- [ ] T024 [US2] Android 상세 화면과 검색 결과 진입 연결 구현 in android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
+- [x] T024 [US2] Android 상세 화면과 검색 결과 진입 연결 구현 in android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T017, T023
   - 검증: 검색 행 전체 선택, 상세 네 상태, 정보 없음 안내, 이미지 접근성, 뒤로가기 후 조건·결과·scroll 유지 UI test 통과
-- [ ] T025 [US2] 상세 화면 실제 기기·접근성 검증 수행 against android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt
+- [x] T025 [US2] 상세 화면 실제 기기·접근성 검증 수행 against android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024
   - 검증: 실제 기기 또는 AVD screenshot으로 네 상태·긴 설명·필드 누락·360dp·최대 font scale·TalkBack·뒤로가기 상태를 기록
+  - 기록(2026-09-04, #139): AVD gilpick_api36에서 `PlaceDetailScreenTest` 10건·`PlaceNavigationTest` 3건 통과. `PlaceDetailScreenshotTest`가 loading/content/notFound/error, 긴 설명, 필드·이미지 누락, fontScale 2.0을 PNG로 남김(`adb pull /sdcard/Android/data/com.gilpick/files/screenshots`). 360dp 실기기·TalkBack 수동 확인은 미수행
 
 **Checkpoint**: 검색과 상세가 각각 독립 검증 가능하며 같은 장소 계약을 사용한다.
 

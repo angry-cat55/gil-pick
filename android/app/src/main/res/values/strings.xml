@@ -72,4 +72,50 @@
     <string name="trip_form_error_network">연결을 확인한 뒤 다시 시도해 주세요. 입력한 내용은 그대로 있습니다.</string>
     <string name="trip_form_error_invalid">입력한 이름이나 기간을 다시 확인해 주세요.</string>
     <string name="trip_form_error_unexpected">지금은 여행을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+
+    <!-- 장소 공통 -->
+    <string name="place_category_nature">자연</string>
+    <string name="place_category_history_culture">문화·역사</string>
+    <string name="place_category_food">음식</string>
+    <string name="place_category_cafe">카페</string>
+    <string name="place_category_shopping">쇼핑</string>
+    <string name="place_category_other">기타</string>
+    <string name="place_rating">★ %1$s</string>
+    <string name="place_rating_description">평점 %1$s점</string>
+    <string name="place_rating_count">리뷰 %1$s</string>
+    <string name="place_business_operational">운영 중</string>
+    <string name="place_business_closed_temporarily">임시 휴업</string>
+    <string name="place_business_closed_permanently">폐업</string>
+    <string name="place_google_attribution">평점·영업정보 제공: %1$s</string>
+    <string name="place_google_attribution_default">Google</string>
+
+    <!-- 장소 상세 화면 -->
+    <string name="place_detail_title">장소 상세</string>
+    <string name="place_detail_back">뒤로 가기</string>
+    <string name="place_detail_loading">장소 정보를 불러오는 중</string>
+    <string name="place_detail_image_description">%1$s 대표 사진</string>
+    <string name="place_detail_no_image">대표 사진 없음</string>
+    <string name="place_detail_meta">%1$s · %2$s</string>
+    <string name="place_detail_description_missing">제공된 소개 정보가 없어요.</string>
+    <string name="place_detail_stay_label">추천 체류 시간</string>
+    <string name="place_detail_stay_value">%1$d분 · 일정 추가 시 자동 반영</string>
+    <string name="place_detail_phone_label">전화</string>
+    <string name="place_detail_address_label">주소</string>
+    <string name="place_detail_operating_label">운영 안내</string>
+    <string name="place_detail_missing">정보 없음</string>
+    <string name="place_detail_google_section">평점·영업정보</string>
+    <string name="place_detail_hours_regular">영업시간</string>
+    <string name="place_detail_hours_current">이번 주 영업시간</string>
+    <string name="place_detail_google_note">평점·영업정보는 %1$s 조회 기준이에요.</string>
+    <string name="place_detail_not_found_title">장소를 찾을 수 없어요</string>
+    <string name="place_detail_not_found_hint">더 이상 제공되지 않거나 잘못된 장소예요. 검색 결과로 돌아가 다른 장소를 골라 주세요.</string>
+    <string name="place_detail_back_to_search">검색 결과로 돌아가기</string>
+    <string name="place_detail_retry">다시 시도</string>
+    <string name="place_detail_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="place_detail_error_timeout">장소 정보 제공이 지연되고 있어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="place_detail_error_rate_limited">지금은 요청이 많아 장소 정보를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="place_detail_error_provider">장소 정보를 받아오지 못했어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="place_detail_error_provider_permanent">장소 정보 제공자가 요청을 처리하지 못했어요. 검색 결과로 돌아가 주세요.</string>
+    <string name="place_detail_error_session">로그인 상태가 만료되었어요. 다시 로그인해 주세요.</string>
+    <string name="place_detail_error_unexpected">지금은 장소 정보를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.</string>
 </resources>
