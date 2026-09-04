@@ -38,7 +38,14 @@ router = APIRouter(
 async def _place_service(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AsyncIterator[PlaceService]:
-    """한 요청에서 두 provider가 공유하는 HTTP client를 제공한다."""
+    """한 요청에서 두 provider가 공유하는 HTTP client를 제공한다.
+
+    Args:
+        settings: 외부 provider와 cursor 서명에 사용할 애플리케이션 설정.
+
+    Yields:
+        요청 종료 시 HTTP client가 함께 닫히는 장소 service.
+    """
     async with httpx2.AsyncClient(
         timeout=settings.place_provider_timeout_seconds
     ) as client:
@@ -69,7 +76,23 @@ async def search_places(
     cursor: Annotated[str | None, Query(min_length=1)] = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 20,
 ) -> JSONResponse:
-    """키워드 또는 카테고리 조건으로 장소를 검색한다."""
+    """키워드 또는 카테고리 조건으로 장소를 검색한다.
+
+    Args:
+        request: request ID를 포함하는 HTTP 요청.
+        service: 외부 provider를 조합하는 장소 service.
+        query: 두 글자 이상의 검색어.
+        category: 길픽 장소 카테고리 필터.
+        area_code: TourAPI 지역 코드.
+        cursor: 이전 응답에서 받은 pagination cursor.
+        limit: 한 페이지에 반환할 최대 장소 수.
+
+    Returns:
+        공통 envelope에 담긴 장소 검색 응답.
+
+    Raises:
+        AppError: 검색 조건 또는 cursor가 잘못됐거나 provider가 실패한 경우.
+    """
     normalized_query = query.strip() if query is not None else None
     if normalized_query is not None and len(normalized_query) < 2:
         raise AppError(400, "INVALID_REQUEST", "검색어는 2글자 이상이어야 합니다.")
@@ -104,5 +127,17 @@ async def get_place(
     service: Annotated[PlaceService, Depends(_place_service)],
     place_id: Annotated[str, Path(alias="placeId", pattern=r"^(tourapi|google):[A-Za-z0-9_-]+$")],
 ) -> JSONResponse:
-    """provider 이름공간 ID로 장소 상세를 조회한다."""
+    """provider 이름공간 ID로 장소 상세를 조회한다.
+
+    Args:
+        request: request ID를 포함하는 HTTP 요청.
+        service: 외부 provider를 조합하는 장소 service.
+        place_id: provider prefix가 포함된 장소 ID.
+
+    Returns:
+        공통 envelope에 담긴 장소 상세 응답.
+
+    Raises:
+        AppError: 장소가 없거나 provider 요청에 실패한 경우.
+    """
     return success_response(request, await service.get_place(place_id))

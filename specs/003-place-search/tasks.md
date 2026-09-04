@@ -244,7 +244,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 **Purpose**: 전체 계약, 보안, 문서와 실제 검증 결과를 최종 정합화한다.
 
-- [ ] T031 Backend F003 전체 자동 test와 정적 검증 실행 against api/tests/contract/test_place_contract.py, api/tests/unit/test_tour_api_client.py, api/tests/unit/test_google_places_client.py, api/tests/unit/test_place_service.py, api/tests/integration/test_place_flow.py
+- [x] T031 Backend F003 전체 자동 test와 정적 검증 실행 against api/tests/contract/test_place_contract.py, api/tests/unit/test_tour_api_client.py, api/tests/unit/test_google_places_client.py, api/tests/unit/test_place_service.py, api/tests/integration/test_place_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T015, T022, T028

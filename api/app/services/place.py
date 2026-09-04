@@ -78,7 +78,21 @@ class PlaceService:
         cursor: str | None,
         limit: int,
     ) -> tuple[list[PlaceSummary], str | None, bool]:
-        """검색 조건에 맞는 장소 한 페이지를 반환한다."""
+        """검색 조건에 맞는 장소 한 페이지를 반환한다.
+
+        Args:
+            query: 두 글자 이상의 검색어. 카테고리 단독 검색이면 ``None``.
+            category: 길픽 장소 카테고리 필터.
+            area_code: TourAPI 지역 코드.
+            cursor: 이전 응답에서 받은 불투명 pagination cursor.
+            limit: 한 페이지에 반환할 최대 장소 수.
+
+        Returns:
+            장소 목록, 다음 cursor, 다음 페이지 존재 여부.
+
+        Raises:
+            AppError: cursor가 잘못됐거나 기준 provider 요청에 실패한 경우.
+        """
         criteria = self._criteria_hash(query, category, area_code, limit)
         state = self._decode_cursor(cursor, criteria) if cursor else {}
         page_no = int(state.get("tour_page_no", 1))
@@ -160,7 +174,20 @@ class PlaceService:
         return items[:limit], next_cursor, has_next
 
     async def get_place(self, place_id: str) -> PlaceDetail:
-        """provider prefix에 따라 장소 상세를 조회한다."""
+        """provider prefix에 따라 장소 상세를 조회한다.
+
+        Args:
+            place_id: ``tourapi:`` 또는 ``google:`` prefix가 붙은 장소 ID.
+
+        Returns:
+            길픽 장소 상세 계약으로 정규화한 결과.
+
+        Raises:
+            AppError: 장소가 없거나 기준 provider 요청에 실패한 경우.
+
+        Notes:
+            TourAPI 장소의 Google 보완 실패는 격리하고 TourAPI 상세를 반환한다.
+        """
         provider, source_id = place_id.split(":", 1)
         if provider == "google":
             try:
