@@ -1,9 +1,31 @@
 package com.gilpick.place
 
+import android.content.Context
+import com.gilpick.BuildConfig
+import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthError
 import com.gilpick.auth.AuthErrorCodes
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
+import com.gilpick.auth.AuthService
+import com.gilpick.auth.AuthSessionStore
+import com.gilpick.auth.SessionRevocationWorker
+import com.gilpick.auth.createAuthRetrofit
+import com.gilpick.auth.toAuthResult
+import java.io.IOException
+
+/**
+ * 검색 결과 한 페이지.
+ *
+ * @property places 이 페이지의 장소. 빈 목록도 정상 응답이다.
+ * @property nextCursor 다음 페이지 요청에 그대로 전달한다. 마지막 페이지면 `null`이다.
+ * @property hasNext 이어질 항목이 남았는지 여부.
+ */
+data class PlaceSearchPage(
+    val places: List<PlaceDto>,
+    val nextCursor: String?,
+    val hasNext: Boolean,
+)
 
 /**
  * 장소 데이터의 유일한 접근 지점.
@@ -11,7 +33,6 @@ import com.gilpick.auth.AuthResult
  * Access Token 주입과 만료 시 갱신·replay는 [AuthRepository.withAccessToken]이 소유하므로
  * 여기서 다시 구현하지 않는다. F002 [com.gilpick.trip.TripRepository]와 같은 구조다.
  *
- * #139(T023)는 상세 조회만 둔다. 검색(`searchPlaces`)은 #142의 T016이 이 파일에 추가한다.
  * 조회 결과는 어디에도 저장하지 않는다(`spec.md` FR-014).
  *
  * @property api 장소 endpoint 호출 계약.
@@ -21,6 +42,39 @@ class PlaceRepository(
     private val api: PlaceService,
     private val auth: AuthRepository,
 ) {
+
+    /**
+     * 키워드·category로 장소를 검색한다.
+     *
+     * 조건 검증(2글자, 조건 없음)은 ViewModel이 요청 전에 끝내므로 여기서는 받은 값을 그대로
+     * 보낸다. 지역 조건(`areaCode`)은 Figma 검색 화면에 없어 보내지 않는다.
+     *
+     * @param query 앞뒤 공백을 뗀 키워드. 비어 있으면 생략한다.
+     * @param category `null`이면 `전체`다.
+     * @param cursor 이전 페이지의 [PlaceSearchPage.nextCursor]. 첫 페이지면 `null`.
+     */
+    suspend fun searchPlaces(
+        query: String?,
+        category: PlaceCategory?,
+        cursor: String? = null,
+    ): AuthResult<PlaceSearchPage> = auth.withAuthorizedCall { accessToken ->
+        try {
+            api.searchPlaces(
+                bearer = "Bearer $accessToken",
+                query = query?.takeIf { it.isNotBlank() },
+                category = category,
+                cursor = cursor,
+            ).toAuthResult { envelope ->
+                PlaceSearchPage(
+                    places = envelope.data.items,
+                    nextCursor = envelope.meta.pagination.nextCursor,
+                    hasNext = envelope.meta.pagination.hasNext,
+                )
+            }
+        } catch (e: IOException) {
+            AuthResult.Failure(AuthError.Offline(e))
+        }
+    }
 
     /**
      * 장소 하나의 상세를 조회한다.
@@ -34,6 +88,23 @@ class PlaceRepository(
         auth.withAccessToken { accessToken ->
             api.getPlace(bearer = "Bearer $accessToken", placeId = placeId)
         }
+}
+
+/**
+ * 화면 ViewModel factory가 쓰는 repository 조립. DI 도구를 두지 않는 F001·F002 방식 그대로다.
+ */
+internal fun createPlaceRepository(context: Context): PlaceRepository {
+    val appContext = context.applicationContext
+    val auth = AuthRepository(
+        store = AuthSessionStore.create(appContext),
+        api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
+        appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
+        scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+    )
+    return PlaceRepository(
+        api = createPlaceRetrofit(BuildConfig.API_BASE_URL).create(PlaceService::class.java),
+        auth = auth,
+    )
 }
 
 /**

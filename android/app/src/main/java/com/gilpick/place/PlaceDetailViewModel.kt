@@ -6,14 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.gilpick.BuildConfig
-import com.gilpick.auth.AuthAppLinkHandler
-import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
-import com.gilpick.auth.AuthService
-import com.gilpick.auth.AuthSessionStore
-import com.gilpick.auth.SessionRevocationWorker
-import com.gilpick.auth.createAuthRetrofit
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -121,21 +114,7 @@ class PlaceDetailViewModel(
             val appContext = context.applicationContext
             return viewModelFactory {
                 initializer {
-                    val auth = AuthRepository(
-                        store = AuthSessionStore.create(appContext),
-                        api = createAuthRetrofit(BuildConfig.API_BASE_URL)
-                            .create(AuthService::class.java),
-                        appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
-                        scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
-                    )
-                    PlaceDetailViewModel(
-                        repository = PlaceRepository(
-                            api = createPlaceRetrofit(BuildConfig.API_BASE_URL)
-                                .create(PlaceService::class.java),
-                            auth = auth,
-                        ),
-                        placeId = placeId,
-                    )
+                    PlaceDetailViewModel(repository = createPlaceRepository(appContext), placeId = placeId)
                 }
             }
         }

@@ -14,6 +14,13 @@ import retrofit2.Response
  */
 class FakePlaceService : PlaceService {
 
+    /** 지금까지 도착한 검색 요청. 호출 순서대로 쌓인다. */
+    val searchCalls = mutableListOf<SearchCall>()
+
+    /** 검색 요청을 받아 응답을 만든다. 기본값은 계약에 없는 호출을 막는 실패다. */
+    var onSearch: suspend (SearchCall) -> Response<PlaceListEnvelope> =
+        { error("이 test는 검색 endpoint를 호출하지 않는다") }
+
     override suspend fun searchPlaces(
         bearer: String,
         query: String?,
@@ -21,7 +28,14 @@ class FakePlaceService : PlaceService {
         areaCode: String?,
         cursor: String?,
         limit: Int?,
-    ): Response<PlaceListEnvelope> = error("이 test는 검색 endpoint를 호출하지 않는다")
+    ): Response<PlaceListEnvelope> {
+        val call = SearchCall(query, category, cursor)
+        searchCalls += call
+        return onSearch(call)
+    }
+
+    /** 검색 요청의 조건. */
+    data class SearchCall(val query: String?, val category: PlaceCategory?, val cursor: String?)
 
     /** 지금까지 도착한 상세 요청의 `placeId`. 호출 순서대로 쌓인다. */
     val getCalls = mutableListOf<String>()
@@ -76,6 +90,21 @@ fun place(
     description = description,
     phone = phone,
     operatingGuide = operatingGuide,
+)
+
+/** 검색 성공 응답 한 페이지를 만든다. */
+fun placePage(
+    places: List<PlaceDto>,
+    nextCursor: String? = null,
+): Response<PlaceListEnvelope> = Response.success(
+    PlaceListEnvelope(
+        success = true,
+        data = PlaceListData(items = places),
+        meta = PlaceListMeta(
+            requestId = PLACE_REQUEST_ID,
+            pagination = PlacePagination(nextCursor = nextCursor, hasNext = nextCursor != null),
+        ),
+    ),
 )
 
 /** 장소 상세 성공 응답을 만든다. */

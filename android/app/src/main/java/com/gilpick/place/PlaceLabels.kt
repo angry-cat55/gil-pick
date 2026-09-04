@@ -59,6 +59,13 @@ val PlaceError.detailMessageRes: Int
         PlaceErrorKind.UNEXPECTED -> R.string.place_detail_error_unexpected
     }
 
+/** 검색 화면의 실패 원인별 안내 문구. 상세와 같되 잘못된 요청은 조건 확인을 안내한다. */
+val PlaceError.searchMessageRes: Int
+    @StringRes get() = when (kind) {
+        PlaceErrorKind.INVALID_REQUEST, PlaceErrorKind.NOT_FOUND -> R.string.place_search_error_invalid
+        else -> detailMessageRes
+    }
+
 /**
  * Figma `Stats`의 `운영시간` 칸: Google `weekdayDescriptions`(월요일부터 7줄)에서 오늘 줄을 고르고
  * `월요일: ` 같은 요일 접두어를 뗀다. 7줄이 아니면 첫 줄을 쓴다. 영업 여부를 계산하지는 않는다(FR-007).
