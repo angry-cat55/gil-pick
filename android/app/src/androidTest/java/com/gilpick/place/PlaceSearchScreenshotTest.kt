@@ -82,7 +82,17 @@ class PlaceSearchScreenshotTest {
 
     @Test
     fun 검색_추가_조회_실패() = capture("search_load_more_failed") {
-        Screen(contentState().copy(loadMoreFailed = true))
+        Screen(contentState().copy(loadMoreError = PlaceError(PlaceErrorKind.TIMEOUT, retryable = true)))
+    }
+
+    @Test
+    fun 검색_error_호출_제한() = capture("search_error_rate_limited") {
+        Screen(PlaceSearchUiState(query = "경복궁", phase = PlaceSearchPhase.Failed(PlaceError(PlaceErrorKind.RATE_LIMITED, retryable = false))))
+    }
+
+    @Test
+    fun 검색_error_인증_만료() = capture("search_error_session_expired") {
+        Screen(PlaceSearchUiState(query = "경복궁", phase = PlaceSearchPhase.Failed(PlaceError(PlaceErrorKind.SESSION_EXPIRED, retryable = false))))
     }
 
     private fun contentState(vararg extra: PlaceDto) = PlaceSearchUiState(
@@ -110,6 +120,7 @@ class PlaceSearchScreenshotTest {
             onCategoryChange = {},
             onSearch = {},
             onRetry = {},
+            onReauthenticate = {},
             onLoadMore = {},
             onRetryLoadMore = {},
             onSearchByCategory = {},

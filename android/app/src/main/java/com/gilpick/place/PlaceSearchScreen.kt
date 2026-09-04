@@ -78,6 +78,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * @param onCategoryChange 칩을 골랐다. `null`은 `전체`.
  * @param onSearch 키보드의 검색 동작.
  * @param onRetry 첫 페이지 조회 실패 뒤 다시 시도.
+ * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param onLoadMore 목록 끝에 닿았다.
  * @param onRetryLoadMore 추가 조회 실패 뒤 다시 시도.
  * @param onSearchByCategory 빈 결과의 `카테고리로 찾기`.
@@ -93,6 +94,7 @@ fun PlaceSearchScreen(
     onCategoryChange: (PlaceCategory?) -> Unit,
     onSearch: () -> Unit,
     onRetry: () -> Unit,
+    onReauthenticate: () -> Unit,
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
     onSearchByCategory: () -> Unit,
@@ -143,6 +145,7 @@ fun PlaceSearchScreen(
                     state = state,
                     onLoadMore = onLoadMore,
                     onRetryLoadMore = onRetryLoadMore,
+                    onReauthenticate = onReauthenticate,
                     onPlaceClick = onPlaceClick,
                     onAdd = { sheetPlace = it },
                 )
@@ -174,8 +177,12 @@ fun PlaceSearchScreen(
                     body = null,
                     live = true,
                     action = {
-                        if (phase.error.retryable) {
-                            OutlineButton(label = stringResource(R.string.place_search_retry), onClick = onRetry)
+                        // 재시도해도 같은 실패(호출 한도 등)에는 버튼을 두지 않는다. 문구가 잠시 후를 안내한다.
+                        when {
+                            phase.error.kind == PlaceErrorKind.SESSION_EXPIRED ->
+                                OutlineButton(label = stringResource(R.string.place_reauthenticate), onClick = onReauthenticate)
+                            phase.error.retryable ->
+                                OutlineButton(label = stringResource(R.string.place_search_retry), onClick = onRetry)
                         }
                     },
                 )
@@ -343,6 +350,7 @@ private fun Results(
     state: PlaceSearchUiState,
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
+    onReauthenticate: () -> Unit,
     onPlaceClick: (String) -> Unit,
     onAdd: (PlaceDto) -> Unit,
 ) {
@@ -408,7 +416,8 @@ private fun Results(
                 }
             }
         }
-        if (state.loadMoreFailed) {
+        val loadMoreError = state.loadMoreError
+        if (loadMoreError != null) {
             item(key = "load_more_failed") {
                 Column(
                     modifier = Modifier
@@ -423,7 +432,18 @@ private fun Results(
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.error,
                     )
-                    OutlineButton(label = stringResource(R.string.place_search_load_more_retry), onClick = onRetryLoadMore)
+                    Text(
+                        text = stringResource(loadMoreError.searchMessageRes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    // 추가 조회는 호출 한도라도 사용자가 다시 시도할 수 있게 둔다(FR-012). 로그인 만료만 재인증으로 보낸다.
+                    if (loadMoreError.kind == PlaceErrorKind.SESSION_EXPIRED) {
+                        OutlineButton(label = stringResource(R.string.place_reauthenticate), onClick = onReauthenticate)
+                    } else {
+                        OutlineButton(label = stringResource(R.string.place_search_load_more_retry), onClick = onRetryLoadMore)
+                    }
                 }
             }
         }

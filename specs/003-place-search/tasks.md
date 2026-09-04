@@ -212,7 +212,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T005, T006
   - 검증: 두 provider의 timeout·일시적 5xx만 1회 재시도하고 application·request·auth·quota/rate limit은 재시도하지 않으며 Google 실패 시 TourAPI 결과가 유지되는 실패 test 확인
-- [ ] T027 [P] [US3] Android 검색·상세 장애 복구 UI test 보강 in android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt, android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceSearchScreenTest.kt
+- [x] T027 [P] [US3] Android 검색·상세 장애 복구 UI test 보강 in android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt, android/app/src/test/java/com/gilpick/place/PlaceDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/place/PlaceSearchScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T023
@@ -225,12 +225,12 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T021, T026
   - 검증: client·service·integration test에서 provider별 timeout·failed·rate limited와 Google 부분 실패 격리 및 실제 호출 횟수 통과
-- [ ] T029 [US3] Android 검색·상세 오류별 복구 행동과 인증 만료 연결 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchViewModel.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailViewModel.kt
+- [x] T029 [US3] Android 검색·상세 오류별 복구 행동과 인증 만료 연결 구현 in android/app/src/main/java/com/gilpick/place/PlaceRepository.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchViewModel.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T027, T028
   - 검증: 장애를 empty로 표시하지 않고 initial·append·detail retry 및 F001 재인증 흐름 test 통과
-- [ ] T030 [US3] 장애 상태 접근성·실기기 검증 수행 against android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt
+- [x] T030 [US3] 장애 상태 접근성·실기기 검증 수행 against android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T029

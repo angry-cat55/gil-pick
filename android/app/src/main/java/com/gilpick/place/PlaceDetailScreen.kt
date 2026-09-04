@@ -88,6 +88,7 @@ import kotlinx.coroutines.delay
  * @param state 현재 상세 상태.
  * @param onBack 이전 화면(검색 결과)으로 돌아간다.
  * @param onRetry 실패한 조회를 다시 시도한다.
+ * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param onAddToSchedule 시트에서 이동 수단·체류 시간을 확정했을 때. 저장은 F004가 맡는다(FR-014).
  * @param onOpenMap 하단 지도 버튼. 지도 기능에서 연결한다.
  * @param onFavorite hero의 찜 버튼. 찜 기능은 아직 없다.
@@ -97,6 +98,7 @@ fun PlaceDetailScreen(
     state: PlaceDetailUiState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onReauthenticate: () -> Unit,
     modifier: Modifier = Modifier,
     onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     onOpenMap: () -> Unit = {},
@@ -127,8 +129,9 @@ fun PlaceDetailScreen(
         }
 
         is PlaceDetailPhase.Failed -> WithAppBar(onBack = onBack, modifier = modifier) {
-            // 재시도해도 결과가 같은 실패(호출 한도, 로그인 만료 등)에는 검색으로 돌아가는 길을 준다.
+            // 재시도해도 결과가 같은 실패(호출 한도 등)에는 검색으로 돌아가는 길을, 로그인 만료에는 재인증을 준다.
             val retryable = phase.error.retryable
+            val sessionExpired = phase.error.kind == PlaceErrorKind.SESSION_EXPIRED
             StateMessage(
                 title = stringResource(phase.error.detailMessageRes),
                 titleColor = MaterialTheme.colorScheme.error,
@@ -136,13 +139,20 @@ fun PlaceDetailScreen(
                 live = true,
                 action = {
                     Button(
-                        onClick = if (retryable) onRetry else onBack,
+                        onClick = when {
+                            sessionExpired -> onReauthenticate
+                            retryable -> onRetry
+                            else -> onBack
+                        },
                         modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT),
                     ) {
                         Text(
                             stringResource(
-                                if (retryable) R.string.place_detail_retry
-                                else R.string.place_detail_back_to_search,
+                                when {
+                                    sessionExpired -> R.string.place_reauthenticate
+                                    retryable -> R.string.place_detail_retry
+                                    else -> R.string.place_detail_back_to_search
+                                },
                             ),
                         )
                     }

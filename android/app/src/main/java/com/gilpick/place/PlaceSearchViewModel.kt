@@ -61,7 +61,7 @@ enum class InvalidReason {
  * @property results 화면에 보이는 결과. [PlaceSearchPhase.Content]가 아니면 비어 있다.
  * @property hasNext 이어질 페이지가 남았는지 여부.
  * @property loadingMore 다음 페이지를 받는 중인지 여부.
- * @property loadMoreFailed 다음 페이지 조회만 실패했다. 기존 결과는 유지한다(FR-012).
+ * @property loadMoreError 다음 페이지 조회만 실패한 원인. 기존 결과는 유지한다(FR-012). `null`이면 실패하지 않았다.
  */
 data class PlaceSearchUiState(
     val query: String = "",
@@ -72,7 +72,7 @@ data class PlaceSearchUiState(
     val phase: PlaceSearchPhase = PlaceSearchPhase.Idle,
     val hasNext: Boolean = false,
     val loadingMore: Boolean = false,
-    val loadMoreFailed: Boolean = false,
+    val loadMoreError: PlaceError? = null,
 )
 
 /**
@@ -141,7 +141,7 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
         if (invalid != null) {
             loadJob?.cancel()
             nextCursor = null
-            _state.update { it.copy(results = emptyList(), phase = PlaceSearchPhase.Invalid(invalid), hasNext = false, loadingMore = false, loadMoreFailed = false) }
+            _state.update { it.copy(results = emptyList(), phase = PlaceSearchPhase.Invalid(invalid), hasNext = false, loadingMore = false, loadMoreError = null) }
             return
         }
         _state.update { it.copy(committedQuery = query, committedCategory = category) }
@@ -161,13 +161,13 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
      * 불리므로 자동으로 재시도하면 실패를 반복한다.
      */
     fun loadMore() {
-        if (_state.value.loadMoreFailed) return
+        if (_state.value.loadMoreError != null) return
         fetchNextPage()
     }
 
     /** 실패한 추가 조회를 다시 시도한다. */
     fun retryLoadMore() {
-        _state.update { it.copy(loadMoreFailed = false) }
+        _state.update { it.copy(loadMoreError = null) }
         fetchNextPage()
     }
 
@@ -192,8 +192,10 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
                     }
                 }
 
-                // 이미 보여 주고 있는 목록은 지우지 않는다. 추가 조회만 실패한 것이다.
-                is AuthResult.Failure -> _state.update { it.copy(loadingMore = false, loadMoreFailed = true) }
+                // 이미 보여 주고 있는 목록은 지우지 않는다. 추가 조회만 실패한 것이라 원인만 붙인다.
+                is AuthResult.Failure -> _state.update {
+                    it.copy(loadingMore = false, loadMoreError = result.error.toPlaceError())
+                }
             }
         }
     }
@@ -202,7 +204,7 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
         loadJob?.cancel()
         nextCursor = null
         // 조회를 시작하기 전에 동기적으로 바꾼다. 앞선 결과가 새 조건의 결과처럼 남지 않게 한다.
-        _state.update { it.copy(results = emptyList(), phase = PlaceSearchPhase.Loading, hasNext = false, loadingMore = false, loadMoreFailed = false) }
+        _state.update { it.copy(results = emptyList(), phase = PlaceSearchPhase.Loading, hasNext = false, loadingMore = false, loadMoreError = null) }
 
         loadJob = viewModelScope.launch {
             val current = _state.value

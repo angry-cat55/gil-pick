@@ -1,10 +1,14 @@
 package com.gilpick.place
 
 import com.gilpick.auth.AuthAppLinkHandler
+import com.gilpick.auth.AuthErrorCodes
 import com.gilpick.auth.AuthRepository
+import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
+import com.gilpick.auth.ProgrammableAuthService
+import com.gilpick.auth.errorResponse
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +23,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -26,10 +31,11 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * T012·T016: 검색 화면 상태 전이 검증.
+ * T012·T016·T027: 검색 화면 상태 전이 검증.
  *
  * `spec.md` US1 Acceptance Scenario 1~3·5~8과 FR-003a(명시적 검색), FR-005(dedupe),
- * FR-012(추가 조회 실패 시 기존 결과 유지), UI-003(교체)이 대상이다.
+ * FR-012(추가 조회 실패 시 기존 결과 유지), UI-003(교체)이 대상이다. US3 Scenario 1~4는
+ * 장애를 empty와 구분하고 첫 페이지·추가 조회 재시도를 분리하는지 본다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaceSearchViewModelTest {
@@ -234,7 +240,7 @@ class PlaceSearchViewModelTest {
         var state = viewModel.state.value
         assertEquals(PlaceSearchPhase.Content, state.phase)
         assertEquals(1, state.results.size)
-        assertTrue(state.loadMoreFailed)
+        assertEquals(PlaceError(PlaceErrorKind.NETWORK, retryable = true), state.loadMoreError)
 
         // 목록 끝에 다시 닿아도 자동으로 재시도하지 않는다.
         viewModel.loadMore()
@@ -245,8 +251,10 @@ class PlaceSearchViewModelTest {
         viewModel.retryLoadMore()
         advanceUntilIdle()
         state = viewModel.state.value
-        assertFalse(state.loadMoreFailed)
+        assertNull(state.loadMoreError)
         assertEquals(2, state.results.size)
+        // 추가 조회 재시도는 첫 페이지가 아니라 실패한 cursor로 다시 요청한다.
+        assertEquals("c2", service.searchCalls.last().cursor)
     }
 
     // --- 실패와 재시도: US3 ---
@@ -271,10 +279,101 @@ class PlaceSearchViewModelTest {
         assertEquals(service.searchCalls[0], service.searchCalls[1])
     }
 
+    @Test
+    fun `오류 code별로 원인과 retryable을 보존하고 empty로 표시하지 않는다`() = runTest {
+        val cases = listOf(
+            Triple(504, PlaceErrorCodes.TOUR_API_TIMEOUT, true) to PlaceError(PlaceErrorKind.TIMEOUT, retryable = true),
+            Triple(502, PlaceErrorCodes.TOUR_API_FAILED, true) to PlaceError(PlaceErrorKind.PROVIDER_FAILED, retryable = true),
+            Triple(502, PlaceErrorCodes.TOUR_API_FAILED, false) to PlaceError(PlaceErrorKind.PROVIDER_FAILED, retryable = false),
+            Triple(429, PlaceErrorCodes.TOUR_API_RATE_LIMITED, false) to PlaceError(PlaceErrorKind.RATE_LIMITED, retryable = false),
+            Triple(400, PlaceErrorCodes.INVALID_REQUEST, false) to PlaceError(PlaceErrorKind.INVALID_REQUEST, retryable = false),
+        )
+        // 같은 temp 파일에 DataStore를 여러 개 열 수 없어 repository는 한 번만 만든다.
+        val repository = repository()
+        for ((response, expected) in cases) {
+            val (status, code, retryable) = response
+            service.onSearch = { placeError(status, code, retryable) }
+            val viewModel = PlaceSearchViewModel(repository)
+            viewModel.onQueryChange("경복궁")
+            viewModel.search()
+            advanceUntilIdle()
+
+            val phase = viewModel.state.value.phase
+            assertEquals(code, PlaceSearchPhase.Failed(expected), phase)
+        }
+    }
+
+    @Test
+    fun `인증 만료는 갱신 거절 뒤 session expired가 된다`() = runTest {
+        // 401을 받으면 F001이 갱신을 한 번 시도한다. 갱신도 거절되어야 자격 무효가 확정된다.
+        val authService = ProgrammableAuthService().apply {
+            onRefresh = { errorResponse(401, AuthErrorCodes.INVALID_REFRESH_TOKEN) }
+        }
+        service.onSearch = { placeError(401, PlaceErrorCodes.INVALID_ACCESS_TOKEN) }
+        val viewModel = PlaceSearchViewModel(repository(authService))
+        viewModel.onQueryChange("경복궁")
+        viewModel.search()
+        advanceUntilIdle()
+
+        val failed = viewModel.state.value.phase as PlaceSearchPhase.Failed
+        assertEquals(PlaceError(PlaceErrorKind.SESSION_EXPIRED, retryable = false), failed.error)
+        assertEquals(1, authService.refreshCount)
+    }
+
+    @Test
+    fun `추가 조회 실패는 원인을 담고 첫 페이지 재시도와 분리된다`() = runTest {
+        service.onSearch = { call ->
+            if (call.cursor == null) placePage(listOf(place("tourapi:1")), nextCursor = "c2")
+            else placeError(429, PlaceErrorCodes.TOUR_API_RATE_LIMITED)
+        }
+        val viewModel = newViewModel()
+        viewModel.onQueryChange("경복궁")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        var state = viewModel.state.value
+        assertEquals(PlaceSearchPhase.Content, state.phase)
+        assertEquals(listOf("tourapi:1"), state.results.map { it.placeId })
+        assertEquals(PlaceError(PlaceErrorKind.RATE_LIMITED, retryable = false), state.loadMoreError)
+
+        // 추가 조회가 실패했다고 첫 페이지 재시도가 되지는 않는다. 사용자가 새로 검색하면 그때 비운다.
+        viewModel.search()
+        assertNull(viewModel.state.value.loadMoreError)
+        assertEquals(PlaceSearchPhase.Loading, viewModel.state.value.phase)
+        advanceUntilIdle()
+        state = viewModel.state.value
+        assertEquals(PlaceSearchPhase.Content, state.phase)
+        assertNull(service.searchCalls.last().cursor)
+    }
+
+    @Test
+    fun `추가 조회 중 인증 만료는 기존 결과를 유지하고 session expired를 알린다`() = runTest {
+        val authService = ProgrammableAuthService().apply {
+            onRefresh = { errorResponse(401, AuthErrorCodes.INVALID_REFRESH_TOKEN) }
+        }
+        service.onSearch = { call ->
+            if (call.cursor == null) placePage(listOf(place("tourapi:1")), nextCursor = "c2")
+            else placeError(401, PlaceErrorCodes.INVALID_ACCESS_TOKEN)
+        }
+        val viewModel = PlaceSearchViewModel(repository(authService))
+        viewModel.onQueryChange("경복궁")
+        viewModel.search()
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(PlaceSearchPhase.Content, state.phase)
+        assertEquals(1, state.results.size)
+        assertEquals(PlaceErrorKind.SESSION_EXPIRED, state.loadMoreError?.kind)
+    }
+
     private suspend fun newViewModel(): PlaceSearchViewModel = PlaceSearchViewModel(repository())
 
     /** 로그인된 session을 가진 repository를 만든다. `PlaceDetailViewModelTest`와 같다. */
-    private suspend fun repository(): PlaceRepository {
+    private suspend fun repository(authService: AuthService = FakeAuthService): PlaceRepository {
         val store = AuthSessionStore(
             AuthSessionStore.createDataStore(
                 File(tempFolder.root, AuthSessionStore.FILE_NAME),
@@ -284,7 +383,7 @@ class PlaceSearchViewModelTest {
         )
         val auth = AuthRepository(
             store = store,
-            api = FakeAuthService,
+            api = authService,
             appLinkHandler = AuthAppLinkHandler("app.gilpick.example"),
             scope = CoroutineScope(dispatcher + SupervisorJob()),
         )
