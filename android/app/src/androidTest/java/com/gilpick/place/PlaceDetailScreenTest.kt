@@ -191,6 +191,21 @@ class PlaceDetailScreenTest {
     }
 
     @Test
+    fun 인증_만료는_다시_로그인을_제공한다() {
+        var reauths = 0
+        setScreen(
+            PlaceDetailUiState(PlaceDetailPhase.Failed(PlaceError(PlaceErrorKind.SESSION_EXPIRED, retryable = false))),
+            onReauthenticate = { reauths++ },
+        )
+
+        composeRule.onNodeWithText("로그인 상태가 만료되었어요. 다시 로그인해 주세요.").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("다시 시도")).assertCountEquals(0)
+        composeRule.onNodeWithText("다시 로그인").performClick()
+
+        assertEquals(1, reauths)
+    }
+
+    @Test
     fun 뒤로_가기_버튼은_48dp_이상이고_이전_화면으로_돌아간다() {
         var backs = 0
         setScreen(content(testPlace("tourapi:1", name = "경복궁")), onBack = { backs++ })
@@ -206,11 +221,12 @@ class PlaceDetailScreenTest {
         state: PlaceDetailUiState,
         onBack: () -> Unit = {},
         onRetry: () -> Unit = {},
+        onReauthenticate: () -> Unit = {},
         onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
-                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry, onAddToSchedule = onAddToSchedule)
+                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry, onReauthenticate = onReauthenticate, onAddToSchedule = onAddToSchedule)
             }
         }
     }

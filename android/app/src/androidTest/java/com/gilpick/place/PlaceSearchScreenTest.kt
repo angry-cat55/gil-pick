@@ -23,7 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * T013·T017: 검색 화면의 표시 단계·상호작용·접근성 검증.
+ * T013·T017·T027: 검색 화면의 표시 단계·상호작용·접근성 검증.
  *
  * `spec.md` UI-001(입력·칩·요약), UI-002(네 상태), UI-004(행 선택·`+`), UI-005(이미지 대체),
  * UI-007(48dp)이 대상이다. 상태 전이 자체는 `PlaceSearchViewModelTest`가 다루므로 여기서는
@@ -198,14 +198,47 @@ class PlaceSearchScreenTest {
     }
 
     @Test
-    fun 추가_조회_실패는_기존_결과를_남기고_다음_결과_재시도를_제공한다() {
+    fun 인증_만료는_다시_로그인을_제공하고_재시도는_없다() {
+        var reauths = 0
+        setScreen(
+            PlaceSearchUiState(phase = PlaceSearchPhase.Failed(PlaceError(PlaceErrorKind.SESSION_EXPIRED, retryable = false))),
+            onReauthenticate = { reauths++ },
+        )
+
+        composeRule.onNodeWithText("로그인 상태가 만료되었어요. 다시 로그인해 주세요.").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("다시 시도")).assertCountEquals(0)
+        composeRule.onNodeWithText("다시 로그인").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle { assertEquals(1, reauths) }
+    }
+
+    @Test
+    fun 추가_조회_실패는_기존_결과와_원인을_보여주고_다음_결과_재시도를_제공한다() {
         var retries = 0
-        setScreen(content(testPlace("tourapi:1", name = "경복궁")).copy(loadMoreFailed = true), onRetryLoadMore = { retries++ })
+        setScreen(
+            content(testPlace("tourapi:1", name = "경복궁")).copy(loadMoreError = PlaceError(PlaceErrorKind.TIMEOUT, retryable = true)),
+            onRetryLoadMore = { retries++ },
+        )
 
         composeRule.onNodeWithText("경복궁").assertIsDisplayed()
         composeRule.onNodeWithText("다음 결과를 불러오지 못했어요").assertIsDisplayed()
-        composeRule.onNodeWithText("다음 결과 다시 시도").performClick()
+        composeRule.onNodeWithText("장소 정보 제공이 지연되고 있어요. 잠시 후 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("다음 결과 다시 시도").assertHeightIsAtLeast(48.dp).performClick()
         composeRule.runOnIdle { assertEquals(1, retries) }
+    }
+
+    @Test
+    fun 추가_조회_중_인증_만료는_기존_결과를_남기고_다시_로그인을_제공한다() {
+        var reauths = 0
+        setScreen(
+            content(testPlace("tourapi:1", name = "경복궁")).copy(loadMoreError = PlaceError(PlaceErrorKind.SESSION_EXPIRED, retryable = false)),
+            onReauthenticate = { reauths++ },
+        )
+
+        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
+        composeRule.onNodeWithText("로그인 상태가 만료되었어요. 다시 로그인해 주세요.").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("다음 결과 다시 시도")).assertCountEquals(0)
+        composeRule.onNodeWithText("다시 로그인").performClick()
+        composeRule.runOnIdle { assertEquals(1, reauths) }
     }
 
     private fun content(vararg places: PlaceDto) = PlaceSearchUiState(
@@ -222,6 +255,7 @@ class PlaceSearchScreenTest {
         onCategoryChange: (PlaceCategory?) -> Unit = {},
         onSearch: () -> Unit = {},
         onRetry: () -> Unit = {},
+        onReauthenticate: () -> Unit = {},
         onRetryLoadMore: () -> Unit = {},
         onSearchByCategory: () -> Unit = {},
         onPlaceClick: (String) -> Unit = {},
@@ -237,6 +271,7 @@ class PlaceSearchScreenTest {
                     onCategoryChange = onCategoryChange,
                     onSearch = onSearch,
                     onRetry = onRetry,
+                    onReauthenticate = onReauthenticate,
                     onLoadMore = {},
                     onRetryLoadMore = onRetryLoadMore,
                     onSearchByCategory = onSearchByCategory,

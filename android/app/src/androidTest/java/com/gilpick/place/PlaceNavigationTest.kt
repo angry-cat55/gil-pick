@@ -22,7 +22,7 @@ import org.junit.Test
 /**
  * T009·T024: 장소 route 등록과 검색 → 상세 → 뒤로가기 navigation 검증.
  *
- * `MainActivity.kt`의 app navigation graph는 `placeGraph(navController)`로 이 graph를
+ * `MainActivity.kt`의 app navigation graph는 `placeGraph(navController, onSessionExpired)`로 이 graph를
  * 등록한다. 여기서는 같은 [placeGraph]만 host하는 NavHost로 검증한다. app graph 전체를
  * 띄우려면 인증 상태와 여행 목록 network 응답까지 필요한데, 그것은 route 등록이 아니라
  * 다른 것을 검증하게 된다.
@@ -104,7 +104,7 @@ class PlaceNavigationTest {
         navController = rememberNavController()
         GilpickTheme {
             NavHost(navController = navController, startDestination = PlaceSearchRoute) {
-                placeGraph(navController)
+                placeGraph(navController, onSessionExpired = {})
             }
         }
     }

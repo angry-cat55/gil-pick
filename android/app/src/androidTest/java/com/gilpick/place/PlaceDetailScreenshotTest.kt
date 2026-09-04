@@ -78,7 +78,7 @@ class PlaceDetailScreenshotTest {
 
     @Composable
     private fun Screen(state: PlaceDetailUiState) {
-        PlaceDetailScreen(state = state, onBack = {}, onRetry = {})
+        PlaceDetailScreen(state = state, onBack = {}, onRetry = {}, onReauthenticate = {})
     }
 
     /** 시스템 글자 확대 최대 배율(2.0)을 흉내 낸다. */

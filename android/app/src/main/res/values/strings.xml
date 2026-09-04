@@ -126,6 +126,7 @@
     <string name="place_search_load_more_retry">다음 결과 다시 시도</string>
     <string name="place_search_add">%1$s 일정에 추가</string>
     <string name="place_search_error_invalid">검색 조건을 확인한 뒤 다시 검색해 주세요.</string>
+    <string name="place_reauthenticate">다시 로그인</string>
 
     <string name="place_detail_title">장소 상세</string>
     <string name="place_detail_back">뒤로 가기</string>

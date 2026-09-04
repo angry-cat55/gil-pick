@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 onRetry = ::startKakaoLogin,
                 onRetryRefresh = viewModel::retryRefresh,
                 onLogout = viewModel::logout,
+                onSessionExpired = viewModel::onSessionExpired,
             )
         }
     }
@@ -114,6 +115,7 @@ class MainActivity : ComponentActivity() {
  * @param onRetry 로그인 실패 후 새 카카오 인증을 시작한다.
  * @param onRetryRefresh 통신 장애로 중단된 로그인 상태 갱신을 다시 시도한다.
  * @param onLogout 현재 기기에서 로그아웃한다.
+ * @param onSessionExpired 보호 기능 호출에서 자격이 무효로 확정됐다. 로그인 화면으로 돌린다.
  */
 @Composable
 fun GilpickApp(
@@ -123,11 +125,12 @@ fun GilpickApp(
     modifier: Modifier = Modifier,
     onRetryRefresh: () -> Unit = {},
     onLogout: () -> Unit = {},
+    onSessionExpired: () -> Unit = {},
 ) {
     // 테마를 여기서 적용해 화면과 test·preview가 같은 토큰 위에서 동작하게 한다.
     GilpickTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            AuthRoute(state, onKakaoLogin, onRetry, modifier, onRetryRefresh, onLogout)
+            AuthRoute(state, onKakaoLogin, onRetry, modifier, onRetryRefresh, onLogout, onSessionExpired)
         }
     }
 }
@@ -141,9 +144,10 @@ private fun AuthRoute(
     modifier: Modifier,
     onRetryRefresh: () -> Unit,
     onLogout: () -> Unit,
+    onSessionExpired: () -> Unit,
 ) {
     when (state) {
-        is AuthUiState.Authenticated -> TripRoute(modifier = modifier, onLogout = onLogout)
+        is AuthUiState.Authenticated -> TripRoute(modifier = modifier, onLogout = onLogout, onSessionExpired = onSessionExpired)
 
         // 통신 장애로 갱신이 중단된 상태다. session은 유지한 채 보호 기능만 막는다.
         is AuthUiState.RefreshOffline -> RefreshOfflineScreen(
@@ -172,7 +176,7 @@ private fun AuthRoute(
  * 검사하지 못한다.
  */
 @Composable
-private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
+private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired: () -> Unit) {
     val navController = rememberNavController()
 
     NavHost(
@@ -286,7 +290,7 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit) {
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
         // 등록만 한다. 사용자가 검색 화면에 도달하는 진입점은 pen의 일정 편집 화면에
         // 있으므로 F004에서 연결한다.
-        placeGraph(navController)
+        placeGraph(navController, onSessionExpired = onSessionExpired)
     }
 }
 

@@ -42,9 +42,13 @@ data class PlaceDetailRoute(val placeId: String)
  * 두 ViewModel 모두 각 destination의 back stack entry에 묶여 회전·복귀에도 상태가 남고,
  * 상세에서 뒤로 가면 검색 entry가 살아 있어 조건·결과·목록 위치가 유지된다(UI-009).
  *
+ * 로그인 만료는 화면이 안내하고 사용자가 `다시 로그인`을 누르면 [onSessionExpired]로 알린다.
+ * 어느 화면이든 같은 F001 재인증 흐름(local session 제거 → 로그인 화면)으로 이어진다.
+ *
  * @param navController 상세로 이동하고 뒤로 돌아오는 데 쓴다.
+ * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
  */
-fun NavGraphBuilder.placeGraph(navController: NavController) {
+fun NavGraphBuilder.placeGraph(navController: NavController, onSessionExpired: () -> Unit) {
     composable<PlaceSearchRoute> {
         val viewModel: PlaceSearchViewModel = viewModel(factory = PlaceSearchViewModel.factory(LocalContext.current))
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -57,6 +61,7 @@ fun NavGraphBuilder.placeGraph(navController: NavController) {
             onCategoryChange = viewModel::onCategoryChange,
             onSearch = viewModel::search,
             onRetry = viewModel::retry,
+            onReauthenticate = onSessionExpired,
             onLoadMore = viewModel::loadMore,
             onRetryLoadMore = viewModel::retryLoadMore,
             onSearchByCategory = viewModel::onSearchByCategory,
@@ -76,6 +81,7 @@ fun NavGraphBuilder.placeGraph(navController: NavController) {
             state = state,
             onBack = { navController.popBackStack() },
             onRetry = viewModel::retry,
+            onReauthenticate = onSessionExpired,
         )
     }
 }

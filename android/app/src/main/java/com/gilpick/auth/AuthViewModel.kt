@@ -73,6 +73,17 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
         viewModelScope.launch { repository.logout() }
     }
 
+    /**
+     * 보호 기능 호출에서 자격이 무효로 확정됐다.
+     *
+     * 화면별 repository는 자기 [AuthRepository] 인스턴스의 상태만 바꾸므로 앱 전체 상태를
+     * 가진 이 ViewModel에 알려야 로그인 화면으로 전환된다. 서버가 이미 자격을 거절했으므로
+     * [logout]처럼 폐기를 예약하지 않고 local session만 지운다.
+     */
+    fun onSessionExpired() {
+        viewModelScope.launch { repository.onSignedOut() }
+    }
+
     companion object {
 
         /**
