@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -251,6 +253,9 @@ private fun Content(
     Column(
         modifier = modifier
             .fillMaxSize()
+            // 앱은 edge-to-edge라 상태 표시줄 뒤까지 그려진다. Figma처럼 그 띠는 흰색으로 두고 hero는 그 아래서 시작한다.
+            .background(Color.White)
+            .statusBarsPadding()
             .background(Figma.Background),
     ) {
         Hero(place = place, onBack = onBack, onFavorite = onFavorite)
@@ -560,7 +565,12 @@ private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     val openMap = stringResource(R.string.place_detail_open_map)
 
-    Column(modifier = Modifier.background(Color.White)) {
+    Column(
+        modifier = Modifier
+            .background(Color.White)
+            // 제스처 바 뒤까지 흰색을 채우고 버튼은 그 위에 둔다.
+            .navigationBarsPadding(),
+    ) {
         HorizontalDivider(color = Figma.Divider)
         Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
