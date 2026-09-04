@@ -30,6 +30,7 @@ fun GilpickTheme(content: @Composable () -> Unit) {
         LocalGilpickColors provides GilpickLightColors,
         LocalGilpickSpacing provides GilpickSpacing(),
         LocalGilpickRadius provides GilpickRadius(),
+        LocalGilpickSizing provides GilpickSizing(),
     ) {
         MaterialTheme(
             colorScheme = GilpickColorScheme,
@@ -98,6 +99,21 @@ data class GilpickSpacing(
     val space6: Dp = 24.dp,
 )
 
+/**
+ * 간격 스케일에 없는 고정 크기. 값의 용도는 가이드라인 5절에 있다.
+ *
+ * @property emptyIconCircle 빈 상태 아이콘을 담는 원의 지름. 원은 `CircleShape`로
+ *   그리므로 곡률 토큰을 따로 두지 않는다.
+ * @property emptyIcon 그 원 안에 놓이는 아이콘 크기.
+ * @property emptyBottomPadding 빈 상태 아래 여백. 세로 중앙 배치를 시각적 중앙보다
+ *   살짝 위로 올려 앱바와의 균형을 맞춘다.
+ */
+data class GilpickSizing(
+    val emptyIconCircle: Dp = 64.dp,
+    val emptyIcon: Dp = 28.dp,
+    val emptyBottomPadding: Dp = 60.dp,
+)
+
 /** 곡률. 목록 안에서는 드러내지 않고 큰 컨테이너와 플로팅 요소에만 쓴다. */
 data class GilpickRadius(
     val xs: Dp = 4.dp,
@@ -121,6 +137,10 @@ val LocalGilpickSpacing = compositionLocalOf<GilpickSpacing> {
 }
 
 val LocalGilpickRadius = compositionLocalOf<GilpickRadius> {
+    error("GilpickTheme 안에서만 사용할 수 있습니다")
+}
+
+val LocalGilpickSizing = compositionLocalOf<GilpickSizing> {
     error("GilpickTheme 안에서만 사용할 수 있습니다")
 }
 
