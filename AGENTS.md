@@ -110,7 +110,7 @@
 
 - 사용자 화면 또는 UI 요소가 포함된 Feature의 Owner는 `spec.md` 작성 전에 `docs/design/ui-guidelines.md`와 Figma Make `Design UI from Reference`(로컬 사본 `gilpick/figma-make/src/screens/*.tsx`)의 관련 화면·컴포넌트를 확인한다.
 - `spec.md`에는 적용 가능한 `loading`·`empty`·`error`·`content` 상태, 상호작용, 접근성, adaptive 요구사항과 검증 가능한 완료 조건을 기록한다. 적용되지 않는 상태는 억지로 만들지 않고 그 이유를 명시한다.
-- **화면이 어떻게 생겼는지는 `spec.md`에 글로 적지 않는다.** 모양의 정본은 pen이므로 해당 화면을 가리키기만 한다. `spec.md`가 화면에 대해 적는 것은 "사용자가 무엇을 할 수 있어야 하는가"이지 "어떻게 배치하는가"가 아니다.
+- **화면이 어떻게 생겼는지는 `spec.md`에 글로 적지 않는다.** 모양의 정본은 Figma이므로 해당 화면을 가리키기만 한다. `spec.md`가 화면에 대해 적는 것은 "사용자가 무엇을 할 수 있어야 하는가"이지 "어떻게 배치하는가"가 아니다.
 - 새로운 시각·UX 판단이나 명세의 빈틈을 점검할 때는 `ui-ux-pro-max`를 사용한다. Compose 구현 제약, Material 3, adaptive layout, semantics 또는 UI test 가능성을 구체화할 필요가 있을 때는 `compose-expert`를 보조적으로 사용한다.
 - UI가 포함된 Feature의 `plan.md`에는 승인된 `spec.md`의 UI 요구사항을 구현할 theme token·재사용 component·상태 모델과 접근성·실제 기기 또는 screenshot 검증 방법을 기록한다.
 - 관련 Frontend task의 검증 기준에는 `spec.md`와 `plan.md`의 UI 완료 조건을 추적 가능하게 반영한다. 적용하지 않는 공통 상태나 검증 항목이 있으면 그 이유를 기록한다.
