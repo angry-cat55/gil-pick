@@ -167,6 +167,19 @@ class TripRepository(
             }
         }
 
+    /**
+     * 내 여행 목록 한 page를 조회한다(`GET /trips`).
+     *
+     * 검색어·상태 필터·cursor를 그대로 전달하고, 빈 검색어는 보내지 않는다. 서버가 빈 문자열로
+     * 필터링해 결과가 비는 것을 막기 위해서다. 인증 흐름은 [AuthRepository.withAuthorizedCall]을
+     * 따르므로 `401`이면 갱신 후 최대 1회 replay한다.
+     *
+     * @param query 여행 이름 검색어. `null`이거나 공백이면 조건 없음.
+     * @param status 상태 필터. `null`이면 전체.
+     * @param cursor 이전 page의 `nextCursor`. 첫 page는 `null`.
+     * @param limit page 크기. `null`이면 서버 기본값(20).
+     * @return 여행 목록과 다음 page cursor. 실패는 [AuthError]로 원인을 구분한다.
+     */
     suspend fun listTrips(
         query: String? = null,
         status: TripStatus? = null,
