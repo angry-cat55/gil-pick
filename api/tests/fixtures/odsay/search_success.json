@@ -1,0 +1,8 @@
+{
+  "result": {
+    "path": [
+      {"pathType": 3, "info": {"totalTime": 25, "totalDistance": 8400, "mapObj": "2:2:201:205@100:1:20:23"}},
+      {"pathType": 1, "info": {"totalTime": 20, "totalDistance": 8100, "mapObj": "ignored-second-candidate"}}
+    ]
+  }
+}
