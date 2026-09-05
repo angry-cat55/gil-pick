@@ -148,6 +148,7 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | PLACE-002 | 장소 | 장소 상세 조회 | [ ] | [ ] | GET | `/api/v1/places/{placeId}` |
 | ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
 | ROUTE-002 | 경로 | 남은 경로 재계산 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/recalculate` |
+| ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
 | PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
 | PROG-002 | 여행 진행 | 오늘 여행 시작 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/start` |
 | PROG-003 | 여행 진행 | 위치 이벤트 등록 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/events` |
@@ -707,7 +708,7 @@ Request Body:
 - 신규 항목은 서버의 기존 장소 저장 여부와 무관하게 `place` snapshot 필수
 - 같은 요청의 재전송은 항목 중복과 version 이중 증가 없이 현재 결과 반환
 - 처리된 장소는 장소·`transportModeToNext` 값 변경·삭제를 거부하고 체류시간·순서만 수정 가능
-- F004는 경로를 계산하지 않으며 항상 `routeStatus: NOT_CALCULATED`, `route: null` 반환
+- F004 단독 범위에서는 `routeStatus: NOT_CALCULATED`, `route: null`을 반환한다. F005 적용 뒤에는 일정 저장 성공 후 계획 경로를 자동 계산해 `READY` 또는 `FAILED`와 경로 정보를 반환한다.
 
 Response `200` 또는 신규 일자 `201`:
 
@@ -887,22 +888,21 @@ Response `200`:
 {
   "success": true,
   "data": {
-    "routeId": "uuid",
-    "version": 3,
-    "status": "READY",
-    "totalDurationMinutes": 85,
-    "totalDistanceMeters": 11200,
-    "segments": [
-      {
-        "fromItemId": "uuid",
-        "toItemId": "uuid",
-        "transportMode": "WALK",
-        "durationMinutes": 18,
-        "distanceMeters": 1300,
-        "provider": "TMAP"
-      }
-    ],
-    "providerAttribution": ["TMAP"]
+    "tripId": "uuid",
+    "date": "2026-08-22",
+    "scheduleVersion": 6,
+    "routeStatus": "READY",
+    "route": {
+      "routeId": "uuid",
+      "scheduleVersion": 6,
+      "totalDurationSeconds": 5100,
+      "totalDistanceMeters": 11200,
+      "markers": [],
+      "segments": [],
+      "providerAttributions": ["TMAP"],
+      "calculatedAt": "2026-08-22T01:02:03Z"
+    },
+    "failure": null
   },
   "meta": {
     "requestId": "uuid"
@@ -910,11 +910,35 @@ Response `200`:
 }
 ```
 
-주요 오류: `403`, `404`, `502`
+장소가 0곳인 날짜는 `NOT_CALCULATED`와 `route: null`, `failure: null`을 반환한다. 경로 계산이 실패한 날짜는 `FAILED`, `route: null`과 안정적인 `failure` code를 반환한다.
+
+주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
+
+### ROUTE-003 실패한 계획 경로 다시 시도
+
+`POST /api/v1/trips/{tripId}/days/{date}/route/retry`
+
+Request Body:
+
+```json
+{
+  "scheduleVersion": 6
+}
+```
+
+- 현재 일정 버전의 경로가 `FAILED`일 때만 날짜 전체 계획 경로를 같은 입력으로 다시 계산한다.
+- `(trip_day_id, schedule_version)` 경로 한 행을 upsert하므로 별도 `Idempotency-Key`는 사용하지 않는다.
+- 같은 버전의 중복·동시 요청은 경로를 추가 생성하지 않는다.
+- 정상 경로의 임의 재계산이나 후보 경로 선택에는 사용할 수 없다.
+- 성공과 최종 실패 모두 ROUTE-001과 같은 `200` envelope를 사용한다.
+
+주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`, `409 VERSION_CONFLICT | ROUTE_NOT_FAILED`
 
 ### ROUTE-002 남은 경로 재계산
 
 `POST /api/v1/trips/{tripId}/days/{date}/route/recalculate`
+
+F006 이후 여행 진행 중 현재 위치·진행 상태를 기준으로 남은 구간만 다시 계산하는 API다. F005 계획 경로 실패 복구나 정상 경로 후보 변경에는 사용하지 않는다.
 
 Header: `Idempotency-Key`
 

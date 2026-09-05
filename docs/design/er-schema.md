@@ -277,9 +277,9 @@ erDiagram
 | `status` | varchar(20) | N | `READY`, `FAILED`, `HISTORICAL` |
 | `is_active` | boolean | N | 현재 지도에 적용된 경로 |
 | `provider` | varchar(20) | Y | `TMAP`, `ODSAY`, `MIXED` |
-| `total_duration_minutes` | integer | Y | 총 이동시간 |
+| `total_duration_seconds` | integer | Y | 총 이동시간(초) |
 | `total_distance_meters` | integer | Y | 총 이동거리 |
-| `route_payload` | jsonb | Y | 구간, polyline, 요금, 제공사 표시정보 |
+| `route_payload` | jsonb | Y | 정규화한 구간, WGS84 LineString, marker, 제공사 표시정보 |
 | `failure_code` | varchar(80) | Y | 실패 원인 코드 |
 | `calculated_at` | timestamptz | Y | 계산 완료 시각 |
 | `created_at` | timestamptz | N | 생성 시각 |
@@ -287,6 +287,7 @@ erDiagram
 제약:
 
 - `READY`이면 이동시간과 `route_payload`가 존재한다.
+- `UNIQUE(trip_day_id, schedule_version)`으로 같은 일정 버전의 중복 경로 생성을 막고 retry는 같은 행을 갱신한다.
 - 날짜별 `is_active=true`인 경로는 최대 한 개다.
 - 일정 저장 후 경로가 실패해도 `FAILED` 행을 남기고 일정은 유지한다.
 
