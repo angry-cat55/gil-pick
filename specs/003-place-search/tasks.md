@@ -142,6 +142,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 선행: T017
   - 검증: 실제 기기 또는 AVD screenshot으로 네 상태·긴 장소명·이미지 누락·360dp·최대 font scale을 기록하고 TalkBack focus가 조건 → 요약 → 목록 순서인지 확인
   - 기록(2026-09-04, #142): AVD gilpick_api36_play에서 `PlaceSearchScreenTest` 14건·`PlaceNavigationTest` 3건 통과. `PlaceSearchScreenshotTest`가 idle/loading/content/empty/error/invalid, 긴 장소명·이미지 누락, 360dp, fontScale 2.0, 추가 조회 실패를 PNG로 남김(`adb pull /sdcard/Android/data/com.gilpick/files/screenshots`). focus 순서는 composition 순서(조건 → 요약 → 목록)로 두었고 TalkBack 실기기 수동 확인은 미수행
+  - 기록(2026-09-05, #144): TalkBack(AVD gilpick_api36_play, TAB 이동·발화 log) 공지 순서: `뒤로 가기` → 검색어 입력(`장소 이름 검색`) → `검색어 지우기` → 카테고리 Tab 6개(selected 상태 공지) → 결과 행(`이름, 카테고리, 평점, 운영 상태`) → `일정에 추가`. 요약 `검색 결과 N곳`은 화면 진입 시 live region으로 공지. 360dp(`wm density 480`)·font scale 2.0(시스템 설정) live screenshot 기록
 
 **Checkpoint**: 검색 화면만으로 F003의 P1 MVP가 독립 동작한다.
 
@@ -194,6 +195,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 선행: T024
   - 검증: 실제 기기 또는 AVD screenshot으로 네 상태·긴 설명·필드 누락·360dp·최대 font scale·TalkBack·뒤로가기 상태를 기록
   - 기록(2026-09-04, #139): AVD gilpick_api36에서 `PlaceDetailScreenTest` 10건·`PlaceNavigationTest` 3건 통과. `PlaceDetailScreenshotTest`가 loading/content/notFound/error, 긴 설명, 필드·이미지 누락, fontScale 2.0을 PNG로 남김(`adb pull /sdcard/Android/data/com.gilpick/files/screenshots`). 360dp 실기기·TalkBack 수동 확인은 미수행
+  - 기록(2026-09-05, #144): TalkBack(AVD gilpick_api36_play) content 진입 시 `대표 사진 없음`(이미지 fallback) 공지 후 `뒤로 가기` → `찜` → `지도에서 보기` → `일정에 추가` 순서. notFound는 `검색 결과로 돌아가기` 버튼 공지. 360dp·font scale 2.0 live screenshot 기록. font scale 2.0에서 운영시간 stat `09:00~18:00`이 `~` 뒤가 아닌 숫자 중간에서 줄바꿈됨(잘림 없음, 확인 필요)
 
 **Checkpoint**: 검색과 상세가 각각 독립 검증 가능하며 같은 장소 계약을 사용한다.
 
@@ -235,6 +237,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: jy
   - 선행: T029
   - 검증: timeout·rate limit·append 실패 메시지와 재시도 control이 TalkBack에 공지되고 기존 결과가 유지되는 screenshot·수동 검증 기록
+  - 기록(2026-09-05, #144): TalkBack(AVD gilpick_api36_play) 화면 진입 시 live region 공지 확인 — timeout: `장소 정보 제공이 지연되고 있어요… 다시 시도, Button` / rate limit: 메시지만 공지(재시도 버튼 없음, 설계대로) / 인증 만료: `로그인 상태가 만료되었어요… 다시 로그인, Button` / 추가 조회 실패: `다음 결과를 불러오지 못했어요… 다음 결과 다시 시도, Button` 뒤에 `검색 결과 4곳`과 기존 결과 행이 그대로 공지됨. 상세 error·인증 만료도 같은 메시지·버튼 공지
 
 **Checkpoint**: 정상·empty·외부 장애·인증·호출 제한이 서로 구분되고 복구 가능하다.
 
@@ -249,11 +252,12 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T015, T022, T028
   - 검증: `quickstart.md`의 Backend pytest와 저장소 lint·type check를 실행하고 필수 Google-style docstring을 확인한 뒤 성공·실패·미실행 사유 기록
-- [ ] T032 Android F003 전체 자동 test와 build 검증 실행 against android/app/src/test/java/com/gilpick/place/, android/app/src/androidTest/java/com/gilpick/place/
+- [x] T032 Android F003 전체 자동 test와 build 검증 실행 against android/app/src/test/java/com/gilpick/place/, android/app/src/androidTest/java/com/gilpick/place/
   - 영역: FE
   - 담당: jy
   - 선행: T018, T025, T030
   - 검증: `testDebugUnitTest`, `connectedDebugAndroidTest`, `assembleDebug`, 필수 KDoc 확인 결과와 실제 기기·screenshot 증빙 기록
+  - 기록(2026-09-05, #144): origin/main 774b89a에서 `testDebugUnitTest` 203건(place 45건) 통과, `assembleDebug` 성공, `connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.place` 50건 통과(AVD gilpick_api36_play: PlaceSearchScreenTest 16·PlaceDetailScreenTest 13·PlaceNavigationTest 3·screenshot 18장). `place/` 공개 선언 KDoc 누락 없음. TalkBack·360dp·font scale 기록은 T018·T025·T030 참조. 실서버 연동은 TourAPI·Google 자격이 없어 미수행(T034)
 - [ ] T033 Backend·Android 다중 provider 계약과 문서 최종 동기화 in specs/003-place-search/contracts/places.openapi.yaml, docs/design/api-spec.md, specs/003-place-search/quickstart.md
   - 영역: 통합
   - 담당: ts
