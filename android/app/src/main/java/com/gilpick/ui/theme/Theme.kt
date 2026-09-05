@@ -146,14 +146,18 @@ data class GilpickSpacing(
 )
 
 /**
- * 빈 상태 크기(가이드라인 5절). Figma 빈 상태: 64dp `background` 상자 안 28dp `faint` 아이콘.
+ * 간격 스케일에 없는 고정 크기(가이드라인 5절).
+ *
+ * Figma 빈 상태: 64dp `background` 상자 안 28dp `faint` 아이콘.
  *
  * @property emptyBottomPadding 빈 상태 아래 여백. 세로 중앙보다 살짝 위로 올려 앱바와 균형을 맞춘다.
+ * @property groupDot 목록 그룹 헤더 앞의 상태 점 지름.
  */
 data class GilpickSizing(
     val emptyIconCircle: Dp = 64.dp,
     val emptyIcon: Dp = 28.dp,
     val emptyBottomPadding: Dp = 60.dp,
+    val groupDot: Dp = 8.dp,
 )
 
 /** 곡률(가이드라인 6절). 목록 행은 곡률 없이 구분선으로 잇고 카드·버튼·sheet에만 쓴다. */

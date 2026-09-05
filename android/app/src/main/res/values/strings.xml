@@ -26,6 +26,10 @@
     <string name="trips_empty_create">첫 여행 만들기</string>
     <string name="trips_create">여행 만들기</string>
     <string name="trips_search_label">여행 이름 검색</string>
+    <!-- 목록 그룹 헤더. Figma MyTripsScreen의 section 라벨과 같다. -->
+    <string name="trips_group_in_progress">진행 중</string>
+    <string name="trips_group_upcoming">다가오는 여행</string>
+    <string name="trips_group_completed">지난 여행</string>
     <string name="trips_filter_all">전체</string>
     <string name="trips_filter_upcoming">예정</string>
     <string name="trips_filter_in_progress">여행 중</string>

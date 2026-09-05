@@ -26,6 +26,67 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * 목록을 나누는 세 그룹.
+ *
+ * 순서는 Figma `MyTripsScreen`의 section 순서이자 `spec.md` FR-005의 정렬 순서다.
+ */
+enum class TripGroup {
+    /** 오늘 진행 중인 여행. */
+    IN_PROGRESS,
+
+    /** 아직 시작하지 않은 여행. */
+    UPCOMING,
+
+    /** 끝난 여행. */
+    COMPLETED,
+}
+
+/**
+ * 한 그룹과 그 그룹에 속한 여행.
+ *
+ * @property group 이 구획이 나타내는 그룹.
+ * @property trips 화면에 그릴 여행. 서버가 준 순서를 그대로 유지한다.
+ */
+data class TripGroupSection(
+    val group: TripGroup,
+    val trips: List<TripDto>,
+) {
+    /**
+     * 그룹의 전체 여행 수.
+     *
+     * **개수의 출처는 이 프로퍼티 하나다.** 지금은 받아 둔 목록을 직접 세지만, 서버가
+     * 그룹별 개수를 `meta`로 내려주면 여기만 그 값을 읽도록 바꾸면 된다. 호출부는
+     * 그대로 둘 수 있다.
+     *
+     * 화면은 아직 이 값을 그리지 않는다. Figma 그룹 헤더에 개수 배지가 없기 때문이다.
+     */
+    val count: Int get() = trips.size
+}
+
+/**
+ * 여행 목록을 그룹별 구획으로 나눈다.
+ *
+ * 빈 그룹은 결과에 넣지 않는다. 화면이 헤더만 있는 구획을 그리지 않도록 여기서 거른다.
+ *
+ * 서버가 이미 `여행 중 → 예정 → 완료` 순으로 정렬해 주지만(FR-005) 그 순서에 기대지
+ * 않고 [TripGroup] 선언 순서로 다시 세운다. 정렬이 바뀌어도 화면 구성은 유지된다.
+ */
+internal fun groupTrips(trips: List<TripDto>): List<TripGroupSection> {
+    val byGroup = trips.groupBy { it.status.group }
+    return TripGroup.entries.mapNotNull { group ->
+        byGroup[group]?.takeIf { it.isNotEmpty() }?.let { TripGroupSection(group, it) }
+    }
+}
+
+/** 여행 상태를 목록 그룹에 대응시킨다. */
+internal val TripStatus.group: TripGroup
+    get() = when (this) {
+        TripStatus.IN_PROGRESS -> TripGroup.IN_PROGRESS
+        TripStatus.UPCOMING -> TripGroup.UPCOMING
+        TripStatus.COMPLETED -> TripGroup.COMPLETED
+    }
+
 /** 목록 조회가 실패한 이유. 화면이 원인과 다음 행동을 안내하는 데 쓴다. */
 enum class TripListError {
     /** 통신 실패. 같은 요청을 그대로 다시 보낼 수 있다. */
@@ -194,12 +255,24 @@ class TripListViewModel(private val repository: TripRepository) : ViewModel() {
         query = state.query,
         status = state.statusFilter,
         cursor = cursor,
+        limit = PAGE_LIMIT,
     )
 
     companion object {
 
         /** 입력이 멈췄다고 보는 시간. 짧으면 깜빡이고 길면 반응이 느리게 느껴진다. */
         private const val SEARCH_DEBOUNCE_MILLIS = 300L
+
+        /**
+         * 한 번에 받을 여행 수. 계약이 허용하는 최대값이다.
+         *
+         * 그룹 헤더는 그룹 전체를 한 화면에 놓고 봐야 뜻이 통한다. 20개씩 나눠 받으면
+         * 다음 페이지에서 같은 그룹이 다시 나오거나 그룹 경계가 페이지에 걸린다.
+         *
+         * cursor 추가 조회는 그대로 둔다(FR-009). 여행이 100개를 넘으면 지금처럼
+         * 무한 스크롤로 이어 받고, [TripListUiState.hasNext]가 그 상태를 알린다.
+         */
+        private const val PAGE_LIMIT = 100
 
         /**
          * 화면이 사용할 의존성을 조립한다.
