@@ -258,6 +258,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 선행: T018, T025, T030
   - 검증: `testDebugUnitTest`, `connectedDebugAndroidTest`, `assembleDebug`, 필수 KDoc 확인 결과와 실제 기기·screenshot 증빙 기록
   - 기록(2026-09-05, #144): origin/main 774b89a에서 `testDebugUnitTest` 203건(place 45건) 통과, `assembleDebug` 성공, `connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.place` 50건 통과(AVD gilpick_api36_play: PlaceSearchScreenTest 16·PlaceDetailScreenTest 13·PlaceNavigationTest 3·screenshot 18장). `place/` 공개 선언 KDoc 누락 없음. TalkBack·360dp·font scale 기록은 T018·T025·T030 참조. 실서버 연동은 TourAPI·Google 자격이 없어 미수행(T034)
+  - 기록(2026-09-05, #144 실서버): 로컬 API(uvicorn + docker postgres, `api/.env` 실제 TourAPI·Google 키) + AVD `adb reverse tcp:8000`으로 임시 androidTest 3건 통과. 검색 `경복궁` 12곳(TourAPI 실데이터·썸네일 로딩) → 행 선택 → 상세(`tourapi:126508`, 대표 이미지·주소·운영 안내) → 뒤로가기 결과 12곳 유지 → `서울` 20곳 → 목록 끝 추가 조회 40곳(cursor 2페이지, 중복 0) → `카페`+`성수` 20곳. 인증 만료: 무효 access → 401 → refresh 401 → `로그인 상태가 만료되었어요` + `다시 로그인` → onSessionExpired 발화. 연결 끊김(adb reverse 제거): `연결을 확인한 뒤 다시 시도해 주세요` + `다시 시도` → 연결 복구 후 재시도로 결과 12곳. 관찰: TourAPI 전용 장소는 stats 평점·운영시간이 `정보 없음`이고 운영 안내 원문은 info row에만 표시됨(Google 보강 없는 경우, 명세대로)
 - [ ] T033 Backend·Android 다중 provider 계약과 문서 최종 동기화 in specs/003-place-search/contracts/places.openapi.yaml, docs/design/api-spec.md, specs/003-place-search/quickstart.md
   - 영역: 통합
   - 담당: ts
