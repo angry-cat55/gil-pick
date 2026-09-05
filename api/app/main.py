@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 
 from app.api.errors import install_error_handling
 from app.api.v1.auth import router as auth_router
+from app.api.v1.itinerary import router as itinerary_router
 from app.api.v1.places import router as places_router
 from app.api.v1.trips import router as trips_router
 from app.core.config import get_settings
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     application = FastAPI(title="길픽 API", version="0.1.0", lifespan=lifespan)
     install_error_handling(application)
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(itinerary_router, prefix="/api/v1")
     application.include_router(places_router, prefix="/api/v1")
     application.include_router(trips_router, prefix="/api/v1")
 
