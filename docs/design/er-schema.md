@@ -211,7 +211,7 @@ erDiagram
 | `address` | text | Y | 표시 주소 |
 | `location` | geography(Point,4326) | N | 위도·경도 |
 | `image_url` | text | Y | 대표 이미지 |
-| `google_place_id` | varchar(255) | Y | 명확히 매칭된 경우만 저장 |
+| `google_place_id` | varchar(255) | Y | `google:{id}` 장소를 저장할 때 provider ID에서 추출 |
 | `created_at` | timestamptz | N | 일정에 처음 참조된 시각 |
 | `updated_at` | timestamptz | N | 최소 참조정보 갱신 시각 |
 

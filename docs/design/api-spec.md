@@ -143,6 +143,7 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | TRIP-005 | 여행 | 여행 삭제 | [ ] | [ ] | DELETE | `/api/v1/trips/{tripId}` |
 | ITIN-001 | 일정 | 날짜별 일정 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
 | ITIN-002 | 일정 | 날짜별 일정 저장 | [ ] | [ ] | PUT | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
+| ITIN-003 | 일정 | 여행 전체 날짜별 일정 개요 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/itinerary` |
 | PLACE-001 | 장소 | 장소 검색 | [ ] | [ ] | GET | `/api/v1/places/search` |
 | PLACE-002 | 장소 | 장소 상세 조회 | [ ] | [ ] | GET | `/api/v1/places/{placeId}` |
 | ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
@@ -594,16 +595,19 @@ Response: `204 No Content`
 
 ### 5.1 일정 공통 DTO
 
-`items[]`:
+조회 `items[]`:
 
 | 필드 | 형식 | 규칙 |
 |---|---|---|
-| `itemId` | UUID 또는 null | 신규 항목은 null |
-| `placeId` | 문자열 | 내부 장소 식별자 또는 정규화한 외부 장소 참조 |
+| `itemId` | UUID | 서버 일정 항목 식별자 |
+| `place` | 객체 | provider `placeId`, 장소명, 내부 카테고리, nullable 주소·대표 이미지 |
 | `sequence` | 정수 | 날짜 안에서 중복 불가 |
 | `plannedStayMinutes` | 정수 | 30~360분, 30분 단위 |
+| `staySource` | enum | `RECOMMENDED`, `USER_ADJUSTED` |
 | `transportModeToNext` | enum/null | `WALK`, `CAR`, `TRANSIT`; 마지막은 null |
 | `status` | enum | `PLANNED`, `EN_ROUTE`, `ARRIVED`, `COMPLETED`, `SKIPPED` |
+
+저장 요청의 신규 항목은 `itemId: null`과 F003 장소 snapshot을 항상 함께 보낸다. snapshot은 장소명, 내부 카테고리, nullable TourAPI 원본 분류·주소·대표 이미지, 필수 위도·경도를 포함한다. `placeId`는 `tourapi:{id}` 또는 `google:{id}`이며 Google ID는 `google:` 값에서만 추출한다.
 
 카테고리 추천 체류시간:
 - 자연 120분
@@ -624,19 +628,27 @@ Response `200`:
   "success": true,
   "data": {
     "date": "2026-08-22",
+    "dayNumber": 1,
     "version": 5,
-    "routeStatus": "READY",
+    "routeStatus": "NOT_CALCULATED",
     "items": [
       {
         "itemId": "uuid",
-        "placeId": "place-uuid",
-        "placeName": "경복궁",
+        "place": {
+          "placeId": "tourapi:126508",
+          "name": "경복궁",
+          "category": "HISTORY_CULTURE",
+          "address": "서울특별시 종로구 사직로 161",
+          "imageUrl": null
+        },
         "sequence": 1,
         "plannedStayMinutes": 90,
+        "staySource": "RECOMMENDED",
         "transportModeToNext": "WALK",
         "status": "PLANNED"
       }
-    ]
+    ],
+    "route": null
   },
   "meta": {
     "requestId": "uuid"
@@ -644,13 +656,15 @@ Response `200`:
 }
 ```
 
-주요 오류: `401`, `403`, `404`
+저장된 적 없는 여행 기간 안 날짜는 `dayNumber`, `version: 0`, `routeStatus: NOT_CALCULATED`, 빈 `items`, `route: null`을 반환한다. 조회만으로 `trip_days`를 생성하지 않는다.
+
+주요 오류: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 
 ### ITIN-002 날짜별 일정 저장
 
 `PUT /api/v1/trips/{tripId}/days/{date}/itinerary`
 
-Header: `Idempotency-Key`
+Header: `Idempotency-Key` UUID
 
 Request Body:
 
@@ -660,31 +674,40 @@ Request Body:
   "items": [
     {
       "itemId": "uuid",
-      "placeId": "place-uuid",
+      "placeId": "tourapi:126508",
+      "place": null,
       "sequence": 1,
       "plannedStayMinutes": 90,
-      "transportModeToNext": "WALK",
-      "status": "PLANNED"
+      "staySource": "RECOMMENDED",
+      "transportModeToNext": "WALK"
     },
     {
       "itemId": null,
-      "placeId": "place-uuid-2",
+      "placeId": "google:ChIJ-example",
+      "place": {
+        "name": "새 장소",
+        "category": "CAFE",
+        "tourApiCategory": null,
+        "address": null,
+        "latitude": 37.55,
+        "longitude": 127.04,
+        "imageUrl": null
+      },
       "sequence": 2,
       "plannedStayMinutes": 60,
-      "transportModeToNext": null,
-      "status": "PLANNED"
+      "staySource": "USER_ADJUSTED",
+      "transportModeToNext": null
     }
   ]
 }
 ```
 
 처리 규칙:
-- 장소·순서·체류시간·이동수단 수정 가능
-- 처리된 장소는 상태·체류시간·순서 수정 가능
-- 처리된 장소를 다른 장소로 교체할 경우 상태 유지
-- 경로 계산 실패 시에도 일정 저장은 유지
-- 경로 계산 실패 시 `routeStatus: FAILED`
-- 자동 재시도 1회 후 실패하면 앱에서 `경로 다시 계산`을 제공
+- 한 날짜의 항목 전체를 한 transaction에서 저장하고 `scheduleVersion`으로 충돌을 감지
+- 신규 항목은 서버의 기존 장소 저장 여부와 무관하게 `place` snapshot 필수
+- 같은 요청의 재전송은 항목 중복과 version 이중 증가 없이 현재 결과 반환
+- 처리된 장소는 장소·`transportModeToNext` 값 변경·삭제를 거부하고 체류시간·순서만 수정 가능
+- F004는 경로를 계산하지 않으며 항상 `routeStatus: NOT_CALCULATED`, `route: null` 반환
 
 Response `200` 또는 신규 일자 `201`:
 
@@ -694,29 +717,8 @@ Response `200` 또는 신규 일자 `201`:
   "data": {
     "date": "2026-08-22",
     "version": 6,
-    "routeStatus": "READY",
-    "items": [],
-    "route": {
-      "routeId": "uuid",
-      "totalDurationMinutes": 45,
-      "totalDistanceMeters": 5200
-    }
-  },
-  "meta": {
-    "requestId": "uuid"
-  }
-}
-```
-
-경로 실패 시:
-
-```json
-{
-  "success": true,
-  "data": {
-    "date": "2026-08-22",
-    "version": 6,
-    "routeStatus": "FAILED",
+    "dayNumber": 1,
+    "routeStatus": "NOT_CALCULATED",
     "items": [],
     "route": null
   },
@@ -726,7 +728,40 @@ Response `200` 또는 신규 일자 `201`:
 }
 ```
 
-주요 오류: `400`, `403`, `404`, `409 VERSION_CONFLICT`, `422`
+검증 오류 `422 INVALID_ITINERARY`의 `details` 예시:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_ITINERARY",
+    "message": "일정 입력값이 올바르지 않습니다.",
+    "retryable": false,
+    "details": {
+      "violations": [
+        {
+          "field": "items[1].transportModeToNext",
+          "itemIndex": 1,
+          "reason": "마지막 장소의 이동 수단은 null이어야 합니다."
+        }
+      ]
+    }
+  },
+  "meta": {
+    "requestId": "uuid"
+  }
+}
+```
+
+주요 오류: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`, `409 VERSION_CONFLICT | ITINERARY_ITEM_LOCKED`, `422 INVALID_ITINERARY`
+
+### ITIN-003 여행 전체 날짜별 일정 개요 조회
+
+`GET /api/v1/trips/{tripId}/itinerary`
+
+여행 기간의 모든 날짜를 `days[]`로 반환한다. 저장된 적 없는 날짜도 `version: 0`, `routeStatus: NOT_CALCULATED`, 빈 `items`, `route: null`로 포함한다. 최대 7일이므로 pagination은 사용하지 않는다.
+
+주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 
 ### PLACE-001 장소 검색
 

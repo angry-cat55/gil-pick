@@ -23,7 +23,7 @@
 |---|---|---|
 | `place_id` | uuid | PK, 서버 내부용. API에는 노출하지 않는다 |
 | `tour_content_id` | varchar(255), null | `tourapi:{id}`의 `{id}`. partial unique |
-| `google_place_id` | varchar(255), null | `google:{id}`의 `{id}` 또는 TourAPI 장소의 확정 매칭 Google 식별자. partial unique |
+| `google_place_id` | varchar(255), null | `google:{id}`의 `{id}`. partial unique |
 | `name` | varchar(255) | F003 `name` |
 | `category` | varchar(30) | F003 `category` 6개 enum |
 | `tour_category_1~3` | varchar(120), null | F003 `tourApiCategory.large/middle/small` |
@@ -53,10 +53,10 @@
 2. `sequence`가 1..N 연속·중복 없음
 3. `plannedStayMinutes` 30~360, `% 30 == 0`
 4. 마지막 항목 `transportModeToNext == null`, 나머지는 non-null
-5. 새 항목(`itemId == null`)에 `place` 스냅샷 존재, 좌표 존재
+5. 새 항목(`itemId == null`)에 서버의 기존 장소 저장 여부와 무관하게 `place` 스냅샷 존재, 좌표 존재
 6. 기존 `itemId`가 같은 `trip_day`에 속함
 
-**처리된 항목 잠금** (`409 ITINERARY_ITEM_LOCKED`): 저장된 `status != PLANNED`인 항목은 `place_id`·`transport_mode_to_next` 변경과 요청에서의 누락(삭제)을 거부한다. 요청의 `status`는 무시하고 저장값을 유지한다.
+**처리된 항목 잠금** (`409 ITINERARY_ITEM_LOCKED`): 저장된 `status != PLANNED`인 항목은 `place_id`·`transport_mode_to_next` 값 변경과 요청에서의 누락(삭제)을 거부한다. 순서 변경으로 다음 장소가 달라져도 기존 이동 수단 enum 값은 해당 항목에 유지한다. 요청의 `status`는 무시하고 저장값을 유지한다.
 
 ## 4. 저장 결과 판정
 
