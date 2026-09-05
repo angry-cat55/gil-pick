@@ -155,6 +155,22 @@ async def test_search_maps_category_and_recommended_stay(
 
 
 @pytest.mark.asyncio
+async def test_search_accepts_tour_string_empty_items() -> None:
+    """TourAPI의 문자열 empty items를 정상적인 빈 결과로 처리한다."""
+    tour = StubTourClient(
+        [{"response": {"body": {"items": "", "totalCount": 0}}}]
+    )
+
+    items, next_cursor, has_next = await service(tour).search_places(
+        query="없는 장소", category=None, area_code=None, cursor=None, limit=20
+    )
+
+    assert items == []
+    assert next_cursor is None
+    assert has_next is False
+
+
+@pytest.mark.asyncio
 async def test_search_routes_keyword_and_category_only_to_tourapi() -> None:
     """키워드 유무에 따라 TourAPI 검색 endpoint를 선택한다."""
     tour = StubTourClient(
