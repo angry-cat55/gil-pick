@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 
 
-def valid_settings(**overrides: str) -> dict[str, str]:
+def valid_settings(**overrides: object) -> dict[str, object]:
     """Return valid explicit settings with selected overrides."""
     values = {
         "database_url": "postgresql+asyncpg://user:password@localhost/gilpick",
@@ -20,6 +20,8 @@ def valid_settings(**overrides: str) -> dict[str, str]:
         "android_app_link_host": "app.gilpick.example",
         "tour_api_service_key": "test-tour-api-key",
         "google_places_api_key": "test-google-places-key",
+        "tmap_api_key": "tmap-secret",
+        "odsay_api_key": "odsay-secret",
     }
     values.update(overrides)
     return values
@@ -73,3 +75,28 @@ def test_place_provider_defaults_and_secrets() -> None:
     assert settings.place_provider_timeout_seconds == 5.0
     assert str(settings.tour_api_service_key) == "**********"
     assert str(settings.google_places_api_key) == "**********"
+
+
+def test_route_provider_settings_have_documented_defaults() -> None:
+    settings = Settings(_env_file=None, **valid_settings())
+
+    assert settings.route_provider_timeout_seconds == 5
+    assert settings.route_calculation_deadline_seconds == 10
+    assert settings.route_provider_concurrency == 3
+    assert str(settings.tmap_api_key) == "**********"
+    assert str(settings.odsay_api_key) == "**********"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("route_provider_timeout_seconds", 0),
+        ("route_calculation_deadline_seconds", 0),
+        ("route_provider_concurrency", 0),
+    ],
+)
+def test_route_provider_settings_reject_non_positive_values(
+    field: str, value: int
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **valid_settings(**{field: value}))
