@@ -135,4 +135,6 @@ android/app/src/androidTest/java/com/gilpick/itinerary/  # 편집 화면·naviga
 
 ## Complexity Tracking
 
+**Constitution I 예외 기록**: FR-008의 안내 없는 자동 재저장은 사용자가 누른 `저장`을 완료하는 동작이지만, 다른 기기가 먼저 저장한 변경을 확인 없이 덮어쓴다. 팀 결정(spec Clarifications 2026-09-05)으로 채택했고 근거는 spec Assumptions에 있다. 종료 조건: 실제 사용에서 덮어쓰기로 인한 문제가 확인되면 "다른 곳에서 바뀌었습니다" 안내 후 사용자가 `저장`을 다시 누르는 방식으로 바꾼다. 이 예외는 문서 PR 본문에 함께 기록한다.
+
 Constitution 위반은 없다. GeoAlchemy2는 ERD의 PostGIS `geography` 컬럼을 ORM으로 다루기 위한 최소 추가이며, 순서 변경 끌기는 라이브러리 없이 foundation gesture로 구현하고 버튼이 기능을 보장한다. 항목 단위 API, idempotency 저장 테이블, 경로 계산 선반영은 도입하지 않는다.

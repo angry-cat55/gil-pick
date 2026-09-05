@@ -101,7 +101,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 영역: FE
   - 담당: jy
   - 선행: T008
-  - 검증: 검색 결과 추가 시 끝에 붙고 직전 항목 이동 수단 설정(첫 항목이면 무시), 추천 체류 시간 자동 입력·`RECOMMENDED`, `sequence` 1..N 부여, `Idempotency-Key` 1회 생성, 409 시 최신 version으로 최대 2회 재저장, 연속 실패 시 `Failed`와 초안 유지, `SavedStateHandle` 복원
+  - 검증: 검색 결과 추가 시 끝에 붙고 직전 항목 이동 수단 설정(첫 항목이면 무시), 좌표 없는 장소는 추가 거부·안내, 추천 체류 시간 자동 입력·`RECOMMENDED`, `sequence` 1..N 부여, `Idempotency-Key` 1회 생성, 409 시 최신 version으로 최대 2회 재저장, 연속 실패 시 `Failed`와 초안 유지, `SavedStateHandle` 복원
 - [ ] T013 [P] [US1] 편집 화면 Compose UI test in android/app/src/androidTest/java/com/gilpick/itinerary/ItineraryEditScreenTest.kt
   - 영역: FE
   - 담당: jy
@@ -119,7 +119,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 영역: BE
   - 담당: ts
   - 선행: T009, T014
-  - 검증: T010 통과, `Idempotency-Key` 필수, `200`/`201` 구분, 오류 envelope 형식
+  - 검증: T010 통과, `Idempotency-Key` 필수, `200`/`201` 구분, 오류 envelope 형식, 모든 응답이 `routeStatus NOT_CALCULATED`·`route null`(FR-018)
 - [ ] T016 [US1] `ItineraryEditViewModel`(초안/저장본 분리, `SavedStateHandle`, 자동 재저장) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt
   - 영역: FE
   - 담당: jy
@@ -275,7 +275,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 교차 확인: jy
   - 선행: T033, T034
-  - 검증: 로컬 API + AVD로 quickstart 수동 1~5(추가·편집·저장, 두 세션 충돌 자동 재저장, 10곳 상한, 기간 축소), enum·nullable·오류 code·`place` 스냅샷이 양쪽 구현과 일치하는지 BE `ts`와 FE `jy`가 교차 확인 기록
+  - 검증: 로컬 API + AVD로 quickstart 수동 1~5(추가·편집·저장, 두 세션 충돌 자동 재저장, 10곳 상한, 기간 축소), 수동 1번의 상세 진입 → 저장 소요 시간을 기록해 SC-001(5분) 확인, enum·nullable·오류 code·`place` 스냅샷이 양쪽 구현과 일치하는지 BE `ts`와 FE `jy`가 교차 확인 기록
 
 ---
 
