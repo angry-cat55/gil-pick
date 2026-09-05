@@ -264,7 +264,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T031, T032
   - 검증: enum·nullable field·cursor·provider별 오류 code·Google 보완 필드·attribution이 양쪽 구현과 일치하고 DB 저장·Google 사진·리뷰가 포함되지 않았음을 BE `ts`와 FE `jy`가 교차 확인
-- [ ] T034 TourAPI·Google Places 공유 환경 smoke test와 quota·billing·attribution 확인 against specs/003-place-search/quickstart.md
+- [x] T034 TourAPI·Google Places 공유 환경 smoke test와 quota·billing·attribution 확인 against specs/003-place-search/quickstart.md
   - 영역: 통합
   - 담당: ts
   - 선행: T031, TourAPI·Google Places credential·billing 환경 준비 Issue
