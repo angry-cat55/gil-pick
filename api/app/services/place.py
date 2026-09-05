@@ -120,7 +120,8 @@ class PlaceService:
             ) from exc
 
         body = payload.get("response", {}).get("body", {})
-        raw_items = body.get("items", {}).get("item", [])
+        item_container = body.get("items", {})
+        raw_items = item_container.get("item", []) if isinstance(item_container, dict) else []
         if isinstance(raw_items, dict):
             raw_items = [raw_items]
         items: list[PlaceSummary] = []

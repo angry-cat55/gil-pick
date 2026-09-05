@@ -49,6 +49,13 @@ class TourStub:
         return {"response": {"body": {"items": ""}}}
 
 
+class StringEmptyTourStub(TourStub):
+    """실제 TourAPI의 문자열 empty items 응답을 반환한다."""
+
+    async def search_keyword(self, **params: Any) -> dict[str, Any]:
+        return {"response": {"body": {"items": "", "totalCount": 0}}}
+
+
 class GoogleStub:
     """보완 결과가 없는 Google Places 대역이다."""
 
@@ -107,6 +114,21 @@ def test_search_returns_empty_result() -> None:
         "nextCursor": None,
         "hasNext": False,
     }
+
+
+@pytest.mark.usefixtures("principal_override")
+def test_search_returns_empty_for_tour_string_items() -> None:
+    """TourAPI 문자열 empty 응답도 200 빈 목록으로 반환한다."""
+    service = PlaceService(
+        StringEmptyTourStub([[]]), GoogleStub(), cursor_secret="test-secret"
+    )
+    app.dependency_overrides[_place_service] = lambda: service
+
+    response = TestClient(app).get("/api/v1/places/search", params={"query": "없음"})
+
+    assert response.status_code == 200
+    assert response.json()["data"]["items"] == []
+    assert response.json()["meta"]["pagination"]["hasNext"] is False
 
 
 @pytest.mark.usefixtures("principal_override")
