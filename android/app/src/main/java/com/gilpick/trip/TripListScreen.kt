@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.Dp
 import com.gilpick.R
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.TripCard
+import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSizing
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -235,6 +236,56 @@ private fun filterChipColors(): SelectableChipColors = FilterChipDefaults.filter
 )
 
 /**
+ * 목록 그룹 헤더.
+ *
+ * Figma `MyTripsScreen`의 section 라벨이다. 8dp 상태 점과 라벨을 8dp 간격으로 두고,
+ * 아래에 12dp를 띄운다. 좌우 4dp는 카드보다 살짝 안쪽으로 들여 쓰기 위한 값이다.
+ *
+ * **개수 배지는 그리지 않는다.** Figma 헤더에 없다(가이드라인 12절: 모양은 Figma가
+ * 이긴다). 개수 자체는 [TripGroupSection.count]가 이미 들고 있어, 나중에 표시하기로
+ * 하면 이 자리에 붙이면 된다.
+ *
+ * 점은 장식이라 별도 semantics를 붙이지 않는다. 그룹의 뜻은 옆 라벨이 전달한다.
+ */
+@Composable
+private fun TripGroupHeader(group: TripGroup) {
+    val spacing = LocalGilpickSpacing.current
+    val sizing = LocalGilpickSizing.current
+    val colors = LocalGilpickColors.current
+
+    val dotColor = when (group) {
+        TripGroup.IN_PROGRESS -> colors.success
+        TripGroup.UPCOMING -> MaterialTheme.colorScheme.primary
+        TripGroup.COMPLETED -> colors.faint
+    }
+
+    Row(
+        modifier = Modifier.padding(horizontal = spacing.space1, vertical = spacing.space1),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(sizing.groupDot)
+                .background(dotColor, CircleShape),
+        )
+        Text(
+            text = stringResource(group.labelRes),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** 그룹 헤더 문구. */
+private val TripGroup.labelRes: Int
+    get() = when (this) {
+        TripGroup.IN_PROGRESS -> R.string.trips_group_in_progress
+        TripGroup.UPCOMING -> R.string.trips_group_upcoming
+        TripGroup.COMPLETED -> R.string.trips_group_completed
+    }
+
+/**
  * 조회 대기 표시.
  *
  * 1초를 넘길 때만 표시한다. 금방 끝나는 조회에서 skeleton이 깜빡이면 오히려 느리게
@@ -383,15 +434,24 @@ private fun TripList(
     val today = remember { LocalDate.now(KST) }
 
     // 마지막에서 두 번째 항목이 보이면 미리 받아 스크롤이 멈추지 않게 한다.
+    //
+    // 기준을 여행 수가 아니라 `totalItemsCount`로 잡는다. 목록에 그룹 헤더와 추가 로드
+    // 표시가 섞여 있어 LazyColumn의 index와 여행 index가 더 이상 같지 않다.
     LaunchedEffect(listState, hasNext) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+        snapshotFlow {
+            val info = listState.layoutInfo
+            info.visibleItemsInfo.lastOrNull()?.index to info.totalItemsCount
+        }
             .distinctUntilChanged()
-            .collect { lastVisible ->
-                if (hasNext && lastVisible != null && lastVisible >= trips.lastIndex - 1) {
+            .collect { (lastVisible, total) ->
+                if (hasNext && lastVisible != null && lastVisible >= total - 2) {
                     onLoadMore()
                 }
             }
     }
+
+    // 그룹 나누기는 상태 계층이 소유한다. 화면은 나뉜 결과를 그리기만 한다.
+    val sections = remember(trips) { groupTrips(trips) }
 
     LazyColumn(
         state = listState,
@@ -399,15 +459,25 @@ private fun TripList(
         verticalArrangement = Arrangement.spacedBy(spacing.space3),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = spacing.space6),
     ) {
-        items(items = trips, key = { it.tripId }) { trip ->
-            TripCard(
-                title = trip.name,
-                period = stringResource(R.string.trips_period, trip.startDate, trip.endDate),
-                supporting = trip.supportingText(today),
-                badgeLabel = stringResource(trip.status.labelRes),
-                badgeTone = trip.status.tone,
-                onClick = { onTripClick(trip.tripId) },
-            )
+        sections.forEach { section ->
+            // 빈 그룹은 groupTrips가 이미 걸렀다. 헤더만 남는 구획은 생기지 않는다.
+            item(key = section.group, contentType = GROUP_HEADER_TYPE) {
+                TripGroupHeader(group = section.group)
+            }
+            items(
+                items = section.trips,
+                key = { it.tripId },
+                contentType = { TRIP_CARD_TYPE },
+            ) { trip ->
+                TripCard(
+                    title = trip.name,
+                    period = stringResource(R.string.trips_period, trip.startDate, trip.endDate),
+                    supporting = trip.supportingText(today),
+                    badgeLabel = stringResource(trip.status.labelRes),
+                    badgeTone = trip.status.tone,
+                    onClick = { onTripClick(trip.tripId) },
+                )
+            }
         }
         if (loadingMore) {
             item {
@@ -474,3 +544,7 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val MIN_FIELD_HEIGHT = Dp(56f)
 private val MIN_TOUCH = Dp(48f)
+
+/** LazyColumn이 같은 종류의 항목끼리 layout을 재사용하도록 구분한다. */
+private const val GROUP_HEADER_TYPE = "group-header"
+private const val TRIP_CARD_TYPE = "trip-card"

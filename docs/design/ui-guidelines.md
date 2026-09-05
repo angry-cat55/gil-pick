@@ -185,6 +185,7 @@ Figma는 `Outfit`(숫자·라틴)과 `Noto Sans KR`(한글)을 쓴다. Android�
 | 지도 미리보기 | 130~190dp, 화면 지도 38~55% |
 | 체류 시간 ± 버튼 | 40 × 40dp 원 (dialog는 44) |
 | 진행 바 | 6dp 높이, 날짜 점 10dp |
+| 목록 그룹 헤더 점 | 8 × 8dp 원. 진행 중 `success`, 다가오는 `primary`, 지난 `faint` |
 | 빈 상태 아이콘 상자 | 64 × 64dp(`background`, 16dp 곡률) 안 28dp `faint` 아이콘. 빈 화면은 세로 중앙보다 살짝 위(하단 여백 60dp) |
 | 터치 영역 간격 | 최소 8dp |
 
