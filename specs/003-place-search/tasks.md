@@ -252,11 +252,12 @@ description: "F003 장소 검색 구현 task 목록"
   - 담당: ts
   - 선행: T015, T022, T028
   - 검증: `quickstart.md`의 Backend pytest와 저장소 lint·type check를 실행하고 필수 Google-style docstring을 확인한 뒤 성공·실패·미실행 사유 기록
-- [ ] T032 Android F003 전체 자동 test와 build 검증 실행 against android/app/src/test/java/com/gilpick/place/, android/app/src/androidTest/java/com/gilpick/place/
+- [x] T032 Android F003 전체 자동 test와 build 검증 실행 against android/app/src/test/java/com/gilpick/place/, android/app/src/androidTest/java/com/gilpick/place/
   - 영역: FE
   - 담당: jy
   - 선행: T018, T025, T030
   - 검증: `testDebugUnitTest`, `connectedDebugAndroidTest`, `assembleDebug`, 필수 KDoc 확인 결과와 실제 기기·screenshot 증빙 기록
+  - 기록(2026-09-05, #144): origin/main 774b89a에서 `testDebugUnitTest` 203건(place 45건) 통과, `assembleDebug` 성공, `connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.place` 50건 통과(AVD gilpick_api36_play: PlaceSearchScreenTest 16·PlaceDetailScreenTest 13·PlaceNavigationTest 3·screenshot 18장). `place/` 공개 선언 KDoc 누락 없음. TalkBack·360dp·font scale 기록은 T018·T025·T030 참조. 실서버 연동은 TourAPI·Google 자격이 없어 미수행(T034)
 - [ ] T033 Backend·Android 다중 provider 계약과 문서 최종 동기화 in specs/003-place-search/contracts/places.openapi.yaml, docs/design/api-spec.md, specs/003-place-search/quickstart.md
   - 영역: 통합
   - 담당: ts
