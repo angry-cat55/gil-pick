@@ -835,7 +835,12 @@ Response `200`:
 - 장소별 provider 배지는 화면에 표시하지 않지만 Google 데이터 영역의 필수 attribution은 준수
 - 검색 결과와 상세 응답은 DB나 server cache에 저장하지 않음
 
-주요 오류: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`, `404 PLACE_NOT_FOUND`, `429 TOUR_API_RATE_LIMITED`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`
+주요 오류:
+
+- 공통: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`, `404 PLACE_NOT_FOUND`
+- `tourapi:` 기준 provider 실패: `429 TOUR_API_RATE_LIMITED`, `502 TOUR_API_FAILED`, `504 TOUR_API_TIMEOUT`
+- `google:` 기준 provider 실패: `429 GOOGLE_PLACES_RATE_LIMITED`, `502 GOOGLE_PLACES_FAILED`, `504 GOOGLE_PLACES_TIMEOUT`
+- `tourapi:` 상세의 선택적 Google 보강 실패는 응답 실패로 전파하지 않고 TourAPI 정보만 반환
 
 ### ROUTE-001 날짜별 경로 조회
 

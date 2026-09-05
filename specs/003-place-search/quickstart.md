@@ -12,17 +12,17 @@
 ## Backend 자동 검증
 
 ```powershell
-api\.venv\Scripts\python.exe -m pytest api/tests/contract/test_place_contract.py api/tests/unit/test_tour_api_client.py api/tests/unit/test_place_service.py api/tests/integration/test_place_flow.py
+api\.venv\Scripts\python.exe -m pytest api/tests/contract/test_place_contract.py api/tests/unit/test_tour_api_client.py api/tests/unit/test_google_places_client.py api/tests/unit/test_place_service.py api/tests/integration/test_place_flow.py
 ```
 
 필수 시나리오:
 
-1. keyword 단독, category 단독, keyword+category+areaCode 검색이 안정적인 DTO로 변환된다.
+1. keyword 단독, category 단독, keyword+category+areaCode 검색이 안정적인 DTO로 변환된다. TourAPI의 `items`가 빈 문자열인 정상 empty 응답도 `200` 빈 목록으로 처리한다.
 2. query와 category가 모두 없거나 trim 후 query가 한 글자면 `400`이며 TourAPI를 호출하지 않는다.
 3. cursor는 같은 검색 조건에서만 재사용되고 변조·버전 불일치·조건 불일치는 `INVALID_CURSOR`다.
 4. 음식·카페·쇼핑의 TourAPI 정상 결과가 `limit` 미만일 때만 Google Text Search로 부족분을 채우고 다른 유형은 보완하지 않는다.
 5. 확정 매칭은 TourAPI ID·기본정보를 유지한 채 Google 평점·평점 수·영업정보만 병합하고, 모호한 Google 후보는 제외한다.
-6. `tourapi:` 상세은 `detailCommon2`·`detailIntro2`와 선택적 Google 보강을 조합하고, `google:` 상세은 허용된 Google 기본·평점·영업정보만 반환한다.
+6. `tourapi:` 상세는 `detailCommon2`·`detailIntro2`와 선택적 Google 보강을 조합하고, `google:` 상세는 허용된 Google 기본·평점·영업정보만 반환한다. 기준 provider가 실패하면 prefix에 맞는 `TOUR_API_*` 또는 `GOOGLE_PLACES_*` 오류를 반환하고, `tourapi:` 상세의 선택적 Google 보강 실패는 격리한다.
 7. TourAPI 운영 안내가 있어도 `openNow`나 정확한 종료 시각을 추론하지 않는다.
 8. timeout과 일시적 5xx는 최대 한 번 재시도하고 application·request·auth·quota 오류는 재시도하지 않는다.
 9. Google 보완 없는 검색·상세는 5초, 재시도 없는 Google 보완 검색은 10초, provider별 자동 재시도는 해당 호출 시작 후 11초 경계를 검증한다.
