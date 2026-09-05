@@ -49,6 +49,17 @@ android\gradlew.bat -p android connectedDebugAndroidTest
 
 공유 환경이 준비된 경우에만 TourAPI 정상·empty·상세·pagination과 Google 조건부 보완·매칭·부분 실패·attribution을 확인한다. quota와 비용을 소모하므로 CI에서는 반복 호출하지 않는다.
 
+### 실행 기록 (2026-09-05, #147)
+
+- #148에서 준비한 저장소 밖 credential을 사용했으며 secret·provider 원문 응답·요청 URL은 출력하지 않았다. 실제 TourAPI와 Google Places 호출 성공으로 API 활성화와 호출 가능한 quota·billing 상태를 확인했다.
+- TourAPI `경복궁` 검색은 5건을 0.318초에 반환했고 `hasNext=true`와 cursor가 생성됐다. 다음 페이지 5건은 0.233초에 반환됐으며 첫 페이지와 중복은 없었다.
+- TourAPI 상세는 0.175초에 반환됐고 운영 안내가 포함됐다. 존재하지 않는 검색어는 0.212초에 `items=[]`, `nextCursor=null`, `hasNext=false`로 반환됐다.
+- `성수 카페` 조건부 보완은 0.568초에 20건을 반환했고 모두 Google 전용 결과였다. Google 상세는 0.122초에 반환됐으며 사진·리뷰 field는 요청하거나 응답 DTO에 포함하지 않았다.
+- Google의 제3자 attribution 배열은 해당 검색 결과에서 비어 있었다. Android는 Google 평점·영업정보가 있으면 기본 `Google Maps` attribution을 표시하므로 attribution이 비어 있어도 필수 출처 문구를 유지한다.
+- 잘못된 Google key로 부분 실패를 유도했을 때 0.192초에 TourAPI 결과 10건을 유지하고 Google 결과만 제외했다. 인증 오류는 정책대로 자동 재시도하지 않았다.
+- 모든 실제 정상 호출은 provider별 5초 제한 안에 완료됐다. 일시적 네트워크·5xx의 최대 1회 재시도와 호출 시작 후 11초 경계는 실제 provider 장애를 유도하지 않고 자동 테스트로 확인했다.
+- 같은 환경에서 아래 Backend 자동 검증 69건이 통과했다. 실제 quota 잔량과 billing 금액은 API 응답만으로 수치화하지 않았으며 #148의 환경 준비 완료 상태를 근거로 확인했다.
+
 ## 문서 동기화 확인
 
 - `contracts/places.openapi.yaml`과 `docs/design/api-spec.md`의 PLACE-001~002가 일치한다.
