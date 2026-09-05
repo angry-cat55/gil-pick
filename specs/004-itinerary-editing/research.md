@@ -13,7 +13,7 @@
 
 ## 2. 장소 참조 저장 방식
 
-**Decision**: 일정 저장 요청의 각 항목은 provider 형식 `placeId`(`tourapi:{id}` 또는 `google:{id}`)를 쓰고, 서버에 아직 없는 장소는 항목에 `place` 스냅샷(장소명, 내부 카테고리, 원본 관광 분류, 주소, 위도·경도, 대표 이미지, 확정 매칭 Google 식별자)을 함께 보낸다. 서버는 provider 식별자로 `places`를 upsert하고 내부 `place_id`를 항목에 연결한다. 응답 항목은 provider `placeId`와 표시용 `place` 요약(장소명, 카테고리, 주소, 대표 이미지)을 돌려준다.
+**Decision**: 일정 저장 요청의 각 항목은 provider 형식 `placeId`(`tourapi:{id}` 또는 `google:{id}`)를 쓴다. 신규 항목(`itemId == null`)은 서버의 기존 저장 여부와 무관하게 `place` 스냅샷(장소명, 내부 카테고리, nullable 원본 관광 분류·주소·대표 이미지, 위도·경도)을 항상 함께 보낸다. 서버는 `placeId`의 provider 식별자로 `places`를 upsert하고 내부 `place_id`를 항목에 연결한다. `google_place_id`는 `google:{id}`에서만 추출하며 F003 계약에 없는 TourAPI 장소의 Google 매칭 ID를 클라이언트에 요구하지 않는다. 응답 항목은 provider `placeId`와 표시용 `place` 요약(장소명, 카테고리, 주소, 대표 이미지)을 돌려준다.
 
 **Rationale**: F003은 검색 결과를 저장하지 않으므로(F003 FR-014) 저장 시점에 서버가 장소 정보를 알 방법은 재조회 또는 클라이언트 스냅샷뿐이다. 재조회는 저장을 TourAPI·Google 가용성에 묶어 constitution IV(핵심 결과 보존)와 충돌한다. 스냅샷은 F003 `PlaceDto`에 이미 있는 값이라 Android 추가 호출이 없다. `places`의 partial unique(`tour_content_id`, `google_place_id`)가 중복 생성을 막는다.
 
@@ -61,7 +61,7 @@
 
 ## 8. 처리된 장소 편집 제한
 
-**Decision**: 저장 시 기존 항목의 `status`가 `PLANNED`가 아니면 `place_id`·`transport_mode_to_next` 변경과 삭제를 `409 ITINERARY_ITEM_LOCKED`(details에 `itemId`)로 거부하고, `planned_stay_minutes`·`sequence` 변경만 허용한다. 요청의 `status`는 무시하고 저장된 값을 유지한다. Android 편집 화면은 `status`가 `COMPLETED`·`SKIPPED`·`ARRIVED`·`EN_ROUTE`인 행에 상태 표시를 하고 삭제·`변경` 행동을 숨긴다. 검증은 fixture로 처리된 항목을 만들어 수행한다.
+**Decision**: 저장 시 기존 항목의 `status`가 `PLANNED`가 아니면 `place_id`·`transport_mode_to_next` 값 변경과 삭제를 `409 ITINERARY_ITEM_LOCKED`(details에 `itemId`)로 거부하고, `planned_stay_minutes`·`sequence` 변경만 허용한다. 순서 변경으로 다음 장소가 달라져도 기존 `transport_mode_to_next` enum 값은 해당 항목에 유지하며 F005가 변경된 순서로 경로를 다시 계산한다. 요청의 `status`는 무시하고 저장된 값을 유지한다. Android 편집 화면은 `status`가 `COMPLETED`·`SKIPPED`·`ARRIVED`·`EN_ROUTE`인 행에 상태 표시를 하고 삭제·`변경` 행동을 숨긴다. 검증은 fixture로 처리된 항목을 만들어 수행한다.
 
 **Rationale**: spec Q3 결정. F006이 상태를 바꾸기 전에도 규칙이 계약에 고정된다.
 

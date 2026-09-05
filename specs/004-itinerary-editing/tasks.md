@@ -31,12 +31,13 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: jy
   - 선행: 없음
   - 검증: `docs/design/figma-make/src/screens/ScheduleEditScreen.tsx`·`TripDetailScreen.tsx`·`EditTripScreen.tsx` 사본을 갱신하고 plan.md UI 절에 반영 일자와 차이를 기록
-- [ ] T003 Backend·Android 구현 전 일정 계약 교차 review in specs/004-itinerary-editing/contracts/itinerary.openapi.yaml, specs/004-itinerary-editing/data-model.md, specs/004-itinerary-editing/research.md
+- [x] T003 Backend·Android 구현 전 일정 계약 교차 review in specs/004-itinerary-editing/contracts/itinerary.openapi.yaml, specs/004-itinerary-editing/data-model.md, specs/004-itinerary-editing/research.md
   - 영역: 통합
   - 담당: ts
   - 교차 확인: jy
   - 선행: 없음
   - 검증: `place` 스냅샷 필드, `staySource`, `routeStatus NOT_CALCULATED`, `422 INVALID_ITINERARY` violations 형식, `409 ITINERARY_ITEM_LOCKED`, uuid5 항목 ID·no-op 규칙, F002 PATCH `deletedItemCount` 동작 변경을 BE `ts`·FE `jy`가 확인한 기록을 남기고 불일치를 구현 전에 문서에 반영
+  - 기록(2026-09-05, #185): BE `ts`가 F003 계약과 교차 검토해 신규 항목 snapshot 필수, F003에 없는 TourAPI→Google 매칭 ID 제거, typed error details, UUID Idempotency-Key, 처리된 항목 순서 변경 시 이동 수단 enum 유지, F004 `NOT_CALCULATED` 전역 계약 동기화를 반영했다. FE `jy` 교차 review는 PR에서 확인한다.
 
 ---
 

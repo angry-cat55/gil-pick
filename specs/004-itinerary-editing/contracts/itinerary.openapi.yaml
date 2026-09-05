@@ -56,7 +56,7 @@ paths:
         - name: Idempotency-Key
           in: header
           required: true
-          schema: { type: string, minLength: 1, maxLength: 255 }
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -139,7 +139,7 @@ components:
     PlaceSnapshot:
       type: object
       description: 서버에 아직 없는 장소의 최소 참조정보. F003 PlaceSummary에서 옮긴다
-      required: [name, category, latitude, longitude]
+      required: [name, category, tourApiCategory, address, latitude, longitude, imageUrl]
       properties:
         name: { type: string, minLength: 1, maxLength: 255 }
         category: { type: string, enum: [NATURE, HISTORY_CULTURE, FOOD, CAFE, SHOPPING, OTHER] }
@@ -155,9 +155,6 @@ components:
         latitude: { type: number, minimum: -90, maximum: 90 }
         longitude: { type: number, minimum: -180, maximum: 180 }
         imageUrl: { type: [string, 'null'], format: uri }
-        googlePlaceId:
-          type: [string, 'null']
-          description: TourAPI 장소가 Google과 확정 매칭된 경우만
     PlaceSummary:
       type: object
       description: 응답 항목의 표시용 장소 요약
@@ -199,7 +196,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/PlaceSnapshot'
             - type: 'null'
-          description: itemId가 null이고 서버에 없는 장소면 필수
+          description: 신규 항목(itemId가 null)이면 서버의 기존 장소 저장 여부와 무관하게 필수. 기존 항목이면 null 허용
         sequence: { type: integer, minimum: 1, maximum: 10 }
         plannedStayMinutes: { type: integer, minimum: 30, maximum: 360, multipleOf: 30 }
         staySource: { $ref: '#/components/schemas/StaySource' }
@@ -280,11 +277,29 @@ components:
           type: boolean
           description: 모두 false. VERSION_CONFLICT는 앱이 최신 version으로 자동 재저장한다
         details:
-          type: object
+          $ref: '#/components/schemas/ErrorDetails'
           description: |
             INVALID_ITINERARY: violations[] {field, itemIndex, reason}.
             ITINERARY_ITEM_LOCKED: itemId.
             CONFIRMATION_REQUIRED: deletedItemCount(정수).
+    Violation:
+      type: object
+      required: [field, itemIndex, reason]
+      properties:
+        field: { type: string }
+        itemIndex:
+          type: [integer, 'null']
+          minimum: 0
+          description: 특정 항목과 무관한 요청 전체 위반이면 null
+        reason: { type: string }
+    ErrorDetails:
+      type: object
+      properties:
+        violations:
+          type: array
+          items: { $ref: '#/components/schemas/Violation' }
+        itemId: { type: string, format: uuid }
+        deletedItemCount: { type: integer, minimum: 0 }
     ErrorEnvelope:
       type: object
       required: [success, error, meta]
