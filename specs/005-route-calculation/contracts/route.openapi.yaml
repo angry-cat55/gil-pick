@@ -1,0 +1,224 @@
+openapi: 3.1.0
+info:
+  title: 길픽 F005 경로 계산 계약
+  version: 0.1.0
+servers:
+  - url: /api/v1
+paths:
+  /trips/{tripId}/days/{date}/route:
+    get:
+      operationId: getDayRoute
+      summary: 날짜별 현재 계획 경로 조회
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+      responses:
+        '200':
+          description: 장소가 없으면 NOT_CALCULATED와 route null
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RouteEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /trips/{tripId}/days/{date}/route/retry:
+    post:
+      operationId: retryFailedDayRoute
+      summary: 실패한 날짜 경로를 같은 일정 입력으로 재시도
+      description: 현재 scheduleVersion이 FAILED일 때만 허용하며 정상 경로 임의 재계산에는 사용하지 않는다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduleVersion]
+              properties:
+                scheduleVersion: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 재시도 완료. 최종 실패도 FAILED 상태의 성공 envelope로 표현
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RouteEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VisitDate:
+      name: date
+      in: path
+      required: true
+      schema: { type: string, format: date }
+  schemas:
+    RouteStatus:
+      type: string
+      enum: [NOT_CALCULATED, READY, FAILED]
+    TransportMode:
+      type: string
+      enum: [WALK, TRANSIT, CAR]
+    Provider:
+      type: string
+      enum: [TMAP, ODSAY]
+    Position:
+      type: array
+      prefixItems:
+        - { type: number, minimum: -180, maximum: 180 }
+        - { type: number, minimum: -90, maximum: 90 }
+      minItems: 2
+      maxItems: 2
+    RouteGeometry:
+      type: object
+      description: Provider의 선이 여러 개면 이동 순서대로 연결한다. 순서를 확정할 수 없으면 ROUTE_INVALID_RESULT로 처리한다.
+      required: [type, coordinates]
+      properties:
+        type: { type: string, enum: [LineString] }
+        coordinates:
+          type: array
+          minItems: 2
+          items: { $ref: '#/components/schemas/Position' }
+    RouteMarker:
+      type: object
+      required: [itemId, sequence, name, latitude, longitude]
+      properties:
+        itemId: { type: string, format: uuid }
+        sequence: { type: integer, minimum: 1, maximum: 10 }
+        name: { type: string, minLength: 1 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+    RouteSegment:
+      type: object
+      required: [sequence, fromItemId, toItemId, transportMode, provider, durationSeconds, distanceMeters, geometry, providerAttribution]
+      properties:
+        sequence: { type: integer, minimum: 1, maximum: 9 }
+        fromItemId: { type: string, format: uuid }
+        toItemId: { type: string, format: uuid }
+        transportMode: { $ref: '#/components/schemas/TransportMode' }
+        provider: { $ref: '#/components/schemas/Provider' }
+        durationSeconds: { type: integer, minimum: 0 }
+        distanceMeters: { type: integer, minimum: 0 }
+        geometry: { $ref: '#/components/schemas/RouteGeometry' }
+        providerAttribution: { type: string, minLength: 1 }
+    Route:
+      type: object
+      required: [routeId, scheduleVersion, totalDurationSeconds, totalDistanceMeters, markers, segments, providerAttributions, calculatedAt]
+      properties:
+        routeId: { type: string, format: uuid }
+        scheduleVersion: { type: integer, minimum: 1 }
+        totalDurationSeconds: { type: integer, minimum: 0 }
+        totalDistanceMeters: { type: integer, minimum: 0 }
+        markers:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/RouteMarker' }
+        segments:
+          type: array
+          maxItems: 9
+          items: { $ref: '#/components/schemas/RouteSegment' }
+        providerAttributions:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        calculatedAt: { type: string, format: date-time }
+    RouteFailure:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          enum: [ROUTE_PROVIDER_TIMEOUT, ROUTE_PROVIDER_RATE_LIMITED, ROUTE_PROVIDER_UNAVAILABLE, ROUTE_NOT_FOUND, ROUTE_INVALID_RESULT]
+        message: { type: string }
+        retryable: { type: boolean }
+    RouteData:
+      oneOf:
+        - $ref: '#/components/schemas/NotCalculatedRouteData'
+        - $ref: '#/components/schemas/ReadyRouteData'
+        - $ref: '#/components/schemas/FailedRouteData'
+      discriminator:
+        propertyName: routeStatus
+        mapping:
+          NOT_CALCULATED: '#/components/schemas/NotCalculatedRouteData'
+          READY: '#/components/schemas/ReadyRouteData'
+          FAILED: '#/components/schemas/FailedRouteData'
+    RouteDataBase:
+      type: object
+      required: [tripId, date, scheduleVersion]
+      properties:
+        tripId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        scheduleVersion: { type: integer, minimum: 0 }
+    NotCalculatedRouteData:
+      allOf:
+        - $ref: '#/components/schemas/RouteDataBase'
+        - type: object
+          required: [routeStatus, route, failure]
+          properties:
+            routeStatus: { type: string, const: NOT_CALCULATED }
+            route: { type: 'null' }
+            failure: { type: 'null' }
+    ReadyRouteData:
+      allOf:
+        - $ref: '#/components/schemas/RouteDataBase'
+        - type: object
+          required: [routeStatus, route, failure]
+          properties:
+            routeStatus: { type: string, const: READY }
+            route: { $ref: '#/components/schemas/Route' }
+            failure: { type: 'null' }
+    FailedRouteData:
+      allOf:
+        - $ref: '#/components/schemas/RouteDataBase'
+        - type: object
+          required: [routeStatus, route, failure]
+          properties:
+            routeStatus: { type: string, const: FAILED }
+            route: { type: 'null' }
+            failure: { $ref: '#/components/schemas/RouteFailure' }
+    Meta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string, format: uuid }
+    RouteEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/RouteData' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code:
+              type: string
+              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, VERSION_CONFLICT, ROUTE_NOT_FAILED]
+            message: { type: string }
+            retryable: { type: boolean }
+        meta: { $ref: '#/components/schemas/Meta' }
+  responses:
+    Error:
+      description: 인증·소유권·날짜·version 또는 요청 상태 오류
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
