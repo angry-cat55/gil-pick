@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  title: 길픽 F004 일정 구성 API
+  version: 1.0.0
+  description: |
+    날짜별 일정 조회·저장(ITIN-001~003)과 F002 여행 수정(TRIP-004)의 기간 축소 확인 확장.
+    공통 envelope, 인증(`bearerAuth`), `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`은 F002 계약을 따른다.
+servers:
+  - url: https://{host}/api/v1
+    variables:
+      host:
+        default: api.gilpick.example
+paths:
+  /trips/{tripId}/itinerary:
+    get:
+      operationId: getTripItinerary
+      summary: 여행 전체 날짜별 일정 개요 조회 (ITIN-003)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItineraryOverviewEnvelope'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /trips/{tripId}/days/{date}/itinerary:
+    get:
+      operationId: getDayItinerary
+      summary: 날짜별 일정 조회 (ITIN-001)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+      responses:
+        '200':
+          description: 아직 저장된 적 없는 날짜는 version 0, 빈 items로 응답
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DayItineraryEnvelope'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: saveDayItinerary
+      summary: 날짜별 일정 저장 (ITIN-002)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 255 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveDayItineraryRequest'
+      responses:
+        '200':
+          description: 기존 날짜 갱신. 결과 상태가 현재와 같으면 version을 올리지 않는다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DayItineraryEnvelope'
+        '201':
+          description: version 0으로 처음 저장해 날짜가 생성됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DayItineraryEnvelope'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: VERSION_CONFLICT 또는 ITINERARY_ITEM_LOCKED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: INVALID_ITINERARY. details.violations에 위반 항목
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /trips/{tripId}:
+    patch:
+      operationId: updateTrip
+      summary: 여행 수정 (F002 TRIP-004) — F004 확장분만 기술
+      description: |
+        기간 축소 시 새 기간 밖 날짜의 일정 항목 수를 `409 CONFIRMATION_REQUIRED`의 `details.deletedItemCount`로 돌려준다.
+        `confirmDeleteOutOfRangeItems: true`이면 해당 날짜의 일정 단위와 항목을 같은 transaction에서 삭제한다.
+        기간 밖 항목이 0건이면 확인 없이 저장한다. 나머지는 F002 `trips.openapi.yaml`을 따른다.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VisitDate:
+      name: date
+      in: path
+      required: true
+      description: 여행 기간 안의 날짜(YYYY-MM-DD, 여행 timezone 기준)
+      schema: { type: string, format: date }
+  schemas:
+    TransportMode:
+      type: string
+      enum: [WALK, TRANSIT, CAR]
+    ItemStatus:
+      type: string
+      enum: [PLANNED, EN_ROUTE, ARRIVED, COMPLETED, SKIPPED]
+    RouteStatus:
+      type: string
+      enum: [NOT_CALCULATED, READY, FAILED]
+      description: F004는 항상 NOT_CALCULATED. READY·FAILED는 F005
+    StaySource:
+      type: string
+      enum: [RECOMMENDED, USER_ADJUSTED]
+    PlaceSnapshot:
+      type: object
+      description: 서버에 아직 없는 장소의 최소 참조정보. F003 PlaceSummary에서 옮긴다
+      required: [name, category, latitude, longitude]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        category: { type: string, enum: [NATURE, HISTORY_CULTURE, FOOD, CAFE, SHOPPING, OTHER] }
+        tourApiCategory:
+          oneOf:
+            - type: object
+              properties:
+                large: { type: [string, 'null'] }
+                middle: { type: [string, 'null'] }
+                small: { type: [string, 'null'] }
+            - type: 'null'
+        address: { type: [string, 'null'] }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        imageUrl: { type: [string, 'null'], format: uri }
+        googlePlaceId:
+          type: [string, 'null']
+          description: TourAPI 장소가 Google과 확정 매칭된 경우만
+    PlaceSummary:
+      type: object
+      description: 응답 항목의 표시용 장소 요약
+      required: [placeId, name, category, address, imageUrl]
+      properties:
+        placeId:
+          type: string
+          pattern: '^(tourapi|google):[A-Za-z0-9_-]+$'
+        name: { type: string }
+        category: { type: string, enum: [NATURE, HISTORY_CULTURE, FOOD, CAFE, SHOPPING, OTHER] }
+        address: { type: [string, 'null'] }
+        imageUrl: { type: [string, 'null'] }
+    ItineraryItem:
+      type: object
+      required: [itemId, place, sequence, plannedStayMinutes, staySource, transportModeToNext, status]
+      properties:
+        itemId: { type: string, format: uuid }
+        place: { $ref: '#/components/schemas/PlaceSummary' }
+        sequence: { type: integer, minimum: 1, maximum: 10 }
+        plannedStayMinutes: { type: integer, minimum: 30, maximum: 360, multipleOf: 30 }
+        staySource: { $ref: '#/components/schemas/StaySource' }
+        transportModeToNext:
+          oneOf:
+            - $ref: '#/components/schemas/TransportMode'
+            - type: 'null'
+        status: { $ref: '#/components/schemas/ItemStatus' }
+    SaveItem:
+      type: object
+      required: [itemId, placeId, sequence, plannedStayMinutes, staySource, transportModeToNext]
+      properties:
+        itemId:
+          type: [string, 'null']
+          format: uuid
+          description: 기존 항목은 조회한 값, 새 항목은 null
+        placeId:
+          type: string
+          pattern: '^(tourapi|google):[A-Za-z0-9_-]+$'
+        place:
+          oneOf:
+            - $ref: '#/components/schemas/PlaceSnapshot'
+            - type: 'null'
+          description: itemId가 null이고 서버에 없는 장소면 필수
+        sequence: { type: integer, minimum: 1, maximum: 10 }
+        plannedStayMinutes: { type: integer, minimum: 30, maximum: 360, multipleOf: 30 }
+        staySource: { $ref: '#/components/schemas/StaySource' }
+        transportModeToNext:
+          oneOf:
+            - $ref: '#/components/schemas/TransportMode'
+            - type: 'null'
+    SaveDayItineraryRequest:
+      type: object
+      required: [version, items]
+      properties:
+        version:
+          type: integer
+          minimum: 0
+          description: 조회한 version. 아직 없는 날짜는 0
+        items:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/SaveItem' }
+    DayItinerary:
+      type: object
+      required: [date, dayNumber, version, routeStatus, items, route]
+      properties:
+        date: { type: string, format: date }
+        dayNumber: { type: integer, minimum: 1, maximum: 7 }
+        version: { type: integer, minimum: 0 }
+        routeStatus: { $ref: '#/components/schemas/RouteStatus' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ItineraryItem' }
+        route:
+          type: 'null'
+          description: F004는 항상 null. F005가 채운다
+    Meta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string, format: uuid }
+    DayItineraryEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/DayItinerary' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ItineraryOverviewEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: object
+          required: [tripId, days]
+          properties:
+            tripId: { type: string, format: uuid }
+            days:
+              type: array
+              description: 여행 기간의 모든 날짜. 저장된 적 없는 날짜는 version 0, 빈 items
+              items: { $ref: '#/components/schemas/DayItinerary' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ErrorBody:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - INVALID_ITINERARY
+            - INVALID_ACCESS_TOKEN
+            - TRIP_FORBIDDEN
+            - TRIP_NOT_FOUND
+            - VERSION_CONFLICT
+            - ITINERARY_ITEM_LOCKED
+            - CONFIRMATION_REQUIRED
+        message: { type: string }
+        retryable:
+          type: boolean
+          description: 모두 false. VERSION_CONFLICT는 앱이 최신 version으로 자동 재저장한다
+        details:
+          type: object
+          description: |
+            INVALID_ITINERARY: violations[] {field, itemIndex, reason}.
+            ITINERARY_ITEM_LOCKED: itemId.
+            CONFIRMATION_REQUIRED: deletedItemCount(정수).
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error: { $ref: '#/components/schemas/ErrorBody' }
+        meta: { $ref: '#/components/schemas/Meta' }
+  responses:
+    BadRequest:
+      description: INVALID_REQUEST
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Unauthorized:
+      description: INVALID_ACCESS_TOKEN
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    Forbidden:
+      description: TRIP_FORBIDDEN
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
+    NotFound:
+      description: TRIP_NOT_FOUND 또는 기간 밖 날짜
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
