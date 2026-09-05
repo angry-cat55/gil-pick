@@ -21,7 +21,7 @@ description: "F004 일정 구성 구현 task 목록"
 
 **Purpose**: 저장 구조와 계약을 양쪽이 같은 기준으로 시작할 수 있게 준비한다.
 
-- [ ] T001 [P] GeoAlchemy2 의존성 추가와 PostGIS `geography` 컬럼 ORM 매핑 확인 in api/pyproject.toml, api/uv.lock
+- [x] T001 [P] GeoAlchemy2 의존성 추가와 PostGIS `geography` 컬럼 ORM 매핑 확인 in api/pyproject.toml, api/uv.lock
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -45,17 +45,17 @@ description: "F004 일정 구성 구현 task 목록"
 
 **Purpose**: 모든 story가 의존하는 저장 구조, 공통 DTO, Android API 계층을 만든다.
 
-- [ ] T004 migration `003_create_itinerary_tables`로 `trip_days`·`places`·`itinerary_items` 생성 in api/migrations/versions/003_create_itinerary_tables.py
+- [x] T004 migration `003_create_itinerary_tables`로 `trip_days`·`places`·`itinerary_items` 생성 in api/migrations/versions/003_create_itinerary_tables.py
   - 영역: BE
   - 담당: ts
   - 선행: T001, T003
   - 검증: `alembic upgrade head`·`downgrade -1` 왕복, ERD 5.2~5.4의 UNIQUE·CHECK·partial unique·GIST 인덱스가 생성되는 integration test
-- [ ] T005 [P] `TripDay`·`Place`·`ItineraryItem` ORM 모델 in api/app/models/itinerary.py
+- [x] T005 [P] `TripDay`·`Place`·`ItineraryItem` ORM 모델 in api/app/models/itinerary.py
   - 영역: BE
   - 담당: ts
   - 선행: T004
   - 검증: 모델 컬럼·관계가 migration과 일치하는 unit test, `Trip`과의 relationship 동작
-- [ ] T006 [P] 일정 DTO·enum·envelope schema in api/app/schemas/itinerary.py
+- [x] T006 [P] 일정 DTO·enum·envelope schema in api/app/schemas/itinerary.py
   - 영역: BE
   - 담당: ts
   - 선행: T003
@@ -70,7 +70,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: jy
   - 선행: T007
   - 검증: 401 refresh·replay, `VERSION_CONFLICT`·`INVALID_ITINERARY`·`ITINERARY_ITEM_LOCKED`·`TRIP_FORBIDDEN`·네트워크 오류가 각각 구분되는 unit test
-- [ ] T009 itinerary router 등록과 소유권 dependency 재사용 in api/app/api/v1/itinerary.py, api/app/main.py
+- [x] T009 itinerary router 등록과 소유권 dependency 재사용 in api/app/api/v1/itinerary.py, api/app/main.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T006
