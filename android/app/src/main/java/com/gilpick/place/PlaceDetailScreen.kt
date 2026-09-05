@@ -428,7 +428,8 @@ private fun Stats(place: PlaceDto) {
             modifier = Modifier.weight(1f),
         )
         Stat(
-            value = todayHoursLabel(place.currentOpeningHours ?: place.regularOpeningHours) ?: missing,
+            // 최대 글자 배율에서 3열에 안 들어가면 `09:00~1|8:00`처럼 숫자 중간이 아니라 `~` 뒤에서 줄바꿈되도록 zero-width space를 둔다.
+            value = todayHoursLabel(place.currentOpeningHours ?: place.regularOpeningHours)?.replace("~", "~​") ?: missing,
             label = stringResource(R.string.place_detail_stat_hours),
             modifier = Modifier.weight(1f),
         )
