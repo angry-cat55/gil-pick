@@ -22,6 +22,9 @@ import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.createAuthRetrofit
+import com.gilpick.itinerary.ItineraryRepository
+import com.gilpick.itinerary.ItineraryService
+import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -58,6 +61,7 @@ class TripDeleteFlowTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
     private lateinit var server: MockWebServer
     private lateinit var repository: TripRepository
+    private lateinit var itineraryRepository: ItineraryRepository
 
     /** 서버가 들고 있는 여행. 삭제되면 목록에서 빠지고 상세는 404가 된다. */
     private var deleted = false
@@ -84,6 +88,9 @@ class TripDeleteFlowTest {
                     deleted = true
                     return MockResponse(code = 204)
                 }
+
+                // F004 일정 개요. 이 test의 관심사가 아니므로 빈 일정을 준다.
+                if (path.endsWith("/itinerary")) return json(itineraryJson())
 
                 // 목록. 삭제된 뒤에는 빈 목록을 준다(FR-015).
                 if (path.endsWith("/trips")) return json(listJson())
@@ -115,6 +122,11 @@ class TripDeleteFlowTest {
         repository = TripRepository(
             api = createTripRetrofit(server.url("/api/v1/").toString())
                 .create(TripService::class.java),
+            auth = auth,
+        )
+        itineraryRepository = ItineraryRepository(
+            api = createItineraryRetrofit(server.url("/api/v1/").toString())
+                .create(ItineraryService::class.java),
             auth = auth,
         )
     }
@@ -278,7 +290,11 @@ class TripDeleteFlowTest {
                     composable<DetailRoute> { entry ->
                         val tripId = entry.toRoute<DetailRoute>().tripId
                         val viewModel = remember(tripId) {
-                            TripDetailViewModel(repository = repository, tripId = tripId)
+                            TripDetailViewModel(
+                                repository = repository,
+                                itineraryRepository = itineraryRepository,
+                                tripId = tripId,
+                            )
                         }
                         val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -297,6 +313,10 @@ class TripDeleteFlowTest {
                             onEdit = {},
                             onDelete = viewModel::delete,
                             onDeleteErrorShown = viewModel::clearDeleteError,
+                            onRetryItinerary = viewModel::retryItinerary,
+                            onEditItinerary = {},
+                            onAddPlace = {},
+                            onSelectPlace = {},
                         )
                     }
                 }
@@ -331,6 +351,12 @@ class TripDeleteFlowTest {
     private fun tripObject() = """
         {"tripId":"$TRIP_ID","name":"$TRIP_NAME","startDate":"2026-09-01",
          "endDate":"2026-09-03","status":"UPCOMING","dayCount":3,"version":1}
+    """.trimIndent()
+
+    private fun itineraryJson() = """
+        {"success":true,
+         "data":{"tripId":"$TRIP_ID","days":[]},
+         "meta":{"requestId":"$REQUEST_ID"}}
     """.trimIndent()
 
     private fun errorJson(code: String) = """

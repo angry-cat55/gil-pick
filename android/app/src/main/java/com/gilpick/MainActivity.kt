@@ -256,6 +256,13 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
                 onEdit = { navController.navigate(TripEditRoute(tripId)) },
                 onDelete = viewModel::delete,
                 onDeleteErrorShown = viewModel::clearDeleteError,
+                onRetryItinerary = viewModel::retryItinerary,
+                // 일정 편집 화면과 장소 검색·상세로 가는 실제 연결은 T028이 jy의
+                // ItineraryEditRoute(T018)와 함께 배선한다(#192 완료 조건의 부분 선행).
+                // 여기서는 화면이 요구하는 콜백 자리만 채워 두고 아직 이동하지 않는다.
+                onEditItinerary = {},
+                onAddPlace = {},
+                onSelectPlace = {},
             )
         }
 

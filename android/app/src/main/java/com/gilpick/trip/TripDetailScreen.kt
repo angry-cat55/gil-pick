@@ -1,6 +1,7 @@
 package com.gilpick.trip
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,12 +9,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -51,20 +59,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.Dp
 import com.gilpick.R
+import com.gilpick.itinerary.DayItineraryDto
+import com.gilpick.itinerary.ItineraryError
+import com.gilpick.itinerary.ItineraryItemDto
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.StatusBadge
+import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import kotlinx.coroutines.delay
 
 /**
  * 여행 상세 화면.
  *
- * pen `08. 여행 상세 화면` 가운데 **Summary(이름·기간·상태)와 AppBar**만 구현한다.
- * 같은 화면의 `Day`·`Step` 일정 목록과 `ActionBar`(`오늘 여행 시작`,
- * `여행 진행 화면 보기`)는 F004 일정·F005 진행 데이터가 있어야 그릴 수 있고 F002
- * 계약(`TripDto`)에 해당 값이 없다. 그 데이터가 생길 때까지 부분 화면이며 나머지는
- * 후속 feature에서 채운다.
+ * F002에서 만든 Summary(이름·기간·상태)와 AppBar에 F004가 날짜별 일정 목록,
+ * `일정 편집` 진입, 날짜 헤더 `장소 추가`를 더한다(`spec.md` UI-006). 화면 구조는 F002
+ * 것을 유지한다.
+ *
+ * Figma `TripDetailScreen`의 요약 통계 가운데 `총 이동`과 `오늘 여행 시작`은 F005 경로
+ * 계산·F006 여행 진행 데이터가 있어야 값이 생긴다. spec UI-006대로 F004에서는 자리만
+ * 두고 각각 `정보 없음`과 비활성으로 표시한다. Figma hero 이미지·지역명은 F002
+ * 계약(`TripDto`)에 대응하는 값이 없어 F002가 만든 AppBar 구조를 그대로 둔다.
  *
  * AppBar `ellipsis`의 더보기 메뉴는 pen `Menu`대로 `수정`(#106)과 `삭제`(#107)를
  * 갖는다. `triangle-alert`는 F005 변수 감지에 해당하는데 지금 눌러서 할 수 있는 일이
@@ -80,6 +98,10 @@ import kotlinx.coroutines.delay
  * @param onEdit 수정 화면으로 이동한다. 여행을 받아 둔 상태에서만 쓸 수 있다.
  * @param onDelete 확인 다이얼로그에서 삭제를 확정했을 때 실제 삭제를 요청한다.
  * @param onDeleteErrorShown 삭제 실패 안내를 사용자가 닫았음을 알린다.
+ * @param onRetryItinerary 실패한 일정 조회만 다시 시도한다. 여행 정보는 그대로 둔다.
+ * @param onEditItinerary 일정 편집 화면으로 이동한다. 여행의 첫 날짜로 들어간다.
+ * @param onAddPlace 그 날짜(`yyyy-MM-dd`)로 장소 검색에 들어간다.
+ * @param onSelectPlace 장소 상세(F003)로 이동한다. 인자는 `placeId`다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +112,10 @@ fun TripDetailScreen(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDeleteErrorShown: () -> Unit,
+    onRetryItinerary: () -> Unit,
+    onEditItinerary: () -> Unit,
+    onAddPlace: (date: String) -> Unit,
+    onSelectPlace: (placeId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -156,9 +182,13 @@ fun TripDetailScreen(
             when (val phase = state.phase) {
                 TripDetailPhase.Loading -> LoadingState()
 
-                is TripDetailPhase.Content -> Summary(
+                is TripDetailPhase.Content -> DetailContent(
                     trip = phase.trip,
-                    modifier = Modifier.padding(horizontal = spacing.space5),
+                    itinerary = state.itinerary,
+                    onRetryItinerary = onRetryItinerary,
+                    onEditItinerary = onEditItinerary,
+                    onAddPlace = onAddPlace,
+                    onSelectPlace = onSelectPlace,
                 )
 
                 is TripDetailPhase.Failed -> ErrorState(
@@ -411,6 +441,527 @@ private fun Summary(trip: TripDto, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * 여행을 받은 뒤의 본문. 요약·통계·행동과 날짜별 일정이 하나로 스크롤된다.
+ *
+ * 하루 10곳 × 최대 7일이라 항목 수가 70개를 넘지 않는다. `LazyColumn` 대신
+ * `verticalScroll`을 쓰는 이유이며 plan.md도 페이징·가상화가 불필요하다고 적었다.
+ */
+@Composable
+private fun DetailContent(
+    trip: TripDto,
+    itinerary: ItineraryOverviewPhase,
+    onRetryItinerary: () -> Unit,
+    onEditItinerary: () -> Unit,
+    onAddPlace: (date: String) -> Unit,
+    onSelectPlace: (placeId: String) -> Unit,
+) {
+    val spacing = LocalGilpickSpacing.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
+                Summary(trip = trip)
+                TripStats(trip = trip, itinerary = itinerary)
+                ItineraryActions(onEditItinerary = onEditItinerary)
+            }
+        }
+
+        ItinerarySection(
+            itinerary = itinerary,
+            onRetry = onRetryItinerary,
+            onAddPlace = onAddPlace,
+            onSelectPlace = onSelectPlace,
+        )
+    }
+}
+
+/**
+ * Figma의 요약 통계 세 칸.
+ *
+ * `총 방문지`는 일정 개요에서 센다. 일정을 아직 못 받았으면 0곳이라고 단정할 수 없으므로
+ * `정보 없음`으로 둔다. `총 이동`은 F005 경로 계산 전까지 값이 없다(spec UI-006).
+ */
+@Composable
+private fun TripStats(trip: TripDto, itinerary: ItineraryOverviewPhase) {
+    val spacing = LocalGilpickSpacing.current
+    val unknown = stringResource(R.string.trip_detail_value_unknown)
+    val placeCount = (itinerary as? ItineraryOverviewPhase.Content)
+        ?.days
+        ?.sumOf { it.items.size }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = spacing.space4),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space4),
+    ) {
+        Stat(
+            value = placeCount
+                ?.let { stringResource(R.string.trip_detail_place_count, it) }
+                ?: unknown,
+            label = stringResource(R.string.trip_detail_stat_places),
+            modifier = Modifier.weight(1f),
+        )
+        Stat(
+            value = stringResource(R.string.trip_detail_day_value, trip.dayCount),
+            label = stringResource(R.string.trip_detail_stat_period),
+            modifier = Modifier.weight(1f),
+        )
+        Stat(
+            value = unknown,
+            label = stringResource(R.string.trip_detail_stat_travel),
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** 통계 한 칸. 값은 핵심 정보라 `onSurface`, 라벨은 보조 정보라 `muted`다(가이드라인 10절). */
+@Composable
+private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = LocalGilpickColors.current.muted,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * `오늘 여행 시작`과 `일정 편집`.
+ *
+ * `오늘 여행 시작`은 F006 여행 진행 범위라 눌러도 갈 곳이 없다. spec UI-006대로 자리만
+ * 두고 비활성으로 표시하되, 비활성 상태를 흐린 색으로만 알리지 않도록 이유를 문장으로
+ * 함께 적는다(가이드라인 10절 "색 단독 의미 전달 금지").
+ */
+@Composable
+private fun ItineraryActions(onEditItinerary: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+
+    Column(
+        modifier = Modifier.padding(bottom = spacing.space2),
+        verticalArrangement = Arrangement.spacedBy(spacing.space1),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Button(
+            onClick = {},
+            enabled = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = PRIMARY_BUTTON_HEIGHT),
+            shape = RoundedCornerShape(radius.lg),
+        ) {
+            Text(stringResource(R.string.trip_detail_start_travel))
+        }
+        Text(
+            text = stringResource(R.string.trip_detail_start_travel_unavailable),
+            style = MaterialTheme.typography.bodySmall,
+            color = LocalGilpickColors.current.muted,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(
+            onClick = onEditItinerary,
+            modifier = Modifier.heightIn(min = MIN_TOUCH),
+        ) {
+            Text(
+                text = stringResource(R.string.trip_detail_edit_itinerary),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * 날짜별 일정 영역.
+ *
+ * 여행 정보와 다른 요청이라 이 영역만 따로 대기·실패한다(US3 Acceptance Scenario 4).
+ */
+@Composable
+private fun ItinerarySection(
+    itinerary: ItineraryOverviewPhase,
+    onRetry: () -> Unit,
+    onAddPlace: (date: String) -> Unit,
+    onSelectPlace: (placeId: String) -> Unit,
+) {
+    when (itinerary) {
+        ItineraryOverviewPhase.Loading -> ItineraryLoading()
+
+        is ItineraryOverviewPhase.Failed ->
+            ItineraryErrorState(error = itinerary.error, onRetry = onRetry)
+
+        is ItineraryOverviewPhase.Content -> Column {
+            itinerary.days.forEach { day ->
+                DayGroup(day = day, onAddPlace = onAddPlace, onSelectPlace = onSelectPlace)
+            }
+        }
+    }
+}
+
+/** 일정 조회 대기. 여행 정보와 같은 1초 규칙을 쓴다(가이드라인 9절). */
+@Composable
+private fun ItineraryLoading() {
+    val spacing = LocalGilpickSpacing.current
+    var visible by remember { mutableStateOf(false) }
+    val label = stringResource(R.string.trip_detail_itinerary_loading)
+
+    LaunchedEffect(Unit) {
+        delay(LOADING_INDICATOR_DELAY_MILLIS)
+        visible = true
+    }
+
+    if (visible) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = spacing.space8),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = label },
+            )
+        }
+    }
+}
+
+/**
+ * 일정만 실패한 상태.
+ *
+ * 여행 이름·기간·상태는 위에 그대로 남아 있고 이 영역만 원인과 `다시 시도`를 보여 준다.
+ * 다시 시도해도 결과가 같은 원인(권한 없음·없는 여행·만료된 session)에는 버튼을 두지
+ * 않는다. 그 경우 이미 여행 정보 쪽에서 같은 실패가 드러난다.
+ */
+@Composable
+private fun ItineraryErrorState(error: ItineraryError, onRetry: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    val retryable = error == ItineraryError.Network || error == ItineraryError.Unexpected
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.space5, vertical = spacing.space6),
+        verticalArrangement = Arrangement.spacedBy(spacing.space3),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(error.messageRes),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+        )
+        if (retryable) {
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT),
+            ) {
+                Text(stringResource(R.string.trips_retry))
+            }
+        }
+    }
+}
+
+/**
+ * 한 날짜 그룹. 헤더(일차 배지·날짜·장소 수·`추가`)와 장소 행으로 이뤄진다.
+ *
+ * 장소가 없는 날짜도 헤더를 그대로 두고 빈 행만 다르게 보여 준다. 그래야 어느 날짜가
+ * 비었는지 구분되고(US3 Acceptance Scenario 2) 그 자리에서 바로 채울 수 있다.
+ */
+@Composable
+private fun DayGroup(
+    day: DayItineraryDto,
+    onAddPlace: (date: String) -> Unit,
+    onSelectPlace: (placeId: String) -> Unit,
+) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val dateLabel = day.date.toDateLabel()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = spacing.space5)
+            .heightIn(min = MIN_TOUCH),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(DAY_BADGE)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(radius.sm)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = day.dayNumber.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+            Text(
+                text = dateLabel,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+        ) {
+            Text(
+                text = stringResource(R.string.trip_detail_place_count, day.items.size),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.muted,
+            )
+            AddPlaceButton(
+                dateLabel = dateLabel,
+                onClick = { onAddPlace(day.date) },
+            )
+        }
+    }
+
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (day.items.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.trip_detail_day_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.muted,
+                    modifier = Modifier.padding(
+                        horizontal = spacing.space5,
+                        vertical = spacing.space4,
+                    ),
+                )
+            } else {
+                day.items.forEachIndexed { index, item ->
+                    PlaceRow(item = item, onClick = { onSelectPlace(item.place.placeId) })
+                    if (index < day.items.lastIndex) {
+                        TransportRow(mode = item.transportModeToNext)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 날짜 헤더의 `추가` pill.
+ *
+ * Figma는 24dp 남짓한 작은 pill이지만 터치 영역은 48dp 이상이어야 하므로(가이드라인 10절)
+ * pill을 48dp 높이의 누를 수 있는 영역 안에 담는다. 보이는 크기는 Figma 그대로다.
+ */
+@Composable
+private fun AddPlaceButton(dateLabel: String, onClick: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+
+    Box(
+        modifier = Modifier
+            .heightIn(min = MIN_TOUCH)
+            .widthIn(min = MIN_TOUCH)
+            .clickable(
+                onClick = onClick,
+                onClickLabel = stringResource(R.string.trip_detail_day_add_description, dateLabel),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .background(
+                    MaterialTheme.colorScheme.primaryContainer,
+                    RoundedCornerShape(radius.sm),
+                )
+                .padding(horizontal = spacing.space2, vertical = spacing.space1),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.space1),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(ADD_ICON),
+            )
+            Text(
+                text = stringResource(R.string.trip_detail_day_add),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+    }
+}
+
+/**
+ * 장소 한 줄. 순서 번호·장소명·체류 시간을 보여 주고 누르면 F003 장소 상세로 간다.
+ *
+ * Figma는 장소명 아래에 `10:00 · 1시간 30분`처럼 도착 시각을 함께 적지만, 도착 시각은
+ * F005 경로 계산 결과다. F004 응답에는 없으므로 체류 시간만 적는다(spec 범위 밖 항목).
+ */
+@Composable
+private fun PlaceRow(item: ItineraryItemDto, onClick: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .heightIn(min = MIN_TOUCH)
+            .padding(horizontal = spacing.space5, vertical = spacing.space3),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(SEQUENCE_CIRCLE)
+                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = item.sequence.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.place.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stayLabel(item.plannedStayMinutes),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.muted,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            // 행 전체가 누를 수 있는 하나의 대상이라 아이콘은 장식이다(가이드라인 10절).
+            contentDescription = null,
+            tint = colors.faint,
+        )
+    }
+}
+
+/**
+ * 구간 이동 수단.
+ *
+ * 소요 시간·거리는 F005 경로 계산 결과라 F004에서는 수단만 적는다. 수단이 없는 항목은
+ * 줄만 그어 두 장소가 이어져 있음을 유지한다.
+ */
+@Composable
+private fun TransportRow(mode: TransportMode?) {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+
+    Row(
+        modifier = Modifier.padding(start = TRANSPORT_INDENT, bottom = spacing.space1),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(TRANSPORT_LINE)
+                .height(TRANSPORT_LINE_HEIGHT)
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+        if (mode != null) {
+            Text(
+                text = stringResource(mode.labelRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.muted,
+            )
+        }
+    }
+}
+
+/** 이동 수단 문구. */
+private val TransportMode.labelRes: Int
+    get() = when (this) {
+        TransportMode.WALK -> R.string.trip_detail_transport_walk
+        TransportMode.TRANSIT -> R.string.trip_detail_transport_transit
+        TransportMode.CAR -> R.string.trip_detail_transport_car
+    }
+
+/** 일정 조회 실패 원인별 안내 문구. 원인을 뭉뚱그리지 않는다(가이드라인 9절). */
+private val ItineraryError.messageRes: Int
+    get() = when (this) {
+        ItineraryError.Network -> R.string.trip_detail_itinerary_error_network
+        ItineraryError.Forbidden -> R.string.trip_detail_itinerary_error_forbidden
+        ItineraryError.NotFound -> R.string.trip_detail_itinerary_error_not_found
+        ItineraryError.SessionExpired -> R.string.trip_detail_itinerary_error_session
+
+        // 아래 셋은 저장(ITIN-002)에서만 나오는 실패다. 개요 조회에서 받으면 계약과
+        // 다른 응답이므로 알 수 없는 실패와 같이 다룬다.
+        ItineraryError.VersionConflict,
+        is ItineraryError.InvalidItinerary,
+        is ItineraryError.ItemLocked,
+        ItineraryError.Unexpected,
+        -> R.string.trip_detail_itinerary_error_unexpected
+    }
+
+/**
+ * 체류 시간 문구. 30~360분이라 `90분`보다 `1시간 30분`이 읽기 쉽다(Figma 표기).
+ *
+ * 편집 화면(T017)이 만들 `ItineraryLabels.kt`와 같은 규칙이지만, 그 파일은 다른 Issue의
+ * 소유라 여기서 만들지 않는다. 두 화면이 모두 자리 잡은 뒤 한곳으로 모은다.
+ */
+@Composable
+private fun stayLabel(minutes: Int): String {
+    val hours = minutes / 60
+    val rest = minutes % 60
+    return when {
+        hours == 0 -> stringResource(R.string.trip_detail_stay_minutes, rest)
+        rest == 0 -> stringResource(R.string.trip_detail_stay_hours, hours)
+        else -> stringResource(R.string.trip_detail_stay_hours_minutes, hours, rest)
+    }
+}
+
+/**
+ * `yyyy-MM-dd`를 `8월 12일`로 바꾼다.
+ *
+ * 서버가 계약과 다른 형식을 주더라도 화면이 죽지 않도록 원문을 그대로 보여 준다.
+ */
+@Composable
+private fun String.toDateLabel(): String {
+    val date = try {
+        LocalDate.parse(this)
+    } catch (e: DateTimeParseException) {
+        return this
+    }
+    return stringResource(R.string.trip_detail_date, date.monthValue, date.dayOfMonth)
+}
+
 /** 조회 대기 표시. 1초를 넘길 때만 표시한다(가이드라인 9절). */
 @Composable
 private fun LoadingState() {
@@ -506,3 +1057,13 @@ private val DIALOG_WIDTH = 326.dp
 
 /** pen `Dialog`의 버튼 높이. 가이드라인 5절의 주요 CTA 높이(52~56dp) 안이다. */
 private val DIALOG_BUTTON_HEIGHT = 52.dp
+
+/** Figma 날짜 헤더의 일차 배지와 `추가` 아이콘, 장소 순서 번호 원의 크기. */
+private val DAY_BADGE = 24.dp
+private val ADD_ICON = 12.dp
+private val SEQUENCE_CIRCLE = 24.dp
+
+/** 이동 수단 줄의 들여쓰기와 세로선. Figma의 `ml-11`·1px 선에 해당한다. */
+private val TRANSPORT_INDENT = 44.dp
+private val TRANSPORT_LINE = 1.dp
+private val TRANSPORT_LINE_HEIGHT = 16.dp
