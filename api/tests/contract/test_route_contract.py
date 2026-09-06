@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from unittest.mock import ANY
 
 import pytest
 from fastapi.testclient import TestClient
@@ -44,12 +45,23 @@ class StubTripService:
 
 
 class StubRouteService:
-    def __init__(self, result: NotCalculatedRouteData | ReadyRouteData | FailedRouteData) -> None:
+    def __init__(
+        self,
+        result: NotCalculatedRouteData | ReadyRouteData | FailedRouteData,
+        error: AppError | None = None,
+    ) -> None:
         self.result = result
+        self.error = error
         self.calls: list[dict[str, object]] = []
 
     async def get_current(self, **kwargs):  # type: ignore[no-untyped-def]
         self.calls.append(kwargs)
+        return self.result
+
+    async def retry_current(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
         return self.result
 
 
@@ -177,3 +189,85 @@ def test_route_openapi_declares_contract_responses() -> None:
     operation = app.openapi()["paths"]["/api/v1/trips/{tripId}/days/{date}/route"]["get"]
 
     assert {"200", "401", "403", "404"} <= set(operation["responses"])
+
+
+@pytest.mark.parametrize("status", ["READY", "FAILED"])
+def test_retry_route_returns_final_status_success_envelope(
+    principal: AuthPrincipal,
+    status: str,
+) -> None:
+    service = StubRouteService(_route_data(status))
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_trip_service] = lambda: StubTripService()
+    app.dependency_overrides[_route_service] = lambda: service
+    try:
+        response = TestClient(app).post(
+            f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/route/retry",
+            json={"scheduleVersion": 2},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["data"]["routeStatus"] == status
+    assert service.calls == [
+        {
+            "trip_id": ANY,
+            "visit_date": date(2026, 9, 1),
+            "schedule_version": 2,
+        }
+    ]
+
+
+def test_retry_route_declares_request_and_conflict_contract() -> None:
+    operation = app.openapi()["paths"][
+        "/api/v1/trips/{tripId}/days/{date}/route/retry"
+    ]["post"]
+
+    assert operation["requestBody"]["required"] is True
+    assert {"200", "401", "403", "404", "409"} <= set(operation["responses"])
+
+
+def test_retry_route_rejects_invalid_schedule_version(principal: AuthPrincipal) -> None:
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_trip_service] = lambda: StubTripService()
+    app.dependency_overrides[_route_service] = lambda: StubRouteService(
+        _route_data("FAILED")
+    )
+    try:
+        response = TestClient(app).post(
+            f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/route/retry",
+            json={"scheduleVersion": 0},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
+@pytest.mark.parametrize("code", ["VERSION_CONFLICT", "ROUTE_NOT_FAILED"])
+def test_retry_route_returns_conflict_error_envelope(
+    principal: AuthPrincipal,
+    code: str,
+) -> None:
+    service = StubRouteService(
+        _route_data("FAILED"),
+        AppError(409, code, "재시도할 수 없습니다."),
+    )
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_trip_service] = lambda: StubTripService()
+    app.dependency_overrides[_route_service] = lambda: service
+    try:
+        response = TestClient(app).post(
+            f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/route/retry",
+            json={"scheduleVersion": 2},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["success"] is False
+    assert response.json()["error"]["code"] == code
+    assert "requestId" in response.json()["meta"]

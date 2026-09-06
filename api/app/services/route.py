@@ -14,6 +14,7 @@ from sqlalchemy import cast, func, null, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.api.errors import AppError
 from app.clients.route_provider import (
     Coordinate,
     NormalizedRoute,
@@ -336,6 +337,51 @@ class RouteService:
             )
             return route_data_from_model(day, model)
 
+    async def retry_current(
+        self,
+        *,
+        trip_id: uuid.UUID,
+        visit_date: date,
+        schedule_version: int,
+    ) -> RouteData:
+        """FAILED인 현재 경로만 같은 일정 version으로 전체 재계산한다.
+
+        Args:
+            trip_id: 경로를 다시 계산할 여행 식별자.
+            visit_date: 여행 기간 안의 대상 날짜.
+            schedule_version: 클라이언트가 확인한 현재 일정 version.
+
+        Returns:
+            재시도 후 READY 또는 최종 FAILED 경로 상태.
+
+        Raises:
+            AppError: 일정 version이 다르거나 현재 경로가 FAILED가 아닌 경우.
+
+        Notes:
+            Provider 호출 전 FAILED 상태를 확인하고, 결과 저장 transaction에서
+            version과 상태를 다시 잠가 검사한다.
+        """
+        snapshot = await self._load_snapshot(trip_id=trip_id, visit_date=visit_date)
+        if snapshot is None or snapshot.schedule_version != schedule_version:
+            raise _retry_version_conflict()
+        current = await self.get_current(trip_id=trip_id, visit_date=visit_date)
+        if current.schedule_version != schedule_version:
+            raise _retry_version_conflict()
+        if current.route_status is not RouteStatus.FAILED:
+            raise _route_not_failed()
+
+        deadline = monotonic() + self.calculator.deadline_seconds
+        result = await self.calculator.calculate(snapshot)
+        try:
+            async with asyncio.timeout_at(deadline):
+                await self._persist_retry(snapshot, result)
+                return await self.get_current(trip_id=trip_id, visit_date=visit_date)
+        except TimeoutError:
+            return _route_data_from_result(
+                snapshot,
+                _failed("ROUTE_PROVIDER_TIMEOUT", retryable=True),
+            )
+
 
     async def _load_snapshot(
         self,
@@ -410,6 +456,43 @@ class RouteService:
             )
             if result.status is RouteStatus.NOT_CALCULATED:
                 return True
+
+            values = _route_values(snapshot, result)
+            statement = pg_insert(RouteModel).values(**values)
+            statement = statement.on_conflict_do_update(
+                constraint="uq_routes_day_schedule_version",
+                set_={key: value for key, value in values.items() if key != "route_id"},
+            )
+            await session.execute(statement)
+            return True
+
+    async def _persist_retry(
+        self,
+        snapshot: RouteSnapshot,
+        result: RouteCalculationResult,
+    ) -> bool:
+        """재시도 결과를 version별 기존 행에 한 번만 적용한다."""
+        async with transaction_session(self.session_factory) as session:
+            current_version = await session.scalar(
+                select(TripDay.schedule_version)
+                .where(TripDay.trip_day_id == snapshot.trip_day_id)
+                .with_for_update()
+            )
+            if current_version is None or not snapshot.matches_version(current_version):
+                raise _retry_version_conflict()
+            current_route = await session.scalar(
+                select(RouteModel)
+                .where(
+                    RouteModel.trip_day_id == snapshot.trip_day_id,
+                    RouteModel.schedule_version == snapshot.schedule_version,
+                    RouteModel.is_active.is_(True),
+                )
+                .with_for_update()
+            )
+            if current_route is None:
+                raise _route_not_failed()
+            if current_route.status != "FAILED":
+                return False
 
             values = _route_values(snapshot, result)
             statement = pg_insert(RouteModel).values(**values)
@@ -634,6 +717,14 @@ def _route_data_from_result(
 
 def _provider_for_mode(mode: ClientTransportMode) -> ClientProvider:
     return ClientProvider.ODSAY if mode is ClientTransportMode.TRANSIT else ClientProvider.TMAP
+
+
+def _retry_version_conflict() -> AppError:
+    return AppError(409, "VERSION_CONFLICT", "다른 곳에서 일정이 변경되었습니다.")
+
+
+def _route_not_failed() -> AppError:
+    return AppError(409, "ROUTE_NOT_FAILED", "실패한 경로만 다시 시도할 수 있습니다.")
 
 
 __all__ = [

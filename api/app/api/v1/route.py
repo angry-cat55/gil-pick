@@ -13,7 +13,7 @@ from app.api.errors import success_response
 from app.api.v1.itinerary import _owned_trip_date
 from app.core.config import Settings, get_settings
 from app.schemas.auth import ErrorEnvelope
-from app.schemas.route import RouteEnvelope
+from app.schemas.route import RetryRouteRequest, RouteEnvelope
 from app.schemas.trip import Trip
 from app.services.route import RouteService, build_route_service
 
@@ -51,6 +51,33 @@ async def get_day_route(
     data = await service.get_current(
         trip_id=trip.trip_id,
         visit_date=visit_date,
+    )
+    return success_response(request, data)
+
+
+@router.post(
+    "/retry",
+    response_model=RouteEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
+    },
+)
+async def retry_failed_day_route(
+    payload: RetryRouteRequest,
+    request: Request,
+    visit_date: Annotated[date, Path(alias="date")],
+    trip: Annotated[Trip, Depends(_owned_trip_date)],
+    service: Annotated[RouteService, Depends(_route_service)],
+) -> JSONResponse:
+    """현재 일정 version의 FAILED 경로 전체를 같은 입력으로 다시 계산한다."""
+    data = await service.retry_current(
+        trip_id=trip.trip_id,
+        visit_date=visit_date,
+        schedule_version=payload.schedule_version,
     )
     return success_response(request, data)
 

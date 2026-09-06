@@ -135,4 +135,10 @@ class RouteEnvelope(ApiModel):
     meta: ResponseMeta
 
 
-__all__ = ["FailedRouteData", "NotCalculatedRouteData", "Provider", "ReadyRouteData", "Route", "RouteData", "RouteEnvelope", "RouteFailure", "RouteFailureCode", "RouteGeometry", "RouteMarker", "RouteSegment", "RouteStatus", "TransportMode"]
+class RetryRouteRequest(ApiModel):
+    """실패 경로를 현재 일정 version으로 다시 계산하는 요청."""
+
+    schedule_version: int = Field(ge=1)
+
+
+__all__ = ["FailedRouteData", "NotCalculatedRouteData", "Provider", "ReadyRouteData", "RetryRouteRequest", "Route", "RouteData", "RouteEnvelope", "RouteFailure", "RouteFailureCode", "RouteGeometry", "RouteMarker", "RouteSegment", "RouteStatus", "TransportMode"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -22,6 +23,7 @@ from app.clients.route_provider import (
 )
 from app.db import transaction_session
 from app.api.dependencies import get_current_principal
+from app.api.errors import AppError
 from app.api.v1.itinerary import _save_route_service, _trip_service
 from app.core.security import AuthPrincipal
 from app.db import get_session
@@ -360,3 +362,192 @@ async def test_itinerary_http_commit_precedes_route_calculation(
     assert response.status_code == 200
     assert response.json()["data"]["routeStatus"] == "READY"
     assert response.json()["data"]["route"]["totalDurationSeconds"] == 0
+
+
+async def _failed_route(
+    factory: async_sessionmaker[AsyncSession],
+) -> tuple[uuid.UUID, uuid.UUID, date]:
+    trip_id, day_id, visit_date = await _seed(factory)
+    failed = FixedProvider(
+        Provider.TMAP,
+        failure=RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=True),
+    )
+    result = await _service(factory, failed).calculate_current(
+        trip_id=trip_id,
+        visit_date=visit_date,
+    )
+    assert result.route_status == "FAILED"
+    return trip_id, day_id, visit_date
+
+
+@pytest.mark.asyncio
+async def test_failed_route_retry_recalculates_same_version(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, visit_date = await _failed_route(session_factory)
+    provider = FixedProvider(Provider.TMAP)
+
+    result = await _service(session_factory, provider).retry_current(
+        trip_id=trip_id,
+        visit_date=visit_date,
+        schedule_version=1,
+    )
+
+    assert result.route_status == "READY"
+    assert result.schedule_version == 1
+    assert provider.calls == 1
+    async with session_factory() as session:
+        assert await session.scalar(
+            select(func.count()).select_from(RouteModel).where(
+                RouteModel.trip_day_id == day_id,
+                RouteModel.schedule_version == 1,
+            )
+        ) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_rejects_stale_version_and_ready_route(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, _, visit_date = await _failed_route(session_factory)
+    service = _service(session_factory, FixedProvider(Provider.TMAP))
+
+    with pytest.raises(AppError) as stale:
+        await service.retry_current(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            schedule_version=2,
+        )
+    assert (stale.value.status_code, stale.value.code) == (409, "VERSION_CONFLICT")
+
+    await service.retry_current(
+        trip_id=trip_id,
+        visit_date=visit_date,
+        schedule_version=1,
+    )
+    with pytest.raises(AppError) as ready:
+        await service.retry_current(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            schedule_version=1,
+        )
+    assert (ready.value.status_code, ready.value.code) == (409, "ROUTE_NOT_FAILED")
+
+
+@pytest.mark.asyncio
+async def test_retry_reports_version_conflict_when_schedule_changes_after_snapshot(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, visit_date = await _failed_route(session_factory)
+
+    class VersionChangingRouteService(RouteService):
+        async def _load_snapshot(self, **kwargs):  # type: ignore[no-untyped-def]
+            snapshot = await super()._load_snapshot(**kwargs)
+            async with transaction_session(session_factory) as session:
+                await session.execute(
+                    update(TripDay)
+                    .where(TripDay.trip_day_id == day_id)
+                    .values(schedule_version=2)
+                )
+                await session.execute(
+                    update(RouteModel)
+                    .where(
+                        RouteModel.trip_day_id == day_id,
+                        RouteModel.is_active.is_(True),
+                    )
+                    .values(status="HISTORICAL", is_active=False)
+                )
+            return snapshot
+
+    calculation = RouteCalculationService(
+        tmap=FixedProvider(Provider.TMAP),
+        odsay=FixedProvider(Provider.ODSAY),
+        concurrency=3,
+        deadline_seconds=10,
+    )
+    service = VersionChangingRouteService(session_factory, calculation)
+
+    with pytest.raises(AppError) as conflict:
+        await service.retry_current(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            schedule_version=1,
+        )
+
+    assert (conflict.value.status_code, conflict.value.code) == (
+        409,
+        "VERSION_CONFLICT",
+    )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_retries_keep_one_ready_route_row(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, visit_date = await _failed_route(session_factory)
+
+    class ConcurrentProvider(FixedProvider):
+        def __init__(self) -> None:
+            super().__init__(Provider.TMAP)
+            self.both_started = asyncio.Event()
+
+        async def calculate(self, *args, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]
+            self.calls += 1
+            if self.calls == 2:
+                self.both_started.set()
+            await asyncio.wait_for(self.both_started.wait(), timeout=1)
+            self.calls -= 1  # FixedProvider가 실제 호출 횟수를 한 번 기록한다.
+            return await super().calculate(*args, **kwargs)
+
+    provider = ConcurrentProvider()
+    service = _service(session_factory, provider)
+    results = await asyncio.gather(
+        *(
+            service.retry_current(
+                trip_id=trip_id,
+                visit_date=visit_date,
+                schedule_version=1,
+            )
+            for _ in range(2)
+        )
+    )
+
+    assert [result.route_status for result in results] == ["READY", "READY"]
+    async with session_factory() as session:
+        routes = list(
+            (
+                await session.scalars(
+                    select(RouteModel).where(RouteModel.trip_day_id == day_id)
+                )
+            ).all()
+        )
+    assert len(routes) == 1
+    assert routes[0].status == "READY"
+    assert routes[0].is_active is True
+
+
+@pytest.mark.asyncio
+async def test_retry_final_failure_returns_failed_and_keeps_one_row(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, visit_date = await _failed_route(session_factory)
+    provider = FixedProvider(
+        Provider.TMAP,
+        failure=RouteProviderError("ROUTE_NOT_FOUND", retryable=False),
+    )
+
+    result = await _service(session_factory, provider).retry_current(
+        trip_id=trip_id,
+        visit_date=visit_date,
+        schedule_version=1,
+    )
+
+    assert result.route_status == "FAILED"
+    assert result.failure is not None
+    assert result.failure.code == "ROUTE_NOT_FOUND"
+    async with session_factory() as session:
+        assert await session.scalar(
+            select(func.count()).select_from(RouteModel).where(
+                RouteModel.trip_day_id == day_id
+            )
+        ) == 1
