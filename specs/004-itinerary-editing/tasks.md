@@ -88,12 +88,12 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] ITIN-001·002 contract test in api/tests/contract/test_itinerary_contract.py
+- [x] T010 [P] [US1] ITIN-001·002 contract test in api/tests/contract/test_itinerary_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T009
   - 검증: quickstart BE 1·2·3·4·5 시나리오(빈 날짜 version 0, `201` 생성, 같은 key 재전송 무해, `422` violations, `404`/`403`, `409 VERSION_CONFLICT`)
-- [ ] T011 [P] [US1] 일정 service unit test in api/tests/unit/test_itinerary_service.py
+- [x] T011 [P] [US1] 일정 service unit test in api/tests/unit/test_itinerary_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T006
@@ -111,12 +111,12 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] 일정 저장·조회 service(검증, `places` upsert, diff 저장, version, no-op) in api/app/services/itinerary.py
+- [x] T014 [US1] 일정 저장·조회 service(검증, `places` upsert, diff 저장, version, no-op) in api/app/services/itinerary.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T006, T011
   - 검증: T011 통과, 저장 시각·version 전후·항목 수를 request ID와 함께 log(장소 좌표 원문 제외)
-- [ ] T015 [US1] ITIN-001 조회·ITIN-002 저장 endpoint in api/app/api/v1/itinerary.py
+- [x] T015 [US1] ITIN-001 조회·ITIN-002 저장 endpoint in api/app/api/v1/itinerary.py
   - 영역: BE
   - 담당: ts
   - 선행: T009, T014
