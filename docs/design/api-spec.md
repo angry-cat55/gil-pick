@@ -707,7 +707,8 @@ Request Body:
 - 한 날짜의 항목 전체를 한 transaction에서 저장하고 `scheduleVersion`으로 충돌을 감지
 - 신규 항목은 서버의 기존 장소 저장 여부와 무관하게 `place` snapshot 필수
 - 같은 요청의 재전송은 항목 중복과 version 이중 증가 없이 현재 결과 반환
-- 처리된 장소는 장소·`transportModeToNext` 값 변경·삭제를 거부하고 체류시간·순서만 수정 가능
+- 처리된 장소는 장소·`transportModeToNext` 값·순서 변경과 삭제를 거부하고 체류시간만 수정 가능
+- 처리된 장소의 상태 수정은 진행 API에서 처리
 - F004 단독 범위에서는 `routeStatus: NOT_CALCULATED`, `route: null`을 반환한다. F005 적용 뒤에는 일정 저장 성공 후 계획 경로를 자동 계산해 `READY` 또는 `FAILED`와 경로 정보를 반환한다.
 
 Response `200` 또는 신규 일자 `201`:
