@@ -213,7 +213,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: hs
   - 선행: T008, T025, T002
   - 검증: Figma `TripDetailScreen` 일정 영역 대조, `오늘 여행 시작`·총 이동 시간은 값 없이 비활성/`정보 없음`, 네 상태, 48dp, 360dp·font scale 2.0. F002 화면 소유자(hs) 작업이며 `ItineraryEditRoute`(T018) 시그니처를 사용
-- [ ] T028 [US3] 상세 → 편집·검색 진입과 장소 행 → F003 상세 navigation 연결 in android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T028 [US3] 상세 → 편집·검색 진입과 장소 행 → F003 상세 navigation 연결 in android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T018, T027
