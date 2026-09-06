@@ -195,7 +195,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T015
   - 검증: quickstart BE 8(기간의 모든 날짜 순서대로, 빈 날짜 version 0 포함), 소유권 `403`
-- [ ] T025 [P] [US3] 여행 상세 일정 영역 ViewModel·UI test in android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/trip/TripDetailScreenTest.kt
+- [x] T025 [P] [US3] 여행 상세 일정 영역 ViewModel·UI test in android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/trip/TripDetailScreenTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T008
@@ -208,7 +208,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T015, T024
   - 검증: T024 통과, 7일×10곳 응답 3초 이내(SC-002)
-- [ ] T027 [US3] 여행 상세 일정 목록·`일정 편집`·날짜별 `장소 추가` in android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt
+- [x] T027 [US3] 여행 상세 일정 목록·`일정 편집`·날짜별 `장소 추가` in android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T008, T025, T002

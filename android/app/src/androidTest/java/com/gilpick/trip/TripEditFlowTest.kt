@@ -24,6 +24,9 @@ import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.createAuthRetrofit
+import com.gilpick.itinerary.ItineraryRepository
+import com.gilpick.itinerary.ItineraryService
+import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -61,6 +64,7 @@ class TripEditFlowTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
     private lateinit var server: MockWebServer
     private lateinit var repository: TripRepository
+    private lateinit var itineraryRepository: ItineraryRepository
 
     /** 서버가 들고 있는 현재 여행. 수정 요청이 오면 version을 올린다. */
     private var storedName = "서울 여행"
@@ -75,6 +79,9 @@ class TripEditFlowTest {
         server.start()
         server.dispatcher = object : mockwebserver3.Dispatcher() {
             override fun dispatch(request: mockwebserver3.RecordedRequest): MockResponse {
+                // F004 일정 개요. 이 test의 관심사가 아니므로 빈 일정을 준다.
+                if (request.url.encodedPath.endsWith("/itinerary")) return json(itineraryJson())
+
                 if (request.method == "GET") return json(tripJson())
 
                 // PATCH. 계약대로 version이 맞을 때만 수정한다(FR-011a).
@@ -111,6 +118,11 @@ class TripEditFlowTest {
         repository = TripRepository(
             api = createTripRetrofit(server.url("/api/v1/").toString())
                 .create(TripService::class.java),
+            auth = auth,
+        )
+        itineraryRepository = ItineraryRepository(
+            api = createItineraryRetrofit(server.url("/api/v1/").toString())
+                .create(ItineraryService::class.java),
             auth = auth,
         )
     }
@@ -200,7 +212,11 @@ class TripEditFlowTest {
                     composable<DetailRoute> { entry ->
                         val tripId = entry.toRoute<DetailRoute>().tripId
                         val viewModel = remember(tripId) {
-                            TripDetailViewModel(repository = repository, tripId = tripId)
+                            TripDetailViewModel(
+                                repository = repository,
+                                itineraryRepository = itineraryRepository,
+                                tripId = tripId,
+                            )
                         }
                         val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -213,6 +229,10 @@ class TripEditFlowTest {
                             onEdit = { navController.navigate(EditRoute(tripId)) },
                             onDelete = {},
                             onDeleteErrorShown = {},
+                            onRetryItinerary = viewModel::retryItinerary,
+                            onEditItinerary = {},
+                            onAddPlace = {},
+                            onSelectPlace = {},
                         )
                     }
                     composable<EditRoute> { entry ->
@@ -255,6 +275,12 @@ class TripEditFlowTest {
          "data":{"tripId":"$TRIP_ID","name":"$storedName","startDate":"2026-09-01",
                  "endDate":"2026-09-03","status":"UPCOMING","dayCount":3,
                  "version":$storedVersion},
+         "meta":{"requestId":"$REQUEST_ID"}}
+    """.trimIndent()
+
+    private fun itineraryJson() = """
+        {"success":true,
+         "data":{"tripId":"$TRIP_ID","days":[]},
          "meta":{"requestId":"$REQUEST_ID"}}
     """.trimIndent()
 
