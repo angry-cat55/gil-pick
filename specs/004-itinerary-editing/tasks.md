@@ -26,7 +26,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: 없음
   - 검증: `uv sync` 후 `geoalchemy2` import와 compose PostGIS 이미지에서 `geography(Point,4326)` 컬럼 생성 확인
-- [ ] T002 [P] Figma 반영 확인 기록 — 이동 수단 시트의 체류 시간 제거, 순서 변경 손잡이·위아래 버튼, 여행 상세 날짜 헤더 `장소 추가`, 여행 수정 삭제 확인 대화상자 in specs/004-itinerary-editing/plan.md
+- [x] T002 [P] Figma 반영 확인 기록 — 이동 수단 시트의 체류 시간 제거, 순서 변경 손잡이·위아래 버튼, 여행 상세 날짜 헤더 `장소 추가`, 여행 수정 삭제 확인 대화상자 in specs/004-itinerary-editing/plan.md
   - 영역: FE
   - 담당: jy
   - 선행: 없음
@@ -60,12 +60,12 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T003
   - 검증: `contracts/itinerary.openapi.yaml`의 `SaveItem`·`PlaceSnapshot`·`DayItinerary`·overview envelope·오류 code enum과 일치하는 schema test(30분 단위·범위·placeId pattern)
-- [ ] T007 [P] Android 일정 DTO·`TransportMode`·`ItineraryService`(Retrofit) in android/app/src/main/java/com/gilpick/itinerary/ItineraryApi.kt
+- [x] T007 [P] Android 일정 DTO·`TransportMode`·`ItineraryService`(Retrofit) in android/app/src/main/java/com/gilpick/itinerary/ItineraryApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T003
   - 검증: MockWebServer로 ITIN-001·002·003 요청 경로·`Idempotency-Key` 헤더·직렬화 round-trip unit test
-- [ ] T008 Android `ItineraryRepository`(`AuthRepository.withAuthorizedCall`, 오류 분류) in android/app/src/main/java/com/gilpick/itinerary/ItineraryRepository.kt
+- [x] T008 Android `ItineraryRepository`(`AuthRepository.withAuthorizedCall`, 오류 분류) in android/app/src/main/java/com/gilpick/itinerary/ItineraryRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T007

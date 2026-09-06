@@ -43,12 +43,44 @@ data class ErrorEnvelope(
  * @property code 화면 분기에 사용하는 안정적인 error code.
  * @property message 사용자에게 그대로 노출하지 않는 진단용 설명.
  * @property retryable 같은 요청을 재시도해도 되는지 여부.
+ * @property details code별 부가 정보. 서버는 항상 object를 보내며 대부분 비어 있다.
  */
 @Serializable
 data class ErrorBody(
     val code: String,
     val message: String,
     val retryable: Boolean,
+    val details: ErrorDetails? = null,
+)
+
+/**
+ * 오류 code별 부가 정보. 각 feature 계약(`contracts` 아래 openapi.yaml)의 `ErrorDetails`를 합친 것이다.
+ *
+ * 어떤 code가 어떤 field를 채우는지는 각 feature 계약이 정한다. 모르는 key는 무시한다.
+ *
+ * @property violations `INVALID_ITINERARY`. 규칙을 어긴 항목과 이유.
+ * @property itemId `ITINERARY_ITEM_LOCKED`. 변경이 거부된 처리된 항목.
+ * @property deletedItemCount `CONFIRMATION_REQUIRED`. 기간 축소로 삭제될 일정 항목 수.
+ */
+@Serializable
+data class ErrorDetails(
+    val violations: List<Violation>? = null,
+    val itemId: String? = null,
+    val deletedItemCount: Int? = null,
+)
+
+/**
+ * 일정 저장 규칙 위반 하나.
+ *
+ * @property field 위반한 field 이름.
+ * @property itemIndex 요청 `items`의 index. 요청 전체 위반이면 `null`.
+ * @property reason 서버 진단용 이유. 화면에 그대로 노출하지 않는다.
+ */
+@Serializable
+data class Violation(
+    val field: String,
+    val itemIndex: Int? = null,
+    val reason: String,
 )
 
 /** @property requestId 서버 log와 응답을 연결하는 ID. */
@@ -73,11 +105,13 @@ sealed interface AuthError {
      * @property code `INVALID_REFRESH_TOKEN`, `DEVICE_MISMATCH` 등 계약상의 code.
      * @property retryable 서버가 알린 재시도 가능 여부.
      * @property httpStatus 원래 HTTP 상태 코드.
+     * @property details code별 부가 정보. 없으면 `null`.
      */
     data class Server(
         val code: String,
         val retryable: Boolean,
         val httpStatus: Int,
+        val details: ErrorDetails? = null,
     ) : AuthError
 
     /** 계약과 다른 응답. 재시도해도 동일하므로 오류로 확정한다. */
@@ -213,7 +247,7 @@ private fun retrofit2.Response<*>.toAuthFailure(): AuthResult.Failure {
     }
     return try {
         val error = authJson.decodeFromString<ErrorEnvelope>(raw).error
-        AuthResult.Failure(AuthError.Server(error.code, error.retryable, code()))
+        AuthResult.Failure(AuthError.Server(error.code, error.retryable, code(), error.details))
     } catch (e: kotlinx.serialization.SerializationException) {
         AuthResult.Failure(AuthError.Malformed(e))
     }

@@ -32,6 +32,17 @@
 
 **Design Sources**: Figma Make `Design UI from Reference`의 `ScheduleEditScreen`, `TripDetailScreen` 일정 영역, `EditTripScreen` 확인 대화상자가 정본이다([spec.md](spec.md) UI-011). `docs/design/ui-guidelines.md` 5절 크기, 9절 화면 상태, 10절 접근성 최저선을 적용한다. Figma 수정 4건(이동 수단 시트의 체류 시간 제거, 순서 변경 손잡이·버튼, 날짜 헤더 `장소 추가`, 기간 축소 확인 대화상자)은 구현 전 반영을 확인한다.
 
+**Figma 반영 확인 기록(T002, jy)**: 2026-09-06 1차 확인에서 4건 모두 미반영이었고, 같은 날 Owner(jy)가 Figma를 수정한 뒤 2차 확인으로 `ScheduleEditScreen.tsx`·`TripDetailScreen.tsx`·`EditTripScreen.tsx` 원본을 Figma MCP로 다시 받아 `docs/design/figma-make/src/screens` 사본을 갱신했다(반영 일자 2026-09-06). 4건 모두 반영됐고, 구현은 아래 Figma 모양을 따른다.
+
+| 항목 | Figma 반영 상태(2026-09-06 2차) | 구현 시 참고 |
+|---|---|---|
+| 이동 수단 시트의 체류 시간 제거 | 반영. 시트는 도보·대중교통·자동차 카드와 `취소`·`적용`만 남았다 | 시트에서 체류 시간을 다루지 않는다(UI-004) |
+| 순서 변경 손잡이·위아래 버튼 | 반영. 예정 행에만 왼쪽 6점 손잡이(14px)와 오른쪽 위·아래 28px 버튼(첫·마지막 행은 비활성 30%), 삭제 버튼이 있다. 완료·건너뜀 행은 손잡이·이동·삭제·`변경`을 숨기고 장소명을 회색으로, 건너뜀 원에는 X 아이콘을 표시한다 | 처리된 항목 잠금(UI-008, research 8절)과 일치. Android는 28px 버튼을 48dp 터치 영역으로 감싼다 |
+| 여행 상세 날짜 헤더 `장소 추가` | 반영. 헤더 오른쪽 `{N}곳` 옆에 `+ 추가` pill 버튼(연파랑 배경, 11px 굵은 글자) | 버튼 글자는 Figma대로 `추가`. 동작은 spec FR-015대로 그 날짜의 장소 검색 진입 |
+| 여행 수정 삭제 확인 대화상자 | 반영. 종료일을 줄이면 종료일 칸이 빨간 배경으로 바뀌고 안내 한 줄이 붙으며, `저장`을 누르면 `일정 {N}곳이 삭제됩니다` 제목, 주황 경고 아이콘, 설명 2줄, `저장하기` 주버튼과 `취소` 보조 행동의 대화상자가 뜬다. 기존 경고 카드와 checkbox는 사라졌다 | 대화상자 문구는 Figma를 따른다(spec UI-013의 `삭제될 장소 N곳`은 같은 뜻의 표현) |
+
+**체류 시간 대화상자(UI-003)**: 2차 확인 시점의 Figma는 `ScheduleEditScreen`의 `{장소명} 체류 시간` 대화상자를 코드째 지운 상태였다. Owner가 같은 날 Figma에 다시 추가해 3차 확인(2026-09-06)으로 사본을 갱신했다. 예정 행의 `{시각} · {N}분` 줄이 연필 아이콘이 붙은 탭 가능한 진입점이 되고(처리된 행은 회색 텍스트로만 표시), 대화상자는 `{장소명} 체류 시간` 제목, `−`·`+` 44px 원형 버튼과 현재 분·시간 범위 표시, 60·90·120분 빠른 선택, `취소`·`적용`으로 이전 사본(2026-09-04)과 같은 모양이다. 3차 확인에서 `TripDetailScreen`·`EditTripScreen`·`App.tsx`는 2차와 동일해 다른 변경은 없다.
+
 **Tokens & Components**: `GilpickTheme`, `LocalGilpickColors`·`Spacing`·`Sizing`·`Radius`를 그대로 쓰고 새 토큰은 추가하지 않는다. 날짜 탭·순서 번호 원·점선 `장소 추가` 버튼은 편집 화면과 여행 상세에서 함께 쓰일 때만 `ui/component`로 추출한다. 체류 시간 `−`·`+`는 F003 `AddToScheduleSheet`의 stepper 규칙(40dp 원, dialog 44dp)을 재사용한다. 장소 썸네일은 `RemoteImage`.
 
 **State & Interaction**: [data-model.md](data-model.md) 6절 `ItineraryEditUiState`. 초안(`draft`)과 저장본(`savedVersion`)을 분리하고 `dirty`로 닫기 확인을 결정한다. `Loading`은 1초 규칙, `Empty`는 `장소 추가` 안내, `Failed`는 원인+`다시 시도`. 저장 중 `저장` 비활성. 409는 사용자 안내 없이 최신 version으로 최대 2회 재저장([research.md](research.md) 4절). 예정 장소의 순서 변경은 위·아래 버튼 + 손잡이 끌기(9절)이며 처리된 장소는 두 조작을 숨긴다. type-safe `ItineraryEditRoute(tripId, date, openSearch)`; F003 결과는 `SavedStateHandle`로 돌아온다(10절).

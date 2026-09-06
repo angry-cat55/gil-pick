@@ -45,13 +45,22 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
   const [selectedDay, setSelectedDay] = useState(1);
   const [places, setPlaces] = useState<SchedulePlace[]>(initialPlaces);
   const [showCancel, setShowCancel] = useState(false);
-  const [durationModal, setDurationModal] = useState<{ id: string; name: string } | null>(null);
-  const [tempDuration, setTempDuration] = useState(90);
   const [transportModal, setTransportModal] = useState<{ id: string; name: string } | null>(null);
   const [tempTransport, setTempTransport] = useState<Transport>("도보");
-  const [tempTransportDuration, setTempTransportDuration] = useState(90);
+  const [durationModal, setDurationModal] = useState<{ id: string; name: string } | null>(null);
+  const [tempDuration, setTempDuration] = useState(90);
 
   const removePlace = (id: string) => setPlaces(places.filter((p) => p.id !== id));
+
+  const movePlace = (id: string, dir: -1 | 1) => {
+    const idx = places.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    const next = idx + dir;
+    if (next < 0 || next >= places.length) return;
+    const arr = [...places];
+    [arr[idx], arr[next]] = [arr[next], arr[idx]];
+    setPlaces(arr);
+  };
 
   const openDuration = (p: SchedulePlace) => {
     setTempDuration(p.duration);
@@ -63,9 +72,16 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
     setDurationModal(null);
   };
 
+  const adjustDur = (delta: number) => { const n = tempDuration + delta; if (n >= 30 && n <= 360) setTempDuration(n); };
+
+  const getTimeRange = (time: string, dur: number) => {
+    const [h, m] = time.split(":").map(Number);
+    const end = h * 60 + m + dur;
+    return `${time} – ${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+  };
+
   const openTransport = (p: SchedulePlace) => {
     setTempTransport(p.transport?.type ?? "도보");
-    setTempTransportDuration(90);
     setTransportModal({ id: p.id, name: p.name });
   };
 
@@ -77,15 +93,7 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
     setTransportModal(null);
   };
 
-  const adjustDur = (delta: number) => { const n = tempDuration + delta; if (n >= 30 && n <= 360) setTempDuration(n); };
-  const adjustTransDur = (delta: number) => { const n = tempTransportDuration + delta; if (n >= 5 && n <= 120) setTempTransportDuration(n); };
-
-  const getTimeRange = (time: string, dur: number) => {
-    const [h, m] = time.split(":").map(Number);
-    const end = h * 60 + m + dur;
-    return `${time} – ${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
-  };
-
+  const isEditable = (status: PlaceStatus) => status === "예정";
 
   return (
     <div className="flex flex-col h-full bg-[#F4F6FB] relative">
@@ -120,42 +128,92 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
           <p className="text-[12px] text-[#94A3B8]">2일차 · {places.length}곳</p>
         </div>
 
-
         <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-          {places.map((place, i) => (
-            <div key={place.id}>
-              <div className="flex items-start gap-3 px-4 py-4">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                  isNew
-                    ? "bg-[#3B7BF8]"
-                    : place.status === "완료" ? "bg-[#10B981]" : place.status === "건너뜀" ? "bg-[#CBD5E1]" : "bg-[#3B7BF8]"
-                }`}>
-                  {!isNew && place.status === "완료" ? (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <span className="text-[11px] font-black text-white">{i + 1}</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="font-bold text-[15px] text-[#111827]">{place.name}</p>
-                  </div>
-                  <p className="text-[12px] text-[#94A3B8]">{place.time} · {place.duration}분</p>
-                  {place.transport && (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-[#CBD5E1]">
-                      <TransportIcon type={place.transport.icon} />
-                      <span className="text-[12px]">{place.transport.label}</span>
-                      <button onClick={() => openTransport(place)} className="ml-1 text-[12px] font-bold text-[#3B7BF8]">변경</button>
+          {places.map((place, i) => {
+            const editable = isNew || isEditable(place.status);
+            return (
+              <div key={place.id}>
+                <div className="flex items-start gap-3 px-4 py-4">
+                  {/* Drag handle — 예정만 */}
+                  {editable ? (
+                    <div className="flex flex-col items-center gap-1 mt-1 flex-shrink-0 cursor-grab active:cursor-grabbing">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2">
+                        <circle cx="9" cy="6" r="1" fill="#CBD5E1"/><circle cx="15" cy="6" r="1" fill="#CBD5E1"/>
+                        <circle cx="9" cy="12" r="1" fill="#CBD5E1"/><circle cx="15" cy="12" r="1" fill="#CBD5E1"/>
+                        <circle cx="9" cy="18" r="1" fill="#CBD5E1"/><circle cx="15" cy="18" r="1" fill="#CBD5E1"/>
+                      </svg>
                     </div>
+                  ) : (
+                    <div className="w-[14px] flex-shrink-0" />
+                  )}
+
+                  {/* Status circle */}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    isNew ? "bg-[#3B7BF8]"
+                    : place.status === "완료" ? "bg-[#10B981]"
+                    : place.status === "건너뜀" ? "bg-[#CBD5E1]"
+                    : "bg-[#3B7BF8]"
+                  }`}>
+                    {!isNew && place.status === "완료" ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    ) : place.status === "건너뜀" && !isNew ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    ) : (
+                      <span className="text-[11px] font-black text-white">{i + 1}</span>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold text-[15px] mb-0.5 ${!editable ? "text-[#94A3B8]" : "text-[#111827]"}`}>{place.name}</p>
+                    {editable ? (
+                      <button onClick={() => openDuration(place)} className="flex items-center gap-1 text-left">
+                        <span className="text-[12px] text-[#94A3B8]">{place.time} · {place.duration}분</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                    ) : (
+                      <p className="text-[12px] text-[#CBD5E1]">{place.time} · {place.duration}분</p>
+                    )}
+                    {place.transport && editable && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-[#CBD5E1]">
+                        <TransportIcon type={place.transport.icon} />
+                        <span className="text-[12px]">{place.transport.label}</span>
+                        <button onClick={() => openTransport(place)} className="ml-1 text-[12px] font-bold text-[#3B7BF8]">변경</button>
+                      </div>
+                    )}
+                    {place.transport && !editable && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-[#CBD5E1]">
+                        <TransportIcon type={place.transport.icon} />
+                        <span className="text-[12px] text-[#CBD5E1]">{place.transport.label}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right controls — 예정만 */}
+                  {editable ? (
+                    <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                      <div className="flex flex-col gap-0.5">
+                        <button onClick={() => movePlace(place.id, -1)} disabled={i === 0}
+                          className="w-7 h-7 rounded-lg bg-[#F4F6FB] flex items-center justify-center disabled:opacity-30">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+                        </button>
+                        <button onClick={() => movePlace(place.id, 1)} disabled={i === places.length - 1}
+                          className="w-7 h-7 rounded-lg bg-[#F4F6FB] flex items-center justify-center disabled:opacity-30">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                        </button>
+                      </div>
+                      <button onClick={() => removePlace(place.id)} className="w-8 h-8 rounded-lg bg-[#FEF2F2] flex items-center justify-center">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-[62px] flex-shrink-0" />
                   )}
                 </div>
-                <button onClick={() => removePlace(place.id)} className="w-8 h-8 rounded-lg bg-[#FEF2F2] flex items-center justify-center mt-0.5 flex-shrink-0">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                </button>
+                {i < places.length - 1 && <div className="h-px bg-[#F4F6FB] mx-4" />}
               </div>
-              {i < places.length - 1 && <div className="h-px bg-[#F4F6FB] mx-4" />}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button onClick={onAddPlace} className="w-full h-[50px] mt-3 border-2 border-dashed border-[#3B7BF8]/25 rounded-2xl flex items-center justify-center gap-2 text-[13px] font-bold text-[#3B7BF8] bg-[#EBF2FF]/40">
@@ -188,7 +246,7 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
               </div>
               <button onClick={() => adjustDur(30)} className="w-11 h-11 rounded-full flex items-center justify-center text-xl font-black text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)", boxShadow: "0 4px 12px rgba(59,123,248,0.3)" }}>+</button>
             </div>
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-5">
               {[60, 90, 120].map((v) => (
                 <button key={v} onClick={() => setTempDuration(v)}
                   className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-colors ${tempDuration === v ? "bg-[#111827] text-white" : "bg-[#F4F6FB] text-[#6B7280]"}`}>
@@ -204,14 +262,14 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
         </div>
       )}
 
-      {/* Transport modal */}
+      {/* Transport modal — 수단 카드 + 취소/적용만 */}
       {transportModal && (
         <div className="absolute inset-0 z-50 flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
           <div className="bg-white rounded-t-[32px] px-6 pt-5 pb-8" style={{ animation: "slide-up 0.25s ease-out" }}>
             <div className="w-10 h-1 bg-[#E2E8F0] rounded-full mx-auto mb-5" />
             <h2 className="text-[20px] font-black text-[#111827] mb-1" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>이동 수단 변경</h2>
             <p className="text-[13px] text-[#94A3B8] mb-5">{transportModal.name}까지 어떻게 이동하시겠어요?</p>
-            <div className="space-y-2 mb-5">
+            <div className="space-y-2 mb-6">
               {transportOptions.map((opt) => (
                 <button key={opt.type} onClick={() => setTempTransport(opt.type)}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 transition-all ${tempTransport === opt.type ? "border-[#3B7BF8] bg-[#EBF2FF]" : "border-[#E2E8F0] bg-white"}`}>
@@ -223,12 +281,6 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
                   {tempTransport === opt.type && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B7BF8" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
                 </button>
               ))}
-            </div>
-            <p className="text-[14px] font-bold text-[#111827] mb-3">체류 시간</p>
-            <div className="flex items-center justify-between bg-[#F4F6FB] rounded-2xl px-4 py-3 mb-5">
-              <button onClick={() => adjustTransDur(-5)} className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl font-black text-[#111827]" style={{ boxShadow: "0 2px 6px rgba(0,0,0,0.08)" }}>−</button>
-              <span className="text-[22px] font-black text-[#111827]" style={{ fontFamily: "Outfit, sans-serif" }}>{tempTransportDuration}분</span>
-              <button onClick={() => adjustTransDur(5)} className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xl font-black" style={{ background: "linear-gradient(135deg, #3B7BF8, #2457C5)" }}>+</button>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setTransportModal(null)} className="flex-1 h-[50px] rounded-2xl text-[14px] font-semibold text-[#6B7280] bg-[#F4F6FB]">취소</button>
