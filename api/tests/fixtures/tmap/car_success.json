@@ -1,0 +1,7 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [126.9700, 37.5700]}, "properties": {"totalDistance": 1200, "totalTime": 300}},
+    {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[126.9700, 37.5700], [126.9760, 37.5750]]}, "properties": {}}
+  ]
+}

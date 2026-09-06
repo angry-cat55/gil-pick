@@ -87,12 +87,12 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] TMAP client unit test와 provider fixture 작성 in api/tests/unit/test_tmap_client.py, api/tests/fixtures/tmap/
+- [X] T011 [P] [US1] TMAP client unit test와 provider fixture 작성 in api/tests/unit/test_tmap_client.py, api/tests/fixtures/tmap/
   - 영역: BE
   - 담당: jh
   - 선행: T008
   - 검증: 도보·자동차 요청 mapping, 기본 추천 후보 하나, WGS84 geometry, 누락·음수·순서 불일치 거부, timeout·429·5xx retryable 분류, 4xx 미재시도
-- [ ] T012 [P] [US1] ODsay client unit test와 provider fixture 작성 in api/tests/unit/test_odsay_client.py, api/tests/fixtures/odsay/
+- [X] T012 [P] [US1] ODsay client unit test와 provider fixture 작성 in api/tests/unit/test_odsay_client.py, api/tests/fixtures/odsay/
   - 영역: BE
   - 담당: jh
   - 선행: T008
@@ -115,12 +115,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] TMAP 도보·자동차 adapter 구현 in api/app/clients/tmap.py
+- [X] T016 [US1] TMAP 도보·자동차 adapter 구현 in api/app/clients/tmap.py
   - 영역: BE
   - 담당: jh
   - 선행: T002, T008, T011
   - 검증: T011 통과, key·좌표 원문 미기록, 제공자 기본 추천 경로만 정규화
-- [ ] T017 [US1] ODsay 대중교통 검색·형상 adapter 구현 in api/app/clients/odsay.py
+- [X] T017 [US1] ODsay 대중교통 검색·형상 adapter 구현 in api/app/clients/odsay.py
   - 영역: BE
   - 담당: jh
   - 선행: T002, T008, T012
