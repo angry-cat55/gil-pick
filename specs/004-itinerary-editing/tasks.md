@@ -231,7 +231,7 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Tests for User Story 4
 
-- [ ] T029 [P] [US4] F002 PATCH 기간 축소 contract·integration test 수정 in api/tests/contract/test_trip_contract.py, api/tests/integration/test_itinerary_flow.py
+- [x] T029 [P] [US4] F002 PATCH 기간 축소 contract·integration test 수정 in api/tests/contract/test_trip_contract.py, api/tests/integration/test_itinerary_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T014
@@ -244,7 +244,7 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Implementation for User Story 4
 
-- [ ] T031 [US4] `update_trip` 기간 축소 삭제 대상 계산·삭제 in api/app/services/trip.py, api/app/api/v1/trips.py
+- [x] T031 [US4] `update_trip` 기간 축소 삭제 대상 계산·삭제 in api/app/services/trip.py, api/app/api/v1/trips.py
   - 영역: BE
   - 담당: ts
   - 선행: T014, T029
