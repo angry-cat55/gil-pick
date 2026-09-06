@@ -28,7 +28,8 @@ import org.junit.Test
  * 기기 저장소에 PNG로 남기고 `adb pull`로 꺼내 사람이 Figma `ScheduleEditScreen`과 대조한다.
  *
  * 취소 확인 대화상자는 별도 window라 `captureToImage`에 잡히지 않아 `ItineraryEditScreenTest`의
- * 문구·행동 검증으로 대신한다.
+ * 문구·행동 검증으로 대신한다. 체류 시간 대화상자와 이동 수단 시트는 window 없이 그릴 수 있는
+ * 내용 composable을 직접 찍는다(ATD 이미지는 window 캡처가 검게 나온다).
  *
  * 저장 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/`.
  * `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`로 실행해야 파일이 남는다.
@@ -61,6 +62,28 @@ class ItineraryEditScreenshotTest {
     }
 
     @Test
+    fun 편집_content_처리된_항목() = capture("itinerary_edit_content_processed") { Screen(processedState()) }
+
+    @Test
+    fun 편집_content_처리된_항목_360dp_최대_글자배율() = capture("itinerary_edit_content_processed_360dp_fontscale2") {
+        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(processedState()) } }
+    }
+
+    @Test
+    fun 편집_체류_시간_대화상자() = capture("itinerary_edit_stay_dialog") {
+        Box(modifier = Modifier.width(360.dp)) {
+            StayTimeDialogContent(placeName = "경복궁", initialMinutes = 90, onCancel = {}, onApply = {})
+        }
+    }
+
+    @Test
+    fun 편집_이동_수단_시트() = capture("itinerary_edit_transport_sheet") {
+        Box(modifier = Modifier.width(412.dp)) {
+            TransportSheetContent(nextPlaceName = "북촌한옥마을", current = TransportMode.WALK, onCancel = {}, onApply = {})
+        }
+    }
+
+    @Test
     fun 편집_error() = capture("itinerary_edit_error") { Screen(state(phase = ItineraryEditPhase.Failed(ItineraryError.Network))) }
 
     @Test
@@ -86,6 +109,16 @@ class ItineraryEditScreenshotTest {
         ),
     )
 
+    /** 처리된 항목(완료·건너뜀)이 앞에 있고 예정 항목이 뒤따르는 진행 중인 날짜(UI-002, FR-017). */
+    private fun processedState() = state(
+        draft = listOf(
+            draft("경복궁", 90, TransportMode.WALK, ItemStatus.COMPLETED),
+            draft("북촌한옥마을", 60, TransportMode.TRANSIT, ItemStatus.SKIPPED),
+            draft("인사동 쌈지길", 90, TransportMode.CAR),
+            draft("창덕궁", 60),
+        ),
+    )
+
     private fun tenState() = state(
         draft = (1..9).map { draft("장소 $it", 90, TransportMode.WALK) } +
             draft("아주 긴 이름을 가진 장소 이름을 가진 장소 이름을 가진 장소 이름을 가진 장소", 120),
@@ -104,6 +137,12 @@ class ItineraryEditScreenshotTest {
             onDismissDialog = {},
             onConfirmDiscard = {},
             onNoticeShown = {},
+            onEditStay = {},
+            onApplyStay = {},
+            onChangeTransport = {},
+            onApplyTransport = {},
+            onRemove = {},
+            onMove = { _, _ -> },
         )
     }
 
@@ -141,7 +180,12 @@ class ItineraryEditScreenshotTest {
         phase = phase,
     )
 
-    private fun draft(name: String, stayMinutes: Int, transportToNext: TransportMode? = null) = DraftItem(
+    private fun draft(
+        name: String,
+        stayMinutes: Int,
+        transportToNext: TransportMode? = null,
+        status: ItemStatus = ItemStatus.PLANNED,
+    ) = DraftItem(
         itemId = null,
         placeId = "tourapi:$name",
         place = PlaceSnapshotDto(
@@ -156,6 +200,6 @@ class ItineraryEditScreenshotTest {
         stayMinutes = stayMinutes,
         staySource = StaySource.RECOMMENDED,
         transportToNext = transportToNext,
-        status = ItemStatus.PLANNED,
+        status = status,
     )
 }

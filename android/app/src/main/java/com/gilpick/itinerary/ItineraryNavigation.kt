@@ -125,6 +125,12 @@ fun NavGraphBuilder.itineraryGraph(
             onDismissDialog = viewModel::dismissDialog,
             onConfirmDiscard = viewModel::confirmDiscard,
             onNoticeShown = viewModel::dismissNotice,
+            onEditStay = viewModel::editStay,
+            onApplyStay = viewModel::applyStay,
+            onChangeTransport = viewModel::changeTransport,
+            onApplyTransport = viewModel::applyTransport,
+            onRemove = viewModel::removeItem,
+            onMove = viewModel::moveItem,
         )
     }
 }

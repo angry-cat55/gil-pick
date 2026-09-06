@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -776,9 +777,9 @@ internal fun AddToScheduleSheet(
     }
 }
 
-/** Figma 이동 수단 카드: 2dp 테두리, 선택 시 `#3B7BF8` 테두리·`#EBF2FF` 배경·체크. */
+/** Figma 이동 수단 카드: 2dp 테두리, 선택 시 `#3B7BF8` 테두리·`#EBF2FF` 배경·체크. F004 이동 수단 시트도 쓴다. */
 @Composable
-private fun TransportOption(
+internal fun TransportOption(
     option: PlaceTransport,
     selected: Boolean,
     onClick: () -> Unit,
@@ -827,9 +828,15 @@ private fun TransportOption(
     }
 }
 
-/** Figma 체류 시간 ±버튼: 보이는 원 40dp(흰색+그림자 / gradient), 터치 영역 48dp. */
+/** Figma 체류 시간 ±버튼: 보이는 원 40dp(흰색+그림자 / gradient), 터치 영역 48dp. F004 대화상자는 44dp 원을 쓴다. */
 @Composable
-private fun StepButton(label: String, contentDescription: String, primary: Boolean, onClick: () -> Unit) {
+internal fun StepButton(
+    label: String,
+    contentDescription: String,
+    primary: Boolean,
+    onClick: () -> Unit,
+    size: Dp = 40.dp,
+) {
     Box(
         modifier = Modifier
             .size(MIN_TOUCH)
@@ -840,7 +847,7 @@ private fun StepButton(label: String, contentDescription: String, primary: Boole
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(size)
                 .then(if (primary) Modifier else Modifier.shadow(2.dp, CircleShape))
                 .clip(CircleShape)
                 .background(

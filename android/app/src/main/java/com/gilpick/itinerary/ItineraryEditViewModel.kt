@@ -47,7 +47,10 @@ data class DraftItem(
     val staySource: StaySource,
     val transportToNext: TransportMode?,
     val status: ItemStatus,
-)
+) {
+    /** 예정 항목만 순서·이동 수단·삭제를 바꿀 수 있다. 처리된 항목은 체류 시간만 바꾼다(FR-017). */
+    val editable: Boolean get() = status == ItemStatus.PLANNED
+}
 
 /** 날짜 탭 하나. */
 data class DayTab(val date: LocalDate, val dayNumber: Int)
@@ -72,6 +75,12 @@ sealed interface EditDialog {
      * @property targetDate 확인 뒤 옮겨 갈 날짜. `null`이면 화면을 닫는다.
      */
     data class Discard(val targetDate: LocalDate?) : EditDialog
+
+    /** `{장소명} 체류 시간` 대화상자(UI-003). 처리된 항목도 연다. */
+    data class StayTime(val index: Int) : EditDialog
+
+    /** `이동 수단 변경` 시트(UI-004). 마지막이 아닌 예정 항목만 연다. */
+    data class Transport(val index: Int) : EditDialog
 }
 
 /** 추가가 거부된 이유. 화면이 짧게 안내하고 사용자가 닫는다. */
@@ -254,6 +263,70 @@ class ItineraryEditViewModel(
         }
     }
 
+    /** 행의 체류 시간을 눌렀다. 처리된 항목도 체류 시간은 바꿀 수 있다(FR-017). */
+    fun editStay(index: Int) {
+        if (index in _state.value.draft.indices) _state.update { it.copy(dialog = EditDialog.StayTime(index)) }
+    }
+
+    /**
+     * 체류 시간 대화상자의 `적용`. 30분 단위·30~360분 밖의 값은 무시한다(FR-004).
+     *
+     * 값이 바뀌면 사용자 조절값으로 표시해 이후 추천값이 바뀌어도 유지된다(FR-003).
+     */
+    fun applyStay(minutes: Int) {
+        val index = (_state.value.dialog as? EditDialog.StayTime)?.index ?: return
+        val draft = _state.value.draft.toMutableList()
+        if (minutes !in STAY_MIN..STAY_MAX || minutes % STAY_STEP != 0) return
+        val item = draft[index]
+        if (minutes != item.stayMinutes) {
+            draft[index] = item.copy(stayMinutes = minutes, staySource = StaySource.USER_ADJUSTED)
+            updateDraft(draft)
+        }
+        _state.update { it.copy(dialog = null) }
+    }
+
+    /** 행의 `변경`. 마지막 항목과 처리된 항목은 열지 않는다(FR-006·017). */
+    fun changeTransport(index: Int) {
+        val draft = _state.value.draft
+        if (index < draft.lastIndex && draft[index].editable) _state.update { it.copy(dialog = EditDialog.Transport(index)) }
+    }
+
+    /** 이동 수단 시트의 `적용`. */
+    fun applyTransport(mode: TransportMode) {
+        val index = (_state.value.dialog as? EditDialog.Transport)?.index ?: return
+        val draft = _state.value.draft.toMutableList()
+        if (draft[index].transportToNext != mode) {
+            draft[index] = draft[index].copy(transportToNext = mode)
+            updateDraft(draft)
+        }
+        _state.update { it.copy(dialog = null) }
+    }
+
+    /** 행의 삭제. 남은 항목의 순서는 목록 위치가 정하고 새 마지막 항목의 이동 수단은 비운다(FR-007). */
+    fun removeItem(index: Int) {
+        val draft = _state.value.draft.toMutableList()
+        if (index !in draft.indices || !draft[index].editable) return
+        draft.removeAt(index)
+        updateDraft(draft.withLastTransportCleared())
+    }
+
+    /**
+     * 항목을 [from]에서 [to]로 옮긴다. 위·아래 버튼은 이웃으로, 손잡이 끌기는 여러 칸을 한 번에 옮긴다.
+     *
+     * 이동 수단은 항목이 아니라 구간(위치)에 붙어 있다. 항목만 옮기고 구간의 이동 수단은 제자리에
+     * 두어 마지막 항목은 계속 `null`, 그 앞은 계속 값이 있게 한다(FR-006). 지나가는 항목 중
+     * 처리된 항목이 있으면 그 순서가 바뀌므로 거부한다(FR-017).
+     */
+    fun moveItem(from: Int, to: Int) {
+        val draft = _state.value.draft
+        if (from == to || from !in draft.indices || to !in draft.indices) return
+        val range = minOf(from, to)..maxOf(from, to)
+        if (range.any { !draft[it].editable }) return
+        val transports = draft.map { it.transportToNext }
+        val items = draft.toMutableList().apply { add(to, removeAt(from)) }
+        updateDraft(items.mapIndexed { i, item -> item.copy(transportToNext = transports[i]) })
+    }
+
     /** 안내를 닫는다. */
     fun dismissNotice() {
         _state.update { it.copy(notice = null) }
@@ -408,6 +481,11 @@ class ItineraryEditViewModel(
         private const val KEY_SELECTED_DATE = "itinerary.selectedDate"
         private const val KEY_OPEN_SEARCH_DONE = "itinerary.openSearchDone"
 
+        /** 체류 시간 범위와 단위(FR-004). F003 시트와 같다. */
+        const val STAY_MIN = 30
+        const val STAY_MAX = 360
+        const val STAY_STEP = 30
+
         /** 버전 충돌 뒤 자동 재저장 횟수(FR-008). */
         private const val MAX_CONFLICT_RETRIES = 2
 
@@ -478,6 +556,10 @@ internal fun ItineraryItemDto.toDraft(): DraftItem = DraftItem(
     transportToNext = transportModeToNext,
     status = status,
 )
+
+/** 마지막 항목의 이동 수단을 비운다. 삭제로 마지막이 바뀔 때 쓴다(FR-006). */
+private fun List<DraftItem>.withLastTransportCleared(): List<DraftItem> =
+    mapIndexed { i, item -> if (i == lastIndex && item.transportToNext != null) item.copy(transportToNext = null) else item }
 
 /** 초안을 저장 요청 항목으로 바꾼다. `sequence`는 1..N, 마지막 항목의 이동 수단은 `null`이다(FR-005·006). */
 internal fun List<DraftItem>.toSaveItems(): List<SaveItemDto> = mapIndexed { index, item ->

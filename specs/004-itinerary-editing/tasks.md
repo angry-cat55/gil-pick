@@ -154,7 +154,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T014
   - 검증: quickstart BE 6·7 시나리오(같은 장소 두 날짜 → `places` 1행, 같은 날짜 두 번 → 항목 2개, `COMPLETED` fixture의 장소·이동 수단·순서 변경·삭제 `409 ITINERARY_ITEM_LOCKED`, 체류 시간 변경 `200`)
-- [ ] T020 [P] [US2] 편집 조작 ViewModel·UI test 보강 in android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/itinerary/ItineraryEditScreenTest.kt
+- [x] T020 [P] [US2] 편집 조작 ViewModel·UI test 보강 in android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/itinerary/ItineraryEditScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T017
@@ -167,12 +167,12 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T015, T019
   - 검증: T019 통과, 처리된 항목은 체류 시간만 변경 허용, 요청 `status` 무시하고 저장값 유지
-- [ ] T022 [US2] 체류 시간 대화상자·이동 수단 시트·삭제·순서 이동 버튼 in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt
+- [x] T022 [US2] 체류 시간 대화상자·이동 수단 시트·삭제·순서 이동 버튼 in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T017, T020
   - 검증: Figma 대화상자·시트 대조, `−`·`+` 40/44dp 원과 48dp 터치, 처리된 항목 표시
-- [ ] T023 [US2] 손잡이 끌기 순서 변경(foundation gesture, 라이브러리 없음) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt
+- [x] T023 [US2] 손잡이 끌기 순서 변경(foundation gesture, 라이브러리 없음) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T022
