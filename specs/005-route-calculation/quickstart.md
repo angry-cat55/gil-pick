@@ -36,3 +36,21 @@ cd ..\android
 - 360dp, 일반 phone, 최대 font scale screenshot과 실제 지도 gesture/inset 확인
 
 Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log·fixture에 key나 불필요한 정밀 좌표를 남기지 않는다.
+
+## Backend 최종 검증 기록 (2026-09-06)
+
+- 전체 자동 테스트: `python -m pytest -q` → `352 passed, 2 skipped`
+  - `TEST_DATABASE_URL`은 로컬 PostgreSQL/PostGIS 테스트 DB를 사용했다.
+  - 로컬 `.env`의 JWT secret 길이가 개발용 최소 조건을 충족하지 않아 테스트 명령에서만 32자 이상의 dummy 값을 환경변수로 주입했다.
+  - 기본 실행에서 건너뛴 2건은 명시적 opt-in이 필요한 provider live smoke test다.
+- 문법 검사: 별도 `PYTHONPYCACHEPREFIX`를 사용한 `python -m compileall -q app tests` 통과.
+- deadline: mock clock 기준 모든 구간이 계산 시작 시각으로부터 동일한 10초 deadline을 공유하는 unit test 통과.
+- 문서·설정 대조: ROUTE 조회/retry와 F006 `/recalculate`의 역할, route table 제약, 오류 code, 5초 provider timeout, 10초 전체 deadline, attribution을 구현과 대조했다.
+
+### Provider live smoke test
+
+실행 명령: `RUN_ROUTE_PROVIDER_SMOKE=1 python -m pytest tests/smoke/test_route_providers_live.py -q`
+
+- TMAP 도보 대표 구간: 성공. `provider=TMAP`, attribution, 비음수 시간·거리, WGS84 geometry를 확인했다.
+- ODsay 대중교통 대표 구간: 실패. ODsay 응답은 HTTP 200이었으나 내부 오류 `500 [ApiKeyAuthFailed]`를 반환했다.
+- ODsay 후속 확인: 백엔드 호출용 Server key인지, 현재 호출 출발 IP가 ODsay LAB에 등록됐는지 확인한 뒤 같은 smoke test를 다시 실행해야 한다. key 원문은 테스트 출력과 문서에 기록하지 않았다.

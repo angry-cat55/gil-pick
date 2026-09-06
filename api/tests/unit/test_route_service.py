@@ -238,6 +238,56 @@ async def test_global_deadline_returns_typed_timeout_failure() -> None:
 
 
 @pytest.mark.asyncio
+async def test_all_segments_share_ten_second_deadline_from_mock_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DeadlineRecordingProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__(provider=Provider.TMAP)
+            self.deadlines: list[float] = []
+
+        async def calculate(self, *args, deadline: float, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]
+            self.deadlines.append(deadline)
+            return await super().calculate(*args, deadline=deadline, **kwargs)
+
+    monkeypatch.setattr("app.services.route.monotonic", lambda: 100.0)
+    provider = DeadlineRecordingProvider()
+
+    result = await _service(tmap=provider, deadline_seconds=10).calculate(_snapshot(3))
+
+    assert result.status == "READY"
+    assert provider.deadlines == [110.0, 110.0]
+
+
+@pytest.mark.asyncio
+async def test_retry_does_not_extend_deadline_from_mock_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RetryDeadlineProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__(
+                provider=Provider.TMAP,
+                failures=[
+                    RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=True)
+                ],
+            )
+            self.deadlines: list[float] = []
+
+        async def calculate(self, *args, deadline: float, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]
+            self.deadlines.append(deadline)
+            return await super().calculate(*args, deadline=deadline, **kwargs)
+
+    clock = iter([100.0, 101.0, 102.0, 103.0, 104.0, 105.0])
+    monkeypatch.setattr("app.services.route.monotonic", lambda: next(clock))
+    provider = RetryDeadlineProvider()
+
+    result = await _service(tmap=provider, deadline_seconds=10).calculate(_snapshot(2))
+
+    assert result.status == "READY"
+    assert provider.deadlines == [110.0, 110.0]
+
+
+@pytest.mark.asyncio
 async def test_unexpected_provider_error_is_normalized() -> None:
     class InvalidProvider(FakeProvider):
         async def calculate(self, *args, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]

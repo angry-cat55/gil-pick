@@ -146,9 +146,9 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | ITIN-003 | 일정 | 여행 전체 날짜별 일정 개요 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/itinerary` |
 | PLACE-001 | 장소 | 장소 검색 | [ ] | [ ] | GET | `/api/v1/places/search` |
 | PLACE-002 | 장소 | 장소 상세 조회 | [ ] | [ ] | GET | `/api/v1/places/{placeId}` |
-| ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
+| ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
 | ROUTE-002 | 경로 | 남은 경로 재계산 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/recalculate` |
-| ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
+| ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
 | PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
 | PROG-002 | 여행 진행 | 오늘 여행 시작 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/start` |
 | PROG-003 | 여행 진행 | 위치 이벤트 등록 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/events` |
@@ -898,8 +898,23 @@ Response `200`:
       "scheduleVersion": 6,
       "totalDurationSeconds": 5100,
       "totalDistanceMeters": 11200,
-      "markers": [],
-      "segments": [],
+      "markers": [
+        {"itemId": "uuid", "sequence": 1, "name": "경복궁", "latitude": 37.5796, "longitude": 126.9770},
+        {"itemId": "uuid", "sequence": 2, "name": "북촌", "latitude": 37.5826, "longitude": 126.9830}
+      ],
+      "segments": [
+        {
+          "sequence": 1,
+          "fromItemId": "uuid",
+          "toItemId": "uuid",
+          "transportMode": "WALK",
+          "provider": "TMAP",
+          "durationSeconds": 1200,
+          "distanceMeters": 1600,
+          "geometry": {"type": "LineString", "coordinates": [[126.9770, 37.5796], [126.9830, 37.5826]]},
+          "providerAttribution": "TMAP"
+        }
+      ],
       "providerAttributions": ["TMAP"],
       "calculatedAt": "2026-08-22T01:02:03Z"
     },
@@ -912,6 +927,8 @@ Response `200`:
 ```
 
 장소가 0곳인 날짜는 `NOT_CALCULATED`와 `route: null`, `failure: null`을 반환한다. 경로 계산이 실패한 날짜는 `FAILED`, `route: null`과 안정적인 `failure` code를 반환한다.
+
+경로 실패 code는 `ROUTE_PROVIDER_TIMEOUT`, `ROUTE_PROVIDER_RATE_LIMITED`, `ROUTE_PROVIDER_UNAVAILABLE`, `ROUTE_NOT_FOUND`, `ROUTE_INVALID_RESULT`다. Provider 호출은 시도당 최대 5초, 날짜 전체 계산은 최대 10초이며 timeout·네트워크 요청 오류·429·5xx만 남은 시간 안에서 한 번 재시도한다. 각 구간과 응답의 `providerAttribution`·`providerAttributions`는 화면에 표시해야 한다.
 
 주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 
