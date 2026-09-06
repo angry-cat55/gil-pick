@@ -32,6 +32,17 @@
 
 **Design Sources**: Figma Make `Design UI from Reference`의 `ScheduleEditScreen`, `TripDetailScreen` 일정 영역, `EditTripScreen` 확인 대화상자가 정본이다([spec.md](spec.md) UI-011). `docs/design/ui-guidelines.md` 5절 크기, 9절 화면 상태, 10절 접근성 최저선을 적용한다. Figma 수정 4건(이동 수단 시트의 체류 시간 제거, 순서 변경 손잡이·버튼, 날짜 헤더 `장소 추가`, 기간 축소 확인 대화상자)은 구현 전 반영을 확인한다.
 
+**Figma 반영 확인 기록(T002, 2026-09-06, jy)**: Figma MCP로 `ScheduleEditScreen.tsx`·`TripDetailScreen.tsx`·`EditTripScreen.tsx` 원본을 다시 읽어 `docs/design/figma-make/src/screens` 사본(2026-09-04 기준)과 비교했다. 세 화면 모두 사본과 동일해 사본 갱신은 없고, 4건 모두 아직 Figma에 반영되지 않았다.
+
+| 항목 | Figma 현재 상태(2026-09-06) | 명세 결정 |
+|---|---|---|
+| 이동 수단 시트의 체류 시간 제거 | 시트 안에 5분 단위 `체류 시간` `−`·`+` 조절이 남아 있다 | spec UI-004: 시트에서 조절하지 않는다 |
+| 순서 변경 손잡이·위아래 버튼 | 행에 삭제 버튼만 있고 손잡이·이동 버튼이 없다 | spec UI-008: 손잡이 끌기 + 행별 위·아래 버튼 |
+| 여행 상세 날짜 헤더 `장소 추가` | 헤더 오른쪽에 `{N}곳` 텍스트만 있다 | spec UI-006·FR-015: 헤더마다 `장소 추가` 행동 |
+| 여행 수정 삭제 확인 대화상자 | 기간 축소 경고 카드와 checkbox만 있고 `삭제될 장소 N곳` 대화상자는 없다(`여행을 삭제할까요?` 대화상자만 있다) | spec UI-013: `삭제될 장소 N곳` 안내 + 동의·취소 대화상자 |
+
+기능은 spec 결정을 따르되 네 요소의 모양은 Figma 갱신 후 확정한다. Figma 수정은 Feature Owner(jy)가 진행하고, 갱신되면 사본을 다시 받아 이 표를 닫는다(T013·T016·T025·T030 선행 조건).
+
 **Tokens & Components**: `GilpickTheme`, `LocalGilpickColors`·`Spacing`·`Sizing`·`Radius`를 그대로 쓰고 새 토큰은 추가하지 않는다. 날짜 탭·순서 번호 원·점선 `장소 추가` 버튼은 편집 화면과 여행 상세에서 함께 쓰일 때만 `ui/component`로 추출한다. 체류 시간 `−`·`+`는 F003 `AddToScheduleSheet`의 stepper 규칙(40dp 원, dialog 44dp)을 재사용한다. 장소 썸네일은 `RemoteImage`.
 
 **State & Interaction**: [data-model.md](data-model.md) 6절 `ItineraryEditUiState`. 초안(`draft`)과 저장본(`savedVersion`)을 분리하고 `dirty`로 닫기 확인을 결정한다. `Loading`은 1초 규칙, `Empty`는 `장소 추가` 안내, `Failed`는 원인+`다시 시도`. 저장 중 `저장` 비활성. 409는 사용자 안내 없이 최신 version으로 최대 2회 재저장([research.md](research.md) 4절). 예정 장소의 순서 변경은 위·아래 버튼 + 손잡이 끌기(9절)이며 처리된 장소는 두 조작을 숨긴다. type-safe `ItineraryEditRoute(tripId, date, openSearch)`; F003 결과는 `SavedStateHandle`로 돌아온다(10절).
