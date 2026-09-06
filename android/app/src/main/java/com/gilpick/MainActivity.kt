@@ -20,14 +20,17 @@ import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.itineraryGraph
 import com.gilpick.itinerary.returnAddToSchedule
+import com.gilpick.place.PlaceDetailRoute
 import com.gilpick.place.placeGraph
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.gilpick.trip.TripDeletePhase
+import com.gilpick.trip.TripDetailPhase
 import com.gilpick.trip.TripDetailScreen
 import com.gilpick.trip.TripDetailViewModel
 import com.gilpick.trip.TripFormScreen
@@ -259,12 +262,19 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
                 onDelete = viewModel::delete,
                 onDeleteErrorShown = viewModel::clearDeleteError,
                 onRetryItinerary = viewModel::retryItinerary,
-                // 일정 편집 화면과 장소 검색·상세로 가는 실제 연결은 T028이 jy의
-                // ItineraryEditRoute(T018)와 함께 배선한다(#192 완료 조건의 부분 선행).
-                // 여기서는 화면이 요구하는 콜백 자리만 채워 두고 아직 이동하지 않는다.
-                onEditItinerary = {},
-                onAddPlace = {},
-                onSelectPlace = {},
+                // `일정 편집`은 여행을 받은 뒤에만 그려지므로 첫 날짜는 그 여행의 startDate다.
+                // 일정 개요 응답을 기다리지 않아 개요 조회가 실패한 상태에서도 편집으로 갈 수 있다.
+                onEditItinerary = {
+                    (state.phase as? TripDetailPhase.Content)?.let { content ->
+                        navController.navigate(ItineraryEditRoute(tripId, content.trip.startDate))
+                    }
+                },
+                // 날짜 헤더의 `추가`는 그 날짜의 편집을 거쳐 바로 검색으로 간다. F003 결과가
+                // 편집 entry로 돌아와야 하므로(FR-015) 검색을 직접 열지 않는다.
+                onAddPlace = { date ->
+                    navController.navigate(ItineraryEditRoute(tripId, date, openSearch = true))
+                },
+                onSelectPlace = { placeId -> navController.navigate(PlaceDetailRoute(placeId)) },
             )
         }
 
@@ -296,8 +306,8 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
             )
         }
 
-        // F004 일정 편집. destination 정의는 com.gilpick.itinerary가 소유한다. 여행 상세에서
-        // 이 route로 들어가는 진입점은 T027·T028에서 연결한다.
+        // F004 일정 편집. destination 정의는 com.gilpick.itinerary가 소유한다. 여행 상세의
+        // `일정 편집`·날짜별 `추가`가 위 TripDetailRoute에서 이 route로 들어온다.
         itineraryGraph(navController, onSessionExpired = onSessionExpired)
 
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
