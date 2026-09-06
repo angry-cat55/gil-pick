@@ -19,6 +19,10 @@ class TmapClient:
         self.settings = settings
         self.client = client or httpx2.AsyncClient()
 
+    async def close(self) -> None:
+        """내부 HTTP 연결 풀을 닫는다."""
+        await self.client.aclose()
+
     async def calculate(self, origin: Coordinate, destination: Coordinate, transport_mode: TransportMode, *, deadline: float) -> NormalizedRoute:
         if transport_mode not in (TransportMode.WALK, TransportMode.CAR):
             raise ValueError("TMAP supports WALK and CAR only")

@@ -13,9 +13,12 @@ from app.api.errors import AppError
 from app.db import transaction_session
 from app.models.auth import User
 from app.models.itinerary import ItineraryItem, Place, TripDay
+from app.models.route import Route as RouteModel
 from app.models.trip import Trip
 from app.schemas.itinerary import SaveDayItineraryRequest, StaySource
 from app.services.itinerary import ItineraryService
+from app.services.route import RouteCalculationService, RouteService
+from app.clients.route_provider import Provider
 
 
 @pytest.fixture
@@ -82,7 +85,7 @@ async def test_first_save_and_same_key_retry_are_idempotent(
             trip_id=trip_id, visit_date=visit_date, start_date=visit_date
         )
     async with transaction_session(session_factory) as session:
-        first, created = await ItineraryService(session).save_day(
+        first, created, route_changed = await ItineraryService(session).save_day(
             trip_id=trip_id,
             visit_date=visit_date,
             start_date=visit_date,
@@ -90,7 +93,7 @@ async def test_first_save_and_same_key_retry_are_idempotent(
             idempotency_key=key,
         )
     async with transaction_session(session_factory) as session:
-        retry, retry_created = await ItineraryService(session).save_day(
+        retry, retry_created, retry_route_changed = await ItineraryService(session).save_day(
             trip_id=trip_id,
             visit_date=visit_date,
             start_date=visit_date,
@@ -100,7 +103,9 @@ async def test_first_save_and_same_key_retry_are_idempotent(
 
     assert empty.version == 0 and empty.items == []
     assert created is True and first.version == 1
+    assert route_changed is True
     assert retry_created is False and retry.version == 1
+    assert retry_route_changed is False
     assert retry.items[0].item_id == first.items[0].item_id
     async with session_factory() as session:
         assert await session.scalar(select(func.count()).select_from(TripDay).where(TripDay.trip_id == trip_id)) == 1
@@ -114,7 +119,7 @@ async def test_stale_version_conflicts_but_identical_current_state_is_noop(
 ) -> None:
     trip_id, visit_date = await _seed(session_factory)
     async with transaction_session(session_factory) as session:
-        saved, _ = await ItineraryService(session).save_day(
+        saved, _, _ = await ItineraryService(session).save_day(
             trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
             payload=_create_payload(), idempotency_key=uuid.uuid4(),
         )
@@ -123,11 +128,12 @@ async def test_stale_version_conflicts_but_identical_current_state_is_noop(
     existing.items[0].item_id = saved.items[0].item_id
     existing.items[0].place = None
     async with transaction_session(session_factory) as session:
-        unchanged, created = await ItineraryService(session).save_day(
+        unchanged, created, route_changed = await ItineraryService(session).save_day(
             trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
             payload=existing, idempotency_key=uuid.uuid4(),
         )
     assert created is False and unchanged.version == saved.version
+    assert route_changed is False
 
     with pytest.raises(AppError) as conflict:
         async with transaction_session(session_factory) as session:
@@ -145,7 +151,7 @@ async def test_changed_existing_item_keeps_id_and_increments_version(
 ) -> None:
     trip_id, visit_date = await _seed(session_factory)
     async with transaction_session(session_factory) as session:
-        saved, _ = await ItineraryService(session).save_day(
+        saved, _, _ = await ItineraryService(session).save_day(
             trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
             payload=_create_payload(), idempotency_key=uuid.uuid4(),
         )
@@ -156,7 +162,7 @@ async def test_changed_existing_item_keeps_id_and_increments_version(
     changed.items[0].stay_source = StaySource.USER_ADJUSTED
 
     async with transaction_session(session_factory) as session:
-        updated, created = await ItineraryService(session).save_day(
+        updated, created, route_changed = await ItineraryService(session).save_day(
             trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
             payload=changed, idempotency_key=uuid.uuid4(),
         )
@@ -165,3 +171,110 @@ async def test_changed_existing_item_keeps_id_and_increments_version(
     assert updated.version == saved.version + 1
     assert updated.items[0].item_id == saved.items[0].item_id
     assert updated.items[0].planned_stay_minutes == 120
+    assert route_changed is False
+
+
+class _UnusedProvider:
+    async def calculate(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("한 장소 일정은 provider를 호출하면 안 됩니다.")
+
+
+@pytest.mark.asyncio
+async def test_stay_only_change_carries_active_route_to_new_schedule_version(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, visit_date = await _seed(session_factory)
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            start_date=visit_date,
+            payload=_create_payload(),
+            idempotency_key=uuid.uuid4(),
+        )
+    route_service = RouteService(
+        session_factory,
+        RouteCalculationService(
+            tmap=_UnusedProvider(),
+            odsay=_UnusedProvider(),
+            concurrency=3,
+            deadline_seconds=10,
+        ),
+    )
+    await route_service.calculate_current(trip_id=trip_id, visit_date=visit_date)
+
+    changed = _create_payload(version=saved.version)
+    changed.items[0].item_id = saved.items[0].item_id
+    changed.items[0].place = None
+    changed.items[0].planned_stay_minutes = 120
+    async with transaction_session(session_factory) as session:
+        updated, _, route_changed = await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            start_date=visit_date,
+            payload=changed,
+            idempotency_key=uuid.uuid4(),
+        )
+
+    assert route_changed is False
+    async with session_factory() as session:
+        active = await session.scalar(
+            select(RouteModel)
+            .join(TripDay, TripDay.trip_day_id == RouteModel.trip_day_id)
+            .where(
+                TripDay.trip_id == trip_id,
+                RouteModel.is_active.is_(True),
+            )
+        )
+        assert active is not None
+        assert active.schedule_version == updated.version
+        assert active.status == "READY"
+
+
+@pytest.mark.asyncio
+async def test_coordinate_change_is_route_input_change_even_for_same_place(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, visit_date = await _seed(session_factory)
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            start_date=visit_date,
+            payload=_create_payload(),
+            idempotency_key=uuid.uuid4(),
+        )
+
+    changed = _create_payload(version=saved.version)
+    changed.items[0].item_id = saved.items[0].item_id
+    assert changed.items[0].place is not None
+    changed.items[0].place.latitude = 37.58
+    async with transaction_session(session_factory) as session:
+        updated, _, route_changed = await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            start_date=visit_date,
+            payload=changed,
+            idempotency_key=uuid.uuid4(),
+        )
+
+    assert updated.version == saved.version + 1
+    assert route_changed is True
+
+
+@pytest.mark.asyncio
+async def test_explicit_itinerary_commit_closes_request_transaction_cleanly(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, visit_date = await _seed(session_factory)
+
+    async with transaction_session(session_factory) as session:
+        service = ItineraryService(session)
+        await service.save_day(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            start_date=visit_date,
+            payload=_create_payload(),
+            idempotency_key=uuid.uuid4(),
+        )
+        await service.commit()

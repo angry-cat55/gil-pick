@@ -6,8 +6,9 @@ import logging
 import uuid
 from datetime import UTC, date, datetime
 
+from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
-from sqlalchemy import delete, select, update
+from sqlalchemy import cast, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,6 +17,7 @@ from app.api.errors import AppError
 from app.core.logging import request_id_context
 from app.models.itinerary import ItineraryItem as ItemModel
 from app.models.itinerary import Place, TripDay
+from app.models.route import Route as RouteModel
 from app.schemas.itinerary import (
     DayItinerary,
     ItineraryItem,
@@ -24,6 +26,7 @@ from app.schemas.itinerary import (
     SaveItem,
 )
 from app.schemas.route import RouteStatus
+from app.services.route import route_data_from_model
 
 logger = logging.getLogger("gilpick.itinerary")
 
@@ -51,8 +54,8 @@ class ItineraryService:
         start_date: date,
         payload: SaveDayItineraryRequest,
         idempotency_key: uuid.UUID,
-    ) -> tuple[DayItinerary, bool]:
-        """일정을 검증해 멱등하게 저장하고 최초 생성 여부를 반환한다.
+    ) -> tuple[DayItinerary, bool, bool]:
+        """일정을 저장하고 최초 생성 여부와 경로 입력 변경 여부를 반환한다.
 
         Raises:
             AppError: 일정 규칙 또는 schedule version이 맞지 않는 경우.
@@ -63,6 +66,9 @@ class ItineraryService:
         _validate_items(payload.items)
         day = await self._load_day(trip_id=trip_id, visit_date=visit_date)
         created = day is None
+        current_route_state = (
+            () if day is None else await self._route_input_state(day.trip_day_id)
+        )
         if day is None:
             if payload.version != 0:
                 raise _version_conflict()
@@ -85,13 +91,21 @@ class ItineraryService:
         ]
         current = [_item_state(item) for item in day.items]
         desired_state = [_item_state(item) for item in desired]
+        desired_route_state = _desired_route_input_state(
+            payload.items,
+            desired,
+            current_route_state,
+        )
+        route_input_changed = (
+            bool(desired_route_state) if created else desired_route_state != current_route_state
+        )
 
         same_retry = payload.version == 0 and any(i.item_id is None for i in payload.items)
         if not created and payload.version != day.schedule_version:
             if not (same_retry and desired_state == current):
                 raise _version_conflict()
-        if not created and desired_state == current:
-            return _to_schema(day), False
+        if not created and desired_state == current and not route_input_changed:
+            return _to_schema(day), False, False
 
         version_before = 0 if created else day.schedule_version
         if not created:
@@ -108,6 +122,11 @@ class ItineraryService:
             if version is None:
                 raise _version_conflict()
             day.schedule_version = version
+            await self._advance_route_version(
+                trip_day_id=day.trip_day_id,
+                schedule_version=version,
+                route_input_changed=route_input_changed,
+            )
 
         current_by_id = {item.item_id: item for item in day.items}
         unchanged_ids = {
@@ -139,7 +158,11 @@ class ItineraryService:
                 "item_count": len(desired),
             }
         )
-        return _to_schema(day), created
+        return _to_schema(day), created, route_input_changed
+
+    async def commit(self) -> None:
+        """외부 경로 호출 전에 현재 일정 transaction을 확정한다."""
+        await self.session.commit()
 
     async def _load_day(
         self, *, trip_id: uuid.UUID, visit_date: date, refresh: bool = False
@@ -147,7 +170,10 @@ class ItineraryService:
         statement = (
             select(TripDay)
             .where(TripDay.trip_id == trip_id, TripDay.visit_date == visit_date)
-            .options(selectinload(TripDay.items).selectinload(ItemModel.place))
+            .options(
+                selectinload(TripDay.items).selectinload(ItemModel.place),
+                selectinload(TripDay.routes),
+            )
         )
         if refresh:
             statement = statement.execution_options(populate_existing=True)
@@ -206,6 +232,57 @@ class ItineraryService:
         column = Place.tour_content_id if provider == "tourapi" else Place.google_place_id
         return await self.session.scalar(select(Place.place_id).where(column == provider_id))
 
+    async def _route_input_state(
+        self,
+        trip_day_id: uuid.UUID,
+    ) -> tuple[tuple[object, ...], ...]:
+        point = cast(Place.location, Geometry(geometry_type="POINT", srid=4326))
+        rows = (
+            await self.session.execute(
+                select(
+                    ItemModel.item_id,
+                    ItemModel.place_id,
+                    ItemModel.sequence,
+                    ItemModel.transport_mode_to_next,
+                    func.ST_X(point),
+                    func.ST_Y(point),
+                )
+                .join(Place, Place.place_id == ItemModel.place_id)
+                .where(ItemModel.trip_day_id == trip_day_id)
+                .order_by(ItemModel.sequence)
+            )
+        ).all()
+        return tuple(
+            (row[0], row[1], row[2], row[3], float(row[4]), float(row[5]))
+            for row in rows
+        )
+
+    async def _advance_route_version(
+        self,
+        *,
+        trip_day_id: uuid.UUID,
+        schedule_version: int,
+        route_input_changed: bool,
+    ) -> None:
+        if route_input_changed:
+            await self.session.execute(
+                update(RouteModel)
+                .where(
+                    RouteModel.trip_day_id == trip_day_id,
+                    RouteModel.is_active.is_(True),
+                )
+                .values(status="HISTORICAL", is_active=False)
+            )
+            return
+        await self.session.execute(
+            update(RouteModel)
+            .where(
+                RouteModel.trip_day_id == trip_day_id,
+                RouteModel.is_active.is_(True),
+            )
+            .values(schedule_version=schedule_version)
+        )
+
 
 def _validate_items(items: list[SaveItem]) -> None:
     violations: list[dict[str, object]] = []
@@ -263,6 +340,37 @@ def _item_state(item: ItemModel) -> tuple[object, ...]:
     )
 
 
+def _desired_route_input_state(
+    payload_items: list[SaveItem],
+    desired_items: list[ItemModel],
+    current: tuple[tuple[object, ...], ...],
+) -> tuple[tuple[object, ...], ...]:
+    current_coordinates = {
+        row[0]: (row[4], row[5])
+        for row in current
+    }
+    values: list[tuple[object, ...]] = []
+    for payload, desired in zip(payload_items, desired_items):
+        if payload.place is not None:
+            longitude = payload.place.longitude
+            latitude = payload.place.latitude
+        elif desired.item_id in current_coordinates:
+            longitude, latitude = current_coordinates[desired.item_id]
+        else:  # pragma: no cover - 기존 항목 검증이 먼저 차단한다.
+            raise RuntimeError("기존 일정 항목의 좌표를 찾을 수 없습니다.")
+        values.append(
+            (
+                desired.item_id,
+                desired.place_id,
+                desired.sequence,
+                desired.transport_mode_to_next,
+                float(longitude),
+                float(latitude),
+            )
+        )
+    return tuple(values)
+
+
 def _empty_day(visit_date: date, start_date: date) -> DayItinerary:
     return DayItinerary(
         date=visit_date,
@@ -293,11 +401,20 @@ def _to_schema(day: TripDay) -> DayItinerary:
         )
         for item in sorted(day.items, key=lambda value: value.sequence)
     ]
+    active_route = next(
+        (
+            route
+            for route in day.routes
+            if route.is_active and route.schedule_version == day.schedule_version
+        ),
+        None,
+    )
+    route_data = route_data_from_model(day, active_route)
     return DayItinerary(
         date=day.visit_date,
         dayNumber=day.day_number,
         version=day.schedule_version,
-        routeStatus=RouteStatus.NOT_CALCULATED,
+        routeStatus=route_data.route_status,
         items=items,
-        route=None,
+        route=route_data.route,
     )

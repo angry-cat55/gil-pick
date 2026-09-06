@@ -97,12 +97,12 @@
   - 담당: jh
   - 선행: T008
   - 검증: 대중교통 검색 기본 추천 후보와 `mapObj` 형상 조회, 두 호출의 한 구간 deadline 공유, 무경로·무효 형상·timeout·429·5xx 분류
-- [ ] T013 [P] [US1] route calculation service unit test 작성 in api/tests/unit/test_route_service.py
+- [X] T013 [P] [US1] route calculation service unit test 작성 in api/tests/unit/test_route_service.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007, T008
   - 검증: 0개 NOT_CALCULATED, 1개 READY/0초/0m·외부 미호출, 최대 9구간 제한 동시성, 전체 10초 deadline, 일시 오류 1회 retry, 한 구간 실패 시 전체 FAILED, 합계·순서·수단, version 변경 결과 폐기
-- [ ] T014 [P] [US1] 일정 저장 자동 계산 contract·integration test 작성 in api/tests/contract/test_route_contract.py, api/tests/integration/test_route_flow.py
+- [X] T014 [P] [US1] 일정 저장 자동 계산 contract·integration test 작성 in api/tests/contract/test_route_contract.py, api/tests/integration/test_route_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T007
@@ -125,17 +125,17 @@
   - 담당: jh
   - 선행: T002, T008, T012
   - 검증: T012 통과, search와 geometry 호출이 동일 deadline을 공유하고 후보 비교·정렬 없음
-- [ ] T018 [US1] 구간 orchestration·deadline·상태 전이 service 구현 in api/app/services/route.py
+- [X] T018 [US1] 구간 orchestration·deadline·상태 전이 service 구현 in api/app/services/route.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007, T013, T016, T017
   - 검증: T013 통과, 외부 호출 중 DB transaction 없음, 완료 시 version 재검증, request ID·provider·attempt·latency·결과 code log와 좌표·key 제외
-- [ ] T019 [US1] 일정 저장 service에 자동 경로 계산과 실패 격리 연결 in api/app/services/itinerary.py, api/app/api/v1/itinerary.py
+- [X] T019 [US1] 일정 저장 service에 자동 경로 계산과 실패 격리 연결 in api/app/services/itinerary.py, api/app/api/v1/itinerary.py
   - 영역: BE
   - 담당: jh
   - 선행: F004 일정 저장 구현, T014, T018
   - 검증: T014 통과, 입력 변화가 있을 때만 재계산, 일정 먼저 commit, 경로 실패가 일정 성공 envelope를 실패로 바꾸지 않음
-- [ ] T020 [US1] 날짜별 경로 조회 endpoint와 router 등록 구현 in api/app/api/v1/route.py, api/app/main.py
+- [X] T020 [US1] 날짜별 경로 조회 endpoint와 router 등록 구현 in api/app/api/v1/route.py, api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T014, T018
