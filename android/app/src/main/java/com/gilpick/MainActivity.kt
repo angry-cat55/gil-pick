@@ -20,6 +20,8 @@ import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import com.gilpick.itinerary.itineraryGraph
+import com.gilpick.itinerary.returnAddToSchedule
 import com.gilpick.place.placeGraph
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -287,10 +289,17 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
             )
         }
 
+        // F004 일정 편집. destination 정의는 com.gilpick.itinerary가 소유한다. 여행 상세에서
+        // 이 route로 들어가는 진입점은 T027·T028에서 연결한다.
+        itineraryGraph(navController, onSessionExpired = onSessionExpired)
+
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
-        // 등록만 한다. 사용자가 검색 화면에 도달하는 진입점은 pen의 일정 편집 화면에
-        // 있으므로 F004에서 연결한다.
-        placeGraph(navController, onSessionExpired = onSessionExpired)
+        // 등록만 한다. `일정에 추가` 결과는 편집 화면 entry로 돌려주고 검색·상세를 닫는다.
+        placeGraph(
+            navController,
+            onSessionExpired = onSessionExpired,
+            onAddToSchedule = navController::returnAddToSchedule,
+        )
     }
 }
 

@@ -98,12 +98,12 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T006
   - 검증: 검증 순서 6단계, `places` upsert(같은 provider ID 재사용), uuid5 항목 ID, 결과 동일 시 no-op, transaction 경계
-- [ ] T012 [P] [US1] `ItineraryEditViewModel` unit test in android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt
+- [x] T012 [P] [US1] `ItineraryEditViewModel` unit test in android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008
   - 검증: 검색 결과 추가 시 끝에 붙고 직전 항목 이동 수단 설정(첫 항목이면 무시), 좌표 없는 장소는 추가 거부·안내, 추천 체류 시간 자동 입력·`RECOMMENDED`, `sequence` 1..N 부여, `Idempotency-Key` 1회 생성, 409 시 최신 version으로 최대 2회 재저장, 연속 실패 시 `Failed`와 초안 유지, `SavedStateHandle` 복원
-- [ ] T013 [P] [US1] 편집 화면 Compose UI test in android/app/src/androidTest/java/com/gilpick/itinerary/ItineraryEditScreenTest.kt
+- [x] T013 [P] [US1] 편집 화면 Compose UI test in android/app/src/androidTest/java/com/gilpick/itinerary/ItineraryEditScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008
@@ -121,17 +121,17 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T009, T014
   - 검증: T010 통과, `Idempotency-Key` 필수, `200`/`201` 구분, 오류 envelope 형식, 모든 응답이 `routeStatus NOT_CALCULATED`·`route null`(FR-018)
-- [ ] T016 [US1] `ItineraryEditViewModel`(초안/저장본 분리, `SavedStateHandle`, 자동 재저장) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt
+- [x] T016 [US1] `ItineraryEditViewModel`(초안/저장본 분리, `SavedStateHandle`, 자동 재저장) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008, T012
   - 검증: T012 통과, `dirty` 계산, 10곳에서 추가 비활성
-- [ ] T017 [US1] 일정 편집 화면(날짜 탭, 장소 카드, `장소 추가`, `저장`, 취소 확인) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryLabels.kt
+- [x] T017 [US1] 일정 편집 화면(날짜 탭, 장소 카드, `장소 추가`, `저장`, 취소 확인) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryLabels.kt
   - 영역: FE
   - 담당: jy
   - 선행: T013, T016, T002
   - 검증: Figma `ScheduleEditScreen` 대조, theme token만 사용, 네 상태, 48dp, 360dp·font scale 2.0 잘림 없음, `routeStatus NOT_CALCULATED`에서 도착 시각·구간 소요 시간 미표시
-- [ ] T018 [US1] `ItineraryEditRoute(tripId, date, openSearch)` 등록과 F003 `placeGraph` `onAddToSchedule` 결과 반환 연결 in android/app/src/main/java/com/gilpick/MainActivity.kt, android/app/src/main/java/com/gilpick/place/PlaceNavigation.kt
+- [x] T018 [US1] `ItineraryEditRoute(tripId, date, openSearch)` 등록과 F003 `placeGraph` `onAddToSchedule` 결과 반환 연결 in android/app/src/main/java/com/gilpick/MainActivity.kt, android/app/src/main/java/com/gilpick/place/PlaceNavigation.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T017
