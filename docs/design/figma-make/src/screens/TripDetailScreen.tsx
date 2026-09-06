@@ -156,7 +156,13 @@ export default function TripDetailScreen({ onBack, onStartTravel, onGoToActive: 
                 <span className="w-6 h-6 rounded-lg bg-[#3B7BF8] flex items-center justify-center text-[10px] font-black text-white">{day.dayNum}</span>
                 <span className="text-[14px] font-bold text-[#111827]">{day.date}</span>
               </div>
-              <span className="text-[12px] text-[#94A3B8]">{day.places.length}곳</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-[#94A3B8]">{day.places.length}곳</span>
+                <button onClick={onEditSchedule} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EBF2FF] text-[#3B7BF8]">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                  <span className="text-[11px] font-bold">추가</span>
+                </button>
+              </div>
             </div>
             <div className="bg-white">
               {day.places.map((place, i) => (
