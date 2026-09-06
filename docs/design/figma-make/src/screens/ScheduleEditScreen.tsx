@@ -47,6 +47,8 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
   const [showCancel, setShowCancel] = useState(false);
   const [transportModal, setTransportModal] = useState<{ id: string; name: string } | null>(null);
   const [tempTransport, setTempTransport] = useState<Transport>("도보");
+  const [durationModal, setDurationModal] = useState<{ id: string; name: string } | null>(null);
+  const [tempDuration, setTempDuration] = useState(90);
 
   const removePlace = (id: string) => setPlaces(places.filter((p) => p.id !== id));
 
@@ -58,6 +60,24 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
     const arr = [...places];
     [arr[idx], arr[next]] = [arr[next], arr[idx]];
     setPlaces(arr);
+  };
+
+  const openDuration = (p: SchedulePlace) => {
+    setTempDuration(p.duration);
+    setDurationModal({ id: p.id, name: p.name });
+  };
+
+  const applyDuration = () => {
+    setPlaces(places.map((p) => p.id === durationModal?.id ? { ...p, duration: tempDuration } : p));
+    setDurationModal(null);
+  };
+
+  const adjustDur = (delta: number) => { const n = tempDuration + delta; if (n >= 30 && n <= 360) setTempDuration(n); };
+
+  const getTimeRange = (time: string, dur: number) => {
+    const [h, m] = time.split(":").map(Number);
+    const end = h * 60 + m + dur;
+    return `${time} – ${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
   };
 
   const openTransport = (p: SchedulePlace) => {
@@ -146,7 +166,14 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className={`font-bold text-[15px] mb-0.5 ${!editable ? "text-[#94A3B8]" : "text-[#111827]"}`}>{place.name}</p>
-                    <p className="text-[12px] text-[#94A3B8]">{place.time} · {place.duration}분</p>
+                    {editable ? (
+                      <button onClick={() => openDuration(place)} className="flex items-center gap-1 text-left">
+                        <span className="text-[12px] text-[#94A3B8]">{place.time} · {place.duration}분</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                    ) : (
+                      <p className="text-[12px] text-[#CBD5E1]">{place.time} · {place.duration}분</p>
+                    )}
                     {place.transport && editable && (
                       <div className="flex items-center gap-1.5 mt-1.5 text-[#CBD5E1]">
                         <TransportIcon type={place.transport.icon} />
@@ -202,6 +229,38 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
           저장
         </button>
       </div>
+
+      {/* Duration modal */}
+      {durationModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-5" style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
+          <div className="bg-white rounded-3xl p-6 w-full shadow-2xl">
+            <h2 className="text-[20px] font-black text-[#111827] mb-1" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>{durationModal.name} 체류 시간</h2>
+            <p className="text-[13px] text-[#94A3B8] mb-5">변경 시 이후 일정 도착 시각이 함께 조정됩니다</p>
+            <div className="flex items-center justify-between bg-[#F4F6FB] rounded-2xl px-4 py-4 mb-4">
+              <button onClick={() => adjustDur(-30)} className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-xl font-black text-[#111827]" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>−</button>
+              <div className="text-center">
+                <p className="text-[32px] font-black text-[#111827]" style={{ fontFamily: "Outfit, sans-serif" }}>{tempDuration}<span className="text-[18px] ml-1">분</span></p>
+                <p className="text-[12px] text-[#94A3B8]">
+                  {(() => { const p = places.find(x => x.id === durationModal.id); return p ? getTimeRange(p.time, tempDuration) : ""; })()}
+                </p>
+              </div>
+              <button onClick={() => adjustDur(30)} className="w-11 h-11 rounded-full flex items-center justify-center text-xl font-black text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)", boxShadow: "0 4px 12px rgba(59,123,248,0.3)" }}>+</button>
+            </div>
+            <div className="flex gap-2 mb-5">
+              {[60, 90, 120].map((v) => (
+                <button key={v} onClick={() => setTempDuration(v)}
+                  className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-colors ${tempDuration === v ? "bg-[#111827] text-white" : "bg-[#F4F6FB] text-[#6B7280]"}`}>
+                  {v}분
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDurationModal(null)} className="flex-1 h-[50px] rounded-xl text-[14px] font-semibold text-[#6B7280] bg-[#F4F6FB]">취소</button>
+              <button onClick={applyDuration} className="flex-[2] h-[50px] rounded-xl font-bold text-[15px] text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>적용</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Transport modal — 수단 카드 + 취소/적용만 */}
       {transportModal && (
