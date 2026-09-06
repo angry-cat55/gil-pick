@@ -1,6 +1,14 @@
 package com.gilpick.itinerary
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -23,10 +31,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * T013·T017: 편집 화면의 네 상태·상호작용·접근성 검증.
+ * T013·T017·T020: 편집 화면의 네 상태·상호작용·편집 조작·접근성 검증.
  *
- * `spec.md` UI-001(구성), UI-005(취소 확인), UI-007(네 상태·저장 중 비활성), UI-009(48dp·아이콘
- * 설명), FR-018(도착 시각 미표시), FR-021(10곳 비활성)이 대상이다. 상태 전이는
+ * `spec.md` UI-001(구성), UI-002(행·처리 상태), UI-003(체류 시간 대화상자), UI-004(이동 수단 시트),
+ * UI-005(취소 확인), UI-007(네 상태·저장 중 비활성), UI-008(손잡이·버튼), UI-009(48dp·아이콘 설명),
+ * FR-017(처리된 항목 잠금), FR-018(도착 시각 미표시), FR-021(10곳 비활성)이 대상이다. 상태 전이는
  * `ItineraryEditViewModelTest`가 다루므로 여기서는 상태를 직접 넣고 화면이 무엇을 보여 주고
  * 무엇을 호출하는지만 본다.
  */
@@ -189,6 +198,173 @@ class ItineraryEditScreenTest {
         composeRule.onNodeWithContentDescription("저장").assertHeightIsAtLeast(48.dp)
     }
 
+    // --- US2 편집 조작(T020·T022·T023): UI-002·003·004·008·009 ---
+
+    @Test
+    fun 행은_손잡이_이동_삭제_변경을_제공하고_첫_행_위와_마지막_행_아래는_비활성이다() {
+        val calls = mutableListOf<String>()
+        setScreen(
+            state(draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을"))),
+            onEditStay = { calls += "stay:$it" },
+            onChangeTransport = { calls += "transport:$it" },
+            onRemove = { calls += "remove:$it" },
+            onMove = { from, to -> calls += "move:$from>$to" },
+        )
+
+        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("경복궁 위로 이동").assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("북촌한옥마을 아래로 이동").assertIsNotEnabled()
+        // 마지막 항목에는 다음 구간이 없으므로 `변경`도 없다(FR-006).
+        composeRule.onNodeWithContentDescription("북촌한옥마을 다음 이동 수단 변경").assertDoesNotExist()
+
+        composeRule.onNodeWithContentDescription("경복궁 아래로 이동").performClick()
+        composeRule.onNodeWithContentDescription("북촌한옥마을 위로 이동").performClick()
+        composeRule.onNodeWithContentDescription("경복궁 삭제").performClick()
+        composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").performClick()
+        composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").performClick()
+        composeRule.runOnIdle {
+            assertEquals(listOf("move:0>1", "move:1>0", "remove:0", "stay:0", "transport:0"), calls)
+        }
+    }
+
+    @Test
+    fun 처리된_항목은_상태를_색_아이콘_문구로_보이고_체류_시간만_바꿀_수_있다() {
+        var stays = 0
+        setScreen(
+            state(
+                draft = listOf(
+                    draft("경복궁", transportToNext = TransportMode.WALK, status = ItemStatus.COMPLETED),
+                    draft("북촌한옥마을", transportToNext = TransportMode.CAR, status = ItemStatus.SKIPPED),
+                    draft("창덕궁"),
+                ),
+            ),
+            onEditStay = { stays++ },
+        )
+
+        composeRule.onNodeWithText("완료").assertIsDisplayed()
+        composeRule.onNodeWithText("건너뜀").assertIsDisplayed()
+        composeRule.onNodeWithText("도보").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("경복궁 위로 이동").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("경복궁 아래로 이동").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("경복궁 삭제").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("북촌한옥마을 삭제").assertDoesNotExist()
+        // 처리된 항목 바로 아래의 예정 항목은 위로 옮길 수 없다(FR-017).
+        composeRule.onNodeWithContentDescription("창덕궁 위로 이동").assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("창덕궁 삭제").assertIsEnabled()
+
+        composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").performClick()
+        composeRule.runOnIdle { assertEquals(1, stays) }
+    }
+
+    @Test
+    fun 체류_시간_대화상자는_30분_단위로_30에서_360까지만_조절하고_빠른_선택과_적용을_제공한다() {
+        var applied: Int? = null
+        var dismissed = 0
+        setScreen(
+            state(draft = listOf(draft("경복궁", stayMinutes = 150)), dialog = EditDialog.StayTime(0)),
+            onApplyStay = { applied = it },
+            onDismissDialog = { dismissed++ },
+        )
+
+        composeRule.onNodeWithText("경복궁 체류 시간").assertIsDisplayed()
+        composeRule.onNodeWithText("150").assertIsDisplayed()
+        composeRule.onNodeWithText("120분").assertIsNotSelected()
+
+        repeat(5) { composeRule.onNodeWithContentDescription("체류 시간 30분 줄이기").performClick() }
+        composeRule.onNodeWithText("30").assertIsDisplayed()
+        composeRule.onNodeWithText("0").assertDoesNotExist()
+
+        composeRule.onNodeWithText("120분").performClick()
+        composeRule.onNodeWithText("120").assertIsDisplayed()
+        composeRule.onNodeWithText("120분").assertIsSelected()
+        composeRule.onNodeWithText("90분").assertIsNotSelected()
+
+        repeat(9) { composeRule.onNodeWithContentDescription("체류 시간 30분 늘리기").performClick() }
+        composeRule.onNodeWithText("360").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("체류 시간 30분 늘리기").performClick()
+        composeRule.onNodeWithText("360").assertIsDisplayed()
+        composeRule.onNodeWithText("390").assertDoesNotExist()
+
+        composeRule.onNodeWithText("적용").performClick()
+        composeRule.runOnIdle { assertEquals(360, applied) }
+        composeRule.onNodeWithText("취소").performClick()
+        composeRule.runOnIdle { assertEquals(1, dismissed) }
+    }
+
+    @Test
+    fun 이동_수단_시트는_다음_장소를_안내하고_체류_시간_조절_없이_선택을_적용한다() {
+        var applied: TransportMode? = null
+        setScreen(
+            state(
+                draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을")),
+                dialog = EditDialog.Transport(0),
+            ),
+            onApplyTransport = { applied = it },
+        )
+
+        composeRule.onNodeWithText("이동 수단 변경").assertIsDisplayed()
+        composeRule.onNodeWithText("북촌한옥마을까지 어떻게 이동하시겠어요?").assertIsDisplayed()
+        composeRule.onNodeWithText("체류 시간").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("체류 시간 30분 늘리기").assertDoesNotExist()
+        composeRule.onNodeWithText("대중교통").assertIsNotSelected()
+        composeRule.onNodeWithText("자동차").performClick()
+        composeRule.onNodeWithText("자동차").assertIsSelected()
+        composeRule.onNodeWithText("적용").performClick()
+        composeRule.runOnIdle { assertEquals(TransportMode.CAR, applied) }
+    }
+
+    @Test
+    fun 손잡이를_끌면_버튼_이동과_같은_순서가_된다() {
+        var items by mutableStateOf(listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을", transportToNext = TransportMode.CAR), draft("창덕궁")))
+        composeRule.setContent {
+            GilpickTheme {
+                ItineraryEditScreen(
+                    state = state(draft = items),
+                    onClose = {}, onSelectDate = {}, onAddPlace = {}, onSave = {}, onRetry = {}, onReauthenticate = {},
+                    onDismissDialog = {}, onConfirmDiscard = {}, onNoticeShown = {}, onEditStay = {}, onApplyStay = {},
+                    onChangeTransport = {}, onApplyTransport = {}, onRemove = {},
+                    onMove = { from, to -> items = items.toMutableList().apply { add(to, removeAt(from)) } },
+                )
+            }
+        }
+        val first = composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").getBoundsInRoot()
+        val second = composeRule.onNodeWithContentDescription("북촌한옥마을 순서 변경 손잡이").getBoundsInRoot()
+        val rowHeightPx = with(composeRule.density) { (second.top - first.top).toPx() }
+
+        // 두 행 높이만큼 아래로 끌면 두 칸 내려간다. 이웃 행 높이의 절반을 넘을 때마다 한 칸씩 옮긴다.
+        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(0f, rowHeightPx * 2 / 10)) }
+            up()
+        }
+        composeRule.runOnIdle { assertEquals(listOf("북촌한옥마을", "창덕궁", "경복궁"), items.map { it.place.name }) }
+
+        // 위로 한 행만큼 끌면 한 칸 올라간다.
+        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(0f, -rowHeightPx / 10)) }
+            up()
+        }
+        composeRule.runOnIdle { assertEquals(listOf("북촌한옥마을", "경복궁", "창덕궁"), items.map { it.place.name }) }
+    }
+
+    @Test
+    fun 편집_조작의_터치_영역은_48dp_이상이다() {
+        setScreen(state(draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을")), dialog = EditDialog.StayTime(0)))
+
+        listOf("경복궁 순서 변경 손잡이", "경복궁 위로 이동", "경복궁 아래로 이동", "경복궁 삭제").forEach {
+            composeRule.onNodeWithContentDescription(it).assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        }
+        composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithContentDescription("체류 시간 30분 줄이기").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        composeRule.onNodeWithContentDescription("체류 시간 30분 늘리기").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        composeRule.onNodeWithText("60분").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("적용").assertHeightIsAtLeast(48.dp)
+    }
+
     private fun setScreen(
         state: ItineraryEditUiState,
         onClose: () -> Unit = {},
@@ -200,6 +376,12 @@ class ItineraryEditScreenTest {
         onDismissDialog: () -> Unit = {},
         onConfirmDiscard: () -> Unit = {},
         onNoticeShown: () -> Unit = {},
+        onEditStay: (Int) -> Unit = {},
+        onApplyStay: (Int) -> Unit = {},
+        onChangeTransport: (Int) -> Unit = {},
+        onApplyTransport: (TransportMode) -> Unit = {},
+        onRemove: (Int) -> Unit = {},
+        onMove: (Int, Int) -> Unit = { _, _ -> },
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -214,6 +396,12 @@ class ItineraryEditScreenTest {
                     onDismissDialog = onDismissDialog,
                     onConfirmDiscard = onConfirmDiscard,
                     onNoticeShown = onNoticeShown,
+                    onEditStay = onEditStay,
+                    onApplyStay = onApplyStay,
+                    onChangeTransport = onChangeTransport,
+                    onApplyTransport = onApplyTransport,
+                    onRemove = onRemove,
+                    onMove = onMove,
                 )
             }
         }
@@ -239,7 +427,12 @@ class ItineraryEditScreenTest {
         notice = notice,
     )
 
-    private fun draft(name: String, stayMinutes: Int = 90, transportToNext: TransportMode? = null) = DraftItem(
+    private fun draft(
+        name: String,
+        stayMinutes: Int = 90,
+        transportToNext: TransportMode? = null,
+        status: ItemStatus = ItemStatus.PLANNED,
+    ) = DraftItem(
         itemId = null,
         placeId = "tourapi:$name",
         place = PlaceSnapshotDto(
@@ -254,6 +447,6 @@ class ItineraryEditScreenTest {
         stayMinutes = stayMinutes,
         staySource = StaySource.RECOMMENDED,
         transportToNext = transportToNext,
-        status = ItemStatus.PLANNED,
+        status = status,
     )
 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -33,9 +34,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * T012·T016: 일정 편집 ViewModel 상태 전이 검증.
+ * T012·T016·T020: 일정 편집 ViewModel 상태 전이 검증.
  *
- * `spec.md` US1 Acceptance 2~6, FR-002·003·005·006·008·009·016·019·021과 `research.md` 4절
+ * `spec.md` US1 Acceptance 2~6, US2 Acceptance 1~4, FR-002~009·016·017·019·021과 `research.md` 4절
  * (409 자동 재저장)이 대상이다. HTTP 왕복은 `ItineraryRepositoryTest`가 보므로 여기서는
  * [FakeItineraryService]로 응답만 정한다.
  */
@@ -359,6 +360,147 @@ class ItineraryEditViewModelTest {
         assertFalse(first.takeOpenSearch())
         assertFalse(newViewModel(handle = handle, openSearch = true).takeOpenSearch())
         assertFalse(newViewModel(openSearch = false).takeOpenSearch())
+    }
+
+    // --- US2 편집 조작(T020): FR-003·004·005·006·007·017 ---
+
+    @Test
+    fun `위아래 이동은 항목만 옮기고 구간의 이동 수단은 제자리에 둔다`() = runTest {
+        val viewModel = loadedWith(savedItem("a", 1, transportToNext = TransportMode.WALK), savedItem("b", 2, transportToNext = TransportMode.CAR), savedItem("c", 3))
+
+        viewModel.moveItem(0, 1)
+        assertEquals(listOf("b", "a", "c"), viewModel.state.value.draft.map { it.itemId })
+        assertEquals(listOf(TransportMode.WALK, TransportMode.CAR, null), viewModel.state.value.draft.map { it.transportToNext })
+        assertTrue(viewModel.state.value.dirty)
+
+        // 마지막으로 옮겨도 마지막 항목의 이동 수단은 계속 null이다(Scenario 4).
+        viewModel.moveItem(1, 2)
+        assertEquals(listOf("b", "c", "a"), viewModel.state.value.draft.map { it.itemId })
+        assertEquals(listOf(1, 2, 3), viewModel.state.value.draft.toSaveItems().map { it.sequence })
+        assertNull(viewModel.state.value.draft.last().transportToNext)
+
+        // 끌기로 여러 칸을 한 번에 옮긴 결과는 버튼을 두 번 누른 결과와 같다.
+        viewModel.moveItem(2, 0)
+        assertEquals(listOf("a", "b", "c"), viewModel.state.value.draft.map { it.itemId })
+        assertEquals(listOf(TransportMode.WALK, TransportMode.CAR, null), viewModel.state.value.draft.map { it.transportToNext })
+        assertFalse(viewModel.state.value.dirty)
+
+        // 범위 밖과 제자리는 무시한다.
+        viewModel.moveItem(0, -1)
+        viewModel.moveItem(2, 3)
+        viewModel.moveItem(1, 1)
+        assertEquals(listOf("a", "b", "c"), viewModel.state.value.draft.map { it.itemId })
+    }
+
+    @Test
+    fun `삭제하면 순서가 다시 매겨지고 새 마지막 항목의 이동 수단은 null이 된다`() = runTest {
+        val viewModel = loadedWith(savedItem("a", 1, transportToNext = TransportMode.WALK), savedItem("b", 2, transportToNext = TransportMode.CAR), savedItem("c", 3))
+
+        viewModel.removeItem(2)
+        val items = viewModel.state.value.draft.toSaveItems()
+        assertEquals(listOf("a", "b"), items.map { it.itemId })
+        assertEquals(listOf(1, 2), items.map { it.sequence })
+        assertEquals(listOf(TransportMode.WALK, null), items.map { it.transportModeToNext })
+        assertNull(viewModel.state.value.draft.last().transportToNext)
+
+        viewModel.removeItem(0)
+        assertEquals(listOf("b"), viewModel.state.value.draft.map { it.itemId })
+        assertNull(viewModel.state.value.draft.single().transportToNext)
+
+        viewModel.removeItem(5)
+        assertEquals(1, viewModel.state.value.draft.size)
+    }
+
+    @Test
+    fun `체류 시간은 30분 단위 30~360분만 적용되고 바뀌면 USER_ADJUSTED가 된다`() = runTest {
+        val viewModel = loadedWith(savedItem("a", 1, stayMinutes = 90))
+
+        viewModel.editStay(0)
+        assertEquals(EditDialog.StayTime(0), viewModel.state.value.dialog)
+
+        // 단위·범위 밖은 무시하고 대화상자를 유지한다.
+        viewModel.applyStay(45)
+        viewModel.applyStay(0)
+        viewModel.applyStay(390)
+        assertEquals(90, viewModel.state.value.draft[0].stayMinutes)
+        assertEquals(StaySource.RECOMMENDED, viewModel.state.value.draft[0].staySource)
+        assertEquals(EditDialog.StayTime(0), viewModel.state.value.dialog)
+
+        // 같은 값은 출처를 바꾸지 않고 닫는다.
+        viewModel.applyStay(90)
+        assertEquals(StaySource.RECOMMENDED, viewModel.state.value.draft[0].staySource)
+        assertNull(viewModel.state.value.dialog)
+        assertFalse(viewModel.state.value.dirty)
+
+        // 경계값 30·360은 허용하고 사용자 조절값으로 표시한다.
+        viewModel.editStay(0)
+        viewModel.applyStay(360)
+        assertEquals(360, viewModel.state.value.draft[0].stayMinutes)
+        assertEquals(StaySource.USER_ADJUSTED, viewModel.state.value.draft[0].staySource)
+        viewModel.editStay(0)
+        viewModel.applyStay(30)
+        assertEquals(30, viewModel.state.value.draft[0].stayMinutes)
+        assertTrue(viewModel.state.value.dirty)
+
+        // 대화상자가 없으면 적용은 무시된다.
+        viewModel.applyStay(120)
+        assertEquals(30, viewModel.state.value.draft[0].stayMinutes)
+    }
+
+    @Test
+    fun `이동 수단 시트는 마지막이 아닌 예정 항목만 열고 적용하면 그 구간만 바뀐다`() = runTest {
+        val viewModel = loadedWith(savedItem("a", 1, transportToNext = TransportMode.WALK), savedItem("b", 2))
+
+        viewModel.changeTransport(1)
+        assertNull(viewModel.state.value.dialog)
+
+        viewModel.changeTransport(0)
+        assertEquals(EditDialog.Transport(0), viewModel.state.value.dialog)
+        viewModel.applyTransport(TransportMode.TRANSIT)
+        assertEquals(TransportMode.TRANSIT, viewModel.state.value.draft[0].transportToNext)
+        assertNull(viewModel.state.value.draft[1].transportToNext)
+        assertNull(viewModel.state.value.dialog)
+        assertTrue(viewModel.state.value.dirty)
+
+        viewModel.dismissDialog()
+        viewModel.applyTransport(TransportMode.CAR)
+        assertEquals(TransportMode.TRANSIT, viewModel.state.value.draft[0].transportToNext)
+    }
+
+    @Test
+    fun `처리된 항목은 순서 이동과 삭제와 이동 수단 변경을 거부하고 체류 시간만 바꾼다`() = runTest {
+        val viewModel = loadedWith(
+            savedItem("done", 1, transportToNext = TransportMode.WALK, status = ItemStatus.COMPLETED),
+            savedItem("skip", 2, transportToNext = TransportMode.CAR, status = ItemStatus.SKIPPED),
+            savedItem("a", 3, transportToNext = TransportMode.TRANSIT),
+            savedItem("b", 4),
+        )
+        val before = viewModel.state.value.draft
+
+        viewModel.moveItem(1, 2)
+        viewModel.moveItem(2, 1)
+        // 예정 항목끼리라도 처리된 항목을 지나가면 그 순서가 바뀌므로 거부한다.
+        viewModel.moveItem(3, 0)
+        viewModel.removeItem(0)
+        viewModel.changeTransport(0)
+        assertNull(viewModel.state.value.dialog)
+        assertEquals(before, viewModel.state.value.draft)
+        assertFalse(viewModel.state.value.dirty)
+
+        viewModel.moveItem(2, 3)
+        assertEquals(listOf("done", "skip", "b", "a"), viewModel.state.value.draft.map { it.itemId })
+
+        viewModel.editStay(0)
+        viewModel.applyStay(120)
+        assertEquals(120, viewModel.state.value.draft[0].stayMinutes)
+        assertEquals(StaySource.USER_ADJUSTED, viewModel.state.value.draft[0].staySource)
+        assertEquals(ItemStatus.COMPLETED, viewModel.state.value.draft[0].status)
+    }
+
+    /** 첫 날짜에 [items]가 저장된 상태로 조회를 마친 ViewModel. */
+    private suspend fun TestScope.loadedWith(vararg items: ItineraryItemDto): ItineraryEditViewModel {
+        service.onOverview = { ok(overview(day("2026-09-08", 1, version = 1, items = items.toList()))) }
+        return newViewModel().also { advanceUntilIdle() }
     }
 
     private suspend fun newViewModel(
