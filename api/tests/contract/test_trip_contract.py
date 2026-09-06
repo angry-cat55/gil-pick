@@ -398,6 +398,27 @@ def test_update_trip_contract_maps_domain_errors(
     assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
 
 
+def test_update_trip_contract_returns_deleted_item_count(client: TestClient) -> None:
+    """기간 축소 확인 오류가 실제 삭제 대상 장소 수를 공개한다."""
+    app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
+        AppError(
+            409,
+            "CONFIRMATION_REQUIRED",
+            "기간 축소로 제외되는 일정을 확인해 주세요.",
+            details={"deletedItemCount": 2},
+        )
+    )
+
+    response = client.patch(
+        f"/api/v1/trips/{uuid.uuid4()}",
+        json={"endDate": "2026-09-02", "version": 1},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "CONFIRMATION_REQUIRED"
+    assert response.json()["error"]["details"] == {"deletedItemCount": 2}
+
+
 def test_update_trip_contract_validates_trimmed_name_in_service(client: TestClient) -> None:
     """trim 후 짧은 여행명을 422 도메인 오류로 반환한다."""
     app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
