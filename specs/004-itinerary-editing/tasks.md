@@ -37,7 +37,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 교차 확인: jy
   - 선행: 없음
   - 검증: `place` 스냅샷 필드, `staySource`, `routeStatus NOT_CALCULATED`, `422 INVALID_ITINERARY` violations 형식, `409 ITINERARY_ITEM_LOCKED`, uuid5 항목 ID·no-op 규칙, F002 PATCH `deletedItemCount` 동작 변경을 BE `ts`·FE `jy`가 확인한 기록을 남기고 불일치를 구현 전에 문서에 반영
-  - 기록(2026-09-05, #185): BE `ts`가 F003 계약과 교차 검토해 신규 항목 snapshot 필수, F003에 없는 TourAPI→Google 매칭 ID 제거, typed error details, UUID Idempotency-Key, 처리된 항목 순서 변경 시 이동 수단 enum 유지, F004 `NOT_CALCULATED` 전역 계약 동기화를 반영했다. FE `jy` 교차 review는 PR에서 확인한다.
+  - 기록(2026-09-05, #185): BE `ts`가 F003 계약과 교차 검토해 신규 항목 snapshot 필수, F003에 없는 TourAPI→Google 매칭 ID 제거, typed error details, UUID Idempotency-Key, F004 `NOT_CALCULATED` 전역 계약 동기화를 반영했다. 당시 처리된 항목의 순서 변경 시 이동 수단 enum 유지로 검토했으나, 2026-09-06 사용자 확인으로 처리된 항목의 순서도 잠그는 규칙으로 변경했다. FE `jy` 교차 review는 PR에서 확인한다.
 
 ---
 
@@ -149,24 +149,24 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] 처리된 항목 잠금·순서 재부여 test in api/tests/unit/test_itinerary_service.py, api/tests/integration/test_itinerary_flow.py
+- [x] T019 [P] [US2] 처리된 항목 잠금·순서 재부여 test in api/tests/unit/test_itinerary_service.py, api/tests/integration/test_itinerary_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T014
-  - 검증: quickstart BE 6·7 시나리오(같은 장소 두 날짜 → `places` 1행, 같은 날짜 두 번 → 항목 2개, `COMPLETED` fixture의 장소·이동 수단 변경·삭제 `409 ITINERARY_ITEM_LOCKED`, 체류·순서 변경 `200`)
+  - 검증: quickstart BE 6·7 시나리오(같은 장소 두 날짜 → `places` 1행, 같은 날짜 두 번 → 항목 2개, `COMPLETED` fixture의 장소·이동 수단·순서 변경·삭제 `409 ITINERARY_ITEM_LOCKED`, 체류 시간 변경 `200`)
 - [ ] T020 [P] [US2] 편집 조작 ViewModel·UI test 보강 in android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/itinerary/ItineraryEditScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T017
-  - 검증: 위·아래 이동과 끌기 후 순서, 삭제 후 순서 재부여와 마지막 항목 이동 수단 null, 체류 시간 30분 단위·30~360 경계·60/90/120 빠른 선택·`USER_ADJUSTED`, 이동 수단 시트(체류 시간 조절 없음), 처리된 항목의 삭제·`변경` 숨김과 상태 표시(색+아이콘+문구)
+  - 검증: 위·아래 이동과 끌기 후 순서, 삭제 후 순서 재부여와 마지막 항목 이동 수단 null, 체류 시간 30분 단위·30~360 경계·60/90/120 빠른 선택·`USER_ADJUSTED`, 이동 수단 시트(체류 시간 조절 없음), 처리된 항목의 삭제·`변경`·순서 이동 숨김과 상태 표시(색+아이콘+문구)
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] 처리된 항목 잠금 검증과 `ITINERARY_ITEM_LOCKED` 오류 in api/app/services/itinerary.py, api/app/api/v1/itinerary.py
+- [x] T021 [US2] 처리된 항목 잠금 검증과 `ITINERARY_ITEM_LOCKED` 오류 in api/app/services/itinerary.py, api/app/api/v1/itinerary.py
   - 영역: BE
   - 담당: ts
   - 선행: T015, T019
-  - 검증: T019 통과, 요청 `status` 무시하고 저장값 유지
+  - 검증: T019 통과, 처리된 항목은 체류 시간만 변경 허용, 요청 `status` 무시하고 저장값 유지
 - [ ] T022 [US2] 체류 시간 대화상자·이동 수단 시트·삭제·순서 이동 버튼 in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt
   - 영역: FE
   - 담당: jy
@@ -190,7 +190,7 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] ITIN-003 개요 contract·integration test in api/tests/contract/test_itinerary_contract.py, api/tests/integration/test_itinerary_flow.py
+- [x] T024 [P] [US3] ITIN-003 개요 contract·integration test in api/tests/contract/test_itinerary_contract.py, api/tests/integration/test_itinerary_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T015
@@ -203,7 +203,7 @@ description: "F004 일정 구성 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] ITIN-003 개요 endpoint·service in api/app/services/itinerary.py, api/app/api/v1/itinerary.py
+- [x] T026 [US3] ITIN-003 개요 endpoint·service in api/app/services/itinerary.py, api/app/api/v1/itinerary.py
   - 영역: BE
   - 담당: ts
   - 선행: T015, T024

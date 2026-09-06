@@ -21,7 +21,7 @@ api\.venv\Scripts\python.exe -m pytest api/tests/contract/test_itinerary_contrac
 4. 기간 밖 날짜는 `404`, 다른 사용자의 여행은 `403`, 삭제된 여행은 `404`.
 5. 이전 version으로 저장하면 `409 VERSION_CONFLICT`. 결과 상태가 현재와 같은 저장은 version을 올리지 않는다.
 6. 같은 `tourapi:` 장소를 두 날짜에 저장해도 `places` 행은 하나다. 같은 날짜에 같은 장소를 두 번 넣으면 항목은 둘이다.
-7. fixture로 `status COMPLETED` 항목을 만든 뒤 장소 교체·이동 수단 변경·삭제는 `409 ITINERARY_ITEM_LOCKED`, 체류 시간·순서 변경은 `200`.
+7. fixture로 `status COMPLETED` 항목을 만든 뒤 장소 교체·이동 수단·순서 변경·삭제는 `409 ITINERARY_ITEM_LOCKED`, 체류 시간 변경은 `200`.
 8. ITIN-003은 여행 기간의 모든 날짜를 순서대로 돌려주고 빈 날짜도 포함한다.
 9. F002 PATCH: 3일차에 항목이 있는 여행을 2일로 줄이면 `409 CONFIRMATION_REQUIRED`·`deletedItemCount 1`, `confirmDeleteOutOfRangeItems true`면 `200`이고 3일차 `trip_days`·항목이 사라지며 1~2일차는 그대로다. 기간 밖 항목이 없으면 확인 없이 `200`.
 10. `python -m compileall -q api/app api/tests`, `git diff --check`.

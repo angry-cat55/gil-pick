@@ -61,9 +61,9 @@
 
 ## 8. 처리된 장소 편집 제한
 
-**Decision**: 저장 시 기존 항목의 `status`가 `PLANNED`가 아니면 `place_id`·`transport_mode_to_next` 값 변경과 삭제를 `409 ITINERARY_ITEM_LOCKED`(details에 `itemId`)로 거부하고, `planned_stay_minutes`·`sequence` 변경만 허용한다. 순서 변경으로 다음 장소가 달라져도 기존 `transport_mode_to_next` enum 값은 해당 항목에 유지하며 F005가 변경된 순서로 경로를 다시 계산한다. 요청의 `status`는 무시하고 저장된 값을 유지한다. Android 편집 화면은 `status`가 `COMPLETED`·`SKIPPED`·`ARRIVED`·`EN_ROUTE`인 행에 상태 표시를 하고 삭제·`변경` 행동을 숨긴다. 검증은 fixture로 처리된 항목을 만들어 수행한다.
+**Decision**: 저장 시 기존 항목의 `status`가 `PLANNED`가 아니면 `place_id`·`transport_mode_to_next`·`sequence` 값 변경과 삭제를 `409 ITINERARY_ITEM_LOCKED`(details에 `itemId`)로 거부하고, `planned_stay_minutes`와 `stay_source` 변경만 허용한다. 요청의 `status`는 무시하고 저장된 값을 유지한다. Android 편집 화면은 `status`가 `COMPLETED`·`SKIPPED`·`ARRIVED`·`EN_ROUTE`인 행에 상태 표시를 하고 삭제·`변경`·순서 이동 행동을 숨긴다. 검증은 fixture로 처리된 항목을 만들어 수행한다.
 
-**Rationale**: spec Q3 결정. F006이 상태를 바꾸기 전에도 규칙이 계약에 고정된다.
+**Rationale**: 처리된 장소의 순서 변경을 허용하면 이동 수단 보존 규칙과 마지막 항목의 이동 수단 `null` 규칙을 동시에 만족할 수 없다. 처리 기록과 구간 의미를 보존하기 위해 2026-09-06 사용자 확인으로 순서도 잠그며, F006이 상태를 바꾸기 전에도 이 규칙을 계약에 고정한다.
 
 ## 9. Android 순서 변경 조작
 
