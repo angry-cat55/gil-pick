@@ -261,7 +261,7 @@ description: "F004 일정 구성 구현 task 목록"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T033 Backend F004 전체 자동 test와 문서 동기화 in docs/design/api-spec.md, api/tests/
+- [x] T033 Backend F004 전체 자동 test와 문서 동기화 in docs/design/api-spec.md, api/tests/
   - 영역: BE
   - 담당: ts
   - 선행: T021, T026, T031
