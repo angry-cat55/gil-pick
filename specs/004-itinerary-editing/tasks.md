@@ -236,7 +236,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T014
   - 검증: quickstart BE 9(`deletedItemCount` 실제 값, 0건이면 확인 생략 `200`, 확인 시 범위 밖 `trip_days`·항목 삭제와 나머지 유지)
-- [ ] T030 [P] [US4] 여행 수정 화면 삭제 확인 대화상자 test in android/app/src/test/java/com/gilpick/trip/TripFormValidationTest.kt, android/app/src/androidTest/java/com/gilpick/trip/TripEditFlowTest.kt
+- [x] T030 [P] [US4] 여행 수정 화면 삭제 확인 대화상자 test in android/app/src/test/java/com/gilpick/trip/TripFormValidationTest.kt, android/app/src/androidTest/java/com/gilpick/trip/TripEditFlowTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: 없음
@@ -249,7 +249,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T014, T029
   - 검증: T029 통과, 삭제된 날짜·항목 수와 여행 version 전후 log, 같은 transaction. F002 코드 수정이므로 `jh` review
-- [ ] T032 [US4] 여행 수정 화면 `삭제될 장소 N곳` 대화상자와 동의 재요청 in android/app/src/main/java/com/gilpick/trip/TripFormViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripFormScreen.kt
+- [x] T032 [US4] 여행 수정 화면 `삭제될 장소 N곳` 대화상자와 동의 재요청 in android/app/src/main/java/com/gilpick/trip/TripFormViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripFormScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T030, T002

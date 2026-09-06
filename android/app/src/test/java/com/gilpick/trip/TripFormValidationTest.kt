@@ -1,12 +1,32 @@
 package com.gilpick.trip
 
+import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthError
+import com.gilpick.auth.AuthRepository
+import com.gilpick.auth.AuthSessionStore
+import com.gilpick.auth.FakeAuthService
+import com.gilpick.auth.FakeSessionCipher
+import java.io.File
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 /**
  * T009: 여행 생성 폼 검증 규칙.
@@ -14,7 +34,24 @@ import org.junit.Test
  * 서버가 최종 판정하지만 화면도 같은 규칙으로 먼저 걸러 불필요한 왕복을 줄인다.
  * 규칙의 근거는 `spec.md`의 FR-001, FR-001a, FR-001b다.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class TripFormValidationTest {
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private val dispatcher = StandardTestDispatcher()
+    private val service = FakeTripService()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `2자 이상 30자 이하 이름과 7일 이하 기간은 통과한다`() {
@@ -217,6 +254,192 @@ class TripFormValidationTest {
         assertEquals("서울 여행", state.name)
         assertEquals(4, (state.mode as FormMode.Edit).version)
         assertFalse(state.periodLocked)
+    }
+
+    // --- T030: 기간 축소 삭제 확인 대화상자 ---
+
+    @Test
+    fun `삭제될 장소 수를 받으면 확인 대화상자를 연다`() = runTest {
+        // FR-013: 확인 없는 기간 축소는 거부되고 삭제될 장소 수가 안내된다.
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 2) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(2, state.deleteConfirmation)
+        // 대화상자가 뜨므로 같은 뜻의 오류 문구를 겹쳐 보여 주지 않는다.
+        assertNull(state.submitError)
+        assertFalse(state.submitting)
+    }
+
+    @Test
+    fun `확인을 요구받은 저장은 아직 서버에 반영되지 않는다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 3) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.savedTripId)
+        // 첫 요청은 동의 없이 나갔다.
+        assertEquals(listOf(false), service.updateCalls.map { it.confirmDeleteOutOfRangeItems })
+    }
+
+    @Test
+    fun `동의하면 같은 수정을 confirm true로 다시 보낸다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 2) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+        viewModel.onNameChange("짧아진 여행")
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        service.onUpdate = { detail(trip(TRIP_ID)) }
+        viewModel.confirmDeleteOutOfRangeItems()
+        advanceUntilIdle()
+
+        val calls = service.updateCalls
+        assertEquals(2, calls.size)
+        assertEquals(listOf(false, true), calls.map { it.confirmDeleteOutOfRangeItems })
+        // 동의는 같은 입력을 그대로 다시 보내는 것이다. 값이 달라지면 안 된다.
+        assertEquals("짧아진 여행", calls[1].name)
+        assertEquals("2026-09-01", calls[1].startDate)
+        assertEquals("2026-09-02", calls[1].endDate)
+    }
+
+    @Test
+    fun `동의 후 저장에 성공하면 대화상자를 닫고 화면을 넘긴다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 2) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        service.onUpdate = { detail(trip(TRIP_ID)) }
+        viewModel.confirmDeleteOutOfRangeItems()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertNull(state.deleteConfirmation)
+        assertEquals(TRIP_ID, state.savedTripId)
+    }
+
+    @Test
+    fun `취소하면 저장하지 않고 고른 기간도 그대로 남는다`() = runTest {
+        // US4 Acceptance 4: 취소하면 기간은 바뀌지 않는다. 서버 여행은 손대지 않았고
+        // 폼에 고른 값은 남아 사용자가 다시 줄이거나 되돌릴 수 있다.
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 2) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        viewModel.cancelDeleteConfirmation()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertNull(state.deleteConfirmation)
+        assertNull(state.savedTripId)
+        assertEquals(LocalDate.of(2026, 9, 2), state.endDate)
+        // 취소는 요청을 만들지 않는다.
+        assertEquals(1, service.updateCalls.size)
+    }
+
+    @Test
+    fun `대화상자가 없으면 동의 요청을 보내지 않는다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+
+        viewModel.confirmDeleteOutOfRangeItems()
+        advanceUntilIdle()
+
+        assertEquals(0, service.updateCalls.size)
+    }
+
+    @Test
+    fun `입력을 고치면 확인 대화상자가 닫힌다`() = runTest {
+        // 대화상자가 말하는 삭제 개수는 방금 보낸 기간에 대한 값이다. 기간을 바꾸면
+        // 그 수는 더 이상 맞지 않으므로 다시 물어야 한다.
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 2) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 3))
+
+        assertNull(viewModel.state.value.deleteConfirmation)
+    }
+
+    @Test
+    fun `삭제될 장소 수가 없으면 대화상자 대신 안내 문구를 남긴다`() = runTest {
+        // 계약은 이 code에 deletedItemCount를 함께 주도록 정한다. 없으면 무엇에
+        // 동의하는지 말할 수 없으므로 대화상자를 열지 않는다.
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = {
+            errorResponse(409, TripErrorCodes.CONFIRMATION_REQUIRED)
+        }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertNull(state.deleteConfirmation)
+        assertEquals(TripFormSubmitError.CONFIRMATION_REQUIRED, state.submitError)
+    }
+
+    /** 로그인된 session을 가진 repository 위에 폼 view model을 만든다. */
+    private suspend fun newFormViewModel(): TripFormViewModel {
+        val store = AuthSessionStore(
+            // DataStore 기본 scope는 Dispatchers.IO다. 그대로 두면 저장소 작업이 test
+            // scheduler 밖에서 돌아 advanceUntilIdle()이 기다려 주지 않는다.
+            AuthSessionStore.createDataStore(
+                File(tempFolder.root, AuthSessionStore.FILE_NAME),
+                scope = CoroutineScope(dispatcher + SupervisorJob()),
+            ),
+            FakeSessionCipher(),
+        )
+        val auth = AuthRepository(
+            store = store,
+            api = FakeAuthService,
+            appLinkHandler = AuthAppLinkHandler("app.gilpick.example"),
+        )
+        auth.onSignedIn(
+            sessionId = "session-1",
+            userId = "user-1",
+            nickname = null,
+            profileImageUrl = null,
+            accessToken = "access-token",
+            refreshToken = "session-1.refresh-token",
+            accessExpiresAtEpochSeconds = 3_600,
+            refreshExpiresAtEpochSeconds = 2_592_000,
+        )
+        return TripFormViewModel(TripRepository(api = service, auth = auth))
+    }
+
+    /** 수정할 여행을 조회해 폼을 채운다. `advanceUntilIdle`을 쓰므로 test scope 확장이다. */
+    private fun TestScope.loadEdit(viewModel: TripFormViewModel) {
+        viewModel.loadForEdit(TRIP_ID)
+        advanceUntilIdle()
     }
 
     private fun validate(name: String, start: LocalDate?, end: LocalDate?) =
