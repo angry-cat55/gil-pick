@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from geoalchemy2.elements import WKTElement
 from sqlalchemy import delete, select, update
@@ -19,6 +19,7 @@ from app.models.itinerary import Place, TripDay
 from app.schemas.itinerary import (
     DayItinerary,
     ItineraryItem,
+    ItineraryOverview,
     ItineraryPlaceSummary,
     SaveDayItineraryRequest,
     SaveItem,
@@ -42,6 +43,33 @@ class ItineraryService:
         if day is None:
             return _empty_day(visit_date, start_date)
         return _to_schema(day)
+
+    async def get_overview(
+        self, *, trip_id: uuid.UUID, start_date: date, end_date: date
+    ) -> ItineraryOverview:
+        """여행 기간의 저장·빈 날짜 일정을 한 번에 조회한다."""
+        days = (
+            await self.session.scalars(
+                select(TripDay)
+                .where(TripDay.trip_id == trip_id)
+                .options(selectinload(TripDay.items).selectinload(ItemModel.place))
+                .order_by(TripDay.visit_date)
+            )
+        ).all()
+        stored = {day.visit_date: day for day in days}
+        dates = [
+            start_date + timedelta(days=offset)
+            for offset in range((end_date - start_date).days + 1)
+        ]
+        return ItineraryOverview(
+            tripId=trip_id,
+            days=[
+                _to_schema(stored[visit_date])
+                if visit_date in stored
+                else _empty_day(visit_date, start_date)
+                for visit_date in dates
+            ],
+        )
 
     async def save_day(
         self,
@@ -78,9 +106,21 @@ class ItineraryService:
             await self.session.flush()
 
         await self._validate_existing_items(day, payload.items)
+        _validate_locked_items(day, payload.items)
         places = await self._upsert_places(payload.items)
+        current_items = {item.item_id: item for item in day.items}
         desired = [
-            _desired_item(item, day.trip_day_id, idempotency_key, places[item.place_id])
+            _desired_item(
+                item,
+                day.trip_day_id,
+                idempotency_key,
+                places[item.place_id],
+                status=(
+                    current_items[item.item_id].status
+                    if item.item_id in current_items
+                    else "PLANNED"
+                ),
+            )
             for item in payload.items
         ]
         current = [_item_state(item) for item in day.items]
@@ -234,11 +274,43 @@ def _version_conflict() -> AppError:
     return AppError(409, "VERSION_CONFLICT", "다른 곳에서 일정이 변경되었습니다.")
 
 
+def _validate_locked_items(day: TripDay, items: list[SaveItem]) -> None:
+    requested = {item.item_id: item for item in items if item.item_id is not None}
+    for stored in day.items:
+        if stored.status == "PLANNED":
+            continue
+        incoming = requested.get(stored.item_id)
+        stored_place_id = (
+            f"tourapi:{stored.place.tour_content_id}"
+            if stored.place.tour_content_id
+            else f"google:{stored.place.google_place_id}"
+        )
+        incoming_transport = (
+            incoming.transport_mode_to_next.value
+            if incoming and incoming.transport_mode_to_next
+            else None
+        )
+        if (
+            incoming is None
+            or incoming.place_id != stored_place_id
+            or incoming_transport != stored.transport_mode_to_next
+            or incoming.sequence != stored.sequence
+        ):
+            raise AppError(
+                409,
+                "ITINERARY_ITEM_LOCKED",
+                "처리된 장소는 체류 시간 외 값을 변경하거나 삭제할 수 없습니다.",
+                details={"itemId": str(stored.item_id)},
+            )
+
+
 def _desired_item(
     item: SaveItem,
     trip_day_id: uuid.UUID,
     idempotency_key: uuid.UUID,
     place_id: uuid.UUID,
+    *,
+    status: str,
 ) -> ItemModel:
     return ItemModel(
         item_id=item.item_id or uuid.uuid5(trip_day_id, f"{idempotency_key}:{item.sequence}"),
@@ -248,7 +320,7 @@ def _desired_item(
         planned_stay_minutes=item.planned_stay_minutes,
         stay_source=item.stay_source.value,
         transport_mode_to_next=(item.transport_mode_to_next.value if item.transport_mode_to_next else None),
-        status="PLANNED",
+        status=status,
     )
 
 
