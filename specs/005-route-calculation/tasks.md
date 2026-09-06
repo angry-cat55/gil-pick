@@ -209,7 +209,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] 실패 경로 retry contract·integration test 작성 in api/tests/contract/test_route_contract.py, api/tests/integration/test_route_flow.py
+- [X] T029 [P] [US3] 실패 경로 retry contract·integration test 작성 in api/tests/contract/test_route_contract.py, api/tests/integration/test_route_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T020
@@ -222,7 +222,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] 실패 경로 멱등 retry service·endpoint 구현 in api/app/services/route.py, api/app/api/v1/route.py
+- [X] T031 [US3] 실패 경로 멱등 retry service·endpoint 구현 in api/app/services/route.py, api/app/api/v1/route.py
   - 영역: BE
   - 담당: jh
   - 선행: T018, T020, T029
