@@ -216,6 +216,39 @@ class ItineraryEditViewModelTest {
         assertEquals("new-3", state.draft[2].itemId)
     }
 
+    // --- F005 T015: 저장 응답의 경로 상태와 무관하게 저장은 완료다(FR-009a) ---
+
+    @Test
+    fun `저장 중에는 초안을 유지하고 경로가 READY든 FAILED든 저장 완료로 상세로 이동한다`() = runTest {
+        var routeStatus = RouteStatus.FAILED
+        service.onSave = { call -> ok(savedFrom(call, version = 1).copy(routeStatus = routeStatus)) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.addFromSearch(placeWithLocation("tourapi:1", name = "경복궁"), request())
+        viewModel.addFromSearch(placeWithLocation("tourapi:2", name = "북촌"), request())
+
+        viewModel.save()
+        // 응답 전: 저장 중 표시만 켜지고 초안은 그대로다.
+        assertTrue(viewModel.state.value.saving)
+        assertEquals(listOf("경복궁", "북촌"), viewModel.state.value.draft.map { it.place.name })
+        advanceUntilIdle()
+
+        // 자동 경로 계산이 최종 실패(FAILED)해도 일정 저장은 성공이고 상세로 이동한다.
+        var state = viewModel.state.value
+        assertTrue(state.saved)
+        assertNull(state.saveError)
+        assertEquals(listOf("경복궁", "북촌"), state.draft.map { it.place.name })
+
+        viewModel.consumeSaved()
+        routeStatus = RouteStatus.READY
+        viewModel.addFromSearch(placeWithLocation("tourapi:3", name = "인사동"), request())
+        viewModel.save()
+        advanceUntilIdle()
+        state = viewModel.state.value
+        assertTrue(state.saved)
+        assertNull(state.saveError)
+    }
+
     @Test
     fun `통신 실패 뒤 다시 저장하면 같은 Idempotency-Key를 쓰고 초안이 바뀌면 새 키를 쓴다`() = runTest {
         var fail = true

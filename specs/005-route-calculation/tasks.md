@@ -25,12 +25,12 @@
   - 담당: jh
   - 선행: T001
   - 검증: key 원문을 log하지 않고 호출 timeout 5초·전체 deadline 10초·동시성 상한의 기본값과 양수 validation을 `api/tests/unit/test_config.py`에서 확인
-- [ ] T003 [P] Naver Maps Android SDK와 local secret 주입 설정 in android/app/build.gradle.kts, android/app/src/main/AndroidManifest.xml, android/gradle.properties
+- [X] T003 [P] Naver Maps Android SDK와 local secret 주입 설정 in android/app/build.gradle.kts, android/app/src/main/AndroidManifest.xml, android/gradle.properties
   - 영역: FE
   - 담당: jy
   - 선행: T001
   - 검증: client ID가 source에 고정되지 않고 debug build·manifest merge가 성공하며 적용 SDK version과 공식 요구사항을 PR에 기록
-- [ ] T004 [P] F005 계획 상태 디자인 차이 확인 in docs/design/figma-make/src/screens/DayRouteScreen.tsx, docs/design/figma-make/src/screens/TripDetailScreen.tsx, docs/design/ui-guidelines.md
+- [X] T004 [P] F005 계획 상태 디자인 차이 확인 in docs/design/figma-make/src/screens/DayRouteScreen.tsx, docs/design/figma-make/src/screens/TripDetailScreen.tsx, docs/design/ui-guidelines.md
   - 영역: FE
   - 담당: jy
   - 선행: T001
@@ -64,12 +64,12 @@
   - 담당: jh
   - 선행: T001, T002
   - 검증: provider SDK/원문 type이 service·API schema로 누출되지 않고 후보 하나·유효 geometry·비음수 시간/거리 validation을 unit test 가능하게 정의
-- [ ] T009 [P] Android Route DTO·Retrofit service 구현 in android/app/src/main/java/com/gilpick/route/RouteApi.kt
+- [X] T009 [P] Android Route DTO·Retrofit service 구현 in android/app/src/main/java/com/gilpick/route/RouteApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T001
   - 검증: GET route와 POST retry 경로·`scheduleVersion`, 세 상태, geometry·failure 직렬화 round-trip을 `android/app/src/test/java/com/gilpick/route/RouteApiTest.kt`에서 확인
-- [ ] T010 Android RouteRepository와 오류 분류 구현 in android/app/src/main/java/com/gilpick/route/RouteRepository.kt
+- [X] T010 Android RouteRepository와 오류 분류 구현 in android/app/src/main/java/com/gilpick/route/RouteRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009
@@ -107,7 +107,7 @@
   - 담당: jh
   - 선행: T007
   - 검증: 일정 PUT의 200/201 성공을 유지하면서 READY 또는 FAILED 반환, 저장 transaction 보존, GET 재조회 일치, 타인 403·삭제/기간 밖 404, 이전 경로 비활성화, 현재 경로 하나
-- [ ] T015 [P] [US1] 일정 저장 후 Android 이동·실패 상태 ViewModel test 작성 in android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt, android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt
+- [X] T015 [P] [US1] 일정 저장 후 Android 이동·실패 상태 ViewModel test 작성 in android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt, android/app/src/test/java/com/gilpick/itinerary/ItineraryEditViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T010, F004 Android 일정 ViewModel 완료
@@ -140,7 +140,7 @@
   - 담당: jh
   - 선행: T014, T018
   - 검증: 현재 일정 version만 READY/FAILED로 반환하고 0개 날짜는 NOT_CALCULATED, 인증·소유권·날짜 오류와 envelope가 계약 test를 통과
-- [ ] T021 [US1] Android 일정 저장 응답과 여행 상세 경로 상태 연결 in android/app/src/main/java/com/gilpick/itinerary/ItineraryApi.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt
+- [X] T021 [US1] Android 일정 저장 응답과 여행 상세 경로 상태 연결 in android/app/src/main/java/com/gilpick/itinerary/ItineraryApi.kt, android/app/src/main/java/com/gilpick/itinerary/ItineraryEditViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T010, T015, T019

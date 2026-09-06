@@ -48,6 +48,9 @@ class ItineraryApiTest {
         assertEquals(DATE, day.date)
         assertEquals(3, day.version)
         assertEquals(RouteStatus.READY, day.routeStatus)
+        // F005 계획 경로. READY면 일정 version과 같은 scheduleVersion의 경로가 함께 온다.
+        assertEquals(3, day.route!!.scheduleVersion)
+        assertEquals(listOf(TransportMode.TRANSIT), day.route!!.segments.map { it.transportMode })
 
         val first = day.items[0]
         assertEquals(ITEM_ID, first.itemId)
@@ -258,7 +261,22 @@ internal fun dayJson(version: Int = 3, routeStatus: String = "READY") = """
           "status": "PLANNED"
         }
       ],
-      "route": {"routeId": "f5e4d3c2-b1a0-4998-8776-655443322110", "segments": []}
+      "route": {
+        "routeId": "f5e4d3c2-b1a0-4998-8776-655443322110", "scheduleVersion": $version,
+        "totalDurationSeconds": 900, "totalDistanceMeters": 3400,
+        "markers": [
+          {"itemId": "$ITEM_ID", "sequence": 1, "name": "경복궁", "latitude": 37.5796, "longitude": 126.977},
+          {"itemId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "sequence": 2, "name": "카페", "latitude": 37.5826, "longitude": 126.9831}
+        ],
+        "segments": [{
+          "sequence": 1, "fromItemId": "$ITEM_ID", "toItemId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+          "transportMode": "TRANSIT", "provider": "ODSAY", "durationSeconds": 900, "distanceMeters": 3400,
+          "geometry": {"type": "LineString", "coordinates": [[126.977, 37.5796], [126.9831, 37.5826]]},
+          "providerAttribution": "대중교통 정보 제공: ODsay"
+        }],
+        "providerAttributions": ["대중교통 정보 제공: ODsay"],
+        "calculatedAt": "2026-09-07T01:02:03Z"
+      }
     }
 """.trimIndent()
 

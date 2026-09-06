@@ -13,6 +13,13 @@ val appLinkHost: String = providers.gradleProperty("GILPICK_ANDROID_APP_LINK_HOS
 val apiBaseUrl: String = providers.gradleProperty("GILPICK_API_BASE_URL").get()
 
 /**
+ * Naver Maps NCP Key ID(F005 지도). 저장소에 두지 않고 `~/.gradle/gradle.properties`나 `-P`로
+ * 주입한다. 값이 없어도 debug build·test는 그대로 돌아가야 하므로 빈 값을 허용한다. 빈
+ * 값이면 지도 인증이 실패해 지도 영역만 비어 보이고 나머지 화면은 정상 동작한다.
+ */
+val naverMapsClientId: String = providers.gradleProperty("GILPICK_NAVER_MAPS_CLIENT_ID").orNull.orEmpty()
+
+/**
  * 제출용 release 서명 정보.
  *
  * App Link 검증은 APK 서명 인증서의 SHA-256 fingerprint를 `assetlinks.json`과 대조하므로,
@@ -65,6 +72,7 @@ android {
 
         // Claimed by the verified App Link intent filter in AndroidManifest.xml.
         manifestPlaceholders["appLinkHost"] = appLinkHost
+        manifestPlaceholders["naverMapsClientId"] = naverMapsClientId
         buildConfigField("String", "APP_LINK_HOST", "\"$appLinkHost\"")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
@@ -143,6 +151,9 @@ dependencies {
     // network layer로 재사용하려고 coil-network-okhttp를 함께 선언한다.
     implementation("io.coil-kt.coil3:coil-compose:3.6.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.0")
+
+    // F005 날짜별 경로 지도. 3.21부터 NCP Key ID(`NCP_KEY_ID` meta-data)로 인증하며 minSdk 21 이상.
+    implementation("com.naver.maps:map-sdk:3.23.3")
 
     implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.datastore:datastore:1.2.1")
