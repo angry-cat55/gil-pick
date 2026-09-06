@@ -423,10 +423,10 @@ async def test_get_trip_distinguishes_owner_forbidden_missing_and_deleted(
 
 
 @pytest.mark.asyncio
-async def test_update_trip_requires_confirmation_and_rejects_stale_version(
+async def test_update_trip_without_out_of_range_items_rejects_stale_version(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """기간 축소는 확인 전 보존하고 확인 후 version을 올려 원자적으로 반영한다."""
+    """삭제할 일정이 없는 기간 축소는 즉시 반영하고 이전 version을 거부한다."""
     user_id = await create_user(session_factory)
     today = datetime.now(KST).date()
     created = await create_trip(
@@ -438,30 +438,11 @@ async def test_update_trip_requires_confirmation_and_rejects_stale_version(
     )
     shortened_end = today + timedelta(days=11)
 
-    with pytest.raises(AppError) as confirmation:
-        await update_trip(
-            session_factory,
-            user_id,
-            created.trip_id,
-            UpdateTripRequest(endDate=shortened_end, version=created.version),
-        )
-    assert confirmation.value.status_code == 409
-    assert confirmation.value.code == "CONFIRMATION_REQUIRED"
-    assert confirmation.value.details == {"deletedItemCount": 0}
-
-    unchanged = await get_trip(session_factory, user_id, created.trip_id)
-    assert unchanged.end_date == created.end_date
-    assert unchanged.version == created.version
-
     updated = await update_trip(
         session_factory,
         user_id,
         created.trip_id,
-        UpdateTripRequest(
-            endDate=shortened_end,
-            version=created.version,
-            confirmDeleteOutOfRangeItems=True,
-        ),
+        UpdateTripRequest(endDate=shortened_end, version=created.version),
     )
     assert updated.end_date == shortened_end
     assert updated.version == created.version + 1

@@ -6,10 +6,11 @@ import base64
 import binascii
 import hashlib
 import hmac
+import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import and_, case, func, select, tuple_, update
+from sqlalchemy import and_, case, delete, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,10 +24,12 @@ from app.api.errors import (
     VERSION_CONFLICT,
 )
 from app.models.trip import Trip as TripModel
+from app.models.itinerary import ItineraryItem, TripDay
 from app.schemas.trip import CreateTripRequest, Trip, TripStatus, UpdateTripRequest
 
 KST = timezone(timedelta(hours=9))
 EPOCH_DATE = date(1970, 1, 1)
+logger = logging.getLogger(__name__)
 
 
 class TripService:
@@ -246,12 +249,32 @@ class TripService:
         _validate_trip_values(name=name, start_date=start_date, end_date=end_date)
 
         period_shrinks = start_date > trip.start_date or end_date < trip.end_date
-        if period_shrinks and not payload.confirm_delete_out_of_range_items:
+        deleted_day_count = 0
+        deleted_item_count = 0
+        if period_shrinks:
+            out_of_range = or_(
+                TripDay.visit_date < start_date,
+                TripDay.visit_date > end_date,
+            )
+            counts = (
+                await self.session.execute(
+                    select(
+                        func.count(func.distinct(TripDay.trip_day_id)),
+                        func.count(ItineraryItem.item_id),
+                    )
+                    .select_from(TripDay)
+                    .outerjoin(ItineraryItem)
+                    .where(TripDay.trip_id == trip_id, out_of_range)
+                )
+            ).one()
+            deleted_day_count, deleted_item_count = counts
+
+        if deleted_item_count and not payload.confirm_delete_out_of_range_items:
             raise AppError(
                 409,
                 CONFIRMATION_REQUIRED,
                 "기간 축소로 제외되는 일정을 확인해 주세요.",
-                details={"deletedItemCount": 0},
+                details={"deletedItemCount": deleted_item_count},
             )
 
         values: dict[str, object] = {}
@@ -291,6 +314,26 @@ class TripService:
             if current.user_id != user_id:
                 raise AppError(403, FORBIDDEN, "다른 사용자의 여행은 수정할 수 없습니다.")
             raise _version_conflict()
+
+        if period_shrinks:
+            await self.session.execute(
+                delete(TripDay).where(
+                    TripDay.trip_id == trip_id,
+                    or_(
+                        TripDay.visit_date < start_date,
+                        TripDay.visit_date > end_date,
+                    ),
+                )
+            )
+            logger.info(
+                "여행 기간 축소 일정 삭제 trip_id=%s deleted_day_count=%d "
+                "deleted_item_count=%d version_before=%d version_after=%d",
+                trip_id,
+                deleted_day_count,
+                deleted_item_count,
+                payload.version,
+                updated_trip.version,
+            )
         return _to_schema(updated_trip)
 
     async def delete_trip(self, *, user_id: uuid.UUID, trip_id: uuid.UUID) -> None:

@@ -1,6 +1,7 @@
 """PostgreSQL에서 일정 저장의 version·멱등·장소 재사용을 검증한다."""
 
 import os
+import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -17,7 +18,9 @@ from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.route import Route as RouteModel
 from app.models.trip import Trip
 from app.schemas.itinerary import SaveDayItineraryRequest, StaySource
+from app.schemas.trip import UpdateTripRequest
 from app.services.itinerary import ItineraryService
+from app.services.trip import TripService
 from app.services.route import RouteCalculationService, RouteService
 from app.clients.route_provider import Provider
 
@@ -35,9 +38,10 @@ async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
 async def _seed(
     factory: async_sessionmaker[AsyncSession],
     *,
+    start_date: date = date(2026, 9, 1),
     end_date: date = date(2026, 9, 3),
 ) -> tuple[uuid.UUID, date]:
-    visit_date = date(2026, 9, 1)
+    visit_date = start_date
     async with transaction_session(factory) as session:
         user = User(social_provider="KAKAO", social_subject=f"itinerary-{uuid.uuid4()}")
         session.add(user)
@@ -46,7 +50,7 @@ async def _seed(
             user_id=user.user_id,
             name="일정 저장 여행",
             start_date=visit_date,
-            end_date=date(2026, 9, 3),
+            end_date=end_date,
         )
         session.add(trip)
         await session.flush()
@@ -78,6 +82,113 @@ def _place_item(sequence: int, transport: str | None) -> dict[str, object]:
         "staySource": "RECOMMENDED",
         "transportModeToNext": transport,
     }
+
+
+@pytest.mark.asyncio
+async def test_trip_period_shrink_counts_and_deletes_only_out_of_range_itinerary(
+    session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """기간 밖 장소는 확인 전 보존하고 확인 후 날짜 단위로 삭제한다."""
+    start_date = date.today() + timedelta(days=10)
+    trip_id, start_date = await _seed(
+        session_factory,
+        start_date=start_date,
+        end_date=start_date + timedelta(days=2),
+    )
+    for visit_date in (start_date, start_date + timedelta(days=2)):
+        async with transaction_session(session_factory) as session:
+            await ItineraryService(session).save_day(
+                trip_id=trip_id,
+                visit_date=visit_date,
+                start_date=start_date,
+                payload=_create_payload(),
+                idempotency_key=uuid.uuid4(),
+            )
+
+    async with session_factory() as session:
+        trip = await session.get(Trip, trip_id)
+        assert trip is not None
+        user_id = trip.user_id
+
+    payload = UpdateTripRequest(endDate=start_date + timedelta(days=1), version=1)
+    with pytest.raises(AppError) as confirmation:
+        async with transaction_session(session_factory) as session:
+            await TripService(session, cursor_secret="test-secret").update_trip(
+                user_id=user_id,
+                trip_id=trip_id,
+                payload=payload,
+            )
+    assert confirmation.value.code == "CONFIRMATION_REQUIRED"
+    assert confirmation.value.details == {"deletedItemCount": 1}
+
+    async with session_factory() as session:
+        assert await session.scalar(
+            select(func.count()).select_from(TripDay).where(TripDay.trip_id == trip_id)
+        ) == 2
+
+    confirmed = UpdateTripRequest(
+        endDate=start_date + timedelta(days=1),
+        version=1,
+        confirmDeleteOutOfRangeItems=True,
+    )
+    with caplog.at_level(logging.INFO, logger="app.services.trip"):
+        async with transaction_session(session_factory) as session:
+            updated = await TripService(session, cursor_secret="test-secret").update_trip(
+                user_id=user_id,
+                trip_id=trip_id,
+                payload=confirmed,
+            )
+
+    assert updated.end_date == start_date + timedelta(days=1)
+    assert updated.version == 2
+    async with session_factory() as session:
+        remaining_dates = list(
+            await session.scalars(
+                select(TripDay.visit_date)
+                .where(TripDay.trip_id == trip_id)
+                .order_by(TripDay.visit_date)
+            )
+        )
+        remaining_items = await session.scalar(
+            select(func.count())
+            .select_from(ItineraryItem)
+            .join(TripDay)
+            .where(TripDay.trip_id == trip_id)
+        )
+    assert remaining_dates == [start_date]
+    assert remaining_items == 1
+    assert "deleted_day_count=1" in caplog.text
+    assert "deleted_item_count=1" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_trip_period_shrink_without_out_of_range_items_needs_no_confirmation(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """범위 밖 장소가 없으면 확인 없이 기간을 줄인다."""
+    start_date = date.today() + timedelta(days=10)
+    trip_id, start_date = await _seed(
+        session_factory,
+        start_date=start_date,
+        end_date=start_date + timedelta(days=2),
+    )
+    async with session_factory() as session:
+        trip = await session.get(Trip, trip_id)
+        assert trip is not None
+        user_id = trip.user_id
+
+    async with transaction_session(session_factory) as session:
+        updated = await TripService(session, cursor_secret="test-secret").update_trip(
+            user_id=user_id,
+            trip_id=trip_id,
+            payload=UpdateTripRequest(
+                endDate=start_date + timedelta(days=1),
+                version=1,
+            ),
+        )
+
+    assert updated.end_date == start_date + timedelta(days=1)
 
 
 @pytest.mark.asyncio
