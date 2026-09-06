@@ -280,9 +280,10 @@ erDiagram
 | `total_duration_seconds` | integer | Y | 총 이동시간(초) |
 | `total_distance_meters` | integer | Y | 총 이동거리 |
 | `route_payload` | jsonb | Y | 정규화한 구간, WGS84 LineString, marker, 제공사 표시정보 |
-| `failure_code` | varchar(80) | Y | 실패 원인 코드 |
+| `failure_code` | varchar(50) | Y | 실패 원인 코드 |
 | `calculated_at` | timestamptz | Y | 계산 완료 시각 |
 | `created_at` | timestamptz | N | 생성 시각 |
+| `updated_at` | timestamptz | N | 수정 시각 |
 
 제약:
 
