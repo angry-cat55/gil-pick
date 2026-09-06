@@ -24,7 +24,7 @@
 
 **Performance Goals**: 일정 조회·저장 3초 이내(SC-002), 상세 진입 → 저장 5분 이내(SC-001). 하루 10곳 × 7일이라 페이징·가상화 불필요
 
-**Constraints**: 소유권 검증 필수; 통째 저장 + `schedule_version` 충돌 감지; `Idempotency-Key` 필수와 재전송 무해(FR-009); 체류 30~360분·30분 단위; 마지막 항목 이동 수단 null; 하루 최대 10곳; 처리된 항목 잠금; 경로 계산·ETA·지도(F005)·상태 전환(F006)·대체 장소(F009/F010)는 범위 밖; 스크린리더 대응 범위 밖(2026-09-05 팀 결정)
+**Constraints**: 소유권 검증 필수; 통째 저장 + `schedule_version` 충돌 감지; `Idempotency-Key` 필수와 재전송 무해(FR-009); 체류 30~360분·30분 단위; 마지막 항목 이동 수단 null; 하루 최대 10곳; 처리된 항목은 체류 시간 외 장소·이동 수단·순서 변경과 삭제 잠금; 경로 계산·ETA·지도(F005)·상태 전환(F006)·대체 장소(F009/F010)는 범위 밖; 스크린리더 대응 범위 밖(2026-09-05 팀 결정)
 
 **Scale/Scope**: Backend endpoint 3개 신설 + F002 PATCH 1개 수정, migration 1개; Android 편집 화면 1개 신설, 여행 상세·여행 수정 화면 2개 수정, F003 navigation 연결
 
@@ -34,7 +34,7 @@
 
 **Tokens & Components**: `GilpickTheme`, `LocalGilpickColors`·`Spacing`·`Sizing`·`Radius`를 그대로 쓰고 새 토큰은 추가하지 않는다. 날짜 탭·순서 번호 원·점선 `장소 추가` 버튼은 편집 화면과 여행 상세에서 함께 쓰일 때만 `ui/component`로 추출한다. 체류 시간 `−`·`+`는 F003 `AddToScheduleSheet`의 stepper 규칙(40dp 원, dialog 44dp)을 재사용한다. 장소 썸네일은 `RemoteImage`.
 
-**State & Interaction**: [data-model.md](data-model.md) 6절 `ItineraryEditUiState`. 초안(`draft`)과 저장본(`savedVersion`)을 분리하고 `dirty`로 닫기 확인을 결정한다. `Loading`은 1초 규칙, `Empty`는 `장소 추가` 안내, `Failed`는 원인+`다시 시도`. 저장 중 `저장` 비활성. 409는 사용자 안내 없이 최신 version으로 최대 2회 재저장([research.md](research.md) 4절). 순서 변경은 위·아래 버튼 + 손잡이 끌기(9절). type-safe `ItineraryEditRoute(tripId, date, openSearch)`; F003 결과는 `SavedStateHandle`로 돌아온다(10절).
+**State & Interaction**: [data-model.md](data-model.md) 6절 `ItineraryEditUiState`. 초안(`draft`)과 저장본(`savedVersion`)을 분리하고 `dirty`로 닫기 확인을 결정한다. `Loading`은 1초 규칙, `Empty`는 `장소 추가` 안내, `Failed`는 원인+`다시 시도`. 저장 중 `저장` 비활성. 409는 사용자 안내 없이 최신 version으로 최대 2회 재저장([research.md](research.md) 4절). 예정 장소의 순서 변경은 위·아래 버튼 + 손잡이 끌기(9절)이며 처리된 장소는 두 조작을 숨긴다. type-safe `ItineraryEditRoute(tripId, date, openSearch)`; F003 결과는 `SavedStateHandle`로 돌아온다(10절).
 
 **Accessibility & Adaptive Layout**: 닫기·삭제·`−`·`+`·이동 버튼·손잡이에 `contentDescription`, 모든 터치 영역 48dp·간격 8dp. 처리 상태는 색+아이콘+문구. 360dp와 font scale 2.0에서 장소명 줄바꿈, 하단 `저장`은 `navigationBarsPadding`. TalkBack 공지·포커스 조정은 범위 밖이되 기존 semantics는 유지한다.
 

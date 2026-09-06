@@ -16,7 +16,11 @@ from app.core.config import Settings, get_settings
 from app.core.security import AuthPrincipal
 from app.db import get_session
 from app.schemas.auth import ErrorEnvelope
-from app.schemas.itinerary import DayItineraryEnvelope, SaveDayItineraryRequest
+from app.schemas.itinerary import (
+    DayItineraryEnvelope,
+    ItineraryOverviewEnvelope,
+    SaveDayItineraryRequest,
+)
 from app.schemas.trip import Trip
 from app.services.itinerary import ItineraryService
 from app.services.trip import TripService
@@ -66,15 +70,28 @@ def _itinerary_service(
     return ItineraryService(session)
 
 
-def _not_implemented() -> None:
-    """후속 user story가 채울 endpoint 본문임을 명시한다."""
-    raise AppError(501, "NOT_IMPLEMENTED", "일정 endpoint는 후속 작업에서 구현됩니다.")
-
-
-@router.get("/itinerary", dependencies=[Depends(_owned_trip)])
-async def get_itinerary_overview() -> None:
-    """여행 전체 일정 조회 경계이며 응답 구현은 US3에서 추가한다."""
-    _not_implemented()
+@router.get(
+    "/itinerary",
+    response_model=ItineraryOverviewEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+    },
+)
+async def get_itinerary_overview(
+    request: Request,
+    trip: Annotated[Trip, Depends(_owned_trip)],
+    service: Annotated[ItineraryService, Depends(_itinerary_service)],
+) -> JSONResponse:
+    """여행 기간의 모든 날짜와 빈 날짜를 포함한 일정 개요를 조회한다."""
+    overview = await service.get_overview(
+        trip_id=trip.trip_id,
+        start_date=trip.start_date,
+        end_date=trip.end_date,
+    )
+    return success_response(request, overview)
 
 
 @router.get(

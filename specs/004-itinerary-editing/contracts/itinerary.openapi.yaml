@@ -280,7 +280,7 @@ components:
           $ref: '#/components/schemas/ErrorDetails'
           description: |
             INVALID_ITINERARY: violations[] {field, itemIndex, reason}.
-            ITINERARY_ITEM_LOCKED: itemId.
+            ITINERARY_ITEM_LOCKED: 처리된 항목의 장소·이동 수단·순서 변경 또는 삭제 시 itemId.
             CONFIRMATION_REQUIRED: deletedItemCount(정수).
     Violation:
       type: object

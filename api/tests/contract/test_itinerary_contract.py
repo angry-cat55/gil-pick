@@ -11,7 +11,7 @@ from app.api.errors import AppError
 from app.api.v1.itinerary import _itinerary_service, _trip_service
 from app.core.security import AuthPrincipal
 from app.main import app
-from app.schemas.itinerary import DayItinerary
+from app.schemas.itinerary import DayItinerary, ItineraryOverview
 from app.schemas.trip import Trip, TripStatus
 
 
@@ -38,6 +38,13 @@ class StubItineraryService:
     async def get_day(self, **kwargs) -> DayItinerary:
         self.calls.append(kwargs)
         return _day(version=0)
+
+    async def get_overview(self, **kwargs) -> ItineraryOverview:
+        self.calls.append(kwargs)
+        return ItineraryOverview(
+            tripId=kwargs["trip_id"],
+            days=[_day(version=0)],
+        )
 
     async def save_day(self, **kwargs) -> tuple[DayItinerary, bool]:
         self.calls.append(kwargs)
@@ -81,6 +88,22 @@ def test_get_unsaved_day_returns_version_zero(principal: AuthPrincipal) -> None:
         "date": "2026-09-01", "dayNumber": 1, "version": 0,
         "routeStatus": "NOT_CALCULATED", "items": [], "route": None,
     }
+
+
+def test_get_overview_returns_trip_days(principal: AuthPrincipal) -> None:
+    service = StubItineraryService()
+    _override(principal, service)
+    trip_id = uuid.uuid4()
+    try:
+        response = TestClient(app).get(f"/api/v1/trips/{trip_id}/itinerary")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["data"]["tripId"] == str(trip_id)
+    assert response.json()["data"]["days"][0]["version"] == 0
+    operation = app.openapi()["paths"]["/api/v1/trips/{tripId}/itinerary"]["get"]
+    assert {"200", "403", "404"} <= set(operation["responses"])
 
 
 @pytest.mark.parametrize(("created", "status"), [(True, 201), (False, 200)])
