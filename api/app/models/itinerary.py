@@ -26,6 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.auth import TimestampMixin
+from app.models.trip import Trip
 
 
 class TripDay(TimestampMixin, Base):
@@ -69,6 +70,9 @@ class TripDay(TimestampMixin, Base):
     trip: Mapped[object] = relationship("Trip")
     items: Mapped[list[ItineraryItem]] = relationship(
         back_populates="trip_day", cascade="all, delete-orphan"
+    )
+    routes: Mapped[list[object]] = relationship(
+        "Route", back_populates="trip_day", cascade="all, delete-orphan"
     )
 
 

@@ -12,6 +12,7 @@ from pydantic.alias_generators import to_camel
 
 from app.schemas.auth import ApiModel, ResponseMeta
 from app.schemas.place import PLACE_ID_PATTERN, PlaceCategory, TourApiCategory
+from app.schemas.route import Route, RouteStatus, TransportMode
 
 
 class ItineraryRequestModel(ApiModel):
@@ -26,24 +27,12 @@ class ItineraryRequestModel(ApiModel):
     )
 
 
-class TransportMode(StrEnum):
-    WALK = "WALK"
-    TRANSIT = "TRANSIT"
-    CAR = "CAR"
-
-
 class ItemStatus(StrEnum):
     PLANNED = "PLANNED"
     EN_ROUTE = "EN_ROUTE"
     ARRIVED = "ARRIVED"
     COMPLETED = "COMPLETED"
     SKIPPED = "SKIPPED"
-
-
-class RouteStatus(StrEnum):
-    NOT_CALCULATED = "NOT_CALCULATED"
-    READY = "READY"
-    FAILED = "FAILED"
 
 
 class StaySource(StrEnum):
@@ -111,7 +100,7 @@ class DayItinerary(ApiModel):
     version: int = Field(ge=0)
     route_status: RouteStatus
     items: list[ItineraryItem]
-    route: None = None
+    route: Route | None = None
 
 
 class DayItineraryEnvelope(ApiModel):

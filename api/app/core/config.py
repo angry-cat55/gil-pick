@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     google_places_base_url: str = "https://places.googleapis.com/v1"
     google_places_api_key: SecretStr
     place_provider_timeout_seconds: float = Field(default=5.0, gt=0)
+    tmap_base_url: str = "https://apis.openapi.sk.com"
+    tmap_api_key: SecretStr = SecretStr("")
+    odsay_base_url: str = "https://api.odsay.com/v1/api"
+    odsay_api_key: SecretStr = SecretStr("")
+    route_provider_timeout_seconds: float = Field(default=5.0, gt=0)
+    route_calculation_deadline_seconds: float = Field(default=10.0, gt=0)
+    route_provider_concurrency: int = Field(default=3, gt=0)
 
     @field_validator("jwt_signing_secret")
     @classmethod

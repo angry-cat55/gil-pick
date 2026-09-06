@@ -20,7 +20,7 @@
   - 교차 확인: jy
   - 선행: F004 일정 저장·조회 계약 확정
   - 검증: 일정 PUT 성공 envelope의 `routeStatus`·`route`, ROUTE 조회·실패 전용 retry와 F006 재계산 분리, `scheduleVersion`, 오류 code, geometry·attribution·nullable 규칙을 공용 API·ERD에 먼저 반영하고 BE `jh`와 FE `jy`가 확인
-- [ ] T002 [P] TMAP·ODsay 설정값과 secret 검증 추가 in api/app/core/config.py, api/.env.example
+- [X] T002 [P] TMAP·ODsay 설정값과 secret 검증 추가 in api/app/core/config.py, api/.env.example
   - 영역: BE
   - 담당: jh
   - 선행: T001
@@ -44,22 +44,22 @@
 
 **⚠️ CRITICAL**: 이 단계 완료 전에는 User Story 구현을 시작하지 않는다.
 
-- [ ] T005 Route table migration과 DB 불변 조건 구현 in api/migrations/versions/004_create_route_table.py
+- [X] T005 Route table migration과 DB 불변 조건 구현 in api/migrations/versions/004_create_route_table.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
   - 검증: upgrade·downgrade 왕복 및 `trip_day_id` FK, `(trip_day_id, schedule_version)` unique, 현재 경로 partial unique index, READY·FAILED 필드 조건을 `api/tests/integration/test_route_migration.py`로 검증
-- [ ] T006 [P] Route ORM model과 itinerary relationship 구현 in api/app/models/route.py, api/app/models/itinerary.py, api/app/models/__init__.py
+- [X] T006 [P] Route ORM model과 itinerary relationship 구현 in api/app/models/route.py, api/app/models/itinerary.py, api/app/models/__init__.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
   - 검증: model과 migration column·constraint 일치, cascade·relationship, 한 날짜 현재 경로 최대 하나를 `api/tests/unit/test_route_model.py`에서 확인
-- [ ] T007 [P] Route schema·enum·envelope와 F004 DayItinerary route 확장 in api/app/schemas/route.py, api/app/schemas/itinerary.py
+- [X] T007 [P] Route schema·enum·envelope와 F004 DayItinerary route 확장 in api/app/schemas/route.py, api/app/schemas/itinerary.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
   - 검증: OpenAPI의 READY/FAILED/NOT_CALCULATED, segment 순서·수단·초·미터·GeoJSON·attribution, 1개 장소 0값, 오류 code를 `api/tests/unit/test_route_schema.py`에서 검증
-- [ ] T008 [P] TMAP·ODsay 공통 provider protocol과 정규화 결과 model 구현 in api/app/clients/route_provider.py
+- [X] T008 [P] TMAP·ODsay 공통 provider protocol과 정규화 결과 model 구현 in api/app/clients/route_provider.py
   - 영역: BE
   - 담당: jh
   - 선행: T001, T002
