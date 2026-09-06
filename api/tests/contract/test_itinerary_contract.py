@@ -8,10 +8,11 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_principal
 from app.api.errors import AppError
-from app.api.v1.itinerary import _itinerary_service, _trip_service
+from app.api.v1.itinerary import _itinerary_service, _save_route_service, _trip_service
 from app.core.security import AuthPrincipal
 from app.main import app
 from app.schemas.itinerary import DayItinerary, ItineraryOverview
+from app.schemas.route import FailedRouteData, NotCalculatedRouteData, ReadyRouteData, RouteFailure
 from app.schemas.trip import Trip, TripStatus
 
 
@@ -30,10 +31,18 @@ class StubTripService:
 
 
 class StubItineraryService:
-    def __init__(self, *, error: AppError | None = None, created: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        error: AppError | None = None,
+        created: bool = False,
+        route_input_changed: bool = True,
+    ) -> None:
         self.error = error
         self.created = created
+        self.route_input_changed = route_input_changed
         self.calls: list[dict] = []
+        self.commits = 0
 
     async def get_day(self, **kwargs) -> DayItinerary:
         self.calls.append(kwargs)
@@ -46,11 +55,55 @@ class StubItineraryService:
             days=[_day(version=0)],
         )
 
-    async def save_day(self, **kwargs) -> tuple[DayItinerary, bool]:
+    async def save_day(self, **kwargs) -> tuple[DayItinerary, bool, bool]:
         self.calls.append(kwargs)
         if self.error:
             raise self.error
-        return _day(version=1), self.created
+        return _day(version=1), self.created, self.route_input_changed
+
+    async def commit(self) -> None:
+        self.commits += 1
+
+
+class StubRouteService:
+    def __init__(self, *, failed: bool = False) -> None:
+        self.failed = failed
+        self.calls: list[str] = []
+
+    async def calculate_current(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.calls.append("calculate")
+        if self.failed:
+            return FailedRouteData(
+                tripId=kwargs["trip_id"],
+                date=kwargs["visit_date"],
+                scheduleVersion=1,
+                routeStatus="FAILED",
+                route=None,
+                failure=RouteFailure(
+                    code="ROUTE_PROVIDER_TIMEOUT",
+                    message="시간을 초과했습니다.",
+                    retryable=True,
+                ),
+            )
+        return NotCalculatedRouteData(
+            tripId=kwargs["trip_id"],
+            date=kwargs["visit_date"],
+            scheduleVersion=1,
+            routeStatus="NOT_CALCULATED",
+            route=None,
+            failure=None,
+        )
+
+    async def get_current(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.calls.append("get")
+        return NotCalculatedRouteData(
+            tripId=kwargs["trip_id"],
+            date=kwargs["visit_date"],
+            scheduleVersion=1,
+            routeStatus="NOT_CALCULATED",
+            route=None,
+            failure=None,
+        )
 
 
 def _day(*, version: int) -> DayItinerary:
@@ -69,10 +122,15 @@ def principal() -> AuthPrincipal:
     return AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
 
 
-def _override(principal: AuthPrincipal, service: StubItineraryService) -> None:
+def _override(
+    principal: AuthPrincipal,
+    service: StubItineraryService,
+    route_service: StubRouteService | None = None,
+) -> None:
     app.dependency_overrides[get_current_principal] = lambda: principal
     app.dependency_overrides[_trip_service] = lambda: StubTripService()
     app.dependency_overrides[_itinerary_service] = lambda: service
+    app.dependency_overrides[_save_route_service] = lambda: route_service or StubRouteService()
 
 
 def test_get_unsaved_day_returns_version_zero(principal: AuthPrincipal) -> None:
@@ -124,6 +182,7 @@ def test_put_distinguishes_create_and_update(
 
     assert response.status_code == status
     assert service.calls[0]["idempotency_key"] == key
+    assert service.commits == 1
 
 
 @pytest.mark.parametrize(
@@ -168,3 +227,43 @@ def test_put_requires_uuid_idempotency_key(principal: AuthPrincipal) -> None:
     assert header["required"] is True
     assert header["schema"]["format"] == "uuid"
     assert {"200", "201", "409", "422"} <= set(operation["responses"])
+
+
+def test_put_calculates_route_only_when_route_input_changed(
+    principal: AuthPrincipal,
+) -> None:
+    itinerary = StubItineraryService(route_input_changed=False)
+    route = StubRouteService()
+    _override(principal, itinerary, route)
+    try:
+        response = TestClient(app).put(
+            f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/itinerary",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"version": 0, "items": []},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert route.calls == ["get"]
+
+
+def test_put_keeps_success_status_when_route_calculation_fails(
+    principal: AuthPrincipal,
+) -> None:
+    itinerary = StubItineraryService(created=True)
+    route = StubRouteService(failed=True)
+    _override(principal, itinerary, route)
+    try:
+        response = TestClient(app).put(
+            f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/itinerary",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"version": 0, "items": []},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json()["success"] is True
+    assert response.json()["data"]["routeStatus"] == "FAILED"
+    assert response.json()["data"]["route"] is None

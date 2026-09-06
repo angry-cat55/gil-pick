@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
 from datetime import date
 from typing import Annotated
 
@@ -23,6 +24,7 @@ from app.schemas.itinerary import (
 )
 from app.schemas.trip import Trip
 from app.services.itinerary import ItineraryService
+from app.services.route import RouteService, build_route_service
 from app.services.trip import TripService
 
 router = APIRouter(prefix="/trips/{tripId}", tags=["itinerary"])
@@ -68,6 +70,17 @@ def _itinerary_service(
 ) -> ItineraryService:
     """현재 요청 transaction을 사용하는 일정 서비스를 제공한다."""
     return ItineraryService(session)
+
+
+async def _save_route_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AsyncIterator[RouteService]:
+    """일정 commit 뒤 별도 session으로 계산할 경로 서비스를 제공한다."""
+    service = build_route_service(settings)
+    try:
+        yield service
+    finally:
+        await service.close()
 
 
 @router.get(
@@ -139,13 +152,31 @@ async def save_day_itinerary(
     trip: Annotated[Trip, Depends(_owned_trip_date)],
     idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
     service: Annotated[ItineraryService, Depends(_itinerary_service)],
+    route_service: Annotated[RouteService, Depends(_save_route_service)],
 ) -> JSONResponse:
     """한 날짜의 일정 전체를 version과 멱등 키로 저장한다."""
-    day, created = await service.save_day(
+    day, created, route_input_changed = await service.save_day(
         trip_id=trip.trip_id,
         visit_date=visit_date,
         start_date=trip.start_date,
         payload=payload,
         idempotency_key=idempotency_key,
+    )
+    await service.commit()
+    if route_input_changed:
+        route_data = await route_service.calculate_current(
+            trip_id=trip.trip_id,
+            visit_date=visit_date,
+        )
+    else:
+        route_data = await route_service.get_current(
+            trip_id=trip.trip_id,
+            visit_date=visit_date,
+        )
+    day = day.model_copy(
+        update={
+            "route_status": route_data.route_status,
+            "route": route_data.route,
+        }
     )
     return success_response(request, day, status_code=201 if created else 200)

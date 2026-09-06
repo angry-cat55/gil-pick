@@ -90,6 +90,24 @@ async def test_odsay_rejects_invalid_geometry() -> None:
 
 
 @pytest.mark.asyncio
+async def test_odsay_normalizes_missing_path_info() -> None:
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"result": {"path": [{}]}})
+
+    client = OdsayClient(
+        settings(),
+        httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+    with pytest.raises(RouteProviderError, match="ROUTE_INVALID_RESULT"):
+        await client.calculate(
+            Coordinate(longitude=126.97, latitude=37.57),
+            Coordinate(longitude=126.976, latitude=37.575),
+            TransportMode.TRANSIT,
+            deadline=time.monotonic() + 10,
+        )
+
+
+@pytest.mark.asyncio
 async def test_odsay_timeout_is_retryable() -> None:
     async def handler(request: httpx2.Request) -> httpx2.Response:
         raise httpx2.ReadTimeout("timeout", request=request)

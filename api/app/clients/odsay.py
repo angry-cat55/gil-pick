@@ -19,6 +19,10 @@ class OdsayClient:
         self.settings = settings
         self.client = client or httpx2.AsyncClient()
 
+    async def close(self) -> None:
+        """내부 HTTP 연결 풀을 닫는다."""
+        await self.client.aclose()
+
     async def calculate(self, origin: Coordinate, destination: Coordinate, transport_mode: TransportMode, *, deadline: float) -> NormalizedRoute:
         if transport_mode is not TransportMode.TRANSIT:
             raise ValueError("ODsay supports TRANSIT only")
@@ -27,7 +31,10 @@ class OdsayClient:
             "EY": destination.latitude, "OPT": 0, "SearchType": 0, "output": "json",
         }, deadline)
         path = self._recommended_path(search)
-        map_obj = path["info"]["mapObj"]
+        try:
+            map_obj = path["info"]["mapObj"]
+        except (KeyError, TypeError) as exc:
+            raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False) from exc
         lane = await self._get("loadLane", {"mapObject": f"0:0@{map_obj}"}, deadline)
         try:
             return NormalizedRoute(

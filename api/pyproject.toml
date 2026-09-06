@@ -8,6 +8,7 @@ dependencies = [
     "asyncpg==0.30.0",
     "fastapi==0.141.1",
     "geoalchemy2>=0.18,<0.19",
+    "httpx2==2.10.0",
     "pydantic-settings==2.10.1",
     "pyjwt==2.10.1",
     "sqlalchemy[asyncio]==2.0.52",
@@ -16,7 +17,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx2==2.10.0",
     "pytest==8.4.2",
     "pytest-asyncio==1.2.0",
 ]
