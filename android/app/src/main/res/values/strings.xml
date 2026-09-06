@@ -179,4 +179,36 @@
     <string name="trip_form_period_locked">완료된 여행은 이름만 수정할 수 있습니다. 기간은 최대 7일까지 설정할 수 있어요.</string>
     <string name="trip_form_period_locked_state">수정할 수 없음</string>
     <string name="trip_form_loading">여행 정보를 불러오는 중</string>
+
+    <!-- F004 일정 편집 -->
+    <string name="itinerary_edit_title">일정 편집</string>
+    <string name="itinerary_edit_close">닫기</string>
+    <string name="itinerary_edit_day_tab">%1$d일 %2$s</string>
+    <string name="itinerary_edit_section_title">%1$d월 %2$d일 방문 장소</string>
+    <string name="itinerary_edit_section_summary">%1$d일차 · %2$d곳</string>
+    <string name="itinerary_edit_loading">일정을 불러오는 중</string>
+    <string name="itinerary_edit_empty_title">아직 방문 장소가 없어요</string>
+    <string name="itinerary_edit_empty_hint">장소 추가를 눌러 이 날짜에 갈 곳을 담아 보세요</string>
+    <string name="itinerary_edit_add_place">장소 추가</string>
+    <string name="itinerary_edit_limit_hint">하루 최대 10곳</string>
+    <string name="itinerary_edit_stay_minutes">%1$d분</string>
+    <string name="itinerary_edit_sequence">%1$d번째</string>
+    <string name="itinerary_edit_save">저장</string>
+    <string name="itinerary_edit_saving">저장 중</string>
+    <string name="itinerary_edit_retry">다시 시도</string>
+    <string name="itinerary_edit_discard_title">편집을 취소할까요?</string>
+    <string name="itinerary_edit_discard_body">저장하지 않은 변경 사항은 사라집니다</string>
+    <string name="itinerary_edit_discard_keep">계속 편집</string>
+    <string name="itinerary_edit_discard_confirm">취소하고 나가기</string>
+    <string name="itinerary_edit_notice_no_coordinates">위치 정보가 없는 장소는 일정에 추가할 수 없어요</string>
+    <string name="itinerary_edit_notice_limit">하루에 최대 10곳까지 담을 수 있어요</string>
+    <string name="itinerary_edit_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="itinerary_edit_error_not_found">이미 삭제되었거나 없는 여행입니다.</string>
+    <string name="itinerary_edit_error_forbidden">이 여행의 일정을 편집할 권한이 없습니다.</string>
+    <string name="itinerary_edit_error_session">로그인 상태가 만료됐어요. 다시 로그인해 주세요.</string>
+    <string name="itinerary_edit_error_invalid">저장할 수 없는 일정이에요. 체류 시간과 순서를 확인해 주세요.</string>
+    <string name="itinerary_edit_error_locked">이미 처리된 장소는 바꿀 수 없어요.</string>
+    <string name="itinerary_edit_error_conflict">다른 곳에서 바뀐 일정과 겹쳤어요. 다시 시도해 주세요.</string>
+    <string name="itinerary_edit_error_unexpected">지금은 일정을 처리할 수 없어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="itinerary_edit_save_failed">저장하지 못했어요. %1$s</string>
 </resources>

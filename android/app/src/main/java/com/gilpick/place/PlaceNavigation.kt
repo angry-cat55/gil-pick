@@ -36,8 +36,8 @@ data class PlaceDetailRoute(val placeId: String)
  * 문자열 route가 아니라 `@Serializable` 타입을 쓴다. 인자 이름과 타입을 컴파일러가
  * 검사하고 [PlaceDetailRoute.placeId]의 `:`도 Navigation이 알아서 encode·decode한다.
  *
- * F003은 route 등록과 검색 → 상세 → 뒤로가기까지만 담당한다. 진입점(`일정 편집`의 `장소 추가`)은
- * F004 범위라 아직 없다. F003이 임시 진입 UI를 대신 만들지 않기로 T035에서 확정했다.
+ * F003은 route 등록과 검색 → 상세 → 뒤로가기까지만 담당한다. 진입점(`일정 편집`의 `장소 추가`)과
+ * `일정에 추가` 결과의 반환은 F004가 [onAddToSchedule]로 연결한다(T035 → F004 T018).
  *
  * 두 ViewModel 모두 각 destination의 back stack entry에 묶여 회전·복귀에도 상태가 남고,
  * 상세에서 뒤로 가면 검색 entry가 살아 있어 조건·결과·목록 위치가 유지된다(UI-009).
@@ -47,8 +47,14 @@ data class PlaceDetailRoute(val placeId: String)
  *
  * @param navController 상세로 이동하고 뒤로 돌아오는 데 쓴다.
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
+ * @param onAddToSchedule 검색 결과 행의 `+` 또는 상세의 `일정에 추가` 시트에서 확정한 값. 일정에
+ *   반영하고 편집 화면으로 돌아가는 일은 호출자(F004)가 한다.
  */
-fun NavGraphBuilder.placeGraph(navController: NavController, onSessionExpired: () -> Unit) {
+fun NavGraphBuilder.placeGraph(
+    navController: NavController,
+    onSessionExpired: () -> Unit,
+    onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
+) {
     composable<PlaceSearchRoute> {
         val viewModel: PlaceSearchViewModel = viewModel(factory = PlaceSearchViewModel.factory(LocalContext.current))
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -66,6 +72,7 @@ fun NavGraphBuilder.placeGraph(navController: NavController, onSessionExpired: (
             onRetryLoadMore = viewModel::retryLoadMore,
             onSearchByCategory = viewModel::onSearchByCategory,
             onPlaceClick = { placeId -> navController.navigate(PlaceDetailRoute(placeId)) },
+            onAddToSchedule = onAddToSchedule,
         )
     }
     composable<PlaceDetailRoute> { entry ->
@@ -82,6 +89,10 @@ fun NavGraphBuilder.placeGraph(navController: NavController, onSessionExpired: (
             onBack = { navController.popBackStack() },
             onRetry = viewModel::retry,
             onReauthenticate = onSessionExpired,
+            onAddToSchedule = { request ->
+                // 시트는 상세가 내용을 보여 준 뒤에만 열리므로 이 시점의 phase는 Content다.
+                (state.phase as? PlaceDetailPhase.Content)?.let { onAddToSchedule(it.place, request) }
+            },
         )
     }
 }
