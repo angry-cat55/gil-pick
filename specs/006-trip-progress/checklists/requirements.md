@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain (2개 남음: FR-004 기준점·미계획 구간 이동시간, UI-003 상태 수정 진입 방식)
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -32,4 +32,4 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-- FR-004·UI-003의 두 질문은 Feature Owner(jy) 답변 후 spec에 반영하고 `speckit-clarify`로 나머지 세부 사항을 확정한다.
+- FR-004·UI-003의 두 질문은 2026-09-07 Owner 답변(Q1: A, Q2: A)으로 반영 완료.
