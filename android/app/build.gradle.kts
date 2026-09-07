@@ -155,6 +155,9 @@ dependencies {
     // F005 날짜별 경로 지도. 3.21부터 NCP Key ID(`NCP_KEY_ID` meta-data)로 인증하며 minSdk 21 이상.
     implementation("com.naver.maps:map-sdk:3.23.3")
 
+    // F006 진행 시작 시 FusedLocationProviderClient로 현재 위치를 1회 얻는다(research.md 결정 7).
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.datastore:datastore:1.2.1")
     // okio 저장소를 직접 사용하므로 transitive 의존이 아니라 명시적으로 선언한다.
