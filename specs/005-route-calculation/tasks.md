@@ -158,17 +158,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] RouteViewModel 상태·조회 test 작성 in android/app/src/test/java/com/gilpick/route/RouteViewModelTest.kt
+- [X] T022 [P] [US2] RouteViewModel 상태·조회 test 작성 in android/app/src/test/java/com/gilpick/route/RouteViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T010
   - 검증: 1초 loading 지연, 0개 Empty, 1개 Content/0값, READY Content, FAILED·network Error, stale version 미표시, retry 후 동일 화면 갱신
-- [ ] T023 [P] [US2] 날짜 경로 화면 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/route/DayRouteScreenTest.kt
+- [X] T023 [P] [US2] 날짜 경로 화면 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/route/DayRouteScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T004
   - 검증: 네 UI 상태, marker와 목록 순서, 이동수단 아이콘+문구, 시간·거리·attribution, 정상 content 재계산 버튼 부재, 48dp·semantics·360dp·font scale 최대
-- [ ] T024 [P] [US2] 날짜 경로 screenshot test 작성 in android/app/src/androidTest/java/com/gilpick/route/DayRouteScreenshotTest.kt
+- [X] T024 [P] [US2] 날짜 경로 screenshot test 작성 in android/app/src/androidTest/java/com/gilpick/route/DayRouteScreenshotTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T004
@@ -176,22 +176,22 @@
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] RouteViewModel과 immutable map overlay model 구현 in android/app/src/main/java/com/gilpick/route/RouteViewModel.kt, android/app/src/main/java/com/gilpick/route/RouteUiState.kt
+- [X] T025 [US2] RouteViewModel과 immutable map overlay model 구현 in android/app/src/main/java/com/gilpick/route/RouteViewModel.kt, android/app/src/main/java/com/gilpick/route/RouteUiState.kt
   - 영역: FE
   - 담당: jy
   - 선행: T022
   - 검증: T022 통과, ViewModel에 Naver SDK 객체를 보관하지 않고 `StateFlow`와 일회성 navigation/event를 분리
-- [ ] T026 [US2] lifecycle-aware Naver RouteMap adapter 구현 in android/app/src/main/java/com/gilpick/route/RouteMap.kt
+- [X] T026 [US2] lifecycle-aware Naver RouteMap adapter 구현 in android/app/src/main/java/com/gilpick/route/RouteMap.kt
   - 영역: FE
   - 담당: jy
   - 선행: T003, T025
   - 검증: marker 번호·polyline·camera bounds·이동/확대/축소·attribution 동작을 실제 emulator 또는 기기에서 확인하고 lifecycle 재진입 시 중복 overlay 없음
-- [ ] T027 [US2] DayRouteScreen의 지도·요약·구간 목록·네 상태 구현 in android/app/src/main/java/com/gilpick/route/DayRouteScreen.kt, android/app/src/main/java/com/gilpick/route/RouteLabels.kt
+- [X] T027 [US2] DayRouteScreen의 지도·요약·구간 목록·네 상태 구현 in android/app/src/main/java/com/gilpick/route/DayRouteScreen.kt, android/app/src/main/java/com/gilpick/route/RouteLabels.kt
   - 영역: FE
   - 담당: jy
   - 선행: T023, T024, T025, T026
   - 검증: UI test·screenshot 통과, theme token만 사용, inset·48dp·색상 비의존·가로 스크롤 없음, F006 전용 진행 정보와 임의 재계산 미표시
-- [ ] T028 [US2] 여행 상세 경로 요약과 날짜 경로 navigation 연결 in android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [X] T028 [US2] 여행 상세 경로 요약과 날짜 경로 navigation 연결 in android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T021, T027

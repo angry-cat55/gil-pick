@@ -86,6 +86,7 @@ private val GilpickColorScheme = lightColorScheme(
  * @property info 계획 ETA와 일반 안내(= primaryDark).
  * @property star 평점 `★`.
  * @property dark 로그인 배경. [onDarkMuted]는 그 위 보조 글자.
+ * @property darkMap 일자 경로 화면 배경. 지도 뒤와 그 위 sheet의 바탕이다.
  * @property toast 하단 toast 배경.
  * @property kakao 카카오 브랜드 가이드가 정한 버튼 배경. 앱 팔레트와 무관하게 고정이다.
  * @property onKakao 카카오 버튼 라벨.
@@ -106,6 +107,7 @@ data class GilpickColors(
     val info: Color,
     val star: Color,
     val dark: Color,
+    val darkMap: Color,
     val onDarkMuted: Color,
     val toast: Color,
     val kakao: Color,
@@ -128,6 +130,7 @@ private val GilpickLightColors = GilpickColors(
     info = Color(0xFF2457C5),
     star = Color(0xFFFBBF24),
     dark = Color(0xFF0B1120),
+    darkMap = Color(0xFF0F1A2E),
     onDarkMuted = Color(0xFF8BA3C7),
     toast = Color(0xEB111827),
     kakao = Color(0xFFFEE500),

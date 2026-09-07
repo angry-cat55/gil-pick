@@ -268,4 +268,55 @@
     <string name="itinerary_edit_status_arrived">도착</string>
     <string name="itinerary_edit_status_completed">완료</string>
     <string name="itinerary_edit_status_skipped">건너뜀</string>
+
+    <!-- F005 날짜별 경로 화면 -->
+    <string name="route_title">%1$d일차 경로</string>
+    <string name="route_subtitle">%1$s · %2$d곳</string>
+    <string name="route_subtitle_no_count">%1$s</string>
+    <string name="route_back">뒤로 가기</string>
+    <string name="route_loading">경로를 불러오는 중</string>
+    <string name="route_map_description">%1$d곳의 방문 순서와 이동 경로 지도</string>
+    <string name="route_map_unavailable">지도를 표시할 수 없어요</string>
+    <string name="route_empty_title">아직 담은 장소가 없어요</string>
+    <string name="route_empty_body">장소를 추가하면 이동 경로를 계산해 드려요</string>
+    <string name="route_add_place">장소 추가</string>
+    <string name="route_go_back">돌아가기</string>
+    <string name="route_retry">다시 시도</string>
+    <string name="route_error_title">경로를 보여줄 수 없어요</string>
+    <string name="route_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="route_error_not_found">이미 삭제되었거나 없는 여행입니다.</string>
+    <string name="route_error_forbidden">이 여행의 경로를 볼 권한이 없습니다.</string>
+    <string name="route_error_session">로그인 상태가 만료됐어요. 다시 로그인해 주세요.</string>
+    <string name="route_error_conflict">일정이 다른 곳에서 바뀌었어요. 최신 일정을 다시 확인해 주세요.</string>
+    <string name="route_error_not_failed">이미 경로가 계산됐어요. 최신 경로를 불러옵니다.</string>
+    <string name="route_error_stale">일정이 바뀌어 아직 새 경로가 없어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="route_error_unexpected">지금은 경로를 처리할 수 없어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="route_failure_timeout">경로 서비스 응답이 늦어 계산하지 못했어요. 일정은 그대로 저장돼 있어요.</string>
+    <string name="route_failure_rate_limited">경로 서비스 요청이 많아 계산하지 못했어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="route_failure_unavailable">경로 서비스에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="route_failure_not_found">이동 경로를 찾지 못했어요. 장소 위치나 이동 수단을 확인해 주세요.</string>
+    <string name="route_failure_invalid">경로 서비스 응답이 올바르지 않아 계산하지 못했어요.</string>
+    <string name="route_failure_unknown">경로를 계산하지 못했어요. 일정은 그대로 저장돼 있어요.</string>
+    <string name="route_summary_total">총 이동 %1$s · %2$s</string>
+    <string name="route_summary_single">이동 구간 없음 · 총 이동 %1$s · %2$s</string>
+    <string name="route_segment_description">%1$d번째 구간, %2$s에서 %3$s까지 %4$s %5$s %6$s</string>
+    <string name="route_segment_arrow">→</string>
+    <string name="route_segment_detail">%1$s · %2$s · %3$s</string>
+    <string name="route_marker_description">%1$d번째 장소 %2$s</string>
+    <string name="route_duration_minutes">%1$d분</string>
+    <string name="route_duration_hours">%1$d시간</string>
+    <string name="route_duration_hours_minutes">%1$d시간 %2$d분</string>
+    <string name="route_distance_meters">%1$dm</string>
+    <string name="route_distance_kilometers">%1$skm</string>
+    <string name="route_attribution_prefix">출처: %1$s</string>
+    <string name="route_attribution_separator">" · "</string>
+
+    <!-- F005 여행 상세 경로 요약 -->
+    <string name="trip_detail_route_open">경로 보기</string>
+    <string name="trip_detail_route_open_description">%1$s 경로 보기</string>
+    <string name="trip_detail_route_total">이동 %1$s · %2$s</string>
+    <string name="trip_detail_route_segment">%1$s %2$s · %3$s</string>
+    <string name="trip_detail_route_failed">경로를 계산하지 못했어요</string>
+    <string name="trip_detail_route_retry">다시 시도</string>
+    <string name="trip_detail_route_retrying">경로 계산 중</string>
 </resources>

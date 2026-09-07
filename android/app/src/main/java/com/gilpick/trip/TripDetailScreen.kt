@@ -53,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,11 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
 import com.gilpick.itinerary.TransportMode
+import com.gilpick.route.RouteDto
+import com.gilpick.route.RouteSegmentDto
+import com.gilpick.route.distanceLabel
+import com.gilpick.route.durationLabel
+import com.gilpick.route.messageRes
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.StatusBadge
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -102,6 +109,8 @@ import kotlinx.coroutines.delay
  * @param onEditItinerary 일정 편집 화면으로 이동한다. 여행의 첫 날짜로 들어간다.
  * @param onAddPlace 그 날짜(`yyyy-MM-dd`)로 장소 검색에 들어간다.
  * @param onSelectPlace 장소 상세(F003)로 이동한다. 인자는 `placeId`다.
+ * @param routes 날짜(`yyyy-MM-dd`)별 경로 영역 상태(F005). 없는 날짜는 경로 정보 없음으로 그린다.
+ * @param onOpenRoute 그 날짜의 경로 화면(F005)으로 이동한다. 인자는 날짜와 일차다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +126,8 @@ fun TripDetailScreen(
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
     modifier: Modifier = Modifier,
+    routes: Map<String, DayRoutePhase> = emptyMap(),
+    onOpenRoute: (date: String, dayNumber: Int) -> Unit = { _, _ -> },
 ) {
     val spacing = LocalGilpickSpacing.current
     var menuOpen by remember { mutableStateOf(false) }
@@ -185,10 +196,12 @@ fun TripDetailScreen(
                 is TripDetailPhase.Content -> DetailContent(
                     trip = phase.trip,
                     itinerary = state.itinerary,
+                    routes = routes,
                     onRetryItinerary = onRetryItinerary,
                     onEditItinerary = onEditItinerary,
                     onAddPlace = onAddPlace,
                     onSelectPlace = onSelectPlace,
+                    onOpenRoute = onOpenRoute,
                 )
 
                 is TripDetailPhase.Failed -> ErrorState(
@@ -451,10 +464,12 @@ private fun Summary(trip: TripDto, modifier: Modifier = Modifier) {
 private fun DetailContent(
     trip: TripDto,
     itinerary: ItineraryOverviewPhase,
+    routes: Map<String, DayRoutePhase>,
     onRetryItinerary: () -> Unit,
     onEditItinerary: () -> Unit,
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
+    onOpenRoute: (date: String, dayNumber: Int) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
 
@@ -467,16 +482,18 @@ private fun DetailContent(
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
                 Summary(trip = trip)
-                TripStats(trip = trip, itinerary = itinerary)
+                TripStats(trip = trip, itinerary = itinerary, routes = routes)
                 ItineraryActions(onEditItinerary = onEditItinerary)
             }
         }
 
         ItinerarySection(
             itinerary = itinerary,
+            routes = routes,
             onRetry = onRetryItinerary,
             onAddPlace = onAddPlace,
             onSelectPlace = onSelectPlace,
+            onOpenRoute = onOpenRoute,
         )
     }
 }
@@ -485,15 +502,22 @@ private fun DetailContent(
  * Figma의 요약 통계 세 칸.
  *
  * `총 방문지`는 일정 개요에서 센다. 일정을 아직 못 받았으면 0곳이라고 단정할 수 없으므로
- * `정보 없음`으로 둔다. `총 이동`은 F005 경로 계산 전까지 값이 없다(spec UI-006).
+ * `정보 없음`으로 둔다. `총 이동`은 장소가 있는 모든 날짜의 경로가 `READY`일 때만 합계를 적고,
+ * 하나라도 실패·미계산이면 일부만 더한 값을 보이지 않고 `정보 없음`으로 둔다(F005 UI-002).
  */
 @Composable
-private fun TripStats(trip: TripDto, itinerary: ItineraryOverviewPhase) {
+private fun TripStats(trip: TripDto, itinerary: ItineraryOverviewPhase, routes: Map<String, DayRoutePhase>) {
     val spacing = LocalGilpickSpacing.current
     val unknown = stringResource(R.string.trip_detail_value_unknown)
-    val placeCount = (itinerary as? ItineraryOverviewPhase.Content)
-        ?.days
-        ?.sumOf { it.items.size }
+    val days = (itinerary as? ItineraryOverviewPhase.Content)?.days
+    val placeCount = days?.sumOf { it.items.size }
+    val readyRoutes = days
+        ?.filter { it.items.isNotEmpty() }
+        ?.map { routes[it.date] as? DayRoutePhase.Ready }
+    val totalTravel = readyRoutes
+        ?.takeIf { it.isNotEmpty() && it.all { route -> route != null } }
+        ?.sumOf { it!!.route.totalDurationSeconds }
+        ?.let { durationLabel(it) }
 
     Row(
         modifier = Modifier
@@ -514,7 +538,7 @@ private fun TripStats(trip: TripDto, itinerary: ItineraryOverviewPhase) {
             modifier = Modifier.weight(1f),
         )
         Stat(
-            value = unknown,
+            value = totalTravel ?: unknown,
             label = stringResource(R.string.trip_detail_stat_travel),
             modifier = Modifier.weight(1f),
         )
@@ -601,9 +625,11 @@ private fun ItineraryActions(onEditItinerary: () -> Unit) {
 @Composable
 private fun ItinerarySection(
     itinerary: ItineraryOverviewPhase,
+    routes: Map<String, DayRoutePhase>,
     onRetry: () -> Unit,
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
+    onOpenRoute: (date: String, dayNumber: Int) -> Unit,
 ) {
     when (itinerary) {
         ItineraryOverviewPhase.Loading -> ItineraryLoading()
@@ -613,7 +639,13 @@ private fun ItinerarySection(
 
         is ItineraryOverviewPhase.Content -> Column {
             itinerary.days.forEach { day ->
-                DayGroup(day = day, onAddPlace = onAddPlace, onSelectPlace = onSelectPlace)
+                DayGroup(
+                    day = day,
+                    route = routes[day.date] ?: DayRoutePhase.NotCalculated,
+                    onAddPlace = onAddPlace,
+                    onSelectPlace = onSelectPlace,
+                    onOpenRoute = { onOpenRoute(day.date, day.dayNumber) },
+                )
             }
         }
     }
@@ -690,13 +722,18 @@ private fun ItineraryErrorState(error: ItineraryError, onRetry: () -> Unit) {
 @Composable
 private fun DayGroup(
     day: DayItineraryDto,
+    route: DayRoutePhase,
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
+    onOpenRoute: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
     val dateLabel = day.date.toDateLabel()
+    val readyRoute = (route as? DayRoutePhase.Ready)?.route
+    // 구간 이동시간·거리는 출발 항목 ID로 찾는다. 경로 구간 순서는 일정 순서와 같다(FR-005).
+    val segmentsByFrom = readyRoute?.segments?.associateBy { it.fromItemId }.orEmpty()
 
     Row(
         modifier = Modifier
@@ -765,11 +802,98 @@ private fun DayGroup(
                 day.items.forEachIndexed { index, item ->
                     PlaceRow(item = item, onClick = { onSelectPlace(item.place.placeId) })
                     if (index < day.items.lastIndex) {
-                        TransportRow(mode = item.transportModeToNext)
+                        TransportRow(mode = item.transportModeToNext, segment = segmentsByFrom[item.itemId])
                     }
+                }
+                when (route) {
+                    is DayRoutePhase.Ready -> RouteSummaryRow(route = route.route, dateLabel = dateLabel, onOpenRoute = onOpenRoute)
+                    is DayRoutePhase.Failed -> RouteFailedRow(route = route)
+                    DayRoutePhase.NotCalculated -> Unit
                 }
             }
         }
+    }
+}
+
+/**
+ * 날짜 경로 요약(F005 UI-002): 전체 이동시간·거리와 `경로 보기`.
+ *
+ * 장소가 한 곳이면 구간이 없어 합계가 0이지만, 지도에서 위치를 볼 수 있으므로 `경로 보기`는 그대로 둔다.
+ * 정상 경로에는 재계산 행동을 두지 않는다(FR-019).
+ */
+@Composable
+private fun RouteSummaryRow(route: RouteDto, dateLabel: String, onOpenRoute: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+    val openDescription = stringResource(R.string.trip_detail_route_open_description, dateLabel)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = spacing.space5, end = spacing.space3)
+            .heightIn(min = MIN_TOUCH),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = stringResource(
+                R.string.trip_detail_route_total,
+                durationLabel(route.totalDurationSeconds),
+                distanceLabel(route.totalDistanceMeters),
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.muted,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onOpenRoute,
+            modifier = Modifier
+                .heightIn(min = MIN_TOUCH)
+                .semantics { contentDescription = openDescription },
+        ) {
+            Text(stringResource(R.string.trip_detail_route_open))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(ADD_ICON + spacing.space1),
+            )
+        }
+    }
+}
+
+/**
+ * 자동 경로 계산 실패 안내(F005 UI-002a). 일정 내용과 독립된 행이라 장소 행은 그대로 남는다.
+ *
+ * 원인을 아직 모르면(개요 응답에는 원인이 없다) 일반 문구를 쓴다. `다시 시도`는 #208(T032)에서 붙는다.
+ */
+@Composable
+private fun RouteFailedRow(route: DayRoutePhase.Failed) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.space5)
+            .padding(bottom = spacing.space3)
+            .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(radius.md))
+            .padding(horizontal = spacing.space3, vertical = spacing.space2),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_circle_x),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(ADD_ICON + spacing.space1),
+        )
+        Text(
+            text = route.failure?.let { stringResource(it.messageRes) }
+                ?: stringResource(R.string.trip_detail_route_failed),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -874,13 +998,12 @@ private fun PlaceRow(item: ItineraryItemDto, onClick: () -> Unit) {
 }
 
 /**
- * 구간 이동 수단.
+ * 구간 이동 수단. 경로가 `READY`면 그 구간의 이동시간·거리를 함께 적는다(F005 UI-002).
  *
- * 소요 시간·거리는 F005 경로 계산 결과라 F004에서는 수단만 적는다. 수단이 없는 항목은
- * 줄만 그어 두 장소가 이어져 있음을 유지한다.
+ * 수단이 없는 항목은 줄만 그어 두 장소가 이어져 있음을 유지한다.
  */
 @Composable
-private fun TransportRow(mode: TransportMode?) {
+private fun TransportRow(mode: TransportMode?, segment: RouteSegmentDto? = null) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
 
@@ -897,7 +1020,16 @@ private fun TransportRow(mode: TransportMode?) {
         )
         if (mode != null) {
             Text(
-                text = stringResource(mode.labelRes),
+                text = if (segment != null) {
+                    stringResource(
+                        R.string.trip_detail_route_segment,
+                        stringResource(mode.labelRes),
+                        durationLabel(segment.durationSeconds),
+                        distanceLabel(segment.distanceMeters),
+                    )
+                } else {
+                    stringResource(mode.labelRes)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.muted,
             )
