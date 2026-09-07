@@ -117,7 +117,7 @@ android/app/src/main/java/com/gilpick/
 2. **`TripDetailViewModel.startToday()`**: 오늘 날짜 판정(기기 KST) → `CurrentLocationProvider.current()`(권한·timeout·유효성 포함, 실패 시 null) → `startDay` → 성공 시 navigation event. 버튼 상태: 기간 밖 비활성+안내, 장소 0곳 `장소 추가` 안내, 시작됨 `여행 진행 화면으로`(PROG-001 `dayStatus`로 판정, TripDetail 진입 시 오늘 날짜만 조회).
 3. **`ProgressViewModel`**: overview(F004) + progress(오늘) 병렬 조회 → `Content`. 행동은 목표 상태로 매핑(`도착했어요`/`도착으로 변경`→`ARRIVED`, `다음 장소로 출발`→`COMPLETED`, `건너뛰기`→`SKIPPED`, `완료 취소`→`ARRIVED`, `건너뛰기 취소`→`PLANNED`). 응답의 progress로 상태 교체. `409 VERSION_CONFLICT`는 재조회 후 안내.
 4. **`ActiveTravelScreen`**: `viewingDate` 전환·`오늘로 돌아가기`; 오늘만 `NextPlaceCard`(EN_ROUTE/ARRIVED/완료 세 모드)·행동; 목록 행 탭 → `StatusSheet`; `장소 추가` → `ItineraryEditRoute(date=today, openSearch=true)`; `경로 보기` → `DayRouteRoute`.
-5. **`RouteMap` 확장**: 시작 위치 marker(있을 때)와 처리 상태별 marker 구분(색+숫자/체크)은 F005 marker 모델에 상태 필드를 더하는 최소 변경으로 한다.
+5. **`RouteMap`·`DayRouteScreen` 확장**: 시작 위치 marker(있을 때)와 처리 상태별 marker 구분(색+숫자/체크)은 F005 marker 모델에 상태 필드를 더하는 최소 변경으로 한다. 시작된 날짜의 F005 경로 화면은 PROG-001을 함께 조회해 marker·구간 목록에 상태를 문구+아이콘으로 표시한다(F005 UI-010이 F006에 남긴 자리).
 
 ## Complexity Tracking
 
