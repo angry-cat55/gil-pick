@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -91,6 +94,24 @@ class DayRouteScreenTest {
 
         composeRule.onNodeWithText("이동 경로를 찾지 못했어요. 장소 위치나 이동 수단을 확인해 주세요.").assertIsDisplayed()
         composeRule.onNodeWithText("다시 시도").assertIsDisplayed()
+    }
+
+    @Test
+    fun 계산_실패의_다시_시도는_48dp이며_누르면_재시도_콜백이_호출되고_loading_중에는_없다() {
+        var retries = 0
+        composeRule.mainClock.autoAdvance = false
+        var state by mutableStateOf<RouteUiState>(RouteUiState.Error(RouteProblem.Calculation(routeFailure(), 3)))
+        composeRule.setContent { GilpickTheme { Screen(state, onRetry = { retries++ }) } }
+
+        composeRule.onNodeWithText("경로 서비스 응답이 늦어", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle { assertEquals(1, retries) }
+
+        // 재계산 요청 중(loading)에는 누를 버튼이 없어 중복 요청이 생기지 않는다.
+        state = RouteUiState.Loading
+        composeRule.mainClock.advanceTimeBy(1_200)
+        composeRule.onNodeWithText("다시 시도").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("경로를 불러오는 중").assertIsDisplayed()
     }
 
     @Test

@@ -22,7 +22,13 @@ import com.gilpick.itinerary.RouteStatus
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.itinerary.toItineraryError
 import com.gilpick.route.RouteDto
+import com.gilpick.route.RouteError
 import com.gilpick.route.RouteFailureDto
+import com.gilpick.route.RouteRepository
+import com.gilpick.route.RouteService
+import com.gilpick.route.createRouteRetrofit
+import com.gilpick.route.toRouteError
+import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -86,13 +92,18 @@ sealed interface DayRoutePhase {
     /** 현재 일정 version의 계획 경로. 장소가 한 곳이면 구간 없이 합계 0이다(FR-020). */
     data class Ready(val route: RouteDto) : DayRoutePhase
 
+    /** `다시 시도`로 재계산을 요청해 응답을 기다린다. 일정 내용은 그대로 두고 경로 영역만 계산 중을 표시한다(UI-004). */
+    data object Calculating : DayRoutePhase
+
     /**
      * 자동 계산이 최종 실패했다. 일정은 보존됐고 `다시 시도`만 제공한다(FR-010).
      *
      * @property failure 실패 원인. 개요(ITIN-003)에는 원인이 없어 처음엔 `null`이고, 경로 조회나
      *   재시도 응답을 받으면 채운다.
+     * @property requestError 마지막 `다시 시도` 요청 자체가 실패한 이유(통신 단절, version 충돌 등).
+     *   재계산이 다시 실패한 경우는 여기가 아니라 [failure]가 새 원인으로 바뀐다.
      */
-    data class Failed(val failure: RouteFailureDto?) : DayRoutePhase
+    data class Failed(val failure: RouteFailureDto?, val requestError: RouteError? = null) : DayRoutePhase
 }
 
 /**
@@ -145,11 +156,13 @@ data class TripDetailUiState(
  *
  * @property repository 여행 데이터 접근 지점.
  * @property itineraryRepository 날짜별 일정 개요 접근 지점.
+ * @property routeRepository 날짜별 경로 조회·재시도 접근 지점(F005).
  * @property tripId 이 화면이 보여 줄 여행.
  */
 class TripDetailViewModel(
     private val repository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
+    private val routeRepository: RouteRepository,
     private val tripId: String,
 ) : ViewModel() {
 
@@ -205,12 +218,63 @@ class TripDetailViewModel(
             val phase = when (val result = itineraryRepository.getOverview(tripId)) {
                 is AuthResult.Success -> {
                     _routes.value = result.value.days.associate { it.date to it.toRoutePhase() }
+                    // 개요에는 실패 원인이 없다. 실패한 날짜만 경로를 따로 조회해 원인을 채운다(UI-002a).
+                    result.value.days.filter { it.routeStatus == RouteStatus.FAILED }.forEach { loadFailure(it.date) }
                     ItineraryOverviewPhase.Content(result.value.days)
                 }
                 is AuthResult.Failure ->
                     ItineraryOverviewPhase.Failed(result.error.toItineraryError())
             }
             _state.update { it.copy(itinerary = phase) }
+        }
+    }
+
+    /** 실패한 날짜의 경로를 조회해 원인만 채운다. 조회가 실패하면 원인 없는 실패로 둔다. */
+    private fun loadFailure(date: String) {
+        viewModelScope.launch {
+            val result = routeRepository.getDayRoute(tripId, LocalDate.parse(date))
+            val failure = (result as? AuthResult.Success)?.value?.failure ?: return@launch
+            _routes.update { routes ->
+                if (routes[date] is DayRoutePhase.Failed) routes + (date to DayRoutePhase.Failed(failure)) else routes
+            }
+        }
+    }
+
+    /**
+     * 실패한 날짜의 경로를 같은 일정 입력으로 다시 계산한다(FR-010, ROUTE-003).
+     *
+     * 실패 상태가 아니거나 이미 계산 중이면 아무 것도 하지 않는다(정상 경로 재계산 금지 FR-019, 중복 클릭
+     * 방지). 일정 내용은 건드리지 않고 [routes]만 바꾼다(FR-009). 재계산 결과는 성공·재실패 모두 `200`이고,
+     * `409 VERSION_CONFLICT`·`ROUTE_NOT_FAILED`는 일정이나 경로가 이미 바뀐 것이라 개요를 다시 받는다.
+     */
+    fun retryRoute(date: String) {
+        val current = _routes.value[date] as? DayRoutePhase.Failed ?: return
+        val version = (_state.value.itinerary as? ItineraryOverviewPhase.Content)
+            ?.days?.firstOrNull { it.date == date }?.version ?: return
+        _routes.update { it + (date to DayRoutePhase.Calculating) }
+
+        viewModelScope.launch {
+            val phase = when (val result = routeRepository.retryDayRoute(tripId, LocalDate.parse(date), version)) {
+                is AuthResult.Success -> when (result.value.routeStatus) {
+                    RouteStatus.READY -> result.value.route?.takeIf { it.scheduleVersion == version }
+                        ?.let { DayRoutePhase.Ready(it) } ?: DayRoutePhase.NotCalculated
+                    RouteStatus.FAILED -> DayRoutePhase.Failed(result.value.failure ?: current.failure)
+                    RouteStatus.NOT_CALCULATED -> DayRoutePhase.NotCalculated
+                }
+
+                is AuthResult.Failure -> when (val error = result.error.toRouteError()) {
+                    RouteError.VersionConflict, RouteError.NotFailed -> {
+                        loadItinerary()
+                        DayRoutePhase.Failed(current.failure, requestError = error)
+                    }
+
+                    else -> DayRoutePhase.Failed(current.failure, requestError = error)
+                }
+            }
+            _routes.update { routes ->
+                // 개요를 다시 받는 중이면 그쪽 결과가 이긴다.
+                if (routes[date] is DayRoutePhase.Calculating) routes + (date to phase) else routes
+            }
         }
     }
 
@@ -303,6 +367,10 @@ class TripDetailViewModel(
                         itineraryRepository = ItineraryRepository(
                             api = createItineraryRetrofit(BuildConfig.API_BASE_URL)
                                 .create(ItineraryService::class.java),
+                            auth = auth,
+                        ),
+                        routeRepository = RouteRepository(
+                            api = createRouteRetrofit(BuildConfig.API_BASE_URL).create(RouteService::class.java),
                             auth = auth,
                         ),
                         tripId = tripId,

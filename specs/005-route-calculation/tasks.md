@@ -214,7 +214,7 @@
   - 담당: jh
   - 선행: T020
   - 검증: 같은 version 전체 경로 재계산, 중복·동시 요청에도 버전별 경로 한 행 upsert, stale version 409, READY 상태 `ROUTE_NOT_FAILED`, 실패 재응답도 200+FAILED, 현재 경로 하나
-- [ ] T030 [P] [US3] Android retry ViewModel·UI test 보강 in android/app/src/test/java/com/gilpick/route/RouteViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/route/DayRouteScreenTest.kt, android/app/src/androidTest/java/com/gilpick/trip/TripDetailScreenTest.kt
+- [X] T030 [P] [US3] Android retry ViewModel·UI test 보강 in android/app/src/test/java/com/gilpick/route/RouteViewModelTest.kt, android/app/src/androidTest/java/com/gilpick/route/DayRouteScreenTest.kt, android/app/src/androidTest/java/com/gilpick/trip/TripDetailScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T022, T023
@@ -227,7 +227,7 @@
   - 담당: jh
   - 선행: T018, T020, T029
   - 검증: T029 통과, `(trip_day_id, schedule_version)` unique 제약과 upsert 멱등성, FAILED 선행 상태·version 재검증, 정상 경로 수동 재계산 불가
-- [ ] T032 [US3] 경로 화면과 여행 상세의 실패 retry 동작 구현 in android/app/src/main/java/com/gilpick/route/RouteViewModel.kt, android/app/src/main/java/com/gilpick/route/DayRouteScreen.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt
+- [X] T032 [US3] 경로 화면과 여행 상세의 실패 retry 동작 구현 in android/app/src/main/java/com/gilpick/route/RouteViewModel.kt, android/app/src/main/java/com/gilpick/route/DayRouteScreen.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T028, T030, T031

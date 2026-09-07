@@ -50,9 +50,9 @@ class RouteViewModel(
     }
 
     /**
-     * 현재 경로를 다시 조회한다. `error`의 `다시 시도`와 화면 재진입이 쓴다.
+     * 현재 경로를 다시 조회한다. 화면 재진입과 조회 실패 뒤 `다시 시도`가 쓴다.
      *
-     * 이미 조회 중이면 아무 것도 하지 않는다. 같은 화면에서 `content`로 전환하므로(UI-003)
+     * 이미 조회·재계산 중이면 아무 것도 하지 않는다. 같은 화면에서 `content`로 전환하므로(UI-003)
      * 이전 내용을 지우고 `loading`으로 돌아간다.
      */
     fun load() {
@@ -62,6 +62,40 @@ class RouteViewModel(
             _state.value = when (val result = repository.getDayRoute(tripId, date)) {
                 is AuthResult.Success -> result.value.toUiState()
                 is AuthResult.Failure -> RouteUiState.Error(RouteProblem.Request(result.error.toRouteError()))
+            }
+        }
+    }
+
+    /**
+     * `error`의 `다시 시도`(FR-010, US3).
+     *
+     * 경로 계산이 최종 실패한 상태([RouteProblem.Calculation])에서만 같은 일정 version으로 재계산을
+     * 요청한다(ROUTE-003). 조회 자체가 실패했거나 version이 어긋난 상태에서는 조회만 다시 한다.
+     * 정상 경로에서는 부를 곳이 없다(FR-019). 진행 중 연타는 [load]와 같은 job으로 막는다.
+     *
+     * 재계산 결과는 성공(`READY`)·재실패(`FAILED`, 새 원인) 모두 `200`으로 오고, `409 VERSION_CONFLICT`면
+     * 일정이 바뀐 것이라 최신 일정을 다시 확인하도록 안내한다. `409 ROUTE_NOT_FAILED`는 이미 경로가
+     * 생긴 것이므로 조회로 대신한다.
+     */
+    fun retry() {
+        val problem = (_state.value as? RouteUiState.Error)?.problem
+        if (problem !is RouteProblem.Calculation) {
+            load()
+            return
+        }
+        if (job?.isActive == true) return
+        _state.value = RouteUiState.Loading
+        job = viewModelScope.launch {
+            when (val result = repository.retryDayRoute(tripId, date, problem.scheduleVersion)) {
+                is AuthResult.Success -> _state.value = result.value.toUiState()
+                is AuthResult.Failure -> when (val error = result.error.toRouteError()) {
+                    RouteError.NotFailed -> {
+                        job = null
+                        load()
+                    }
+
+                    else -> _state.value = RouteUiState.Error(RouteProblem.Request(error))
+                }
             }
         }
     }

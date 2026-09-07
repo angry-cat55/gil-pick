@@ -27,6 +27,9 @@ import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.createItineraryRetrofit
+import com.gilpick.route.RouteRepository
+import com.gilpick.route.RouteService
+import com.gilpick.route.createRouteRetrofit
 import com.gilpick.itinerary.itineraryGraph
 import com.gilpick.itinerary.returnAddToSchedule
 import com.gilpick.place.PlaceDetailRoute
@@ -62,6 +65,7 @@ class TripDetailNavigationTest {
     private lateinit var navController: NavHostController
     private lateinit var repository: TripRepository
     private lateinit var itineraryRepository: ItineraryRepository
+    private lateinit var routeRepository: RouteRepository
 
     @Before
     fun setUp() {
@@ -101,6 +105,10 @@ class TripDetailNavigationTest {
         )
         itineraryRepository = ItineraryRepository(
             api = createItineraryRetrofit(server.url("/api/v1/").toString()).create(ItineraryService::class.java),
+            auth = auth,
+        )
+        routeRepository = RouteRepository(
+            api = createRouteRetrofit(server.url("/api/v1/").toString()).create(RouteService::class.java),
             auth = auth,
         )
     }
@@ -194,6 +202,7 @@ class TripDetailNavigationTest {
                             TripDetailViewModel(
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
+                                routeRepository = routeRepository,
                                 tripId = tripId,
                             )
                         }

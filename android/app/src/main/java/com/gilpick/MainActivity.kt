@@ -281,6 +281,7 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
                 routes = routes,
                 // F005 날짜별 경로. 상세로 돌아오면 위 load()가 개요와 경로 상태를 다시 받는다.
                 onOpenRoute = { date, dayNumber -> navController.navigate(DayRouteRoute(tripId, date, dayNumber)) },
+                onRetryRoute = viewModel::retryRoute,
             )
         }
 

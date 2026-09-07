@@ -111,6 +111,7 @@ import kotlinx.coroutines.delay
  * @param onSelectPlace 장소 상세(F003)로 이동한다. 인자는 `placeId`다.
  * @param routes 날짜(`yyyy-MM-dd`)별 경로 영역 상태(F005). 없는 날짜는 경로 정보 없음으로 그린다.
  * @param onOpenRoute 그 날짜의 경로 화면(F005)으로 이동한다. 인자는 날짜와 일차다.
+ * @param onRetryRoute 실패한 날짜의 경로 계산을 같은 입력으로 다시 시도한다(F005 FR-010). 인자는 날짜다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,6 +129,7 @@ fun TripDetailScreen(
     modifier: Modifier = Modifier,
     routes: Map<String, DayRoutePhase> = emptyMap(),
     onOpenRoute: (date: String, dayNumber: Int) -> Unit = { _, _ -> },
+    onRetryRoute: (date: String) -> Unit = {},
 ) {
     val spacing = LocalGilpickSpacing.current
     var menuOpen by remember { mutableStateOf(false) }
@@ -202,6 +204,7 @@ fun TripDetailScreen(
                     onAddPlace = onAddPlace,
                     onSelectPlace = onSelectPlace,
                     onOpenRoute = onOpenRoute,
+                    onRetryRoute = onRetryRoute,
                 )
 
                 is TripDetailPhase.Failed -> ErrorState(
@@ -470,6 +473,7 @@ private fun DetailContent(
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
     onOpenRoute: (date: String, dayNumber: Int) -> Unit,
+    onRetryRoute: (date: String) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
 
@@ -494,6 +498,7 @@ private fun DetailContent(
             onAddPlace = onAddPlace,
             onSelectPlace = onSelectPlace,
             onOpenRoute = onOpenRoute,
+            onRetryRoute = onRetryRoute,
         )
     }
 }
@@ -630,6 +635,7 @@ private fun ItinerarySection(
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
     onOpenRoute: (date: String, dayNumber: Int) -> Unit,
+    onRetryRoute: (date: String) -> Unit,
 ) {
     when (itinerary) {
         ItineraryOverviewPhase.Loading -> ItineraryLoading()
@@ -645,6 +651,7 @@ private fun ItinerarySection(
                     onAddPlace = onAddPlace,
                     onSelectPlace = onSelectPlace,
                     onOpenRoute = { onOpenRoute(day.date, day.dayNumber) },
+                    onRetryRoute = { onRetryRoute(day.date) },
                 )
             }
         }
@@ -726,6 +733,7 @@ private fun DayGroup(
     onAddPlace: (date: String) -> Unit,
     onSelectPlace: (placeId: String) -> Unit,
     onOpenRoute: () -> Unit,
+    onRetryRoute: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
@@ -807,7 +815,8 @@ private fun DayGroup(
                 }
                 when (route) {
                     is DayRoutePhase.Ready -> RouteSummaryRow(route = route.route, dateLabel = dateLabel, onOpenRoute = onOpenRoute)
-                    is DayRoutePhase.Failed -> RouteFailedRow(route = route)
+                    is DayRoutePhase.Failed -> RouteFailedRow(route = route, dateLabel = dateLabel, onRetry = onRetryRoute)
+                    DayRoutePhase.Calculating -> RouteCalculatingRow()
                     DayRoutePhase.NotCalculated -> Unit
                 }
             }
@@ -862,14 +871,16 @@ private fun RouteSummaryRow(route: RouteDto, dateLabel: String, onOpenRoute: () 
 }
 
 /**
- * 자동 경로 계산 실패 안내(F005 UI-002a). 일정 내용과 독립된 행이라 장소 행은 그대로 남는다.
+ * 자동 경로 계산 실패 안내와 `다시 시도`(F005 UI-002a, FR-010). 일정 내용과 독립된 행이라 장소 행은 그대로 남는다.
  *
- * 원인을 아직 모르면(개요 응답에는 원인이 없다) 일반 문구를 쓴다. `다시 시도`는 #208(T032)에서 붙는다.
+ * 원인을 아직 모르면(개요 응답에는 원인이 없다) 일반 문구를 쓴다. 마지막 `다시 시도` 요청 자체가
+ * 실패했으면(통신 단절 등) 그 이유를 한 줄 더 적는다.
  */
 @Composable
-private fun RouteFailedRow(route: DayRoutePhase.Failed) {
+private fun RouteFailedRow(route: DayRoutePhase.Failed, dateLabel: String, onRetry: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
+    val retryDescription = stringResource(R.string.trip_detail_route_retry_description, dateLabel)
 
     Row(
         modifier = Modifier
@@ -877,7 +888,7 @@ private fun RouteFailedRow(route: DayRoutePhase.Failed) {
             .padding(horizontal = spacing.space5)
             .padding(bottom = spacing.space3)
             .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(radius.md))
-            .padding(horizontal = spacing.space3, vertical = spacing.space2),
+            .padding(start = spacing.space3, end = spacing.space1, top = spacing.space1, bottom = spacing.space1),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.space2),
     ) {
@@ -887,13 +898,55 @@ private fun RouteFailedRow(route: DayRoutePhase.Failed) {
             tint = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.size(ADD_ICON + spacing.space1),
         )
-        Text(
-            text = route.failure?.let { stringResource(it.messageRes) }
-                ?: stringResource(R.string.trip_detail_route_failed),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.weight(1f),
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = route.failure?.let { stringResource(it.messageRes) }
+                    ?: stringResource(R.string.trip_detail_route_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            route.requestError?.let {
+                Text(
+                    text = stringResource(it.messageRes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+        TextButton(
+            onClick = onRetry,
+            modifier = Modifier
+                .heightIn(min = MIN_TOUCH)
+                .semantics { contentDescription = retryDescription },
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer),
+        ) {
+            Text(stringResource(R.string.trip_detail_route_retry))
+        }
+    }
+}
+
+/** 재계산 응답을 기다리는 동안의 표시(UI-004). 장소 행은 그대로 두고 경로 영역만 바뀐다. */
+@Composable
+private fun RouteCalculatingRow() {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+    val label = stringResource(R.string.trip_detail_route_retrying)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.space5)
+            .heightIn(min = MIN_TOUCH),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier
+                .size(ADD_ICON + spacing.space1)
+                .semantics { contentDescription = label },
+            strokeWidth = 2.dp,
         )
+        Text(text = label, style = MaterialTheme.typography.bodySmall, color = colors.muted)
     }
 }
 

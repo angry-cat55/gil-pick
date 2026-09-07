@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
@@ -28,6 +30,10 @@ import com.gilpick.itinerary.ItineraryPlaceDto
 import com.gilpick.itinerary.RouteStatus
 import com.gilpick.itinerary.StaySource
 import com.gilpick.itinerary.TransportMode
+import com.gilpick.route.RouteDto
+import com.gilpick.route.RouteError
+import com.gilpick.route.RouteFailureDto
+import com.gilpick.route.RouteMarkerDto
 import com.gilpick.place.PlaceCategory
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.Serializable
@@ -326,6 +332,65 @@ class TripDetailScreenTest {
         composeRule.onNodeWithText("정보 없음").assertIsDisplayed()
     }
 
+    // --- F005 T030: 경로 실패 재시도(UI-002a, FR-010·019) ---
+
+    @Test
+    fun 경로_실패_날짜는_일정을_유지한_채_원인과_다시_시도를_보이고_누르면_그_날짜로_재시도한다() {
+        val retried = mutableListOf<String>()
+        val days = listOf(day("2026-09-01", 1, listOf(item("경복궁", 1, toNext = TransportMode.WALK), item("북촌", 2))).copy(routeStatus = RouteStatus.FAILED))
+        setDetail(
+            detailWith(ItineraryOverviewPhase.Content(days)),
+            routes = mapOf("2026-09-01" to DayRoutePhase.Failed(RouteFailureDto("ROUTE_PROVIDER_TIMEOUT", "timeout", true))),
+            onRetryRoute = { retried += it },
+        )
+
+        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
+        composeRule.onNodeWithText("북촌").assertIsDisplayed()
+        composeRule.onNodeWithText("경로 서비스 응답이 늦어", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("9월 1일 경로 다시 시도").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle { assertEquals(listOf("2026-09-01"), retried) }
+        // 정상 경로에는 재계산 행동이 없다.
+        composeRule.onNodeWithText("경로 보기").assertDoesNotExist()
+    }
+
+    @Test
+    fun 경로_계산_중에는_일정을_유지한_채_계산_중만_보이고_다시_시도가_없다() {
+        val days = listOf(day("2026-09-01", 1, listOf(item("경복궁", 1, toNext = TransportMode.WALK), item("북촌", 2))).copy(routeStatus = RouteStatus.FAILED))
+        setDetail(detailWith(ItineraryOverviewPhase.Content(days)), routes = mapOf("2026-09-01" to DayRoutePhase.Calculating))
+
+        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
+        composeRule.onNodeWithText("경로 계산 중").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("9월 1일 경로 다시 시도").assertDoesNotExist()
+    }
+
+    @Test
+    fun 재시도_요청이_실패하면_원인을_유지한_채_요청_실패를_함께_알린다() {
+        val days = listOf(day("2026-09-01", 1, listOf(item("경복궁", 1))).copy(routeStatus = RouteStatus.FAILED))
+        setDetail(
+            detailWith(ItineraryOverviewPhase.Content(days)),
+            routes = mapOf("2026-09-01" to DayRoutePhase.Failed(RouteFailureDto("ROUTE_NOT_FOUND", "x", false), requestError = RouteError.Network)),
+        )
+
+        composeRule.onNodeWithText("이동 경로를 찾지 못했어요", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("9월 1일 경로 다시 시도").assertIsDisplayed()
+    }
+
+    @Test
+    fun 정상_READY_날짜에는_다시_시도가_없고_경로_보기만_있다() {
+        val days = listOf(day("2026-09-01", 1, listOf(item("경복궁", 1))).copy(routeStatus = RouteStatus.READY))
+        val route = RouteDto(
+            routeId = "r", scheduleVersion = 1, totalDurationSeconds = 0, totalDistanceMeters = 0,
+            markers = listOf(RouteMarkerDto("item-1", 1, "경복궁", 37.5, 127.0)), segments = emptyList(),
+            providerAttributions = emptyList(), calculatedAt = "2026-09-07T00:00:00Z",
+        )
+        setDetail(detailWith(ItineraryOverviewPhase.Content(days)), routes = mapOf("2026-09-01" to DayRoutePhase.Ready(route)))
+
+        composeRule.onNodeWithText("경로 보기").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("9월 1일 경로 다시 시도").assertDoesNotExist()
+        composeRule.onNodeWithText("경로 계산 중").assertDoesNotExist()
+    }
+
     /** 여행은 받았고 일정 영역만 [itinerary] 상태인 상세 화면 상태를 만든다. */
     private fun detailWith(
         itinerary: ItineraryOverviewPhase,
@@ -436,6 +501,8 @@ class TripDetailScreenTest {
         onEditItinerary: () -> Unit = {},
         onAddPlace: (String) -> Unit = {},
         onSelectPlace: (String) -> Unit = {},
+        routes: Map<String, DayRoutePhase> = emptyMap(),
+        onRetryRoute: (String) -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -450,6 +517,8 @@ class TripDetailScreenTest {
                     onEditItinerary = onEditItinerary,
                     onAddPlace = onAddPlace,
                     onSelectPlace = onSelectPlace,
+                    routes = routes,
+                    onRetryRoute = onRetryRoute,
                 )
             }
         }

@@ -310,4 +310,5 @@
     <string name="trip_detail_route_failed">경로를 계산하지 못했어요</string>
     <string name="trip_detail_route_retry">다시 시도</string>
     <string name="trip_detail_route_retrying">경로 계산 중</string>
+    <string name="trip_detail_route_retry_description">%1$s 경로 다시 시도</string>
 </resources>

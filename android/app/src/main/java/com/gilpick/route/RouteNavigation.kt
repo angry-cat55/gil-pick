@@ -62,7 +62,7 @@ fun NavGraphBuilder.routeGraph(
             dayNumber = route.dayNumber,
             date = date,
             onBack = { navController.popBackStack() },
-            onRetry = viewModel::load,
+            onRetry = viewModel::retry,
             onAddPlace = { navController.navigate(ItineraryEditRoute(route.tripId, route.date, openSearch = true)) },
             onReauthenticate = onSessionExpired,
             map = map,
