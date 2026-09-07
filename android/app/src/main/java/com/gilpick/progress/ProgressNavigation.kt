@@ -19,6 +19,7 @@ import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.route.DayRouteRoute
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteMap
+import com.gilpick.route.RouteMarks
 import kotlinx.serialization.Serializable
 
 /**
@@ -52,7 +53,9 @@ fun NavGraphBuilder.progressGraph(
     onSessionExpired: () -> Unit,
     repository: (Context) -> ProgressRepository = ProgressViewModel::defaultRepository,
     itineraryRepository: (Context) -> ItineraryRepository = ItineraryEditViewModel::defaultRepository,
-    map: @Composable (RouteDto, Modifier) -> Unit = { route, modifier -> RouteMap(route = route, modifier = modifier, sheetFraction = 0f) },
+    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
+        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f)
+    },
 ) {
     composable<ActiveTravelRoute> { entry ->
         val route = entry.toRoute<ActiveTravelRoute>()
@@ -79,6 +82,11 @@ fun NavGraphBuilder.progressGraph(
             onAddPlace = { navController.navigate(ItineraryEditRoute(route.tripId, viewModel.today.toString(), openSearch = true)) },
             onOpenRoute = { date, dayNumber -> navController.navigate(DayRouteRoute(route.tripId, date, dayNumber)) },
             onReauthenticate = onSessionExpired,
+            onArrive = viewModel::arrive,
+            onSkip = viewModel::skip,
+            onDepart = viewModel::depart,
+            onRetryAction = viewModel::retryAction,
+            onDismissActionError = viewModel::dismissActionError,
             map = map,
         )
     }

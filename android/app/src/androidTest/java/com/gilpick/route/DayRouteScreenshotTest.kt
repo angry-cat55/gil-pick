@@ -122,7 +122,7 @@ class DayRouteScreenshotTest {
             onRetry = {},
             onAddPlace = {},
             onReauthenticate = {},
-            map = { _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
+            map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
         )
     }
 

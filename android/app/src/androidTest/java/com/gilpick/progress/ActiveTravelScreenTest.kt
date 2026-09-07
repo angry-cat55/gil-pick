@@ -7,7 +7,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
@@ -21,6 +23,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.itinerary.ItemStatus
+import com.gilpick.route.ITEM_B
 import com.gilpick.ui.theme.GilpickTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -29,12 +33,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * T020: 진행 화면의 네 상태·헤더·다음 장소 카드 세 모양·지도 자리·일정 목록·`장소 추가`·접근성 기본 케이스.
+ * T020·T025: 진행 화면의 네 상태·헤더·다음 장소 카드 세 모양·지도 자리·일정 목록·`장소 추가`·접근성 기본 케이스와
+ * 전환 행동(요청 중 비활성·진행 표시, 실패 안내와 `다시 시도`, 마지막 장소의 출발 행동 부재).
  *
  * `spec.md` UI-001(구성), UI-002(카드·`N분 지났어요`), UI-004(상태 문구+아이콘, 실제 시각/ETA/`정보 없음`),
- * UI-006(당일 완료), UI-008(네 상태), UI-009(48dp), UI-011(지도 자리)이 대상이다. 상태 전이는
+ * UI-006(당일 완료), UI-008(네 상태·요청 중 유지), UI-009(48dp), UI-011(지도 자리)이 대상이다. 상태 전이는
  * `ProgressViewModelTest`가 다루므로 여기서는 상태를 직접 넣는다. 지도는 SDK 인증이 필요해 자리 표시로
- * 바꿔 끼운다. 전환 요청(US2)과 상태 수정 시트(US3)는 후속 task가 검증한다.
+ * 바꿔 끼운다. 상태 수정 시트(US3)는 후속 task가 검증한다.
  */
 @RunWith(AndroidJUnit4::class)
 class ActiveTravelScreenTest {
@@ -207,6 +212,81 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("경로 보기").assertIsDisplayed()
     }
 
+    // ---- T025: 전환 ----
+
+    @Test
+    fun 요청_중에는_내용을_유지한_채_카드_행동이_비활성이고_요청한_버튼에_진행_표시가_보인다() {
+        var arrives = 0
+        var skips = 0
+        setScreen(
+            content(progress = movingProgress()).copy(pendingAction = ProgressAction(ITEM_B, ItemStatus.ARRIVED)),
+            onArrive = { arrives++ },
+            onSkip = { skips++ },
+        )
+
+        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertIsDisplayed()
+        cardText(TAG_CARD_NEXT, "북촌한옥마을").assertIsDisplayed()
+        composeRule.onNodeWithText("도착했어요").assertIsNotEnabled()
+        composeRule.onNodeWithText("건너뛰기").assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("처리 중").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_BUSY, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText("도착했어요").performClick()
+        composeRule.onNodeWithText("건너뛰기").performClick()
+        composeRule.runOnIdle {
+            assertEquals(0, arrives)
+            assertEquals(0, skips)
+        }
+    }
+
+    @Test
+    fun 도착_카드도_요청_중에는_출발이_비활성이다() {
+        var departs = 0
+        setScreen(content(progress = arrivedProgress()).copy(pendingAction = ProgressAction(ITEM_B, ItemStatus.COMPLETED)), onDepart = { departs++ })
+
+        composeRule.onNodeWithText("다음 장소로 출발").assertIsNotEnabled().performClick()
+        composeRule.onNodeWithContentDescription("처리 중").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, departs) }
+    }
+
+    @Test
+    fun 전환_실패는_내용을_유지한_채_원인과_다시_시도와_닫기를_보여준다() {
+        var retries = 0
+        var dismissed = 0
+        setScreen(
+            content().copy(actionError = ProgressActionFailure(ProgressAction(ITEM_B, ItemStatus.ARRIVED), ProgressError.Network)),
+            onRetryAction = { retries++ },
+            onDismissActionError = { dismissed++ },
+        )
+
+        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertIsDisplayed()
+        composeRule.onNodeWithText("도착했어요").assertIsEnabled()
+        composeRule.onNodeWithTag(TAG_ACTION_ERROR).assertIsDisplayed()
+        composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithText("닫기").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, retries)
+            assertEquals(1, dismissed)
+        }
+    }
+
+    @Test
+    fun version_충돌_실패는_다시_시도_없이_안내만_보인다() {
+        setScreen(content().copy(actionError = ProgressActionFailure(ProgressAction(ITEM_B, ItemStatus.ARRIVED), ProgressError.VersionConflict)))
+
+        composeRule.onNodeWithText("진행 상태가 다른 곳에서 바뀌었어요. 최신 현황을 다시 불러옵니다.").assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").assertDoesNotExist()
+        composeRule.onNodeWithText("닫기").assertIsDisplayed()
+    }
+
+    @Test
+    fun 남은_장소가_없는_도착_카드에는_출발_행동이_없다() {
+        setScreen(content(progress = arrivedProgress().copy(nextItemId = null)))
+
+        composeRule.onNodeWithTag(TAG_CARD_ARRIVED).assertIsDisplayed()
+        composeRule.onNodeWithText("다음 장소로 출발").assertDoesNotExist()
+    }
+
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
     private fun cardText(cardTag: String, text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(cardTag)))
@@ -220,6 +300,8 @@ class ActiveTravelScreenTest {
         onArrive: () -> Unit = {},
         onSkip: () -> Unit = {},
         onDepart: () -> Unit = {},
+        onRetryAction: () -> Unit = {},
+        onDismissActionError: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -233,7 +315,9 @@ class ActiveTravelScreenTest {
                     onArrive = onArrive,
                     onSkip = onSkip,
                     onDepart = onDepart,
-                    map = { _, modifier -> FakeMap(modifier) },
+                    onRetryAction = onRetryAction,
+                    onDismissActionError = onDismissActionError,
+                    map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }
         }

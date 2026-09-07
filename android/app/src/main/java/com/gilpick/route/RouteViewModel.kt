@@ -15,8 +15,12 @@ import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.SessionRevocationWorker
 import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.RouteStatus
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.toRouteMarks
 import java.time.LocalDate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,13 +32,18 @@ import kotlinx.coroutines.launch
  * 한 날짜의 현재 경로(ROUTE-001)만 다룬다. 지도 SDK 객체는 들지 않고 [RouteUiState]만 노출한다
  * (`research.md` 결정 6). 화면 이동은 화면 콜백이 직접 하므로 일회성 event flow가 따로 없다.
  *
+ * 시작된 날짜는 진행 현황(PROG-001)을 함께 조회해 marker·구간 목록에 상태를 겹친다(F006 UI-011, T031).
+ * 진행 조회가 실패하면 계획만 보인다.
+ *
  * @param tripId 여행.
  * @param date 경로를 볼 날짜.
+ * @param progressRepository 진행 현황 접근 지점. `null`이면 진행 표시를 겹치지 않는다.
  */
 class RouteViewModel(
     private val repository: RouteRepository,
     private val tripId: String,
     private val date: LocalDate,
+    private val progressRepository: ProgressRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<RouteUiState>(RouteUiState.Loading)
@@ -59,11 +68,21 @@ class RouteViewModel(
         if (job?.isActive == true) return
         _state.value = RouteUiState.Loading
         job = viewModelScope.launch {
-            _state.value = when (val result = repository.getDayRoute(tripId, date)) {
-                is AuthResult.Success -> result.value.toUiState()
-                is AuthResult.Failure -> RouteUiState.Error(RouteProblem.Request(result.error.toRouteError()))
+            coroutineScope {
+                val marks = async { fetchMarks() }
+                _state.value = when (val result = repository.getDayRoute(tripId, date)) {
+                    is AuthResult.Success -> result.value.toUiState(marks.await())
+                    is AuthResult.Failure -> RouteUiState.Error(RouteProblem.Request(result.error.toRouteError()))
+                }
             }
         }
+    }
+
+    /** 진행 현황을 진행 표시로 바꾼다. 조회 지점이 없거나 어떤 이유로든 실패하면 계획만 그린다. 경로 조회를 막지 않는다. */
+    private suspend fun fetchMarks(): RouteMarks {
+        val repository = progressRepository ?: return RouteMarks.NONE
+        return runCatching { (repository.getDayProgress(tripId, date) as? AuthResult.Success)?.value?.toRouteMarks() }
+            .getOrNull() ?: RouteMarks.NONE
     }
 
     /**
@@ -87,7 +106,7 @@ class RouteViewModel(
         _state.value = RouteUiState.Loading
         job = viewModelScope.launch {
             when (val result = repository.retryDayRoute(tripId, date, problem.scheduleVersion)) {
-                is AuthResult.Success -> _state.value = result.value.toUiState()
+                is AuthResult.Success -> _state.value = result.value.toUiState(fetchMarks())
                 is AuthResult.Failure -> when (val error = result.error.toRouteError()) {
                     RouteError.NotFailed -> {
                         job = null
@@ -103,14 +122,14 @@ class RouteViewModel(
     companion object {
 
         /** 조회 응답을 화면 상태로 바꾼다. version이 다른 경로는 현재 경로로 보이지 않는다(FR-014). */
-        internal fun DayRouteDto.toUiState(): RouteUiState = when (routeStatus) {
+        internal fun DayRouteDto.toUiState(marks: RouteMarks = RouteMarks.NONE): RouteUiState = when (routeStatus) {
             RouteStatus.NOT_CALCULATED -> RouteUiState.Empty
             RouteStatus.FAILED -> failure
                 ?.let { RouteUiState.Error(RouteProblem.Calculation(it, scheduleVersion)) }
                 ?: RouteUiState.Error(RouteProblem.Request(RouteError.Unexpected))
 
             RouteStatus.READY -> route?.let {
-                if (it.scheduleVersion == scheduleVersion) RouteUiState.Content(it) else RouteUiState.Error(RouteProblem.Stale)
+                if (it.scheduleVersion == scheduleVersion) RouteUiState.Content(it, marks) else RouteUiState.Error(RouteProblem.Stale)
             } ?: RouteUiState.Error(RouteProblem.Request(RouteError.Unexpected))
         }
 
@@ -119,8 +138,9 @@ class RouteViewModel(
             tripId: String,
             date: LocalDate,
             repository: RouteRepository,
+            progressRepository: ProgressRepository? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { RouteViewModel(repository = repository, tripId = tripId, date = date) }
+            initializer { RouteViewModel(repository = repository, tripId = tripId, date = date, progressRepository = progressRepository) }
         }
 
         /** 실제 서버를 향한 repository. F004 `ItineraryEditViewModel.defaultRepository`와 같은 조립이다. */

@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gilpick.R
+import com.gilpick.itinerary.ItemStatus
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
@@ -58,21 +59,31 @@ import com.naver.maps.map.overlay.PathOverlay
  * 지도 인증 key(`NCP_KEY_ID`)가 없거나 인증에 실패하면 지도 대신 안내 문구를 보인다. 경로 정보는
  * 구간 목록이 같은 순서로 제공하므로 지도 없이도 화면은 성립한다(UI-005).
  *
+ * F006 진행 표시([marks])가 있으면 marker를 상태별로 바꾼다: 완료·도착은 초록 체크, 건너뜀은 회색 X, 이동 중은
+ * 파란 번호, 남은 예정은 회색 번호. 시작 위치가 있으면 `현위치` marker를 더한다(F006 UI-011, T031). 색만으로
+ * 구분하지 않도록 같은 정보를 구간 목록이 문구로 제공한다.
+ *
  * @param route 그릴 경로. 마커는 [RouteDto.markers] 순서 번호로, 구간은 [RouteDto.segments]의 geometry로 그린다.
+ * @param marks 진행 표시. 기본값 [RouteMarks.NONE]은 계획만 그린다.
  * @param sheetFraction 하단 sheet가 덮는 화면 높이 비율. 그만큼 content padding을 둬 카메라·로고가 sheet 아래에 숨지 않게 한다(UI-009).
  */
 @Composable
 fun RouteMap(
     route: RouteDto,
     modifier: Modifier = Modifier,
+    marks: RouteMarks = RouteMarks.NONE,
     sheetFraction: Float = 0.45f,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val density = LocalDensity.current
+    val gilpickColors = LocalGilpickColors.current
     val markerColor = MaterialTheme.colorScheme.primary.toArgb()
-    val pathColor = LocalGilpickColors.current.primaryLight.toArgb()
+    val doneColor = gilpickColors.success.toArgb()
+    val faintColor = gilpickColors.faint.toArgb()
+    val pathColor = gilpickColors.primaryLight.toArgb()
     val description = stringResource(R.string.route_map_description, route.markers.size)
+    val startLabel = stringResource(R.string.route_marker_start)
 
     // key가 없으면 SDK가 ClientUnspecifiedException을 던진다. 지도만 포기하고 나머지는 그대로 둔다.
     val mapView = remember { runCatching { MapView(context) }.getOrNull() }
@@ -124,8 +135,8 @@ fun RouteMap(
         }
     }
 
-    // 경로·지도·크기 중 하나라도 바뀌면 overlay를 다시 그리고 카메라를 맞춘다.
-    LaunchedEffect(naverMap, route, size) {
+    // 경로·진행 표시·지도·크기 중 하나라도 바뀌면 overlay를 다시 그리고 카메라를 맞춘다.
+    LaunchedEffect(naverMap, route, marks, size) {
         val map = naverMap ?: return@LaunchedEffect
         if (size == IntSize.Zero) return@LaunchedEffect
         val bottomPadding = (size.height * sheetFraction).toInt()
@@ -133,7 +144,16 @@ fun RouteMap(
         overlays.show(
             map = map,
             route = route,
-            markerIcon = { sequence -> numberedMarker(context, sequence, markerColor, density.density) },
+            marks = marks,
+            markerIcon = { marker ->
+                when (marks.statuses[marker.itemId]) {
+                    ItemStatus.COMPLETED, ItemStatus.ARRIVED -> circleMarker(context, MARKER_CHECK, doneColor, density.density)
+                    ItemStatus.SKIPPED -> circleMarker(context, MARKER_CROSS, faintColor, density.density)
+                    ItemStatus.PLANNED -> circleMarker(context, marker.sequence.toString(), faintColor, density.density)
+                    ItemStatus.EN_ROUTE, null -> circleMarker(context, marker.sequence.toString(), markerColor, density.density)
+                }
+            },
+            startIcon = { pillMarker(context, startLabel, markerColor, density.density) },
             markerSizePx = (MARKER_SIZE_DP * density.density).toInt(),
             pathColor = pathColor,
             pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
@@ -188,7 +208,9 @@ private class RouteOverlays {
     fun show(
         map: NaverMap,
         route: RouteDto,
-        markerIcon: (Int) -> OverlayImage,
+        marks: RouteMarks,
+        markerIcon: (RouteMarkerDto) -> OverlayImage,
+        startIcon: () -> OverlayImage,
         markerSizePx: Int,
         pathColor: Int,
         pathWidthPx: Int,
@@ -196,12 +218,22 @@ private class RouteOverlays {
     ) {
         clear()
         val bounds = LatLngBounds.Builder()
+        marks.start?.let { start ->
+            val position = LatLng(start.latitude, start.longitude)
+            bounds.include(position)
+            markers += Marker().apply {
+                this.position = position
+                icon = startIcon()
+                anchor = android.graphics.PointF(0.5f, 0.5f)
+                this.map = map
+            }
+        }
         route.markers.forEach { marker ->
             val position = LatLng(marker.latitude, marker.longitude)
             bounds.include(position)
             markers += Marker().apply {
                 this.position = position
-                icon = markerIcon(marker.sequence)
+                icon = markerIcon(marker)
                 // fromView는 뷰를 wrap_content로 다시 재므로 마커 크기를 직접 고정해야 원이 찌그러지지 않는다.
                 width = markerSizePx
                 height = markerSizePx
@@ -225,7 +257,7 @@ private class RouteOverlays {
                 this.map = map
             }
         }
-        if (route.markers.size == 1) {
+        if (route.markers.size == 1 && marks.start == null) {
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(route.markers[0].latitude, route.markers[0].longitude), SINGLE_PLACE_ZOOM))
         } else if (route.markers.isNotEmpty()) {
             map.moveCamera(CameraUpdate.fitBounds(bounds.build(), boundsPaddingPx))
@@ -233,34 +265,47 @@ private class RouteOverlays {
     }
 }
 
-/** 방문 순서 번호를 담은 원형 마커 아이콘. 목록의 순서 번호와 같은 값이다(UI-006). */
-private fun numberedMarker(context: Context, sequence: Int, color: Int, density: Float): OverlayImage {
+/** 순서 번호 또는 상태 기호를 담은 원형 마커 아이콘. 번호는 목록의 순서 번호와 같은 값이다(UI-006). */
+private fun circleMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
     val sizePx = (MARKER_SIZE_DP * density).toInt()
-    val view = TextView(context).apply {
-        text = sequence.toString()
+    return OverlayImage.fromView(markerView(context, label, color, density, sizePx, sizePx, GradientDrawable.OVAL))
+}
+
+/** `현위치` 알약형 마커. 글자가 원에 들어가지 않아 너비만 넓힌다. */
+private fun pillMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
+    val heightPx = (MARKER_SIZE_DP * density).toInt()
+    val widthPx = (START_MARKER_WIDTH_DP * density).toInt()
+    return OverlayImage.fromView(markerView(context, label, color, density, widthPx, heightPx, GradientDrawable.RECTANGLE))
+}
+
+private fun markerView(context: Context, label: String, color: Int, density: Float, widthPx: Int, heightPx: Int, shapeType: Int) =
+    TextView(context).apply {
+        text = label
         setTextColor(AndroidColor.WHITE)
         setTypeface(typeface, Typeface.BOLD)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, MARKER_TEXT_SP)
         gravity = Gravity.CENTER
-        minimumWidth = sizePx
-        minimumHeight = sizePx
+        minimumWidth = widthPx
+        minimumHeight = heightPx
         background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
+            shape = shapeType
+            cornerRadius = heightPx / 2f
             setColor(color)
             setStroke((2 * density).toInt(), AndroidColor.WHITE)
         }
-        layoutParams = android.view.ViewGroup.LayoutParams(sizePx, sizePx)
+        layoutParams = android.view.ViewGroup.LayoutParams(widthPx, heightPx)
         measure(
-            android.view.View.MeasureSpec.makeMeasureSpec(sizePx, android.view.View.MeasureSpec.EXACTLY),
-            android.view.View.MeasureSpec.makeMeasureSpec(sizePx, android.view.View.MeasureSpec.EXACTLY),
+            android.view.View.MeasureSpec.makeMeasureSpec(widthPx, android.view.View.MeasureSpec.EXACTLY),
+            android.view.View.MeasureSpec.makeMeasureSpec(heightPx, android.view.View.MeasureSpec.EXACTLY),
         )
-        layout(0, 0, sizePx, sizePx)
+        layout(0, 0, widthPx, heightPx)
     }
-    return OverlayImage.fromView(view)
-}
 
 private const val MARKER_SIZE_DP = 28
+private const val START_MARKER_WIDTH_DP = 52
 private const val MARKER_TEXT_SP = 12f
+private const val MARKER_CHECK = "\u2713"
+private const val MARKER_CROSS = "\u2715"
 private const val SINGLE_PLACE_ZOOM = 15.0
 private val PATH_WIDTH = 5.dp
 private val BOUNDS_PADDING = 48.dp

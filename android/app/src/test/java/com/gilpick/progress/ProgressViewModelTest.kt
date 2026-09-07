@@ -44,10 +44,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * T019: 진행 화면 ViewModel 상태 전이 검증.
+ * T019·T024: 진행 화면 ViewModel 상태 전이 검증.
  *
  * `spec.md` US1, UI-008(네 상태), `plan.md` State & Interaction(개요+진행 병렬 조회, `onResume` 재조회,
- * 1분 갱신)이 대상이다. HTTP 왕복은 `ProgressRepositoryTest`가 보므로 여기서는 fake service로 응답만 정한다.
+ * 1분 갱신)과 US2 전환(행동→목표 상태, `pendingAction`, 응답 교체, 실패 유지, `VERSION_CONFLICT` 재조회)이 대상이다. HTTP 왕복은 `ProgressRepositoryTest`가 보므로 여기서는 fake service로 응답만 정한다.
  *
  * 1초 대기 표시 지연은 다른 화면과 같이 composable(`ActiveTravelScreen`)이 맡는다. 여기서는 응답 전
  * 상태가 [ProgressUiState.Loading]임을, 지연 규칙은 `ActiveTravelScreenTest`가 확인한다.
@@ -251,6 +251,124 @@ class ProgressViewModelTest {
         now = Instant.parse("2026-09-08T02:12:00Z")
         advanceTimeBy(60_000)
         assertEquals(Instant.parse("2026-09-08T02:12:00Z"), (viewModel.state.value as ProgressUiState.Content).now)
+    }
+
+    // ---- T024: 전환 ----
+
+    @Test
+    fun `도착했어요는 다음 장소를 ARRIVED로, 건너뛰기는 SKIPPED로, 출발은 현재 장소를 COMPLETED로 보낸다`() = viewModelTest { viewModel ->
+        viewModel.load()
+        runCurrent()
+
+        viewModel.arrive()
+        runCurrent()
+        viewModel.skip()
+        runCurrent()
+        progressService.onGet = { progressOk(inProgress(progressVersion = 4).copy(currentItemId = P_ITEM_B, nextItemId = P_ITEM_C)) }
+        viewModel.load()
+        runCurrent()
+        viewModel.depart()
+        runCurrent()
+
+        assertEquals(listOf(P_ITEM_B, P_ITEM_B, P_ITEM_B), progressService.updateCalls.map { it.second })
+        assertEquals(listOf(ItemStatus.ARRIVED, ItemStatus.SKIPPED, ItemStatus.COMPLETED), progressService.updateCalls.map { it.third.status })
+        // 화면이 보고 있던 version을 그대로 보낸다.
+        assertEquals(listOf(2, 3, 4), progressService.updateCalls.map { it.third.progressVersion })
+    }
+
+    @Test
+    fun `요청 중에는 pendingAction만 표시하고 내용은 그대로이며 겹치는 요청은 무시한다`() = viewModelTest { viewModel ->
+        val gate = CompletableDeferred<Unit>()
+        progressService.onUpdate = { _, _ ->
+            gate.await()
+            progressOk(inProgress(progressVersion = 3))
+        }
+        viewModel.load()
+        runCurrent()
+        val before = viewModel.state.value as ProgressUiState.Content
+
+        viewModel.arrive()
+        viewModel.skip()
+        runCurrent()
+
+        val pending = viewModel.state.value as ProgressUiState.Content
+        assertEquals(ProgressAction(P_ITEM_B, ItemStatus.ARRIVED), pending.pendingAction)
+        assertEquals(before.progress, pending.progress)
+        assertEquals(1, progressService.updateCalls.size)
+
+        gate.complete(Unit)
+        runCurrent()
+        val after = viewModel.state.value as ProgressUiState.Content
+        assertNull(after.pendingAction)
+        assertEquals(3, after.progress.progressVersion)
+        assertEquals(now, after.now)
+    }
+
+    @Test
+    fun `실패하면 내용은 요청 전 그대로이고 원인과 다시 시도가 남는다`() = viewModelTest { viewModel ->
+        var fail = true
+        progressService.onUpdate = { _, _ -> if (fail) throw IOException("끊김") else progressOk(inProgress(progressVersion = 3)) }
+        viewModel.load()
+        runCurrent()
+        val before = viewModel.state.value as ProgressUiState.Content
+
+        viewModel.arrive()
+        runCurrent()
+
+        val failed = viewModel.state.value as ProgressUiState.Content
+        assertEquals(before.progress, failed.progress)
+        assertNull(failed.pendingAction)
+        assertEquals(ProgressActionFailure(ProgressAction(P_ITEM_B, ItemStatus.ARRIVED), ProgressError.Network), failed.actionError)
+        assertTrue(failed.actionError!!.retryable)
+        assertEquals(1, progressService.getCalls.size)
+
+        fail = false
+        viewModel.retryAction()
+        runCurrent()
+        val retried = viewModel.state.value as ProgressUiState.Content
+        assertNull(retried.actionError)
+        assertEquals(3, retried.progress.progressVersion)
+        // 같은 요청은 같은 Idempotency-Key로 나간다(FR-017).
+        assertEquals(progressService.updateCalls[0].first, progressService.updateCalls[1].first)
+    }
+
+    @Test
+    fun `VERSION_CONFLICT면 오류를 남기고 최신 현황을 다시 조회한다`() = viewModelTest { viewModel ->
+        progressService.onUpdate = { _, _ -> progressError(409, ProgressErrorCodes.VERSION_CONFLICT) }
+        viewModel.load()
+        runCurrent()
+        progressService.onGet = { progressOk(inProgress(progressVersion = 5)) }
+
+        viewModel.arrive()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(ProgressError.VersionConflict, content.actionError?.error)
+        assertTrue(!content.actionError!!.retryable)
+        assertEquals(5, content.progress.progressVersion)
+        assertEquals(2, progressService.getCalls.size)
+
+        viewModel.dismissActionError()
+        assertNull((viewModel.state.value as ProgressUiState.Content).actionError)
+    }
+
+    @Test
+    fun `전환 응답보다 늦게 온 조회는 더 새 version을 되돌리지 않는다`() = viewModelTest { viewModel ->
+        val gate = CompletableDeferred<Unit>()
+        viewModel.load()
+        runCurrent()
+        progressService.onGet = {
+            gate.await()
+            progressOk(inProgress(progressVersion = 2))
+        }
+        viewModel.load()
+        viewModel.arrive()
+        runCurrent()
+        assertEquals(3, (viewModel.state.value as ProgressUiState.Content).progress.progressVersion)
+
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(3, (viewModel.state.value as ProgressUiState.Content).progress.progressVersion)
     }
 
     /** 9/8 하루 여행 개요. [inProgress]의 세 항목과 같은 ID다. */

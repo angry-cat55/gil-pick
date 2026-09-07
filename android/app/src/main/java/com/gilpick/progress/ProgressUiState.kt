@@ -4,6 +4,7 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
+import com.gilpick.route.RouteMarks
 import java.time.Instant
 import java.time.LocalDate
 
@@ -30,11 +31,15 @@ sealed interface ProgressUiState {
      * @property days 여행 기간의 모든 날짜(F004 개요). 헤더의 날짜 진행 표시와 장소명의 출처다.
      * @property progress 오늘 날짜의 진행 현황(PROG-001).
      * @property now 남은·지난 시간 계산에 쓰는 기기 시각. ViewModel이 1분마다 갱신한다.
+     * @property pendingAction 서버에 보낸 뒤 응답을 기다리는 전환. 있는 동안 진행 행동 버튼은 비활성이다(UI-008).
+     * @property actionError 마지막 전환 실패. 내용은 요청 전 그대로이고 원인과 `다시 시도`를 보인다(US2 시나리오 8).
      */
     data class Content(
         val days: List<DayItineraryDto>,
         val progress: ProgressData,
         val now: Instant,
+        val pendingAction: ProgressAction? = null,
+        val actionError: ProgressActionFailure? = null,
     ) : ProgressUiState {
         /** 진행 현황의 날짜(오늘, KST). */
         val today: LocalDate get() = LocalDate.parse(progress.date)
@@ -66,6 +71,35 @@ sealed interface ProgressUiState {
             inboundTravel = null,
         )
     }
+}
+
+/**
+ * 진행 현황을 지도·경로 화면의 진행 표시로 옮긴다(UI-011). 시작 전 날짜는 계획만 보이도록 [RouteMarks.NONE]이다.
+ */
+fun ProgressData.toRouteMarks(): RouteMarks = if (dayStatus == DayStatus.NOT_STARTED) {
+    RouteMarks.NONE
+} else {
+    RouteMarks(
+        start = startLocation?.let { listOf(it.longitude, it.latitude) },
+        statuses = items.associate { it.itemId to it.status },
+    )
+}
+
+/**
+ * 사용자가 요청한 상태 전환(PROG-006 한 번). 목표 상태만 담고 파생 전환은 서버가 계산한다(research 결정 3).
+ *
+ * @property itemId 대상 장소.
+ * @property status 목표 상태. `ARRIVED`·`COMPLETED`·`SKIPPED`·`PLANNED` 중 하나다.
+ */
+data class ProgressAction(val itemId: String, val status: ItemStatus)
+
+/**
+ * 전환 실패. [action]을 그대로 다시 보내면 같은 `Idempotency-Key`가 나간다(FR-017).
+ *
+ * `VERSION_CONFLICT`·`INVALID_STATUS_TRANSITION`은 ViewModel이 최신 현황을 다시 조회하므로 `다시 시도`가 뜻이 없다([retryable]).
+ */
+data class ProgressActionFailure(val action: ProgressAction, val error: ProgressError) {
+    val retryable: Boolean get() = error == ProgressError.Network || error == ProgressError.Unexpected
 }
 
 /**

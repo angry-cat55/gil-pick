@@ -91,6 +91,8 @@ class RouteNavigationTest {
                         routeRequests += path
                         json(routeEnvelopeJson("FAILED", failure = failureJson(), scheduleVersion = 1))
                     }
+                    // 시작 전 여행이라 진행 현황이 없다. 경로 화면은 계획만 그린다(T031).
+                    path.endsWith("/progress") -> MockResponse(code = 404)
                     path.contains("/trips/") -> json(TRIP_JSON)
                     else -> MockResponse(code = 404)
                 }
@@ -225,7 +227,8 @@ class RouteNavigationTest {
                         navController,
                         onSessionExpired = {},
                         repository = { routeRepository },
-                        map = { _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
+                        progressRepository = { progressRepository },
+                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
                     )
                 }
             }

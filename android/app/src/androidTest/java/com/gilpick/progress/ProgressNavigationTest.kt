@@ -245,14 +245,15 @@ class ProgressNavigationTest {
                         navController,
                         onSessionExpired = {},
                         repository = { routeRepository },
-                        map = { _, modifier -> Box(modifier = modifier.fillMaxSize()) },
+                        progressRepository = { progressRepository },
+                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize()) },
                     )
                     progressGraph(
                         navController,
                         onSessionExpired = {},
                         repository = { progressRepository },
                         itineraryRepository = { itineraryRepository },
-                        map = { _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
+                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                 }
             }

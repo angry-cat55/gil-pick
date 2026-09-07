@@ -16,6 +16,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import com.gilpick.itinerary.ItemStatus
+import com.gilpick.route.ITEM_B
 import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
 import java.io.File
@@ -53,6 +55,16 @@ class ActiveTravelScreenshotTest {
 
     @Test
     fun 진행_시작_전() = capture("progress_not_started") { Screen(content(progress = notStartedProgress())) }
+
+    @Test
+    fun 진행_요청_중() = capture("progress_pending") {
+        Screen(content().copy(pendingAction = ProgressAction(ITEM_B, ItemStatus.ARRIVED)))
+    }
+
+    @Test
+    fun 진행_전환_실패() = capture("progress_action_error") {
+        Screen(content().copy(actionError = ProgressActionFailure(ProgressAction(ITEM_B, ItemStatus.ARRIVED), ProgressError.Network)))
+    }
 
     @Test
     fun 진행_empty() = capture("progress_empty") { Screen(ProgressUiState.Empty) }
@@ -100,7 +112,7 @@ class ActiveTravelScreenshotTest {
             onAddPlace = {},
             onOpenRoute = { _, _ -> },
             onReauthenticate = {},
-            map = { _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
+            map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
         )
     }
 
