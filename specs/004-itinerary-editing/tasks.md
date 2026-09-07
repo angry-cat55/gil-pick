@@ -266,7 +266,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: ts
   - 선행: T021, T026, T031
   - 검증: quickstart Backend 명령 전체 통과, `api-spec.md` 5.1·ITIN-001·002·003·TRIP-004 갱신(`place` 스냅샷, `staySource`, `NOT_CALCULATED`, 오류 code), `compileall`, `git diff --check`, 공개 함수 docstring
-- [ ] T034 Android F004 전체 자동 test·build와 AVD 검증 in android/app/src/test/java/com/gilpick/itinerary/, android/app/src/androidTest/java/com/gilpick/itinerary/
+- [X] T034 Android F004 전체 자동 test·build와 AVD 검증 in android/app/src/test/java/com/gilpick/itinerary/, android/app/src/androidTest/java/com/gilpick/itinerary/
   - 영역: FE
   - 담당: jy
   - 선행: T023, T028, T032

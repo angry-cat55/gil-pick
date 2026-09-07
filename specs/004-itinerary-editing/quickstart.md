@@ -70,7 +70,13 @@ android\gradlew.bat --offline -q :app:connectedDebugAndroidTest -Pandroid.testIn
 | 필수 KDoc | `com.gilpick.itinerary` 최상위 public 선언 전수 확인(script) | 누락 없음 |
 | 수동 항목 6 (360dp·글자 2.0) | screenshot 14장: 4상태(loading/empty/error/content), 10곳·긴 장소명, 처리된 항목 fixture, 체류 시간 대화상자, 이동 수단 시트, 360dp·글자 2.0 조합 | 잘림·가로 스크롤 없음. 글자 2.0에서 `변경` 칩이 두 줄(`변`/`경`)로 꺾이는 기존 발견 사항 유지 |
 | 취소 확인 대화상자 | 별도 window라 `captureToImage`에 잡히지 않음. `ItineraryEditScreenTest`의 문구·행동 검증으로 대신 | 통과 |
-| 수동 항목 1~4 (실서버·`gilpick_api36_play`) | 로컬 API를 붙인 생성→편집→검색→저장, 순서·체류·이동 수단 변경, 동시 저장 409 자동 재저장, 10곳 비활성 | **미실행**: 항목 5와 한 세션에서 함께 확인하기 위해 #195 merge 뒤로 미룸 |
-| 수동 항목 5 (기간 축소 대화상자) | F002 수정 화면 | **미실행**: #195(hs, PR #227) 미merge |
+| 수동 항목 1 (실서버·`gilpick_api36_play`) | 로컬 API(uvicorn 127.0.0.1:8000, `adb reverse`) + 주입 세션으로 실제 앱 구동. 상세 → `일정 편집` → `장소 추가` → TourAPI 실검색 `경복궁` → `+` → 대중교통·90분 → 저장 | 통과. PUT 201, 상세에 `1일차 · 1곳`·경복궁 표시 |
+| 수동 항목 2 | 북촌한옥마을·인사동 추가 → 3번째를 `위로 이동` → 첫 항목 체류 120분·이동 수단 도보 → 저장 → 뒤로 → 재진입 | 통과. 상세 순서 `경복궁, 노블관광호텔 인사동, 북촌한옥마을`, `2시간`·`도보` 표시, 재조회 후 동일 |
+| 수동 항목 3 | 앱이 편집 화면을 연 뒤 다른 세션(같은 사용자, 다른 기기 ID)이 같은 날짜를 먼저 PUT → 앱에서 첫 항목 삭제 후 저장 | 통과. 서버 로그 `PUT 200(다른 세션) → PUT 409 → GET → PUT 200(앱)`, 앱은 안내 없이 상세로 이동, 최종 상태 = 앱 초안(2곳) |
+| 수동 항목 4 | 2일차에 실검색으로 10곳 추가 | 통과. `장소 추가` 비활성, `하루 최대 10곳` 안내, 저장 후 상세 `10곳` |
+| 수동 항목 5 (#227 merge 후) | 3일차(10/7)에 항목 1개인 여행을 10/5~10/6으로 축소 → `변경 사항 저장` | 통과. `PATCH 409` → 대화상자 `일정 1곳이 삭제됩니다` → `취소`: 수정 화면 유지·기간 그대로 → 다시 저장 → `저장하기` → `PATCH 200`, 상세에서 3일차·남산서울타워 사라지고 2일 여행 |
+| 수동 항목 6 (실제 앱) | `settings put system font_scale 2.0` 후 상세·편집 화면 | 통과. 잘림·가로 스크롤 없음(긴 장소명은 두 줄) |
+
+실서버 구동 방법: `docker compose up -d postgres` → `alembic upgrade head` → `uvicorn app.main:app --host 127.0.0.1 --port 8000` → `adb reverse tcp:8000 tcp:8000` → `-PGILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/`로 설치 → `users`·`device_sessions`에 세션을 심고(`client_device_id` = 앱 `AuthSessionStore.deviceId()`) 앱 저장소에 토큰 주입. 여행 생성은 F002가 검증한 화면 대신 API로 만들었다. 실서버 흐름은 임시 instrumented 스크립트(`ItineraryLiveE2E`, 커밋하지 않음)로 구동했고 screenshot 14장(`s1_*`~`s6_*`)을 남겼다. TMAP/ODsay 경로 계산은 이 검증에서 `FAILED`로 돌아왔으나(#211 T036 범위) F004 저장은 영향 없이 성공했다.
 
 screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` 후 `adb pull`).
