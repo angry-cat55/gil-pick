@@ -134,6 +134,7 @@ fun RouteMap(
             map = map,
             route = route,
             markerIcon = { sequence -> numberedMarker(context, sequence, markerColor, density.density) },
+            markerSizePx = (MARKER_SIZE_DP * density.density).toInt(),
             pathColor = pathColor,
             pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
             boundsPaddingPx = with(density) { BOUNDS_PADDING.roundToPx() },
@@ -188,6 +189,7 @@ private class RouteOverlays {
         map: NaverMap,
         route: RouteDto,
         markerIcon: (Int) -> OverlayImage,
+        markerSizePx: Int,
         pathColor: Int,
         pathWidthPx: Int,
         boundsPaddingPx: Int,
@@ -200,6 +202,10 @@ private class RouteOverlays {
             markers += Marker().apply {
                 this.position = position
                 icon = markerIcon(marker.sequence)
+                // fromView는 뷰를 wrap_content로 다시 재므로 마커 크기를 직접 고정해야 원이 찌그러지지 않는다.
+                width = markerSizePx
+                height = markerSizePx
+                anchor = android.graphics.PointF(0.5f, 0.5f)
                 captionText = marker.name
                 captionColor = AndroidColor.WHITE
                 captionHaloColor = AndroidColor.BLACK
@@ -236,6 +242,8 @@ private fun numberedMarker(context: Context, sequence: Int, color: Int, density:
         setTypeface(typeface, Typeface.BOLD)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, MARKER_TEXT_SP)
         gravity = Gravity.CENTER
+        minimumWidth = sizePx
+        minimumHeight = sizePx
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(color)

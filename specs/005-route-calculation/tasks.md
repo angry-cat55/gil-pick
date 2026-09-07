@@ -181,7 +181,7 @@
   - 담당: jy
   - 선행: T022
   - 검증: T022 통과, ViewModel에 Naver SDK 객체를 보관하지 않고 `StateFlow`와 일회성 navigation/event를 분리
-- [ ] T026 [US2] lifecycle-aware Naver RouteMap adapter 구현 in android/app/src/main/java/com/gilpick/route/RouteMap.kt
+- [X] T026 [US2] lifecycle-aware Naver RouteMap adapter 구현 in android/app/src/main/java/com/gilpick/route/RouteMap.kt
   - 영역: FE
   - 담당: jy
   - 선행: T003, T025
