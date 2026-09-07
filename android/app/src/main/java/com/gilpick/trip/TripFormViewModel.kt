@@ -141,9 +141,9 @@ enum class TripFormSubmitError {
     /**
      * `409 CONFIRMATION_REQUIRED`. 기간 축소로 삭제될 일정이 있어 확인이 필요하다.
      *
-     * F002 시점에는 일정(`trip_days`/`itinerary_items`)이 없어 서버가 삭제 개수를 항상
-     * 0으로 보므로 실제로 발동하지 않는다. 화면 표현은 F004에서 만들고 여기서는 원인만
-     * 구분해 둔다(FR-012).
+     * 정상 흐름에서는 이 값이 화면에 뜨지 않는다. 서버가 삭제될 장소 수를 함께 주므로
+     * [TripFormUiState.deleteConfirmation]으로 확인 대화상자를 띄우기 때문이다(FR-013).
+     * 개수 없이 code만 온 계약 위반 응답에서만 안내 문구로 남는다.
      */
     CONFIRMATION_REQUIRED,
 
@@ -185,6 +185,9 @@ sealed interface FormMode {
  * @property savedTripId 생성 또는 수정에 성공한 여행 ID. 화면 이동 뒤
  *   [TripFormViewModel.consumeSaved]로 비운다.
  * @property mode 생성 중인지 수정 중인지. 제출 경로와 기간 입력 잠금이 여기서 갈린다.
+ * @property deleteConfirmation 기간 축소로 삭제될 장소 수. `null`이면 확인 대화상자를
+ *   띄우지 않는다. 서버가 `409 CONFIRMATION_REQUIRED`로 알려 준 값이며(FR-013),
+ *   사용자가 동의해야만 같은 요청을 `confirmDeleteOutOfRangeItems=true`로 다시 보낸다.
  */
 data class TripFormUiState(
     val name: String = "",
@@ -197,6 +200,7 @@ data class TripFormUiState(
     val savedTripId: String? = null,
     val mode: FormMode = FormMode.Create,
     val loading: Boolean = false,
+    val deleteConfirmation: Int? = null,
 ) {
     /**
      * 기간 입력을 잠글지 여부.
@@ -234,14 +238,21 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
     /** 여행명 입력을 반영한다. */
     fun onNameChange(value: String) {
         idempotencyKey = null
-        _state.update { it.copy(name = value, submitError = null).revalidated() }
+        _state.update {
+            it.copy(name = value, submitError = null, deleteConfirmation = null).revalidated()
+        }
     }
 
     /** 고른 여행 기간을 반영한다. 둘 중 하나만 고른 상태도 그대로 보존한다. */
     fun onPeriodChange(startDate: LocalDate?, endDate: LocalDate?) {
         idempotencyKey = null
         _state.update {
-            it.copy(startDate = startDate, endDate = endDate, submitError = null).revalidated()
+            it.copy(
+                startDate = startDate,
+                endDate = endDate,
+                submitError = null,
+                deleteConfirmation = null,
+            ).revalidated()
         }
     }
 
@@ -309,40 +320,110 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
         val start = current.startDate ?: return
         val end = current.endDate ?: return
 
-        _state.update { it.copy(submitting = true, showErrors = true, submitError = null) }
-        viewModelScope.launch {
-            val mode = current.mode
-            val result = when (mode) {
-                is FormMode.Create -> {
-                    // 같은 입력의 재시도는 같은 키로 보낸다. 통신 실패 후 다시 눌렀을 때
-                    // 여행이 두 건 생기지 않게 한다.
-                    val key = idempotencyKey
-                        ?: UUID.randomUUID().toString().also { idempotencyKey = it }
-                    repository.createTrip(current.name, start, end, key)
-                }
+        _state.update {
+            it.copy(
+                submitting = true,
+                showErrors = true,
+                submitError = null,
+                deleteConfirmation = null,
+            )
+        }
+        viewModelScope.launch { send(current, start, end, confirmDeleteOutOfRangeItems = false) }
+    }
 
-                is FormMode.Edit -> repository.updateTrip(
-                    tripId = mode.tripId,
-                    version = mode.version,
-                    name = current.name,
-                    // 완료된 여행은 기간을 보내지 않는다. 값이 그대로여도 서버가
-                    // TRIP_LOCKED로 거절한다(FR-010a).
-                    startDate = start.takeUnless { current.periodLocked },
-                    endDate = end.takeUnless { current.periodLocked },
-                )
+    /**
+     * 기간 축소로 삭제될 일정에 동의하고 같은 수정을 다시 보낸다.
+     *
+     * 확인 대화상자의 `저장하기`에서만 호출한다. 사용자가 이미 고른 이름·기간을 그대로
+     * 쓰고 `confirmDeleteOutOfRangeItems`만 `true`로 바꾼다(FR-013). 새로 검증하지
+     * 않는다. 방금 서버까지 다녀온 값이라 그 사이 입력이 바뀌지 않았다.
+     */
+    fun confirmDeleteOutOfRangeItems() {
+        val current = _state.value
+        if (current.submitting || current.deleteConfirmation == null) return
+
+        val start = current.startDate ?: return
+        val end = current.endDate ?: return
+
+        _state.update { it.copy(submitting = true, deleteConfirmation = null, submitError = null) }
+        viewModelScope.launch { send(current, start, end, confirmDeleteOutOfRangeItems = true) }
+    }
+
+    /**
+     * 삭제 확인을 취소한다.
+     *
+     * 저장하지 않고 대화상자만 닫는다. 폼에 고른 기간은 그대로 남으므로 사용자가 다시
+     * 줄이거나 되돌릴 수 있다. 서버의 여행은 손대지 않았다(US4 Acceptance 4).
+     */
+    fun cancelDeleteConfirmation() {
+        _state.update { it.copy(deleteConfirmation = null) }
+    }
+
+    /**
+     * 생성 또는 수정 요청을 보내고 결과를 상태에 반영한다.
+     *
+     * @param confirmDeleteOutOfRangeItems 기간 축소로 삭제될 일정에 사용자가 동의했는지.
+     *   수정에만 쓰이며 생성에는 해당하지 않는다.
+     */
+    private suspend fun send(
+        current: TripFormUiState,
+        start: LocalDate,
+        end: LocalDate,
+        confirmDeleteOutOfRangeItems: Boolean,
+    ) {
+        val result = when (val mode = current.mode) {
+            is FormMode.Create -> {
+                // 같은 입력의 재시도는 같은 키로 보낸다. 통신 실패 후 다시 눌렀을 때
+                // 여행이 두 건 생기지 않게 한다.
+                val key = idempotencyKey
+                    ?: UUID.randomUUID().toString().also { idempotencyKey = it }
+                repository.createTrip(current.name, start, end, key)
             }
 
-            _state.update { state ->
-                when (result) {
-                    is AuthResult.Success -> {
-                        idempotencyKey = null
-                        state.copy(submitting = false, savedTripId = result.value.tripId)
-                    }
+            is FormMode.Edit -> repository.updateTrip(
+                tripId = mode.tripId,
+                version = mode.version,
+                name = current.name,
+                // 완료된 여행은 기간을 보내지 않는다. 값이 그대로여도 서버가
+                // TRIP_LOCKED로 거절한다(FR-010a).
+                startDate = start.takeUnless { current.periodLocked },
+                endDate = end.takeUnless { current.periodLocked },
+                confirmDeleteOutOfRangeItems = confirmDeleteOutOfRangeItems,
+            )
+        }
 
-                    is AuthResult.Failure ->
-                        state.copy(submitting = false, submitError = result.error.toSubmitError())
+        _state.update { state ->
+            when (result) {
+                is AuthResult.Success -> {
+                    idempotencyKey = null
+                    state.copy(submitting = false, savedTripId = result.value.tripId)
                 }
+
+                is AuthResult.Failure -> state.afterFailure(result.error)
             }
+        }
+    }
+
+    /**
+     * 실패를 상태에 반영한다.
+     *
+     * `409 CONFIRMATION_REQUIRED`는 실패 안내가 아니라 **되물음**이다. 삭제될 장소 수를
+     * 받았으면 오류 문구 대신 확인 대화상자를 띄운다. 개수가 없으면 무엇에 동의하는지
+     * 말할 수 없으므로 대화상자를 열지 않고 기존 안내 문구로 돌아간다.
+     */
+    private fun TripFormUiState.afterFailure(error: AuthError): TripFormUiState {
+        val server = error as? AuthError.Server
+        val deletedItemCount =
+            if (server?.code == TripErrorCodes.CONFIRMATION_REQUIRED) {
+                server.details?.deletedItemCount
+            } else {
+                null
+            }
+
+        return if (deletedItemCount != null) {
+            copy(submitting = false, deleteConfirmation = deletedItemCount)
+        } else {
+            copy(submitting = false, submitError = error.toSubmitError())
         }
     }
 

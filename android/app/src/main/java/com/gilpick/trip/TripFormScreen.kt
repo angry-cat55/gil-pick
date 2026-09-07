@@ -7,9 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DateRangePicker
@@ -20,6 +25,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,8 +44,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.DialogProperties
 import com.gilpick.R
 import com.gilpick.ui.theme.GilpickTheme
+import com.gilpick.ui.theme.LocalGilpickColors
+import com.gilpick.ui.theme.LocalGilpickRadius
+import com.gilpick.ui.theme.LocalGilpickSpacing
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -57,6 +68,9 @@ import java.time.format.DateTimeFormatter
  * @param onNameChange 여행명 입력을 반영한다.
  * @param onPeriodChange 고른 기간을 반영한다.
  * @param onSubmit 여행 생성을 요청한다.
+ * @param onConfirmDeleteOutOfRangeItems 기간 축소로 삭제될 일정에 동의하고 저장을
+ *   계속한다. 확인 대화상자의 `저장하기`에서만 호출한다.
+ * @param onCancelDeleteConfirmation 확인 대화상자를 저장하지 않고 닫는다.
  */
 @Composable
 fun TripFormScreen(
@@ -64,6 +78,8 @@ fun TripFormScreen(
     onNameChange: (String) -> Unit,
     onPeriodChange: (LocalDate?, LocalDate?) -> Unit,
     onSubmit: () -> Unit,
+    onConfirmDeleteOutOfRangeItems: () -> Unit = {},
+    onCancelDeleteConfirmation: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = com.gilpick.ui.theme.LocalGilpickSpacing.current
@@ -116,6 +132,16 @@ fun TripFormScreen(
             labelRes = if (state.mode is FormMode.Edit) R.string.trip_form_edit_submit
             else R.string.trip_form_submit,
             onClick = onSubmit,
+        )
+    }
+
+    // 서버가 삭제될 장소 수를 알려 준 동안에만 띄운다. 동의하기 전에는 저장되지 않는다.
+    state.deleteConfirmation?.let { deletedItemCount ->
+        DeleteConfirmDialog(
+            deletedItemCount = deletedItemCount,
+            submitting = state.submitting,
+            onConfirm = onConfirmDeleteOutOfRangeItems,
+            onDismiss = onCancelDeleteConfirmation,
         )
     }
 
@@ -249,6 +275,117 @@ private fun PeriodField(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.error,
             )
+        }
+    }
+}
+
+/**
+ * 기간 축소로 삭제될 일정에 동의를 받는 대화상자.
+ *
+ * Figma `EditTripScreen`의 저장 확인 대화상자를 따른다. `AlertDialog`가 아니라
+ * [BasicAlertDialog]를 쓰는 이유는 여행 삭제 대화상자([TripDetailScreen])와 같다.
+ * `AlertDialog`는 제목·본문·버튼의 배치를 스스로 정해서 Figma가 요구하는 경고 아이콘
+ * 박스와 세로로 쌓인 버튼을 그대로 만들 수 없다.
+ *
+ * 되돌릴 수 없는 삭제라 경고 색을 쓰지만 색만으로 알리지 않는다. 제목이 삭제될 장소
+ * 수를 말하고 본문이 복구 불가를 적는다(가이드라인 10절).
+ *
+ * @param deletedItemCount 새 기간 밖으로 밀려나 삭제될 장소 수. 서버가 알려 준 값이다.
+ * @param submitting 동의 후 재요청이 진행 중인지. 버튼을 잠그는 데 쓴다.
+ * @param onConfirm 삭제에 동의하고 저장을 계속한다.
+ * @param onDismiss 저장하지 않고 닫는다. 폼의 기간 입력은 그대로 남는다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteConfirmDialog(
+    deletedItemCount: Int,
+    submitting: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+
+    BasicAlertDialog(
+        // 요청을 보낸 사이에 닫히면 결과를 전달할 화면이 사라진다.
+        onDismissRequest = { if (!submitting) onDismiss() },
+        properties = DialogProperties(
+            dismissOnBackPress = !submitting,
+            dismissOnClickOutside = !submitting,
+            // Figma가 정한 너비를 쓰려면 platform 기본 너비 제약을 꺼야 한다.
+            usePlatformDefaultWidth = false,
+        ),
+        modifier = Modifier.padding(horizontal = spacing.space6),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(radius.xl),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(modifier = Modifier.padding(spacing.space6)) {
+                Box(
+                    modifier = Modifier
+                        .size(DIALOG_ICON_BOX)
+                        .background(colors.warningContainer, RoundedCornerShape(radius.lg)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        // 바로 아래 제목이 같은 뜻을 말한다(가이드라인 10절).
+                        contentDescription = null,
+                        tint = colors.warning,
+                        modifier = Modifier.size(DIALOG_ICON),
+                    )
+                }
+
+                Text(
+                    text = stringResource(R.string.trip_form_shrink_title, deletedItemCount),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = spacing.space4, bottom = spacing.space2),
+                )
+                Text(
+                    text = stringResource(R.string.trip_form_shrink_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(R.string.trip_form_shrink_question),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = spacing.space6),
+                )
+
+                Button(
+                    onClick = onConfirm,
+                    enabled = !submitting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = DIALOG_BUTTON_HEIGHT),
+                    shape = RoundedCornerShape(radius.lg),
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (submitting) R.string.trip_form_shrink_progress
+                            else R.string.trip_form_shrink_confirm,
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    enabled = !submitting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = MIN_TOUCH),
+                ) {
+                    Text(
+                        text = stringResource(R.string.trip_form_shrink_cancel),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
@@ -395,6 +532,14 @@ private val DISPLAY_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val FIELD_HEIGHT = Dp(56f)
 private val PROGRESS_SIZE = Dp(24f)
+
+/** 가이드라인 10절: 터치 영역 48dp 이상. */
+private val MIN_TOUCH = Dp(48f)
+
+/** Figma 확인 대화상자의 경고 아이콘 박스·아이콘·주버튼 크기. */
+private val DIALOG_ICON_BOX = Dp(48f)
+private val DIALOG_ICON = Dp(22f)
+private val DIALOG_BUTTON_HEIGHT = Dp(52f)
 
 /**
  * 달력 다이얼로그가 작은 화면을 넘지 않도록 하는 상한.

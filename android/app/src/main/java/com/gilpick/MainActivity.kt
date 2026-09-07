@@ -303,6 +303,10 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
                 onNameChange = viewModel::onNameChange,
                 onPeriodChange = viewModel::onPeriodChange,
                 onSubmit = viewModel::submit,
+                // 기간 축소로 삭제될 일정 동의는 수정에만 있다. 생성에는 기존 일정이
+                // 없으므로 서버가 확인을 요구하지 않는다.
+                onConfirmDeleteOutOfRangeItems = viewModel::confirmDeleteOutOfRangeItems,
+                onCancelDeleteConfirmation = viewModel::cancelDeleteConfirmation,
             )
         }
 
