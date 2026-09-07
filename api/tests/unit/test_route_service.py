@@ -21,6 +21,7 @@ from app.services.route import (
     RouteItemSnapshot,
     RouteService,
     RouteSnapshot,
+    SingleSegmentResult,
 )
 
 
@@ -357,3 +358,118 @@ def test_snapshot_rejects_changed_version_before_result_activation() -> None:
 
     assert snapshot.matches_version(snapshot.schedule_version)
     assert not snapshot.matches_version(snapshot.schedule_version + 1)
+
+
+@pytest.mark.asyncio
+async def test_single_segment_returns_only_progress_travel_fields() -> None:
+    provider = FakeProvider(provider=Provider.TMAP)
+    service = _service(tmap=provider)
+
+    result = await service.calculate_single_segment(
+        origin=Coordinate(longitude=127.0, latitude=37.5),
+        destination=Coordinate(longitude=127.1, latitude=37.6),
+        transport_mode=TransportMode.WALK,
+    )
+
+    assert result == SingleSegmentResult(
+        duration_seconds=100,
+        distance_meters=1_000,
+        provider=Provider.TMAP,
+    )
+
+
+@pytest.mark.asyncio
+async def test_single_segment_retries_transient_failure_once_with_five_second_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DeadlineProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__(
+                provider=Provider.ODSAY,
+                failures=[RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=True)],
+            )
+            self.deadlines: list[float] = []
+
+        async def calculate(self, *args, deadline: float, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]
+            self.deadlines.append(deadline)
+            return await super().calculate(*args, deadline=deadline, **kwargs)
+
+    clock = iter([100.0, 100.0, 100.0, 101.0, 101.0, 101.0])
+    monkeypatch.setattr("app.services.route.monotonic", lambda: next(clock))
+    provider = DeadlineProvider()
+
+    result = await _service(odsay=provider).calculate_single_segment(
+        origin=Coordinate(longitude=127.0, latitude=37.5),
+        destination=Coordinate(longitude=127.1, latitude=37.6),
+        transport_mode=TransportMode.TRANSIT,
+    )
+
+    assert result.provider is Provider.ODSAY
+    assert provider.calls == 2
+    assert provider.deadlines == [105.0, 106.0]
+
+
+@pytest.mark.asyncio
+async def test_single_segment_clamps_second_attempt_to_remaining_overall_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DeadlineProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__(
+                provider=Provider.TMAP,
+                failures=[RouteProviderError("ROUTE_PROVIDER_TIMEOUT", retryable=True)],
+            )
+            self.deadlines: list[float] = []
+
+        async def calculate(self, *args, deadline: float, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]
+            self.deadlines.append(deadline)
+            return await super().calculate(*args, deadline=deadline, **kwargs)
+
+    clock = iter([100.0, 100.0, 105.0, 105.0])
+    monkeypatch.setattr("app.services.route.monotonic", lambda: next(clock))
+    provider = DeadlineProvider()
+
+    result = await _service(tmap=provider).calculate_single_segment(
+        origin=Coordinate(longitude=127.0, latitude=37.5),
+        destination=Coordinate(longitude=127.1, latitude=37.6),
+        transport_mode=TransportMode.WALK,
+    )
+
+    assert result.provider is Provider.TMAP
+    assert provider.deadlines == [105.0, 108.0]
+
+
+@pytest.mark.asyncio
+async def test_single_segment_does_not_retry_permanent_failure() -> None:
+    provider = FakeProvider(
+        provider=Provider.TMAP,
+        failures=[RouteProviderError("ROUTE_NOT_FOUND", retryable=False)],
+    )
+
+    with pytest.raises(RouteProviderError, match="ROUTE_NOT_FOUND"):
+        await _service(tmap=provider).calculate_single_segment(
+            origin=Coordinate(longitude=127.0, latitude=37.5),
+            destination=Coordinate(longitude=127.1, latitude=37.6),
+            transport_mode=TransportMode.CAR,
+        )
+
+    assert provider.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_single_segment_enforces_eight_second_overall_deadline() -> None:
+    class HangingProvider(FakeProvider):
+        async def calculate(self, *args, **kwargs) -> NormalizedRoute:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(1)
+            return await super().calculate(*args, **kwargs)
+
+    started_at = time.monotonic()
+    with pytest.raises(RouteProviderError, match="ROUTE_PROVIDER_TIMEOUT"):
+        await _service(tmap=HangingProvider(provider=Provider.TMAP)).calculate_single_segment(
+            origin=Coordinate(longitude=127.0, latitude=37.5),
+            destination=Coordinate(longitude=127.1, latitude=37.6),
+            transport_mode=TransportMode.WALK,
+            overall_deadline_seconds=0.01,
+        )
+
+    assert time.monotonic() - started_at < 0.2

@@ -39,22 +39,22 @@
 
 **⚠️ CRITICAL**: 이 단계 완료 전에는 User Story 구현을 시작하지 않는다.
 
-- [ ] T004 진행 table migration과 DB 제약 구현 in api/migrations/versions/005_create_progress_tables.py
+- [X] T004 진행 table migration과 DB 제약 구현 in api/migrations/versions/005_create_progress_tables.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
   - 검증: upgrade·downgrade 왕복, `trip_days.progress_version` 기본 0, `progress_transitions` FK·`UNIQUE(trip_day_id, idempotency_key)`, `progress_segments` FK cascade·`(trip_day_id, from_item_id, to_item_id)` unique(from null 포함)를 `api/tests/integration/test_progress_migration.py`로 검증
-- [ ] T005 [P] 진행 ORM model과 TripDay 확장 in api/app/models/progress.py, api/app/models/itinerary.py, api/app/models/__init__.py
+- [X] T005 [P] 진행 ORM model과 TripDay 확장 in api/app/models/progress.py, api/app/models/itinerary.py, api/app/models/__init__.py
   - 영역: BE
   - 담당: jh
   - 선행: T004
   - 검증: model과 migration column·constraint 일치, `affected_items` JSONB, relationship·cascade를 `api/tests/unit/test_progress_model.py`에서 확인
-- [ ] T006 [P] 진행 schema·enum·오류 code 구현 in api/app/schemas/progress.py
+- [X] T006 [P] 진행 schema·enum·오류 code 구현 in api/app/schemas/progress.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
   - 검증: OpenAPI의 `ProgressData`·`ProgressItem`·`InboundTravel`(nullable·`source`), 시작 요청 `currentLocation` 범위 validation, PATCH `status` enum 4개를 `api/tests/unit/test_progress_schema.py`에서 검증
-- [ ] T007 [P] 단일 구간 provider 계산 함수 노출 in api/app/services/route.py
+- [X] T007 [P] 단일 구간 provider 계산 함수 노출 in api/app/services/route.py
   - 영역: BE
   - 담당: jh
   - 선행: T001

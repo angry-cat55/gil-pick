@@ -42,6 +42,7 @@ class TripDay(TimestampMixin, Base):
             name="ck_trip_days_status",
         ),
         CheckConstraint("schedule_version >= 1", name="ck_trip_days_schedule_version"),
+        CheckConstraint("progress_version >= 0", name="ck_trip_days_progress_version"),
     )
 
     trip_day_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -55,6 +56,9 @@ class TripDay(TimestampMixin, Base):
     )
     schedule_version: Mapped[int] = mapped_column(
         Integer, server_default="1", nullable=False
+    )
+    progress_version: Mapped[int] = mapped_column(
+        Integer, server_default="0", nullable=False
     )
     actual_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     start_location: Mapped[object | None] = mapped_column(
@@ -73,6 +77,12 @@ class TripDay(TimestampMixin, Base):
     )
     routes: Mapped[list[object]] = relationship(
         "Route", back_populates="trip_day", cascade="all, delete-orphan"
+    )
+    progress_transitions: Mapped[list[object]] = relationship(
+        "ProgressTransition", back_populates="trip_day", cascade="all, delete-orphan"
+    )
+    progress_segments: Mapped[list[object]] = relationship(
+        "ProgressSegment", back_populates="trip_day", cascade="all, delete-orphan"
     )
 
 
