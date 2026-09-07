@@ -25,6 +25,8 @@ import com.gilpick.itinerary.itineraryGraph
 import com.gilpick.itinerary.returnAddToSchedule
 import com.gilpick.place.PlaceDetailRoute
 import com.gilpick.place.placeGraph
+import com.gilpick.progress.ActiveTravelRoute
+import com.gilpick.progress.progressGraph
 import com.gilpick.route.DayRouteRoute
 import com.gilpick.route.routeGraph
 import androidx.navigation.compose.NavHost
@@ -282,6 +284,16 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
                 // F005 날짜별 경로. 상세로 돌아오면 위 load()가 개요와 경로 상태를 다시 받는다.
                 onOpenRoute = { date, dayNumber -> navController.navigate(DayRouteRoute(tripId, date, dayNumber)) },
                 onRetryRoute = viewModel::retryRoute,
+                // F006 오늘 여행 시작. 위치 권한 요청은 화면이 끝내고 ViewModel이 위치 취득·시작 요청을 한다.
+                // 시작되면(방금이든 이미든) 진행 화면으로 간다. 여행명은 상세가 이미 알고 있어 route로 나른다.
+                onStartToday = viewModel::startToday,
+                onRetryStart = viewModel::retryStart,
+                onOpenProgress = {
+                    (state.phase as? TripDetailPhase.Content)?.let { content ->
+                        navController.navigate(ActiveTravelRoute(tripId, content.trip.name))
+                    }
+                },
+                onLaunchConsumed = viewModel::consumeLaunched,
             )
         }
 
@@ -324,6 +336,11 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
         // F005 날짜별 경로. destination 정의는 com.gilpick.route가 소유한다. 여행 상세의
         // `경로 보기`가 이 route로 들어오고, 빈 상태의 `장소 추가`는 위 itineraryGraph로 간다.
         routeGraph(navController, onSessionExpired = onSessionExpired)
+
+        // F006 진행 화면. destination 정의는 com.gilpick.progress가 소유한다. 여행 상세의
+        // `오늘 여행 시작`·`여행 진행 화면으로`가 이 route로 들어오고, `장소 추가`·`경로 보기`는
+        // 위 itineraryGraph·routeGraph로 간다.
+        progressGraph(navController, onSessionExpired = onSessionExpired)
 
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
         // 등록만 한다. `일정에 추가` 결과는 편집 화면 entry로 돌려주고 검색·상세를 닫는다.
