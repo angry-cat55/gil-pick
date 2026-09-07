@@ -14,7 +14,7 @@
 
 **Purpose**: F006 계약을 공용 문서에 고정하고 Android 위치 의존성·Figma 추가 요소를 준비한다.
 
-- [ ] T001 F006 계약·ERD·API 명세 동기화와 교차 review in specs/006-trip-progress/contracts/progress.openapi.yaml, specs/006-trip-progress/data-model.md, docs/design/api-spec.md, docs/design/er-schema.md
+- [X] T001 F006 계약·ERD·API 명세 동기화와 교차 review in specs/006-trip-progress/contracts/progress.openapi.yaml, specs/006-trip-progress/data-model.md, docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: 통합
   - 담당: jh
   - 교차 확인: jy

@@ -14,7 +14,7 @@
 
 **Purpose**: F004 경계와 F005 계약을 교차 확인하고 provider·지도 SDK 설정 기반을 준비한다.
 
-- [ ] T001 Backend·Android 구현 전 F005 계약과 공용 문서 동기화·교차 review in specs/005-route-calculation/contracts/route.openapi.yaml, specs/005-route-calculation/data-model.md, docs/design/api-spec.md, docs/design/er-schema.md
+- [X] T001 Backend·Android 구현 전 F005 계약과 공용 문서 동기화·교차 review in specs/005-route-calculation/contracts/route.openapi.yaml, specs/005-route-calculation/data-model.md, docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: 통합
   - 담당: jh
   - 교차 확인: jy
