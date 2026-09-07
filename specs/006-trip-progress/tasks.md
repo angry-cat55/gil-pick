@@ -20,7 +20,7 @@
   - 교차 확인: jy
   - 선행: 없음
   - 검증: PROG-001 응답(`inboundTravel`, `nextItemId`, `progressVersion`), PROG-002 요청(`progressVersion`, `currentLocation`)·`Idempotency-Key`, PROG-006 요청·응답과 오류 code(`DAY_NOT_TODAY`, `DAY_EMPTY`, `DAY_NOT_STARTED`, `INVALID_STATUS_TRANSITION`), `trip_days.progress_version`·`progress_transitions`(`idempotency_key`, `progress_version_after`)·`progress_segments`가 api-spec·er-schema에 반영되고 BE `jh`와 FE `jy`가 확인
-- [ ] T002 [P] Android 위치 의존성과 권한 선언 in android/app/build.gradle.kts, android/app/src/main/AndroidManifest.xml
+- [x] T002 [P] Android 위치 의존성과 권한 선언 in android/app/build.gradle.kts, android/app/src/main/AndroidManifest.xml
   - 영역: FE
   - 담당: jy
   - 선행: T001
@@ -59,12 +59,12 @@
   - 담당: jh
   - 선행: T001
   - 검증: `RouteCalculationService`의 기존 provider로 (출발 좌표, 도착 좌표, 이동수단) 한 구간을 시도당 5초·일시 오류 1회 재시도·전체 8초 deadline으로 계산해 이동시간·거리·provider만 돌려주고, F005 날짜 경로 저장에 영향이 없음을 `api/tests/unit/test_route_service.py`에 추가 검증
-- [ ] T008 [P] Android 진행 DTO·Retrofit service 구현 in android/app/src/main/java/com/gilpick/progress/ProgressApi.kt
+- [x] T008 [P] Android 진행 DTO·Retrofit service 구현 in android/app/src/main/java/com/gilpick/progress/ProgressApi.kt
   - 영역: FE
   - 담당: jy
   - 선행: T001
   - 검증: GET progress, POST start(`Idempotency-Key`, `currentLocation` nullable), PATCH status 경로·본문과 `ProgressData` 직렬화 round-trip(null ETA·`inboundTravel` null 포함)을 `android/app/src/test/java/com/gilpick/progress/ProgressApiTest.kt`에서 확인
-- [ ] T009 Android ProgressRepository와 오류 분류 구현 in android/app/src/main/java/com/gilpick/progress/ProgressRepository.kt
+- [x] T009 Android ProgressRepository와 오류 분류 구현 in android/app/src/main/java/com/gilpick/progress/ProgressRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T008

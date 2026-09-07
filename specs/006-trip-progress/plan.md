@@ -32,6 +32,17 @@
 
 **Design Sources**: `docs/design/ui-guidelines.md`, Figma Make 사본 `ActiveTravelScreen.tsx`(진행 화면 정본), `TripDetailScreen.tsx`(시작 버튼), `LocationPermissionScreen.tsx`(권한 안내), `ErrorScreen.tsx`(오류 상태). Figma에 없는 **도착 상태 카드(`다음 장소로 출발`)·당일 완료 상태·상태 수정 시트**는 구현 전 Figma에 추가한 뒤 사본을 갱신하고 그 모양을 따른다(spec UI-002·UI-003·UI-006). Figma의 변수 경고 배너·날씨 안내·알림/변수 버튼·도착/출발 확인 시트·변경 토스트는 F007·F008·F010·F011 범위라 그리지 않는다.
 
+**Figma 추가 요소 확인(T003)**: 2026-09-07 Figma MCP로 `ActiveTravelScreen` 원본을 다시 읽어 저장소 사본과 비교했다. 원본은 사본과 동일하며 아래 4건은 아직 Figma에 없다. Feature Owner(jy)가 Figma Make에서 추가하면 사본을 다시 받아 이 표를 닫는다(T020 선행 조건).
+
+| # | 추가 요소 | 근거 | Figma 반영 |
+|---|---|---|---|
+| 1 | 다음 장소 카드의 `도착` 상태(`다음 장소로 출발` 단일 행동) | UI-002 | 미반영 |
+| 2 | 당일 완료 상태(카드 자리에 완료 표시, 출발 행동 없음) | UI-006 | 미반영 |
+| 3 | 상태 수정 시트(장소 행 탭 → 현재 상태별 행동만 표시) | UI-003 | 미반영 |
+| 4 | 도착 예정 시각이 지난 카드의 `N분 지났어요` 문구 | UI-002 | 미반영 |
+
+F006 구현에서 제외하는 Figma 요소: 변수 경고 배너·날씨 안내(F008), 알림 버튼(F011), 변수 버튼·장소 변경 토스트·`되돌리기`(F010), 도착·출발 확인 시트(F007). `TripDetailScreen`의 초 단위 카운트다운은 데모 연출이라 구현하지 않는다(UI-007).
+
 **Tokens & Components**: 기존 `com.gilpick.ui.theme` token. 재사용: F005 `RouteMap`(marker/path 데이터만 전달, 시작 위치 marker 추가), F004 `ItineraryLabels`의 이동수단 아이콘·문구, F002/F004 `TripDetailScreen` 구조, 공통 오류 화면. 신규: `ActiveTravelScreen`(header·day dots·`NextPlaceCard`·지도·`ProgressItemList`), `StatusSheet`(ModalBottomSheet), `ProgressLabels`. 상태 칩은 문구+아이콘 병기.
 
 **State & Interaction**: `ProgressViewModel`이 `StateFlow<ProgressUiState>`(`Loading`/`Empty`/`Error`/`Content`)를 노출한다. `Content`는 F004 overview(모든 날짜)와 PROG-001(오늘)을 합친 모델, `viewingDate`, `pendingAction`(요청 중인 전환)을 가진다. 전환 요청 중에는 기존 내용을 유지하고 해당 버튼만 비활성화한다. 실패하면 상태를 바꾸지 않고 원인+`다시 시도`를 보인다. 남은 시간·경과 시간은 저장된 ETA와 기기 시각으로 1분 단위 갱신한다. `onResume`마다 PROG-001을 다시 조회한다. `TripDetailViewModel`에 `startToday()`를 추가하고 위치 취득(권한 요청 → `getCurrentLocation` 10초 timeout → 실패 시 null)을 거쳐 PROG-002를 호출한 뒤 `ActiveTravelRoute(tripId)`로 이동한다. 진입점은 여행 상세의 `오늘 여행 시작`/`여행 진행 화면으로`뿐이다.
@@ -113,7 +124,7 @@ android/app/src/main/java/com/gilpick/
 
 ### Android
 
-1. **`ProgressRepository`**: `getDayProgress`, `startDay(location?)`, `updateStatus(itemId, status, version)`; `Idempotency-Key`는 요청마다 `UUID.randomUUID()`를 만들고 `다시 시도` 시 같은 key를 재사용한다. 오류는 `ProgressError`로 정규화(F005 `RouteError` 방식).
+1. **`ProgressRepository`**: `getDayProgress`, `startDay(location?)`, `updateStatus(itemId, status, version)`; `Idempotency-Key`는 요청 내용(대상·목표 상태·`progressVersion`)에서 파생한 UUID(`UUID.nameUUIDFromBytes`)라 `다시 시도`는 자동으로 같은 key를 재사용하고, 전환이 적용돼 version이 바뀐 다음 요청은 새 key가 된다(호출자가 key를 보관하지 않음, 2026-09-07 T009 결정). 오류는 `ProgressError`로 정규화(F005 `RouteError` 방식).
 2. **`TripDetailViewModel.startToday()`**: 오늘 날짜 판정(기기 KST) → `CurrentLocationProvider.current()`(권한·timeout·유효성 포함, 실패 시 null) → `startDay` → 성공 시 navigation event. 버튼 상태: 기간 밖 비활성+안내, 장소 0곳 `장소 추가` 안내, 시작됨 `여행 진행 화면으로`(PROG-001 `dayStatus`로 판정, TripDetail 진입 시 오늘 날짜만 조회).
 3. **`ProgressViewModel`**: overview(F004) + progress(오늘) 병렬 조회 → `Content`. 행동은 목표 상태로 매핑(`도착했어요`/`도착으로 변경`→`ARRIVED`, `다음 장소로 출발`→`COMPLETED`, `건너뛰기`→`SKIPPED`, `완료 취소`→`ARRIVED`, `건너뛰기 취소`→`PLANNED`). 응답의 progress로 상태 교체. `409 VERSION_CONFLICT`는 재조회 후 안내.
 4. **`ActiveTravelScreen`**: `viewingDate` 전환·`오늘로 돌아가기`; 오늘만 `NextPlaceCard`(EN_ROUTE/ARRIVED/완료 세 모드)·행동; 목록 행 탭 → `StatusSheet`; `장소 추가` → `ItineraryEditRoute(date=today, openSearch=true)`; `경로 보기` → `DayRouteRoute`.
