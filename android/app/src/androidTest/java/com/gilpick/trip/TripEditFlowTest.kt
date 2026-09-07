@@ -172,6 +172,7 @@ class TripEditFlowTest {
         composeRule.waitForIdle()
 
         // 상세로 돌아오고, 돌아온 상세는 서버에서 다시 받은 값을 보여준다.
+        awaitDetailAfterSave()
         composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
         composeRule.onNodeWithText("부산 여행").assertIsDisplayed()
         assertEquals(2, storedVersion)
@@ -187,16 +188,15 @@ class TripEditFlowTest {
         rename("부산 여행")
         composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).performClick()
         composeRule.waitForIdle()
+        awaitDetailAfterSave()
 
         openEditor()
         rename("대구 여행")
         composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).performClick()
         composeRule.waitForIdle()
 
+        awaitDetailAfterSave()
         composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
-        // 상세는 복귀하면서 서버에서 다시 조회한다. waitForIdle은 그 왕복을 기다리지
-        // 않으므로(위 KDoc) 값이 그려질 때까지 기다린 뒤 확인한다.
-        awaitTrip()
         composeRule.onNodeWithText("대구 여행").assertIsDisplayed()
         assertEquals(3, storedVersion)
         assertEquals(emptyList<Int>(), conflicts)
@@ -335,6 +335,26 @@ class TripEditFlowTest {
     private fun awaitTrip() {
         composeRule.waitUntil(TIMEOUT_MILLIS) {
             composeRule.onAllNodesWithText(storedName).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * 저장한 뒤 상세로 돌아와 서버 값이 그려질 때까지 기다린다.
+     *
+     * 여기서는 [awaitTrip]으로 부족하다. `popBackStack()` 직후에는 NavHost 전환이 아직
+     * 끝나지 않아 **나가는 중인 수정 화면의 이름 입력란**이 semantics tree에 남아 있고,
+     * 그 입력란에는 방금 입력한 새 이름이 이미 들어 있다. 존재 여부만 보는 [awaitTrip]은
+     * 그 노드로 곧장 통과해 버리고, 뒤따르는 단언은 아직 화면에 없는 그 노드를 집어
+     * `is not displayed`로 실패한다(#174).
+     *
+     * 그래서 **수정 화면이 사라진 것**과 **상세가 이름을 그린 것**을 함께 기다린다.
+     * 전환이 늦든 재조회가 늦든 어느 쪽이든 안전하다.
+     */
+    private fun awaitDetailAfterSave() {
+        val editTitle = string(R.string.trip_form_edit_title)
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            composeRule.onAllNodesWithText(editTitle).fetchSemanticsNodes().isEmpty() &&
+                composeRule.onAllNodesWithText(storedName).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
