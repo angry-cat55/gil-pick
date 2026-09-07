@@ -133,4 +133,3 @@ def downgrade() -> None:
     op.drop_table("progress_transitions")
     op.drop_constraint("ck_trip_days_progress_version", "trip_days", type_="check")
     op.drop_column("trip_days", "progress_version")
-
