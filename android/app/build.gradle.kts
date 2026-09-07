@@ -173,6 +173,8 @@ dependencies {
 
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // Compose test의 전이 버전(3.5.0)은 API 37에서 제거된 InputManager API를 사용한다.
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.work:work-testing:2.11.2")
     androidTestImplementation("com.squareup.okhttp3:mockwebserver3-junit4:5.5.0")
