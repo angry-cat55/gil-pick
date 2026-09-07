@@ -54,3 +54,25 @@ Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log
 - TMAP 도보 대표 구간: 성공. `provider=TMAP`, attribution, 비음수 시간·거리, WGS84 geometry를 확인했다.
 - ODsay 대중교통 대표 구간: 실패. ODsay 응답은 HTTP 200이었으나 내부 오류 `500 [ApiKeyAuthFailed]`를 반환했다.
 - ODsay 후속 확인: 백엔드 호출용 Server key인지, 현재 호출 출발 IP가 ODsay LAB에 등록됐는지 확인한 뒤 같은 smoke test를 다시 실행해야 한다. key 원문은 테스트 출력과 문서에 기록하지 않았다.
+
+## Android 검증 기록 (T034, 2026-09-07, jy)
+
+자동 검증은 branch `test/jy-route-final-verification`(#226 → #229 → #230 위) 기준이다.
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| route unit test | `android\gradlew.bat --offline -q :app:testDebugUnitTest --tests 'com.gilpick.route.*'` | 통과 30건 (`RouteApiTest` 7, `RouteRepositoryTest` 8, `RouteViewModelTest` 15) |
+| 전체 unit test·build | `android\gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug` | 통과 290건, build 성공(Naver map-sdk 3.23.3 merge 확인) |
+| route UI·screenshot·navigation test | `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.route` (AVD `gilpick_api36`, API 36 ATD) | 통과 28건 (`DayRouteScreenTest` 12, `DayRouteScreenshotTest` 12, `RouteNavigationTest` 2, `TripDetailRouteScreenshotTest` 2) |
+| 여행 상세 회귀 | `...package=com.gilpick.trip` | 통과 65건 |
+| 네 상태 | `DayRouteScreenTest`: loading 1초 지연, empty(`장소 추가`·`돌아가기`), error(조회 실패·계산 실패 code별 문구·`다시 시도` 48dp·세션 만료 `다시 로그인`), content | 통과 |
+| 혼합 이동수단 | 도보(TMAP)·대중교통(ODsay)·자동차(TMAP) 세 구간이 아이콘+문구·시간·거리로 구분, 목록 순서 = 마커 순서 | 통과 (`혼합_이동수단_구간은_각각_아이콘과_문구로_구분된다`, screenshot `route_content_mixed`) |
+| 1곳 | 구간 없음, 총 이동 0분·0m, 장소 한 행, attribution 없음 | 통과 |
+| 정상 경로 재계산 없음 | content에 `다시 시도`·`다시 계산`·`다른 경로` 없음 | 통과 |
+| 360dp·일반 phone·최대 글자 배율 | screenshot 14장(`route_*` 12, `trip_detail_route_states*` 2): 일반 phone(411dp), 360dp, 글자 2.0, 360dp+2.0. 가로 스크롤·잘림 없음, 장소명은 단어 중간 줄바꿈 | 통과 (사람 확인) |
+| attribution | sheet에 `출처: …` 표시(실서버에서는 `출처: TMAP`). Naver 지도 로고는 SDK 기본값 유지 | 통과 (로고 실제 지도에서 확인) |
+| 지도 gesture·inset·polyline·marker (T026) | Naver NCP key를 `~/.gradle/gradle.properties`에 넣고 `gilpick_api36_play`에서 실서버(TMAP 도보 2구간, 3곳 READY) 경로 화면 확인 | 통과. 야간 지도 타일 렌더링, 순서 번호 마커 1·2·3 + 장소명 caption, 구간 polyline, `fitBounds`로 세 마커가 sheet 위 영역에 들어옴, 드래그 이동·더블탭 확대·`+/-` 컨트롤 동작, `NAVER` 로고·축척이 sheet에 가리지 않음, 뒤로 가기 후 재진입 시 마커·선 중복 없음. 발견·수정: `OverlayImage.fromView`가 뷰를 다시 재서 마커가 타원으로 찌그러짐 → 마커 크기 28dp 고정(커밋 6571c92) |
+
+screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`로 실행 후 `adb pull`).
+
+발견 사항: 글자 배율 2.0에서 여행 상세 통계 `정보 없음`이 `정보 …`로 잘린다(F002 `Stat`, hs 소유, F005 범위 밖).
