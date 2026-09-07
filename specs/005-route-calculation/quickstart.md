@@ -76,3 +76,49 @@ Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log
 screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`로 실행 후 `adb pull`).
 
 발견 사항: 글자 배율 2.0에서 여행 상세 통계 `정보 없음`이 `정보 …`로 잘린다(F002 `Stat`, hs 소유, F005 범위 밖).
+
+## 종단간 계약 교차 검증 기록 (T036, 2026-09-07, jh)
+
+검증 환경은 로컬 PostgreSQL 18, `127.0.0.1:8000`의 FastAPI, ADB reverse, AVD `Medium_Phone`(API 37), 실제 TMAP·ODsay와 Naver Maps다. API는 LAN에 노출하지 않고 `adb reverse tcp:8000 tcp:8000`으로 AVD에만 연결했다. 앱은 검증 빌드에서만 `GILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/`과 로컬 Naver Maps client ID를 주입했다.
+
+### 수행 결과
+
+| 시나리오 | 결과 |
+|---|---|
+| 혼합 일정 저장→자동 계산→상세→경로 화면 | 4곳을 `WALK → TRANSIT → CAR`로 저장하자 HTTP 일정 PUT이 0.349초에 `READY`를 반환했다. 구간 provider는 `TMAP → ODSAY → TMAP`이었고 GET 재조회와 합계가 일치했다. AVD 상세에서 4곳·총 34분과 구간별 시간·거리를 확인했고 경로 화면에서 지도, 순서 1~4, 세 구간 목록, `출처: TMAP · ODsay`를 확인했다. |
+| provider 최종 실패→일정 보존→retry | ODsay 경계에 `ROUTE_PROVIDER_UNAVAILABLE`을 주입하자 날짜 전체가 `FAILED`가 되었고 네 일정 항목의 순서·수단은 전후 동일했다. AVD 상세에는 일정과 독립된 실패 문구와 `다시 시도`가 표시됐다. 버튼을 누르자 로컬 API가 실제 provider로 다시 계산해 같은 화면이 `READY`·총 34분·6.1km로 복구됐다. |
+| 중복 retry·version 충돌 | 실제 PostgreSQL을 사용하는 `test_concurrent_retries_keep_one_ready_route_row`, `test_retry_rejects_stale_version_and_ready_route`, `test_retry_reports_version_conflict_when_schedule_changes_after_snapshot`가 통과했다. 중복 요청은 버전별 한 행만 유지하고 stale version은 `409 VERSION_CONFLICT`, READY retry는 `409 ROUTE_NOT_FAILED`로 거부했다. |
+| AVD route 회귀 | API 37에서 route UI·screenshot·navigation 28건이 통과했다. Compose test의 전이 Espresso 3.5.0이 제거된 `InputManager.getInstance()`를 호출해 최초 28건이 공통 실패했으며, 공식 AndroidX Test 3.7.0을 androidTest 의존성으로 명시한 뒤 28건 모두 통과했다. |
+
+### 계약 교차 확인
+
+`route.openapi.yaml`, Backend Pydantic schema와 Android DTO를 대조했다. 계약 변경이 필요한 차이는 없었다.
+
+| 항목 | 교차 확인 결과 |
+|---|---|
+| enum | `RouteStatus`는 `NOT_CALCULATED/READY/FAILED`, 이동수단은 `WALK/TRANSIT/CAR`, provider는 `TMAP/ODSAY`로 일치한다. |
+| nullable | `READY`는 `route`만, `FAILED`는 `failure`만 값이 있고 `NOT_CALCULATED`는 둘 다 `null`이다. |
+| 단위·형상 | 시간은 초, 거리는 미터, geometry는 GeoJSON `LineString`과 `[경도, 위도]` 순서다. |
+| 오류 code | 실패 data의 provider code 5종과 HTTP error의 `VERSION_CONFLICT`, `ROUTE_NOT_FAILED`를 포함한 6종이 일치한다. |
+| 순서·합계 | marker와 segment 순서, 인접 item ID, 구간 합계, 중복 제거된 attribution 순서를 Backend validation과 Android 표시에서 확인했다. |
+
+### Success Criteria 추적
+
+| 기준 | 결과 | 근거 |
+|---|---|---|
+| SC-001 | 충족 | 실제 혼합 경로 자동 계산 0.349초, mock clock의 공용 10초 deadline test 통과 |
+| SC-002 | 충족 | 실제 provider의 세 구간 순서·수단과 AVD 지도 밖 목록이 저장 입력과 일치 |
+| SC-003 | 충족 | provider 실패 전후 일정 동일, 실패 원인과 AVD `다시 시도` 확인 |
+| SC-004 | 충족 | 동시 retry integration test에서 현재 경로 한 행 유지 |
+| SC-005 | 충족 | 360dp·글자 배율 2.0 screenshot/UI test와 AVD 회귀 통과 |
+| SC-006 | 충족 | 지도 밖 목록만으로 장소 순서 1~4와 세 구간의 수단·시간·거리 확인 |
+
+### 실행 명령과 결과
+
+- Backend F005 핵심: route unit·contract·PostgreSQL integration `67 passed`
+- Provider live smoke: `RUN_ROUTE_PROVIDER_SMOKE=1 ...test_route_providers_live.py` → `2 passed`; TMAP·ODsay 모두 성공
+- Android unit·build: `:app:testDebugUnitTest :app:assembleDebug` → 성공
+- Android route 계측: `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.route` → `28 tests, 0 failures`
+- ADB: `emulator-5554 device`, AVD API 37
+
+테스트용 login ticket과 정밀 좌표는 출력·문서화하지 않았다. 로컬 API와 ADB reverse는 검증 종료 후 중지·해제한다.

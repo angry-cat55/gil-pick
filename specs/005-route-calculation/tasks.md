@@ -254,7 +254,7 @@
   - 담당: jh
   - 선행: T031, T033
   - 검증: route unit·contract·integration 및 전체 pytest·compileall 통과, mock clock으로 10초 deadline 검증, 승인된 local secret이 있을 때만 TMAP·ODsay 대표 구간 1개씩 호출하고 quota·권한·attribution 확인; 미실행 시 이유 기록
-- [ ] T036 F005 종단간 계약 교차 검증 in specs/005-route-calculation/contracts/route.openapi.yaml, specs/005-route-calculation/quickstart.md
+- [X] T036 F005 종단간 계약 교차 검증 in specs/005-route-calculation/contracts/route.openapi.yaml, specs/005-route-calculation/quickstart.md
   - 영역: 통합
   - 담당: jh
   - 교차 확인: jy
