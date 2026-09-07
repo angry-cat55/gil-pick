@@ -11,6 +11,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Gilpick">
 
+        <!--
+          Naver Maps NCP Key ID. build.gradle.kts가 GILPICK_NAVER_MAPS_CLIENT_ID property에서
+          채우므로 source에 값을 두지 않는다.
+        -->
+        <meta-data
+            android:name="com.naver.maps.map.NCP_KEY_ID"
+            android:value="${naverMapsClientId}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

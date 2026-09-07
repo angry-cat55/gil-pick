@@ -18,8 +18,11 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
+import com.gilpick.itinerary.RouteStatus
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.itinerary.toItineraryError
+import com.gilpick.route.RouteDto
+import com.gilpick.route.RouteFailureDto
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +71,28 @@ sealed interface ItineraryOverviewPhase {
 
     /** 조회에 실패했다. 여행 정보는 영향받지 않는다. */
     data class Failed(val error: ItineraryError) : ItineraryOverviewPhase
+}
+
+/**
+ * 상세 화면 날짜별 경로 영역의 표시 상태(F005).
+ *
+ * 일정 내용([ItineraryOverviewPhase])과 분리한다. 저장 뒤 자동 경로 계산만 실패해도 장소·순서·
+ * 체류 시간·이동 수단은 그대로 표시하고 경로 영역만 독립된 실패 상태가 된다(FR-009a, UI-002a).
+ */
+sealed interface DayRoutePhase {
+    /** 장소가 없어 경로가 없다. 또는 일정 version과 다른 이전 경로라 현재 경로로 보이지 않는다(FR-014). */
+    data object NotCalculated : DayRoutePhase
+
+    /** 현재 일정 version의 계획 경로. 장소가 한 곳이면 구간 없이 합계 0이다(FR-020). */
+    data class Ready(val route: RouteDto) : DayRoutePhase
+
+    /**
+     * 자동 계산이 최종 실패했다. 일정은 보존됐고 `다시 시도`만 제공한다(FR-010).
+     *
+     * @property failure 실패 원인. 개요(ITIN-003)에는 원인이 없어 처음엔 `null`이고, 경로 조회나
+     *   재시도 응답을 받으면 채운다.
+     */
+    data class Failed(val failure: RouteFailureDto?) : DayRoutePhase
 }
 
 /**
@@ -133,6 +158,16 @@ class TripDetailViewModel(
     /** 화면이 관찰하는 현재 상세 상태. */
     val state: StateFlow<TripDetailUiState> = _state.asStateFlow()
 
+    private val _routes = MutableStateFlow<Map<String, DayRoutePhase>>(emptyMap())
+
+    /**
+     * 날짜(`yyyy-MM-dd`)별 경로 영역 상태. 일정 개요를 받을 때 채운다.
+     *
+     * [state]의 일정 내용과 따로 둔다. 경로 재시도는 이 flow만 바꾸고 일정 내용은 건드리지
+     * 않아야 하기 때문이다(FR-009). 개요에 없는 날짜는 [DayRoutePhase.NotCalculated]로 본다.
+     */
+    val routes: StateFlow<Map<String, DayRoutePhase>> = _routes.asStateFlow()
+
     /** 진행 중인 여행 조회. 재시도하면 앞선 요청을 취소한다. */
     private var loadJob: Job? = null
 
@@ -168,7 +203,10 @@ class TripDetailViewModel(
 
         itineraryJob = viewModelScope.launch {
             val phase = when (val result = itineraryRepository.getOverview(tripId)) {
-                is AuthResult.Success -> ItineraryOverviewPhase.Content(result.value.days)
+                is AuthResult.Success -> {
+                    _routes.value = result.value.days.associate { it.date to it.toRoutePhase() }
+                    ItineraryOverviewPhase.Content(result.value.days)
+                }
                 is AuthResult.Failure ->
                     ItineraryOverviewPhase.Failed(result.error.toItineraryError())
             }
@@ -219,6 +257,21 @@ class TripDetailViewModel(
         if (_state.value.deletion is TripDeletePhase.Failed) {
             _state.update { it.copy(deletion = TripDeletePhase.Idle) }
         }
+    }
+
+    /**
+     * 개요의 한 날짜를 경로 영역 상태로 바꾼다.
+     *
+     * `READY`라도 경로의 `scheduleVersion`이 일정 version과 다르면 이전 일정의 결과이므로 현재
+     * 경로로 표시하지 않는다(FR-014). 서버가 현재 version의 경로만 주기로 계약했지만, 앱은
+     * 그 보장을 다시 확인하고 어긋나면 `정보 없음` 쪽으로 기운다.
+     */
+    private fun DayItineraryDto.toRoutePhase(): DayRoutePhase = when (routeStatus) {
+        RouteStatus.NOT_CALCULATED -> DayRoutePhase.NotCalculated
+        RouteStatus.FAILED -> DayRoutePhase.Failed(failure = null)
+        RouteStatus.READY -> route?.takeIf { it.scheduleVersion == version }
+            ?.let { DayRoutePhase.Ready(it) }
+            ?: DayRoutePhase.NotCalculated
     }
 
     companion object {

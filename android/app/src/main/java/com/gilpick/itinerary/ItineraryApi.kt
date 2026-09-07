@@ -3,6 +3,7 @@ package com.gilpick.itinerary
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.place.PlaceCategory
 import com.gilpick.place.TourApiCategoryDto
+import com.gilpick.route.RouteDto
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -133,9 +134,10 @@ data class SaveDayItineraryRequest(
  * 한 날짜의 일정.
  *
  * 날짜는 F002 [com.gilpick.trip.TripDto]와 같은 이유로 `yyyy-MM-dd` 문자열을 유지한다.
- * F005 `route` field는 F004가 읽지 않으므로 DTO에 두지 않는다(모르는 key는 무시한다).
  *
  * @property version 저장 요청에 그대로 실어 보내는 낙관적 동시성 버전.
+ * @property route F005 계획 경로. [routeStatus]가 [RouteStatus.READY]일 때만 있다. 실패 원인은
+ *   여기 없고 `GET .../route`([com.gilpick.route.DayRouteDto.failure])로 따로 조회한다.
  */
 @Serializable
 data class DayItineraryDto(
@@ -144,6 +146,7 @@ data class DayItineraryDto(
     val version: Int,
     val routeStatus: RouteStatus,
     val items: List<ItineraryItemDto>,
+    val route: RouteDto? = null,
 )
 
 /** @property days 여행 기간의 모든 날짜. 저장된 적 없는 날짜는 version 0, 빈 items. */

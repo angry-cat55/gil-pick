@@ -21,6 +21,7 @@ import com.gilpick.itinerary.SaveDayItineraryRequest
 import com.gilpick.itinerary.StaySource
 import com.gilpick.itinerary.TransportMode
 import com.gilpick.place.PlaceCategory
+import com.gilpick.route.readyRoute
 import java.io.File
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -428,6 +429,74 @@ class TripDetailViewModelTest {
     }
 
     /** 로그인된 session을 가진 repository 위에 view model을 만든다. */
+    // --- F005 T015: 경로 영역 상태는 일정 내용과 분리된다 ---
+
+    @Test
+    fun `일정을 받으면 날짜별 경로 상태를 따로 넘기고 READY는 경로를 담는다`() = runTest {
+        val route = readyRoute(scheduleVersion = 1)
+        service.onGet = { detail(trip(TRIP_ID)) }
+        itineraryService.onOverview = {
+            overview(
+                it,
+                listOf(
+                    day("2026-09-08", 1, items = listOf(item("경복궁", 1))).copy(routeStatus = RouteStatus.READY, route = route),
+                    day("2026-09-09", 2),
+                ),
+            )
+        }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(DayRoutePhase.Ready(route), viewModel.routes.value["2026-09-08"])
+        assertEquals(DayRoutePhase.NotCalculated, viewModel.routes.value["2026-09-09"])
+    }
+
+    @Test
+    fun `경로 계산이 실패해도 일정 내용은 그대로 남고 경로 영역만 실패가 된다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        itineraryService.onOverview = {
+            overview(
+                it,
+                listOf(
+                    day("2026-09-08", 1, items = listOf(item("경복궁", 1, transportModeToNext = TransportMode.WALK), item("북촌", 2)))
+                        .copy(routeStatus = RouteStatus.FAILED),
+                ),
+            )
+        }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        val items = (viewModel.state.value.itinerary as ItineraryOverviewPhase.Content).days[0].items
+        assertEquals(listOf("경복궁", "북촌"), items.map { it.place.name })
+        assertEquals(TransportMode.WALK, items[0].transportModeToNext)
+        // 개요에는 실패 원인이 없어 null이다. 원인은 경로 조회·재시도 응답이 채운다.
+        assertEquals(DayRoutePhase.Failed(failure = null), viewModel.routes.value["2026-09-08"])
+    }
+
+    @Test
+    fun `일정 version과 다른 이전 경로는 현재 경로로 보이지 않는다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        itineraryService.onOverview = {
+            overview(
+                it,
+                listOf(
+                    day("2026-09-08", 1, items = listOf(item("경복궁", 1)))
+                        .copy(version = 4, routeStatus = RouteStatus.READY, route = readyRoute(scheduleVersion = 3)),
+                ),
+            )
+        }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(DayRoutePhase.NotCalculated, viewModel.routes.value["2026-09-08"])
+    }
+
     private suspend fun newViewModel(): TripDetailViewModel {
         val store = AuthSessionStore(
             // DataStore 기본 scope는 Dispatchers.IO다. 그대로 두면 저장소 작업이 test
