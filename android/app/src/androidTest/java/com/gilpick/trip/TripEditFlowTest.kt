@@ -74,8 +74,20 @@ class TripEditFlowTest {
     private var storedName = "서울 여행"
     private var storedVersion = 1
 
+    /** 서버가 들고 있는 종료일. 기간을 줄이면 삭제 확인을 요구한다. */
+    private var storedEndDate = "2026-09-03"
+
+    /** 새 기간 밖으로 밀려날 장소 수. 서버가 `CONFIRMATION_REQUIRED`에 실어 보낸다. */
+    private var outOfRangeItemCount = 2
+
     /** 서버가 거절한 요청. 비어 있어야 정상이다. */
     private val conflicts = mutableListOf<Int>()
+
+    /** 도착한 수정 요청의 `confirmDeleteOutOfRangeItems` 값. 순서대로 쌓인다. */
+    private val updateConfirmFlags = mutableListOf<Boolean>()
+
+    /** 수정 화면이 만든 view model. 기간 선택은 달력 대신 여기로 바꾼다. */
+    private var formViewModel: TripFormViewModel? = null
 
     @Before
     fun setUp() {
@@ -95,7 +107,19 @@ class TripEditFlowTest {
                     conflicts += sent
                     return json(errorJson(TripErrorCodes.VERSION_CONFLICT), code = 409)
                 }
+                val requestedEnd = END_DATE.find(body)?.groupValues?.get(1)
+                val confirmed = body.contains(""""confirmDeleteOutOfRangeItems":true""")
+                updateConfirmFlags += confirmed
+
+                // 기간을 줄이면 새 기간 밖 장소가 삭제된다. 동의 없이는 저장하지 않고
+                // 삭제될 수를 알린다(spec FR-013).
+                val shrinking = requestedEnd != null && requestedEnd < storedEndDate
+                if (shrinking && outOfRangeItemCount > 0 && !confirmed) {
+                    return json(confirmationRequiredJson(), code = 409)
+                }
+
                 storedName = NAME.find(body)?.groupValues?.get(1) ?: storedName
+                if (requestedEnd != null) storedEndDate = requestedEnd
                 storedVersion += 1
                 return json(tripJson())
             }
@@ -156,6 +180,7 @@ class TripEditFlowTest {
         composeRule.waitForIdle()
 
         // 상세로 돌아오고, 돌아온 상세는 서버에서 다시 받은 값을 보여준다.
+        awaitDetailAfterSave()
         composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
         composeRule.onNodeWithText("부산 여행").assertIsDisplayed()
         assertEquals(2, storedVersion)
@@ -171,17 +196,142 @@ class TripEditFlowTest {
         rename("부산 여행")
         composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).performClick()
         composeRule.waitForIdle()
+        awaitDetailAfterSave()
 
         openEditor()
         rename("대구 여행")
         composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).performClick()
         composeRule.waitForIdle()
 
+        awaitDetailAfterSave()
         composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
         composeRule.onNodeWithText("대구 여행").assertIsDisplayed()
         assertEquals(3, storedVersion)
         assertEquals(emptyList<Int>(), conflicts)
     }
+
+    // --- T030: 기간 축소 삭제 확인 (US4 Acceptance 4) ---
+
+    @Test
+    fun 기간을_줄여_저장하면_삭제될_장소_수를_묻고_아직_저장하지_않는다() {
+        setGraph()
+
+        openEditor()
+        shrinkPeriod()
+        submit()
+
+        awaitDialog()
+        composeRule.onNodeWithText(shrinkTitle(2)).assertIsDisplayed()
+        // 동의 전에는 서버가 그대로다.
+        assertEquals("2026-09-03", storedEndDate)
+        assertEquals(1, storedVersion)
+        assertEquals(listOf(false), updateConfirmFlags)
+    }
+
+    @Test
+    fun 대화상자에서_저장하기를_누르면_동의를_실어_다시_보내고_저장된다() {
+        setGraph()
+
+        openEditor()
+        shrinkPeriod()
+        submit()
+        awaitDialog()
+
+        composeRule.onNodeWithText(string(R.string.trip_form_shrink_confirm)).performClick()
+        composeRule.waitForIdle()
+
+        // 상세로 돌아오고 서버의 기간이 실제로 줄었다.
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            composeRule
+                .onAllNodesWithText(string(R.string.trip_detail_title))
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        assertEquals("2026-09-02", storedEndDate)
+        assertEquals(2, storedVersion)
+        // 같은 수정이 동의 없이 한 번, 동의를 실어 한 번 나갔다.
+        assertEquals(listOf(false, true), updateConfirmFlags)
+        assertEquals(emptyList<Int>(), conflicts)
+    }
+
+    @Test
+    fun 대화상자에서_취소하면_저장하지_않고_여행_기간이_그대로다() {
+        setGraph()
+
+        openEditor()
+        shrinkPeriod()
+        submit()
+        awaitDialog()
+
+        composeRule.onNodeWithText(string(R.string.trip_form_shrink_cancel)).performClick()
+        composeRule.waitForIdle()
+
+        // 대화상자만 닫히고 수정 화면에 남는다.
+        composeRule.onNodeWithText(shrinkTitle(2)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.trip_form_edit_title)).assertIsDisplayed()
+        assertEquals("2026-09-03", storedEndDate)
+        assertEquals(1, storedVersion)
+        // 취소는 요청을 만들지 않는다.
+        assertEquals(listOf(false), updateConfirmFlags)
+    }
+
+    @Test
+    fun 기간_밖_장소가_없으면_확인_없이_저장된다() {
+        outOfRangeItemCount = 0
+        setGraph()
+
+        openEditor()
+        shrinkPeriod()
+        submit()
+
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            composeRule
+                .onAllNodesWithText(string(R.string.trip_detail_title))
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule.onNodeWithText(shrinkTitle(0)).assertDoesNotExist()
+        assertEquals("2026-09-02", storedEndDate)
+        assertEquals(listOf(false), updateConfirmFlags)
+    }
+
+    /**
+     * 종료일을 하루 줄인다.
+     *
+     * 달력(`DateRangePicker`)을 눌러 고르는 대신 view model에 직접 넣는다. 이 test가
+     * 확인하려는 것은 날짜를 고르는 방법이 아니라 **줄인 기간을 저장할 때 서버의 확인
+     * 요구를 화면이 어떻게 다루는가**이고, 달력 조작은 그 흐름과 무관하게 기기 locale과
+     * 월 이동에 따라 흔들린다.
+     */
+    private fun shrinkPeriod() {
+        composeRule.runOnIdle {
+            formViewModel?.onPeriodChange(
+                java.time.LocalDate.of(2026, 9, 1),
+                java.time.LocalDate.of(2026, 9, 2),
+            )
+        }
+        composeRule.waitForIdle()
+    }
+
+    /** 수정 화면의 저장 버튼을 누른다. */
+    private fun submit() {
+        composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).performClick()
+        composeRule.waitForIdle()
+    }
+
+    /** 확인 대화상자가 뜰 때까지 기다린다. 서버 왕복이 끝나야 나타난다. */
+    private fun awaitDialog() {
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            composeRule
+                .onAllNodesWithText(string(R.string.trip_form_shrink_cancel))
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+    }
+
+    /** 삭제 확인 대화상자의 제목. */
+    private fun shrinkTitle(count: Int) =
+        context.getString(R.string.trip_form_shrink_title, count)
 
     /**
      * 현재 여행명이 화면에 그려질 때까지 기다린다.
@@ -193,6 +343,26 @@ class TripEditFlowTest {
     private fun awaitTrip() {
         composeRule.waitUntil(TIMEOUT_MILLIS) {
             composeRule.onAllNodesWithText(storedName).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * 저장한 뒤 상세로 돌아와 서버 값이 그려질 때까지 기다린다.
+     *
+     * 여기서는 [awaitTrip]으로 부족하다. `popBackStack()` 직후에는 NavHost 전환이 아직
+     * 끝나지 않아 **나가는 중인 수정 화면의 이름 입력란**이 semantics tree에 남아 있고,
+     * 그 입력란에는 방금 입력한 새 이름이 이미 들어 있다. 존재 여부만 보는 [awaitTrip]은
+     * 그 노드로 곧장 통과해 버리고, 뒤따르는 단언은 아직 화면에 없는 그 노드를 집어
+     * `is not displayed`로 실패한다(#174).
+     *
+     * 그래서 **수정 화면이 사라진 것**과 **상세가 이름을 그린 것**을 함께 기다린다.
+     * 전환이 늦든 재조회가 늦든 어느 쪽이든 안전하다.
+     */
+    private fun awaitDetailAfterSave() {
+        val editTitle = string(R.string.trip_form_edit_title)
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            composeRule.onAllNodesWithText(editTitle).fetchSemanticsNodes().isEmpty() &&
+                composeRule.onAllNodesWithText(storedName).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -246,7 +416,9 @@ class TripEditFlowTest {
                     }
                     composable<EditRoute> { entry ->
                         val tripId = entry.toRoute<EditRoute>().tripId
-                        val viewModel = remember(tripId) { TripFormViewModel(repository) }
+                        val viewModel = remember(tripId) {
+                            TripFormViewModel(repository).also { formViewModel = it }
+                        }
                         val state by viewModel.state.collectAsStateWithLifecycle()
 
                         LaunchedEffect(tripId) {
@@ -264,6 +436,9 @@ class TripEditFlowTest {
                             onNameChange = viewModel::onNameChange,
                             onPeriodChange = viewModel::onPeriodChange,
                             onSubmit = viewModel::submit,
+                            onConfirmDeleteOutOfRangeItems =
+                                viewModel::confirmDeleteOutOfRangeItems,
+                            onCancelDeleteConfirmation = viewModel::cancelDeleteConfirmation,
                         )
                     }
                 }
@@ -282,7 +457,7 @@ class TripEditFlowTest {
     private fun tripJson() = """
         {"success":true,
          "data":{"tripId":"$TRIP_ID","name":"$storedName","startDate":"2026-09-01",
-                 "endDate":"2026-09-03","status":"UPCOMING","dayCount":3,
+                 "endDate":"$storedEndDate","status":"UPCOMING","dayCount":3,
                  "version":$storedVersion},
          "meta":{"requestId":"$REQUEST_ID"}}
     """.trimIndent()
@@ -290,6 +465,13 @@ class TripEditFlowTest {
     private fun itineraryJson() = """
         {"success":true,
          "data":{"tripId":"$TRIP_ID","days":[]},
+         "meta":{"requestId":"$REQUEST_ID"}}
+    """.trimIndent()
+
+    private fun confirmationRequiredJson() = """
+        {"success":false,
+         "error":{"code":"${TripErrorCodes.CONFIRMATION_REQUIRED}","message":"진단용 설명",
+                  "retryable":false,"details":{"deletedItemCount":$outOfRangeItemCount}},
          "meta":{"requestId":"$REQUEST_ID"}}
     """.trimIndent()
 
@@ -311,5 +493,6 @@ class TripEditFlowTest {
         const val TIMEOUT_MILLIS = 5_000L
         val VERSION = """"version":(\d+)""".toRegex()
         val NAME = """"name":"([^"]*)"""".toRegex()
+        val END_DATE = """"endDate":"([^"]*)"""".toRegex()
     }
 }

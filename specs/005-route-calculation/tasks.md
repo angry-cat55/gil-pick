@@ -239,7 +239,7 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T033 [P] Backend API·ERD·운영 설정 최종 일치 검증 in docs/design/api-spec.md, docs/design/er-schema.md, api/.env.example
+- [X] T033 [P] Backend API·ERD·운영 설정 최종 일치 검증 in docs/design/api-spec.md, docs/design/er-schema.md, api/.env.example
   - 영역: BE
   - 담당: jh
   - 선행: T031
@@ -249,7 +249,7 @@
   - 담당: jy
   - 선행: T032
   - 검증: route 관련 unit/UI/screenshot test와 `assembleDebug`, 360dp·일반 phone·최대 글자 배율, 네 상태, 혼합 수단, 지도 gesture·inset·attribution 결과 기록
-- [ ] T035 Backend 전체 자동 검증과 provider smoke test 기록 in api/tests/, specs/005-route-calculation/quickstart.md
+- [X] T035 Backend 전체 자동 검증과 provider smoke test 기록 in api/tests/, specs/005-route-calculation/quickstart.md
   - 영역: BE
   - 담당: jh
   - 선행: T031, T033

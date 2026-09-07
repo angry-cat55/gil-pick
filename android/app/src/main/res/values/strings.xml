@@ -212,6 +212,15 @@
     <string name="trip_form_period_locked_state">수정할 수 없음</string>
     <string name="trip_form_loading">여행 정보를 불러오는 중</string>
 
+    <!-- 기간 축소 삭제 확인 대화상자. 문구는 Figma `EditTripScreen`을 따른다. -->
+    <!-- %1$d는 새 기간 밖으로 밀려나 삭제될 장소 수. 서버가 알려 준 값이다. -->
+    <string name="trip_form_shrink_title">일정 %1$d곳이 삭제됩니다</string>
+    <string name="trip_form_shrink_body">여행 기간을 줄이면 삭제된 일정은 복구할 수 없어요.</string>
+    <string name="trip_form_shrink_question">계속 진행할까요?</string>
+    <string name="trip_form_shrink_confirm">저장하기</string>
+    <string name="trip_form_shrink_cancel">취소</string>
+    <string name="trip_form_shrink_progress">여행을 저장하고 있어요</string>
+
     <!-- F004 일정 편집 -->
     <string name="itinerary_edit_title">일정 편집</string>
     <string name="itinerary_edit_close">닫기</string>

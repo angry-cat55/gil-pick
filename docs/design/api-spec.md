@@ -139,16 +139,16 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | TRIP-001 | 여행 | 여행 목록 조회 | [ ] | [ ] | GET | `/api/v1/trips` |
 | TRIP-002 | 여행 | 여행 생성 | [ ] | [ ] | POST | `/api/v1/trips` |
 | TRIP-003 | 여행 | 여행 상세 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}` |
-| TRIP-004 | 여행 | 여행 수정 | [ ] | [ ] | PATCH | `/api/v1/trips/{tripId}` |
+| TRIP-004 | 여행 | 여행 수정 | [ ] | [X] | PATCH | `/api/v1/trips/{tripId}` |
 | TRIP-005 | 여행 | 여행 삭제 | [ ] | [ ] | DELETE | `/api/v1/trips/{tripId}` |
-| ITIN-001 | 일정 | 날짜별 일정 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
-| ITIN-002 | 일정 | 날짜별 일정 저장 | [ ] | [ ] | PUT | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
-| ITIN-003 | 일정 | 여행 전체 날짜별 일정 개요 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/itinerary` |
+| ITIN-001 | 일정 | 날짜별 일정 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
+| ITIN-002 | 일정 | 날짜별 일정 저장 | [ ] | [X] | PUT | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
+| ITIN-003 | 일정 | 여행 전체 날짜별 일정 개요 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/itinerary` |
 | PLACE-001 | 장소 | 장소 검색 | [ ] | [ ] | GET | `/api/v1/places/search` |
 | PLACE-002 | 장소 | 장소 상세 조회 | [ ] | [ ] | GET | `/api/v1/places/{placeId}` |
-| ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
+| ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
 | ROUTE-002 | 경로 | 남은 경로 재계산 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/recalculate` |
-| ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
+| ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
 | PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
 | PROG-002 | 여행 진행 | 오늘 여행 시작 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/start` |
 | PROG-003 | 여행 진행 | 위치 이벤트 등록 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/events` |
@@ -551,7 +551,7 @@ Response `200`:
 }
 ```
 
-F002에서는 `trip_days`·`itinerary_items`가 아직 없으므로 수정 성공 응답도 다른 여행 API와 같은 `TripEnvelope`를 사용하며 `deletedDayCount`·`deletedItemCount`를 포함하지 않는다. 실제 일정 삭제 개수는 F004에서 일정 테이블을 도입할 때 계약 version을 갱신해 추가한다.
+수정 성공 응답은 다른 여행 API와 같은 `TripEnvelope`를 사용하며 `deletedDayCount`·`deletedItemCount`를 포함하지 않는다. 기간을 축소하면 서버가 새 기간 밖 `trip_days`와 `itinerary_items`를 조회한다. 삭제될 항목이 있으면 확인 전에는 `409 CONFIRMATION_REQUIRED`를 반환하고, `confirmDeleteOutOfRangeItems: true` 요청에서 범위 밖 날짜와 항목을 같은 transaction으로 삭제한다. 삭제될 항목이 없으면 별도 확인 없이 수정한다.
 
 삭제 확인이 필요한 경우 `409 CONFIRMATION_REQUIRED` 예시:
 
@@ -562,7 +562,7 @@ F002에서는 `trip_days`·`itinerary_items`가 아직 없으므로 수정 성�
     "code": "CONFIRMATION_REQUIRED",
     "message": "여행 기간을 줄이면 범위 밖 일정이 삭제됩니다.",
     "details": {
-      "deletedItemCount": 0
+      "deletedItemCount": 1
     },
     "retryable": false
   },
@@ -572,7 +572,7 @@ F002에서는 `trip_days`·`itinerary_items`가 아직 없으므로 수정 성�
 }
 ```
 
-F002의 `deletedItemCount`는 항상 `0`이며 F004 이후 실제 범위 밖 일정 개수로 대체한다.
+`deletedItemCount`는 새 기간 밖 `itinerary_items`의 실제 개수이며 1 이상일 때만 확인 오류에 포함된다.
 
 주요 오류: `400`, `401 INVALID_ACCESS_TOKEN`, `403`, `404`, `409 VERSION_CONFLICT`, `409 CONFIRMATION_REQUIRED`, `409 TRIP_LOCKED`, `422`
 
@@ -704,7 +704,7 @@ Request Body:
 ```
 
 처리 규칙:
-- 한 날짜의 항목 전체를 한 transaction에서 저장하고 `scheduleVersion`으로 충돌을 감지
+- 한 날짜의 항목 전체를 한 transaction에서 저장하고 요청 `version`과 `trip_days.schedule_version`으로 충돌을 감지
 - 신규 항목은 서버의 기존 장소 저장 여부와 무관하게 `place` snapshot 필수
 - 같은 요청의 재전송은 항목 중복과 version 이중 증가 없이 현재 결과 반환
 - 처리된 장소는 장소·`transportModeToNext` 값·순서 변경과 삭제를 거부하고 체류시간만 수정 가능
@@ -898,8 +898,23 @@ Response `200`:
       "scheduleVersion": 6,
       "totalDurationSeconds": 5100,
       "totalDistanceMeters": 11200,
-      "markers": [],
-      "segments": [],
+      "markers": [
+        {"itemId": "uuid", "sequence": 1, "name": "경복궁", "latitude": 37.5796, "longitude": 126.9770},
+        {"itemId": "uuid", "sequence": 2, "name": "북촌", "latitude": 37.5826, "longitude": 126.9830}
+      ],
+      "segments": [
+        {
+          "sequence": 1,
+          "fromItemId": "uuid",
+          "toItemId": "uuid",
+          "transportMode": "WALK",
+          "provider": "TMAP",
+          "durationSeconds": 1200,
+          "distanceMeters": 1600,
+          "geometry": {"type": "LineString", "coordinates": [[126.9770, 37.5796], [126.9830, 37.5826]]},
+          "providerAttribution": "TMAP"
+        }
+      ],
       "providerAttributions": ["TMAP"],
       "calculatedAt": "2026-08-22T01:02:03Z"
     },
@@ -912,6 +927,8 @@ Response `200`:
 ```
 
 장소가 0곳인 날짜는 `NOT_CALCULATED`와 `route: null`, `failure: null`을 반환한다. 경로 계산이 실패한 날짜는 `FAILED`, `route: null`과 안정적인 `failure` code를 반환한다.
+
+경로 실패 code는 `ROUTE_PROVIDER_TIMEOUT`, `ROUTE_PROVIDER_RATE_LIMITED`, `ROUTE_PROVIDER_UNAVAILABLE`, `ROUTE_NOT_FOUND`, `ROUTE_INVALID_RESULT`다. Provider 호출은 시도당 최대 5초, 날짜 전체 계산은 최대 10초이며 timeout·네트워크 요청 오류·429·5xx만 남은 시간 안에서 한 번 재시도한다. 각 구간과 응답의 `providerAttribution`·`providerAttributions`는 화면에 표시해야 한다.
 
 주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 
