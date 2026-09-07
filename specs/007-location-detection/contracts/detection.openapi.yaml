@@ -1,0 +1,382 @@
+openapi: 3.1.0
+info:
+  title: 길픽 F007 위치 기반 감지 계약
+  version: 0.1.0
+  description: |
+    위치 이벤트 등록(PROG-003), 자동 감지 확인 응답(PROG-004), 자동 확정 되돌리기(PROG-005).
+    장소 상태·ETA·당일 완료 규칙은 F006 진행 계약(PROG-001·PROG-002·PROG-006)을 그대로 따르며
+    이 계약은 "언제 전환할지"만 다룬다. 확정 시 상태 변경 결과는 F006 진행 조회로 확인한다.
+
+    감지 대상 목록(detectionTargets)은 F006 PROG-001 응답에 추가되는 필드다. 이 계약에 정의를 두고
+    F006 계약 문서에서 참조한다.
+
+    모든 요청은 인증이 필요하며 대상 여행의 소유권을 검증한다.
+    시각은 모두 `Asia/Seoul` 기준 offset을 포함한 ISO-8601 문자열이다.
+servers:
+  - url: /api/v1
+paths:
+  /trips/{tripId}/days/{date}/progress/events:
+    post:
+      operationId: registerProgressEvent
+      summary: 위치 이벤트 등록 (PROG-003)
+      description: |
+        앱이 지오펜스에서 받은 DWELL·EXIT·REENTER를 올린다. 서버는 이벤트를 항상 저장하고,
+        정확도·유효 시간 기준을 넘거나 대상이 아닌 이벤트는 accepted=false로 기록한 뒤 판정에서 제외한다.
+        기준 미충족은 오류가 아니다. 앱이 재시도하지 않도록 200으로 응답한다.
+
+        같은 eventId를 다시 보내면 최초 처리 결과를 그대로 돌려준다(멱등).
+        이 요청을 처리하기 전에 서버는 만료된 후보를 먼저 확정한다(지연 확정).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProgressEventRequest' }
+      responses:
+        '200':
+          description: 이벤트를 받았다. accepted로 판정 사용 여부를, candidate로 새 후보를 알린다.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressEventEnvelope' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /progress/transitions/{transitionId}/decisions:
+    post:
+      operationId: decideProgressTransition
+      summary: 자동 감지 확인 응답 (PROG-004)
+      description: |
+        확인 시트의 두 행동을 처리한다. 도착 후보는 CONFIRM·NOT_ARRIVED, 출발 후보는 CONFIRM·STILL_HERE만 받는다.
+
+        CONFIRM은 F006의 수동 도착·출발과 같은 규칙으로 상태를 바꾸고 ETA를 다시 계산한다.
+        사용자가 직접 확인한 전환에는 되돌리기를 주지 않으므로 undoDeadline이 null이다(FR-020).
+
+        이미 확정·취소된 후보에는 409를 돌려주고 앱은 진행을 다시 조회한다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TransitionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransitionResultEnvelope' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: TRANSITION_NOT_PENDING(이미 처리됨), INVALID_DECISION(후보 종류에 없는 응답)
+          $ref: '#/components/responses/Error'
+  /progress/transitions/{transitionId}/undo:
+    post:
+      operationId: undoAutoConfirmedTransition
+      summary: 자동 확정 되돌리기 (PROG-005)
+      description: |
+        무응답으로 자동 확정된 전환을 되돌린다. affected_items에 기록된 모든 상태 변경과
+        날짜 상태 스냅샷을 확정 직전으로 복원하고 ETA를 다시 계산한다(FR-017·FR-019).
+
+        만료 판정은 서버 시각과 undoDeadline을 비교한다(FR-018). 만료됐으면 409다.
+        사용자가 직접 확인한 전환은 되돌리기 대상이 아니므로 409다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TransitionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UndoResultEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: UNDO_WINDOW_EXPIRED(되돌릴 수 있는 시간 지남), TRANSITION_NOT_UNDOABLE(자동 확정이 아님·이미 되돌림)
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VisitDate:
+      name: date
+      in: path
+      required: true
+      description: 방문 날짜(KST). yyyy-MM-dd
+      schema: { type: string, format: date }
+    TransitionId:
+      name: transitionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 같은 요청의 재전송을 한 번만 적용하기 위한 UUID
+      schema: { type: string, format: uuid }
+  schemas:
+    ProgressEventRequest:
+      type: object
+      required: [eventId, eventType, itemId, geofenceId, occurredAt, location]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: 앱이 만든 중복 방지 ID. 같은 값으로 재전송하면 최초 결과를 돌려준다
+        eventType:
+          $ref: '#/components/schemas/ProgressEventType'
+        itemId:
+          type: string
+          format: uuid
+          description: 이벤트가 가리키는 일정 항목
+        geofenceId:
+          type: string
+          description: 앱이 등록한 지오펜스 식별자. `{itemId}:{ARRIVAL|DEPARTURE}`
+        occurredAt:
+          type: string
+          format: date-time
+          description: 기기에서 이벤트가 발생한 시각
+        location:
+          $ref: '#/components/schemas/EventLocation'
+    EventLocation:
+      type: object
+      required: [latitude, longitude, accuracyMeters]
+      properties:
+        latitude: { type: number, format: double, minimum: -90, maximum: 90 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180 }
+        accuracyMeters: { type: number, format: double, minimum: 0 }
+    ProgressEventType:
+      type: string
+      enum: [DWELL, EXIT, REENTER]
+    ProgressEventEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, const: true }
+        data: { $ref: '#/components/schemas/ProgressEventResult' }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    ProgressEventResult:
+      type: object
+      required: [eventId, accepted]
+      properties:
+        eventId: { type: string, format: uuid }
+        accepted:
+          type: boolean
+          description: 자동 판정에 사용했는지. false면 이벤트만 저장하고 상태를 바꾸지 않았다
+        rejectionReason:
+          type: [string, 'null']
+          enum:
+            - LOW_ACCURACY
+            - STALE
+            - DAY_NOT_IN_PROGRESS
+            - ITEM_NOT_ELIGIBLE
+            - DETECTION_PAUSED
+            - PROMPT_LIMIT_REACHED
+            - DEPARTURE_DETECTION_STOPPED
+            - null
+          description: accepted=false인 이유. accepted=true면 null
+        candidate:
+          oneOf:
+            - $ref: '#/components/schemas/TransitionCandidate'
+            - type: 'null'
+          description: 이 이벤트로 새로 만들어진 후보. 후보를 만들지 않았으면 null
+        cancelledTransitionId:
+          type: [string, 'null']
+          format: uuid
+          description: REENTER로 취소된 출발 후보의 ID. 취소가 없었으면 null
+    TransitionCandidate:
+      type: object
+      required: [transitionId, itemId, type, status, detectedAt, autoFinalizeAt]
+      properties:
+        transitionId: { type: string, format: uuid }
+        itemId: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [ARRIVAL, DEPARTURE]
+        status:
+          type: string
+          const: PENDING_CONFIRMATION
+        detectedAt: { type: string, format: date-time }
+        autoFinalizeAt:
+          type: string
+          format: date-time
+          description: 응답이 없을 때 자동으로 확정되는 시각. 앱은 남은 시간 표시에 쓴다
+        allowedDecisions:
+          type: array
+          items: { $ref: '#/components/schemas/TransitionDecision' }
+          description: 이 후보가 받는 응답. 도착은 CONFIRM·NOT_ARRIVED, 출발은 CONFIRM·STILL_HERE
+        evidence:
+          $ref: '#/components/schemas/CandidateEvidence'
+    CandidateEvidence:
+      type: object
+      description: 확인 시트가 보여 주는 감지 근거(UI-001)
+      required: [occurredAt, accuracyMeters]
+      properties:
+        occurredAt: { type: string, format: date-time }
+        accuracyMeters: { type: number, format: double }
+        dwellMinutes:
+          type: [integer, 'null']
+          description: 도착 후보에서 반경 안에 머문 시간. 출발 후보는 null
+    DecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { $ref: '#/components/schemas/TransitionDecision' }
+    TransitionDecision:
+      type: string
+      enum: [CONFIRM, NOT_ARRIVED, STILL_HERE]
+    TransitionResultEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, const: true }
+        data: { $ref: '#/components/schemas/TransitionResult' }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    TransitionResult:
+      type: object
+      required: [transitionId, status, affectedItems, progressVersion]
+      properties:
+        transitionId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [CONFIRMED, AUTO_CONFIRMED, CANCELLED]
+        affectedItems:
+          type: array
+          items: { $ref: '#/components/schemas/AffectedItem' }
+          description: 이 전환으로 바뀐 항목 전부. 취소면 빈 배열
+        dayStatus:
+          type: [string, 'null']
+          enum: [IN_PROGRESS, COMPLETED, null]
+          description: 전환 후 날짜 상태. 바뀌지 않았으면 null
+        undoDeadline:
+          type: [string, 'null']
+          format: date-time
+          description: 자동 확정에만 있다. 사용자가 직접 확인한 전환은 null(FR-020)
+        nextPromptAt:
+          type: [string, 'null']
+          format: date-time
+          description: NOT_ARRIVED로 취소한 경우 다시 물을 수 있는 가장 이른 시각. 상한에 도달했으면 null
+        progressVersion:
+          type: integer
+          description: 전환 후 진행 버전. 앱은 이 값으로 재조회 필요 여부를 판단한다
+    UndoResultEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, const: true }
+        data: { $ref: '#/components/schemas/UndoResult' }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+    UndoResult:
+      type: object
+      required: [transitionId, status, restoredItems, progressVersion]
+      properties:
+        transitionId: { type: string, format: uuid }
+        status:
+          type: string
+          const: UNDONE
+        restoredItems:
+          type: array
+          items: { $ref: '#/components/schemas/AffectedItem' }
+          description: 복원된 항목과 복원 후 상태
+        dayStatus:
+          type: [string, 'null']
+          enum: [IN_PROGRESS, COMPLETED, null]
+          description: 되돌리기로 날짜 상태가 바뀌었으면 그 값. 당일 완료 해제가 여기에 해당한다(FR-019)
+        detectionResumeAt:
+          type: string
+          format: date-time
+          description: 이 장소의 같은 종류 자동 감지를 다시 시작할 수 있는 시각(FR-017a)
+        progressVersion: { type: integer }
+    AffectedItem:
+      type: object
+      required: [itemId, beforeStatus, afterStatus]
+      properties:
+        itemId: { type: string, format: uuid }
+        beforeStatus: { $ref: '#/components/schemas/ItemStatus' }
+        afterStatus: { $ref: '#/components/schemas/ItemStatus' }
+    ItemStatus:
+      type: string
+      enum: [PLANNED, EN_ROUTE, ARRIVED, COMPLETED, SKIPPED]
+    DetectionTarget:
+      type: object
+      description: |
+        F006 PROG-001 응답에 추가되는 감지 대상 하나. 앱은 이 목록과 현재 등록 상태의 차이만 반영한다.
+        목록이 비면 등록된 지오펜스를 모두 해제한다.
+      required: [itemId, kind, geofenceId, latitude, longitude, radiusMeters]
+      properties:
+        itemId: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [ARRIVAL, DEPARTURE]
+        geofenceId:
+          type: string
+          description: '`{itemId}:{kind}`'
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        radiusMeters: { type: integer, minimum: 1 }
+        dwellMinutes:
+          type: [integer, 'null']
+          description: ARRIVAL에만 있는 체류 판정 시간. DEPARTURE는 null
+    PendingCandidate:
+      type: object
+      description: |
+        F006 PROG-001 응답에 추가되는, 지금 답을 기다리는 후보. 없으면 null이다.
+        앱은 이 값으로 확인 시트를 그린다. 자동 확정이 이미 일어났으면 대신 undoable이 채워진다.
+      allOf:
+        - $ref: '#/components/schemas/TransitionCandidate'
+    UndoableTransition:
+      type: object
+      description: F006 PROG-001 응답에 추가되는, 아직 되돌릴 수 있는 자동 확정. 없으면 null이다
+      required: [transitionId, itemId, type, confirmedAt, undoDeadline]
+      properties:
+        transitionId: { type: string, format: uuid }
+        itemId: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [ARRIVAL, DEPARTURE, COMPOSITE]
+        confirmedAt: { type: string, format: date-time }
+        undoDeadline: { type: string, format: date-time }
+    ResponseMeta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string, format: uuid }
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success: { type: boolean, const: false }
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryable: { type: boolean }
+            details:
+              type: [object, 'null']
+              additionalProperties: true
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
+  responses:
+    Error:
+      description: 오류 응답
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
