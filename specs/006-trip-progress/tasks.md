@@ -130,17 +130,17 @@
   - 담당: jy
   - 선행: T009, T017
   - 검증: 오늘 날짜 PROG-001 조회로 `오늘 여행 시작`/`여행 진행 화면으로`/비활성+`오늘은 여행 날짜가 아닙니다`/`장소 추가` 안내 분기, `rememberLauncherForActivityResult` 권한 요청 후 위치 취득 → start → navigation. 카운트다운 미구현 기록. `android/app/src/androidTest/java/com/gilpick/trip/TripDetailScreenTest.kt` 보강
-- [ ] T019 [US1] ProgressUiState·ProgressViewModel 조회 구현 in android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [x] T019 [US1] ProgressUiState·ProgressViewModel 조회 구현 in android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009
   - 검증: F004 overview + 오늘 PROG-001 병렬 조회로 `Loading`/`Empty`/`Error`/`Content`, 1초 초과 시만 loading, `onResume` 재조회, 남은·지난 시간 1분 갱신을 `android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt`에서 확인
-- [ ] T020 [US1] ActiveTravelScreen 기본 구조와 네 상태 구현 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressLabels.kt, android/app/src/main/res/values/strings.xml
+- [x] T020 [US1] ActiveTravelScreen 기본 구조와 네 상태 구현 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressLabels.kt, android/app/src/main/res/values/strings.xml
   - 영역: FE
   - 담당: jy
   - 선행: T003, T019
   - 검증: header(`여행 중`, `N일차 · x/y 완료`, 여행명), 날짜 진행 표시, 다음 장소 카드(장소명·예상 도착·남은 시간·이전 장소 이동수단·시간·거리, `정보 없음`), 지도 자리(F005 `RouteMap` 재사용), 일정 목록(상태 문구+아이콘, 실제 시각/ETA), `장소 추가`, loading/empty/error. Figma 정본 대조, 48dp·색 단독 금지. `android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt` 기본 케이스
-- [ ] T021 [US1] 진행 navigation과 MainActivity 연결 in android/app/src/main/java/com/gilpick/progress/ProgressNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T021 [US1] 진행 navigation과 MainActivity 연결 in android/app/src/main/java/com/gilpick/progress/ProgressNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T018, T020
