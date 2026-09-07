@@ -169,6 +169,104 @@ class RouteViewModelTest {
         assertEquals(1, service.getCalls.size)
     }
 
+    // --- T030: 실패 재시도(US3, FR-010·011·019) ---
+
+    @Test
+    fun `계산 실패에서만 retry endpoint를 같은 version으로 호출하고 성공하면 content가 된다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
+        service.onRetry = { _, _ -> routeOk(dayRoute(RouteStatus.READY, route = readyRoute())) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.retry()
+        assertEquals(RouteUiState.Loading, viewModel.state.value)
+        advanceUntilIdle()
+
+        assertEquals(listOf(ROUTE_DATE to 3), service.retryCalls)
+        assertEquals(RouteUiState.Content(readyRoute()), viewModel.state.value)
+    }
+
+    @Test
+    fun `재시도 중 다시 누르면 요청을 겹치지 않는다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
+        service.onRetry = { _, _ -> routeOk(dayRoute(RouteStatus.READY, route = readyRoute())) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.retry()
+        viewModel.retry()
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(1, service.retryCalls.size)
+    }
+
+    @Test
+    fun `재시도가 다시 실패하면 새 원인을 담은 error로 남는다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
+        service.onRetry = { _, _ -> routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure(RouteFailureCodes.NOT_FOUND, retryable = false))) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(
+            RouteUiState.Error(RouteProblem.Calculation(routeFailure(RouteFailureCodes.NOT_FOUND, retryable = false), 3)),
+            viewModel.state.value,
+        )
+    }
+
+    @Test
+    fun `version 충돌이면 최신 일정 안내로 바뀌고 다음 다시 시도는 조회다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
+        service.onRetry = { _, _ -> routeError(409, RouteErrorCodes.VERSION_CONFLICT) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.retry()
+        advanceUntilIdle()
+        assertEquals(RouteUiState.Error(RouteProblem.Request(RouteError.VersionConflict)), viewModel.state.value)
+
+        service.onGet = { routeOk(dayRoute(RouteStatus.READY, route = readyRoute(scheduleVersion = 4), scheduleVersion = 4)) }
+        viewModel.retry()
+        advanceUntilIdle()
+        assertEquals(1, service.retryCalls.size)
+        assertEquals(2, service.getCalls.size)
+        assertEquals(RouteUiState.Content(readyRoute(scheduleVersion = 4)), viewModel.state.value)
+    }
+
+    @Test
+    fun `ROUTE_NOT_FAILED면 이미 경로가 있으므로 조회로 대신한다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
+        service.onRetry = { _, _ -> routeError(409, RouteErrorCodes.ROUTE_NOT_FAILED) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        service.onGet = { routeOk(dayRoute(RouteStatus.READY, route = readyRoute())) }
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(RouteUiState.Content(readyRoute()), viewModel.state.value)
+    }
+
+    @Test
+    fun `네트워크가 끊기면 즉시 network error이고 조회 실패 상태의 다시 시도는 조회다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
+        service.onRetry = { _, _ -> throw IOException("끊김") }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.retry()
+        advanceUntilIdle()
+        assertEquals(RouteUiState.Error(RouteProblem.Request(RouteError.Network)), viewModel.state.value)
+
+        viewModel.retry()
+        advanceUntilIdle()
+        assertEquals(1, service.retryCalls.size)
+        assertEquals(2, service.getCalls.size)
+    }
+
     private suspend fun newViewModel(): RouteViewModel =
         RouteViewModel(repository = repository(), tripId = ROUTE_TRIP_ID, date = date)
 

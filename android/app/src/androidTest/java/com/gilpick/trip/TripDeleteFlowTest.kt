@@ -25,6 +25,9 @@ import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.createItineraryRetrofit
+import com.gilpick.route.RouteRepository
+import com.gilpick.route.RouteService
+import com.gilpick.route.createRouteRetrofit
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -62,6 +65,7 @@ class TripDeleteFlowTest {
     private lateinit var server: MockWebServer
     private lateinit var repository: TripRepository
     private lateinit var itineraryRepository: ItineraryRepository
+    private lateinit var routeRepository: RouteRepository
 
     /** 서버가 들고 있는 여행. 삭제되면 목록에서 빠지고 상세는 404가 된다. */
     private var deleted = false
@@ -127,6 +131,10 @@ class TripDeleteFlowTest {
         itineraryRepository = ItineraryRepository(
             api = createItineraryRetrofit(server.url("/api/v1/").toString())
                 .create(ItineraryService::class.java),
+            auth = auth,
+        )
+        routeRepository = RouteRepository(
+            api = createRouteRetrofit(server.url("/api/v1/").toString()).create(RouteService::class.java),
             auth = auth,
         )
     }
@@ -293,6 +301,7 @@ class TripDeleteFlowTest {
                             TripDetailViewModel(
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
+                                routeRepository = routeRepository,
                                 tripId = tripId,
                             )
                         }

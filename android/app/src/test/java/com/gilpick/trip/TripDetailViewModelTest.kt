@@ -21,7 +21,13 @@ import com.gilpick.itinerary.SaveDayItineraryRequest
 import com.gilpick.itinerary.StaySource
 import com.gilpick.itinerary.TransportMode
 import com.gilpick.place.PlaceCategory
+import com.gilpick.route.FakeRouteService
+import com.gilpick.route.RouteRepository
+import com.gilpick.route.dayRoute
 import com.gilpick.route.readyRoute
+import com.gilpick.route.routeError
+import com.gilpick.route.routeFailure
+import com.gilpick.route.routeOk
 import java.io.File
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -72,6 +78,7 @@ class TripDetailViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val service = FakeTripService()
     private val itineraryService = FakeItineraryService()
+    private val routeService = FakeRouteService()
 
     @Before
     fun setUp() {
@@ -456,6 +463,7 @@ class TripDetailViewModelTest {
     @Test
     fun `경로 계산이 실패해도 일정 내용은 그대로 남고 경로 영역만 실패가 된다`() = runTest {
         service.onGet = { detail(trip(TRIP_ID)) }
+        routeService.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure())) }
         itineraryService.onOverview = {
             overview(
                 it,
@@ -473,8 +481,97 @@ class TripDetailViewModelTest {
         val items = (viewModel.state.value.itinerary as ItineraryOverviewPhase.Content).days[0].items
         assertEquals(listOf("경복궁", "북촌"), items.map { it.place.name })
         assertEquals(TransportMode.WALK, items[0].transportModeToNext)
-        // 개요에는 실패 원인이 없어 null이다. 원인은 경로 조회·재시도 응답이 채운다.
-        assertEquals(DayRoutePhase.Failed(failure = null), viewModel.routes.value["2026-09-08"])
+        // 개요에는 실패 원인이 없어 경로 조회로 원인을 채운다.
+        assertEquals(listOf("2026-09-08"), routeService.getCalls)
+        assertEquals(DayRoutePhase.Failed(routeFailure()), viewModel.routes.value["2026-09-08"])
+    }
+
+    // --- F005 T030: 실패 재시도(FR-010·011·012·019) ---
+
+    @Test
+    fun `실패한 날짜만 같은 version으로 재시도하고 성공하면 경로 영역만 READY가 된다`() = runTest {
+        val viewModel = failedDetail()
+        routeService.onRetry = { _, _ -> routeOk(dayRoute(RouteStatus.READY, route = readyRoute(scheduleVersion = 2), scheduleVersion = 2)) }
+
+        viewModel.retryRoute("2026-09-08")
+        assertEquals(DayRoutePhase.Calculating, viewModel.routes.value["2026-09-08"])
+        advanceUntilIdle()
+
+        assertEquals(listOf("2026-09-08" to 2), routeService.retryCalls)
+        assertEquals(DayRoutePhase.Ready(readyRoute(scheduleVersion = 2)), viewModel.routes.value["2026-09-08"])
+        // 일정 내용은 다시 조회하지 않고 그대로다.
+        assertEquals(1, itineraryService.overviewCalls.size)
+        assertEquals("경복궁", (viewModel.state.value.itinerary as ItineraryOverviewPhase.Content).days[0].items[0].place.name)
+    }
+
+    @Test
+    fun `계산 중에는 다시 눌러도 요청을 겹치지 않고 READY 날짜는 재시도하지 않는다`() = runTest {
+        val viewModel = failedDetail()
+        routeService.onRetry = { _, _ -> routeOk(dayRoute(RouteStatus.READY, route = readyRoute(scheduleVersion = 2), scheduleVersion = 2)) }
+
+        viewModel.retryRoute("2026-09-08")
+        viewModel.retryRoute("2026-09-08")
+        advanceUntilIdle()
+        viewModel.retryRoute("2026-09-08")
+        advanceUntilIdle()
+
+        assertEquals(1, routeService.retryCalls.size)
+    }
+
+    @Test
+    fun `재시도가 다시 실패하면 새 원인을 유지한 실패로 남는다`() = runTest {
+        val viewModel = failedDetail()
+        routeService.onRetry = { _, _ -> routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure(com.gilpick.route.RouteFailureCodes.NOT_FOUND, retryable = false))) }
+
+        viewModel.retryRoute("2026-09-08")
+        advanceUntilIdle()
+
+        assertEquals(
+            DayRoutePhase.Failed(routeFailure(com.gilpick.route.RouteFailureCodes.NOT_FOUND, retryable = false)),
+            viewModel.routes.value["2026-09-08"],
+        )
+    }
+
+    @Test
+    fun `version 충돌이면 최신 일정을 다시 받는다`() = runTest {
+        val viewModel = failedDetail()
+        routeService.onRetry = { _, _ -> routeError(409, com.gilpick.route.RouteErrorCodes.VERSION_CONFLICT) }
+        itineraryService.onOverview = {
+            overview(it, listOf(day("2026-09-08", 1, items = listOf(item("경복궁", 1))).copy(version = 3, routeStatus = RouteStatus.READY, route = readyRoute(scheduleVersion = 3))))
+        }
+
+        viewModel.retryRoute("2026-09-08")
+        advanceUntilIdle()
+
+        assertEquals(2, itineraryService.overviewCalls.size)
+        assertEquals(DayRoutePhase.Ready(readyRoute(scheduleVersion = 3)), viewModel.routes.value["2026-09-08"])
+    }
+
+    @Test
+    fun `네트워크가 끊기면 실패 원인을 유지한 채 요청 실패를 함께 알린다`() = runTest {
+        val viewModel = failedDetail()
+        routeService.onRetry = { _, _ -> throw java.io.IOException("끊김") }
+
+        viewModel.retryRoute("2026-09-08")
+        advanceUntilIdle()
+
+        assertEquals(
+            DayRoutePhase.Failed(routeFailure(), requestError = com.gilpick.route.RouteError.Network),
+            viewModel.routes.value["2026-09-08"],
+        )
+    }
+
+    /** 9/8(version 2)의 경로 계산이 실패한 상세. 원인은 경로 조회로 채워져 있다. */
+    private suspend fun kotlinx.coroutines.test.TestScope.failedDetail(): TripDetailViewModel {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        itineraryService.onOverview = {
+            overview(it, listOf(day("2026-09-08", 1, items = listOf(item("경복궁", 1, transportModeToNext = TransportMode.WALK), item("북촌", 2))).copy(version = 2, routeStatus = RouteStatus.FAILED)))
+        }
+        routeService.onGet = { routeOk(dayRoute(RouteStatus.FAILED, failure = routeFailure(), scheduleVersion = 2)) }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+        return viewModel
     }
 
     @Test
@@ -525,6 +622,7 @@ class TripDetailViewModelTest {
         return TripDetailViewModel(
             repository = TripRepository(api = service, auth = auth),
             itineraryRepository = ItineraryRepository(api = itineraryService, auth = auth),
+            routeRepository = RouteRepository(api = routeService, auth = auth),
             tripId = TRIP_ID,
         )
     }

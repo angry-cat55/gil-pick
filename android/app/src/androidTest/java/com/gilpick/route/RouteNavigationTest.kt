@@ -133,7 +133,11 @@ class RouteNavigationTest {
 
         // 9/2 FAILED: 장소 행은 그대로, 경로 영역만 실패 안내. `경로 보기`는 없다.
         composeRule.onNodeWithText("창덕궁").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("경로를 계산하지 못했어요").performScrollTo().assertIsDisplayed()
+        composeRule.waitUntil(WAIT_MILLIS) {
+            composeRule.onAllNodesWithText("경로 서비스 응답이 늦어", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("경로 서비스 응답이 늦어", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("9월 2일 경로 다시 시도").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("9월 2일 경로 보기").assertDoesNotExist()
 
         // 총 이동 통계는 모든 날짜가 READY가 아니므로 `정보 없음`이다.
@@ -154,7 +158,9 @@ class RouteNavigationTest {
         composeRule.onNodeWithText("9월 1일 · 3곳").assertIsDisplayed()
         composeRule.runOnIdle {
             assertEquals(DayRouteRoute(TRIP_ID, "2026-09-01", 1), navController.currentBackStackEntry?.toRoute<DayRouteRoute>())
-            assertEquals(listOf("/api/v1/trips/$TRIP_ID/days/2026-09-01/route"), routeRequests)
+            // 상세가 FAILED 날짜(9/2)의 원인을 먼저 조회했고, 경로 화면이 9/1을 조회했다.
+            assertEquals("/api/v1/trips/$TRIP_ID/days/2026-09-01/route", routeRequests.last())
+            assertEquals(1, routeRequests.count { it.endsWith("/2026-09-01/route") })
         }
 
         composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
@@ -182,6 +188,7 @@ class RouteNavigationTest {
                             TripDetailViewModel(
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
+                                routeRepository = routeRepository,
                                 tripId = tripId,
                             )
                         }
