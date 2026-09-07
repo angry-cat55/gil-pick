@@ -244,7 +244,7 @@
   - 담당: jh
   - 선행: T031
   - 검증: T001에서 동기화한 F004 일정 응답 확장, ROUTE 조회·실패 retry와 F006 `/recalculate` 구분, route table·오류 code·timeout·attribution을 최종 구현과 대조하고 `git diff --check` 통과
-- [ ] T034 [P] Android 접근성·시각·실기기 최종 검증 in android/app/src/androidTest/java/com/gilpick/route/, specs/005-route-calculation/quickstart.md
+- [X] T034 [P] Android 접근성·시각·실기기 최종 검증 in android/app/src/androidTest/java/com/gilpick/route/, specs/005-route-calculation/quickstart.md
   - 영역: FE
   - 담당: jy
   - 선행: T032

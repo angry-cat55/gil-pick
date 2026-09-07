@@ -70,8 +70,8 @@ Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log
 | 1곳 | 구간 없음, 총 이동 0분·0m, 장소 한 행, attribution 없음 | 통과 |
 | 정상 경로 재계산 없음 | content에 `다시 시도`·`다시 계산`·`다른 경로` 없음 | 통과 |
 | 360dp·일반 phone·최대 글자 배율 | screenshot 14장(`route_*` 12, `trip_detail_route_states*` 2): 일반 phone(411dp), 360dp, 글자 2.0, 360dp+2.0. 가로 스크롤·잘림 없음, 장소명은 단어 중간 줄바꿈 | 통과 (사람 확인) |
-| attribution | sheet에 `출처: 경로 정보 제공: TMAP · 대중교통 정보 제공: ODsay` 표시. Naver 지도 로고는 SDK 기본값 유지(숨기지 않음) | 문구는 통과, 지도 로고는 아래 미검증 |
-| 지도 gesture·inset·polyline·marker | 실제 Naver 지도 렌더링 | **미검증**: 로컬에 NCP Key ID가 없어 지도 인증 불가. `~/.gradle/gradle.properties`에 `GILPICK_NAVER_MAPS_CLIENT_ID`를 넣고 `gilpick_api36_play`(창 있는 AVD)에서 이동·확대·축소, 마커 번호, polyline, sheet가 로고를 가리지 않는지(`setContentPadding`), 화면 재진입 시 overlay 중복 없음을 확인해야 한다 |
+| attribution | sheet에 `출처: …` 표시(실서버에서는 `출처: TMAP`). Naver 지도 로고는 SDK 기본값 유지 | 통과 (로고 실제 지도에서 확인) |
+| 지도 gesture·inset·polyline·marker (T026) | Naver NCP key를 `~/.gradle/gradle.properties`에 넣고 `gilpick_api36_play`에서 실서버(TMAP 도보 2구간, 3곳 READY) 경로 화면 확인 | 통과. 야간 지도 타일 렌더링, 순서 번호 마커 1·2·3 + 장소명 caption, 구간 polyline, `fitBounds`로 세 마커가 sheet 위 영역에 들어옴, 드래그 이동·더블탭 확대·`+/-` 컨트롤 동작, `NAVER` 로고·축척이 sheet에 가리지 않음, 뒤로 가기 후 재진입 시 마커·선 중복 없음. 발견·수정: `OverlayImage.fromView`가 뷰를 다시 재서 마커가 타원으로 찌그러짐 → 마커 크기 28dp 고정(커밋 6571c92) |
 
 screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`로 실행 후 `adb pull`).
 
