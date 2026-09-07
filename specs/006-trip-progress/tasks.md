@@ -92,7 +92,7 @@
   - 담당: jh
   - 선행: T004, T006
   - 검증: quickstart BE 1~4·12(시작 성공, 멱등·동시 시작, `DAY_NOT_TODAY`·`DAY_EMPTY`·403/404, 위치 유효·무효, provider 실패 시 시작 성공·ETA null, F004 저장·F005 retry 후 ETA 갱신)
-- [ ] T012 [P] [US1] Android 시작 흐름 ViewModel·위치 취득 test 작성 in android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt, android/app/src/test/java/com/gilpick/progress/CurrentLocationProviderTest.kt
+- [x] T012 [P] [US1] Android 시작 흐름 ViewModel·위치 취득 test 작성 in android/app/src/test/java/com/gilpick/trip/TripDetailViewModelTest.kt, android/app/src/test/java/com/gilpick/progress/CurrentLocationProviderTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009
@@ -120,12 +120,12 @@
   - 담당: jh
   - 선행: T013
   - 검증: 진행 중(`IN_PROGRESS`) 날짜의 `save_day` 성공과 route READY 활성화 뒤 `eta` 재계산이 호출되고, `NOT_STARTED` 날짜에는 호출하지 않음을 `api/tests/integration/test_progress_flow.py`·`test_itinerary_flow.py`에서 확인
-- [ ] T017 [US1] 1회 현재 위치 취득 구현 in android/app/src/main/java/com/gilpick/progress/CurrentLocationProvider.kt
+- [x] T017 [US1] 1회 현재 위치 취득 구현 in android/app/src/main/java/com/gilpick/progress/CurrentLocationProvider.kt
   - 영역: FE
   - 담당: jy
   - 선행: T002, T012
   - 검증: `FusedLocationProviderClient.getCurrentLocation` 10초 timeout, 정확도 100m 이하·2분 이내만 반환, 권한 없음·실패 시 null, test 시드 인터페이스 제공. T012 통과
-- [ ] T018 [US1] 여행 상세 시작 버튼과 startToday 흐름 구현 in android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt
+- [x] T018 [US1] 여행 상세 시작 버튼과 startToday 흐름 구현 in android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T009, T017

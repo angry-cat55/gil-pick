@@ -21,6 +21,14 @@ import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.RouteStatus
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.itinerary.toItineraryError
+import com.gilpick.progress.CurrentLocationProvider
+import com.gilpick.progress.DayStatus
+import com.gilpick.progress.DeviceLocationProvider
+import com.gilpick.progress.ProgressError
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.ProgressService
+import com.gilpick.progress.createProgressRetrofit
+import com.gilpick.progress.toProgressError
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteError
 import com.gilpick.route.RouteFailureDto
@@ -133,16 +141,62 @@ sealed interface TripDeletePhase {
 }
 
 /**
+ * `오늘 여행 시작` 영역의 상태(F006 UI-007).
+ *
+ * 오늘(KST)이 여행 기간 안이면 오늘 날짜의 진행 현황(PROG-001)을 조회해 분기하고, 기간 밖이면
+ * 조회 없이 [NotTravelDay]다. 시작 여부는 서버가 준 `dayStatus`로만 판단한다(FR-021).
+ */
+sealed interface TripStartPhase {
+    /** 여행 또는 오늘 진행 현황을 아직 받지 못했다. 버튼은 비활성이다. */
+    data object Loading : TripStartPhase
+
+    /** 오늘이 여행 기간 밖이다. 버튼은 비활성이고 `오늘은 여행 날짜가 아닙니다`를 함께 표시한다. */
+    data object NotTravelDay : TripStartPhase
+
+    /** 오늘 날짜에 장소가 없다. 시작 대신 `장소 추가`를 안내한다. */
+    data class NoPlaces(val date: String) : TripStartPhase
+
+    /**
+     * 시작할 수 있다.
+     *
+     * @property progressVersion 시작 요청에 실을 진행 version. 시작 전 날짜는 0.
+     */
+    data class Ready(val date: String, val progressVersion: Int) : TripStartPhase
+
+    /** 위치를 얻고 시작 요청을 보내는 중. 버튼을 잠근다. */
+    data class Starting(val date: String) : TripStartPhase
+
+    /**
+     * 방금 시작됐다. 화면은 이 값을 보고 진행 화면으로 이동한 뒤 [TripDetailViewModel.consumeLaunched]로
+     * [Started]로 되돌려 같은 신호가 다시 소비되지 않게 한다.
+     */
+    data class Launched(val date: String) : TripStartPhase
+
+    /** 오늘 날짜가 이미 시작(또는 완료)됐다. 버튼은 `여행 진행 화면으로`다. */
+    data class Started(val date: String) : TripStartPhase
+
+    /**
+     * 진행 현황 조회 또는 시작 요청이 실패했다. 원인과 `다시 시도`를 제공한다(UI-008).
+     *
+     * @property ready 시작 요청이 실패했으면 그 입력. 같은 입력으로 다시 시도하면 같은 멱등 키가 나간다.
+     *   조회 실패면 `null`이고 다시 시도는 조회부터 한다.
+     */
+    data class Failed(val error: ProgressError, val ready: Ready? = null) : TripStartPhase
+}
+
+/**
  * 여행 상세 화면 상태.
  *
  * @property phase 현재 표시 단계.
  * @property itinerary 일정 영역의 표시 단계. 여행 조회와 별도 요청이라 [phase]에 섞지 않는다.
  * @property deletion 삭제 요청의 진행 단계. 조회 단계와 독립적이라 [phase]에 섞지 않는다.
+ * @property start `오늘 여행 시작` 영역의 상태(F006). 오늘 날짜 진행 현황은 별도 요청이라 따로 둔다.
  */
 data class TripDetailUiState(
     val phase: TripDetailPhase = TripDetailPhase.Loading,
     val itinerary: ItineraryOverviewPhase = ItineraryOverviewPhase.Loading,
     val deletion: TripDeletePhase = TripDeletePhase.Idle,
+    val start: TripStartPhase = TripStartPhase.Loading,
 )
 
 /**
@@ -157,13 +211,19 @@ data class TripDetailUiState(
  * @property repository 여행 데이터 접근 지점.
  * @property itineraryRepository 날짜별 일정 개요 접근 지점.
  * @property routeRepository 날짜별 경로 조회·재시도 접근 지점(F005).
+ * @property progressRepository 오늘 날짜 진행 현황 조회·시작 접근 지점(F006).
+ * @property locationProvider 시작 요청에 실을 현재 위치를 한 번 얻는다. 못 얻으면 위치 없이 시작한다.
  * @property tripId 이 화면이 보여 줄 여행.
+ * @property today 오늘 날짜(KST). test가 고정한다.
  */
 class TripDetailViewModel(
     private val repository: TripRepository,
     private val itineraryRepository: ItineraryRepository,
     private val routeRepository: RouteRepository,
+    private val progressRepository: ProgressRepository,
+    private val locationProvider: CurrentLocationProvider,
     private val tripId: String,
+    private val today: () -> LocalDate = { LocalDate.now(KST) },
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TripDetailUiState())
@@ -206,7 +266,91 @@ class TripDetailViewModel(
                 is AuthResult.Failure -> TripDetailPhase.Failed(result.error.toDetailError())
             }
             _state.update { it.copy(phase = phase) }
+            if (phase is TripDetailPhase.Content) loadStart(phase.trip)
         }
+    }
+
+    /**
+     * `오늘 여행 시작` 영역을 채운다(F006 UI-007).
+     *
+     * 오늘(KST)이 기간 밖이면 서버에 묻지 않는다. 기간 안이면 오늘 날짜의 진행 현황(PROG-001)을 받아
+     * 장소 유무와 시작 여부로 분기한다. 시작 여부를 앱이 추정하지 않는다(FR-021).
+     */
+    private fun loadStart(trip: TripDto) {
+        val date = today()
+        if (date < LocalDate.parse(trip.startDate) || date > LocalDate.parse(trip.endDate)) {
+            _state.update { it.copy(start = TripStartPhase.NotTravelDay) }
+            return
+        }
+        loadProgress(date)
+    }
+
+    private fun loadProgress(date: LocalDate) {
+        _state.update { it.copy(start = TripStartPhase.Loading) }
+        viewModelScope.launch {
+            val phase = when (val result = progressRepository.getDayProgress(tripId, date)) {
+                is AuthResult.Success -> result.value.let { progress ->
+                    when {
+                        progress.dayStatus != DayStatus.NOT_STARTED -> TripStartPhase.Started(progress.date)
+                        progress.items.isEmpty() -> TripStartPhase.NoPlaces(progress.date)
+                        else -> TripStartPhase.Ready(progress.date, progress.progressVersion)
+                    }
+                }
+                is AuthResult.Failure -> TripStartPhase.Failed(result.error.toProgressError())
+            }
+            _state.update { it.copy(start = phase) }
+        }
+    }
+
+    /**
+     * 오늘 여행을 시작한다(FR-001·FR-004b, PROG-002).
+     *
+     * [TripStartPhase.Ready] 또는 시작 요청이 실패한 [TripStartPhase.Failed]에서만 동작한다. 위치는
+     * 권한·정확도·시간 조건을 만족할 때만 실리고, 못 얻어도 시작은 진행한다(FR-020). 서버가 이미
+     * 시작됐다고 답해도 `200`이므로 같은 흐름으로 진행 화면에 간다(FR-002).
+     */
+    fun startToday() {
+        val ready = when (val start = _state.value.start) {
+            is TripStartPhase.Ready -> start
+            is TripStartPhase.Failed -> start.ready ?: return
+            else -> return
+        }
+        _state.update { it.copy(start = TripStartPhase.Starting(ready.date)) }
+
+        viewModelScope.launch {
+            val location = locationProvider.current()
+            val result = progressRepository.startDay(tripId, LocalDate.parse(ready.date), ready.progressVersion, location)
+            val phase = when (result) {
+                is AuthResult.Success -> TripStartPhase.Launched(ready.date)
+                is AuthResult.Failure -> when (val error = result.error.toProgressError()) {
+                    ProgressError.DayEmpty -> TripStartPhase.NoPlaces(ready.date)
+                    ProgressError.DayNotToday -> TripStartPhase.NotTravelDay
+                    // 다른 곳에서 먼저 시작됐거나 일정이 바뀌었다. 최신 진행 현황으로 분기를 다시 정한다.
+                    ProgressError.VersionConflict -> {
+                        loadProgress(LocalDate.parse(ready.date))
+                        return@launch
+                    }
+                    else -> TripStartPhase.Failed(error, ready)
+                }
+            }
+            _state.update { it.copy(start = phase) }
+        }
+    }
+
+    /** 시작 영역의 실패를 다시 시도한다. 시작 요청 실패면 같은 입력으로, 조회 실패면 조회부터 한다. */
+    fun retryStart() {
+        val failed = _state.value.start as? TripStartPhase.Failed ?: return
+        if (failed.ready != null) {
+            startToday()
+        } else {
+            loadStart((_state.value.phase as? TripDetailPhase.Content)?.trip ?: return)
+        }
+    }
+
+    /** 방금 시작됨 신호를 소비한다. 진행 화면으로 이동한 뒤 화면이 호출한다. */
+    fun consumeLaunched() {
+        val launched = _state.value.start as? TripStartPhase.Launched ?: return
+        _state.update { it.copy(start = TripStartPhase.Started(launched.date)) }
     }
 
     /** 날짜별 일정 개요만 조회한다(ITIN-003). */
@@ -373,6 +517,11 @@ class TripDetailViewModel(
                             api = createRouteRetrofit(BuildConfig.API_BASE_URL).create(RouteService::class.java),
                             auth = auth,
                         ),
+                        progressRepository = ProgressRepository(
+                            api = createProgressRetrofit(BuildConfig.API_BASE_URL).create(ProgressService::class.java),
+                            auth = auth,
+                        ),
+                        locationProvider = DeviceLocationProvider.create(appContext),
                         tripId = tripId,
                     )
                 }

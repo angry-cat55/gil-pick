@@ -81,7 +81,14 @@
     <string name="trip_detail_day_value">%1$d일</string>
     <!-- F006 여행 진행 전까지 누를 수 없다. 비활성 이유를 함께 적는다(가이드라인 9절). -->
     <string name="trip_detail_start_travel">오늘 여행 시작</string>
-    <string name="trip_detail_start_travel_unavailable">여행 진행 기능은 준비 중이에요</string>
+    <string name="trip_detail_start_travel_unavailable">오늘은 여행 날짜가 아닙니다</string>
+    <string name="trip_detail_open_progress">여행 진행 화면으로</string>
+    <string name="trip_detail_starting">시작하는 중</string>
+    <string name="trip_detail_start_no_places">오늘 일정에 장소가 없어요. 장소를 추가하면 시작할 수 있어요.</string>
+    <string name="trip_detail_start_add_place">장소 추가</string>
+    <string name="trip_detail_start_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="trip_detail_start_error_unexpected">지금은 여행을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <string name="trip_detail_start_retry">다시 시도</string>
     <string name="trip_detail_edit_itinerary">일정 편집</string>
 
     <!-- 여행 상세 일정 영역 -->

@@ -1,11 +1,15 @@
 package com.gilpick.trip
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -50,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -65,6 +70,8 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
 import com.gilpick.itinerary.TransportMode
+import com.gilpick.progress.DeviceLocationProvider
+import com.gilpick.progress.ProgressError
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteSegmentDto
 import com.gilpick.route.distanceLabel
@@ -112,6 +119,10 @@ import kotlinx.coroutines.delay
  * @param routes 날짜(`yyyy-MM-dd`)별 경로 영역 상태(F005). 없는 날짜는 경로 정보 없음으로 그린다.
  * @param onOpenRoute 그 날짜의 경로 화면(F005)으로 이동한다. 인자는 날짜와 일차다.
  * @param onRetryRoute 실패한 날짜의 경로 계산을 같은 입력으로 다시 시도한다(F005 FR-010). 인자는 날짜다.
+ * @param onStartToday `오늘 여행 시작`을 눌렀다(F006). 위치 권한 요청은 화면이 먼저 끝낸다.
+ * @param onRetryStart 시작 영역의 실패를 다시 시도한다.
+ * @param onOpenProgress 진행 화면(F006)으로 이동한다. 방금 시작됐거나 이미 시작된 날짜에서 호출된다. 인자는 날짜다.
+ * @param onLaunchConsumed 방금 시작됨 신호를 소비했음을 알린다. [onOpenProgress] 직후 호출된다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,9 +141,22 @@ fun TripDetailScreen(
     routes: Map<String, DayRoutePhase> = emptyMap(),
     onOpenRoute: (date: String, dayNumber: Int) -> Unit = { _, _ -> },
     onRetryRoute: (date: String) -> Unit = {},
+    onStartToday: () -> Unit = {},
+    onRetryStart: () -> Unit = {},
+    onOpenProgress: (date: String) -> Unit = {},
+    onLaunchConsumed: () -> Unit = {},
 ) {
     val spacing = LocalGilpickSpacing.current
     var menuOpen by remember { mutableStateOf(false) }
+
+    // 방금 시작됐으면 진행 화면으로 간다. 신호를 바로 소비해 돌아왔을 때 다시 이동하지 않는다.
+    val start = state.start
+    LaunchedEffect(start) {
+        if (start is TripStartPhase.Launched) {
+            onOpenProgress(start.date)
+            onLaunchConsumed()
+        }
+    }
 
     // 다이얼로그를 열었는지는 화면 안에서만 쓰이는 표시 상태다. ViewModel에 두면 화면
     // 밖에서 아무도 읽지 않는 값을 함께 들고 다니게 된다. 회전으로 사라지지 않도록
@@ -199,12 +223,16 @@ fun TripDetailScreen(
                     trip = phase.trip,
                     itinerary = state.itinerary,
                     routes = routes,
+                    start = state.start,
                     onRetryItinerary = onRetryItinerary,
                     onEditItinerary = onEditItinerary,
                     onAddPlace = onAddPlace,
                     onSelectPlace = onSelectPlace,
                     onOpenRoute = onOpenRoute,
                     onRetryRoute = onRetryRoute,
+                    onStartToday = onStartToday,
+                    onRetryStart = onRetryStart,
+                    onOpenProgress = onOpenProgress,
                 )
 
                 is TripDetailPhase.Failed -> ErrorState(
@@ -466,6 +494,10 @@ private fun Summary(trip: TripDto, modifier: Modifier = Modifier) {
 @Composable
 private fun DetailContent(
     trip: TripDto,
+    start: TripStartPhase,
+    onStartToday: () -> Unit,
+    onRetryStart: () -> Unit,
+    onOpenProgress: (date: String) -> Unit,
     itinerary: ItineraryOverviewPhase,
     routes: Map<String, DayRoutePhase>,
     onRetryItinerary: () -> Unit,
@@ -487,7 +519,14 @@ private fun DetailContent(
             Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
                 Summary(trip = trip)
                 TripStats(trip = trip, itinerary = itinerary, routes = routes)
-                ItineraryActions(onEditItinerary = onEditItinerary)
+                ItineraryActions(
+                    start = start,
+                    onStartToday = onStartToday,
+                    onRetryStart = onRetryStart,
+                    onOpenProgress = onOpenProgress,
+                    onAddPlace = onAddPlace,
+                    onEditItinerary = onEditItinerary,
+                )
             }
         }
 
@@ -571,38 +610,106 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * `오늘 여행 시작`과 `일정 편집`.
+ * `오늘 여행 시작`과 `일정 편집`(spec UI-006, F006 UI-007).
  *
- * `오늘 여행 시작`은 F006 여행 진행 범위라 눌러도 갈 곳이 없다. spec UI-006대로 자리만
- * 두고 비활성으로 표시하되, 비활성 상태를 흐린 색으로만 알리지 않도록 이유를 문장으로
- * 함께 적는다(가이드라인 10절 "색 단독 의미 전달 금지").
+ * 시작 버튼은 [TripStartPhase]에 따라 `오늘 여행 시작`(활성/비활성), `시작하는 중`, `여행 진행 화면으로`,
+ * `다시 시도`로 바뀐다. 비활성 이유는 흐린 색으로만 알리지 않고 문장으로 함께 적는다(가이드라인 10절).
+ * 오늘 날짜에 장소가 없으면 시작 대신 `장소 추가`를 안내한다. Figma `TripDetailScreen`의 초 단위
+ * 카운트다운은 데모 연출이라 구현하지 않는다(UI-007).
+ *
+ * 앱 사용 중 위치 권한은 여기서 요청한다(research.md 결정 7). 허용·거부 어느 쪽이든 시작은 진행하고,
+ * 위치를 실을지는 ViewModel의 [DeviceLocationProvider]가 권한을 다시 확인해 정한다(FR-020).
  */
 @Composable
-private fun ItineraryActions(onEditItinerary: () -> Unit) {
+private fun ItineraryActions(
+    start: TripStartPhase,
+    onStartToday: () -> Unit,
+    onRetryStart: () -> Unit,
+    onOpenProgress: (date: String) -> Unit,
+    onAddPlace: (date: String) -> Unit,
+    onEditItinerary: () -> Unit,
+) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { onStartToday() }
+    val requestThenStart = {
+        if (DeviceLocationProvider.hasLocationPermission(context)) {
+            onStartToday()
+        } else {
+            permissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            )
+        }
+    }
 
     Column(
         modifier = Modifier.padding(bottom = spacing.space2),
         verticalArrangement = Arrangement.spacedBy(spacing.space1),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Button(
-            onClick = {},
-            enabled = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = PRIMARY_BUTTON_HEIGHT),
-            shape = RoundedCornerShape(radius.lg),
-        ) {
-            Text(stringResource(R.string.trip_detail_start_travel))
+        val note: String? = when (start) {
+            TripStartPhase.NotTravelDay -> stringResource(R.string.trip_detail_start_travel_unavailable)
+            is TripStartPhase.NoPlaces -> stringResource(R.string.trip_detail_start_no_places)
+            is TripStartPhase.Failed -> stringResource(start.error.startMessageRes)
+            else -> null
         }
-        Text(
-            text = stringResource(R.string.trip_detail_start_travel_unavailable),
-            style = MaterialTheme.typography.bodySmall,
-            color = LocalGilpickColors.current.muted,
-            textAlign = TextAlign.Center,
-        )
+        if (note != null) {
+            Text(
+                text = note,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (start is TripStartPhase.Failed) MaterialTheme.colorScheme.error else LocalGilpickColors.current.muted,
+                textAlign = TextAlign.Center,
+            )
+        }
+        when (start) {
+            is TripStartPhase.NoPlaces -> StartButton(
+                label = stringResource(R.string.trip_detail_start_add_place),
+                onClick = { onAddPlace(start.date) },
+                shape = RoundedCornerShape(radius.lg),
+            )
+
+            is TripStartPhase.Started -> StartButton(
+                label = stringResource(R.string.trip_detail_open_progress),
+                onClick = { onOpenProgress(start.date) },
+                shape = RoundedCornerShape(radius.lg),
+            )
+
+            is TripStartPhase.Launched -> StartButton(
+                label = stringResource(R.string.trip_detail_open_progress),
+                onClick = { onOpenProgress(start.date) },
+                shape = RoundedCornerShape(radius.lg),
+            )
+
+            is TripStartPhase.Failed -> StartButton(
+                label = stringResource(R.string.trip_detail_start_retry),
+                onClick = if (start.ready != null) requestThenStart else onRetryStart,
+                shape = RoundedCornerShape(radius.lg),
+            )
+
+            is TripStartPhase.Starting -> StartButton(
+                label = stringResource(R.string.trip_detail_starting),
+                onClick = {},
+                shape = RoundedCornerShape(radius.lg),
+                enabled = false,
+                busy = true,
+            )
+
+            is TripStartPhase.Ready -> StartButton(
+                label = stringResource(R.string.trip_detail_start_travel),
+                onClick = requestThenStart,
+                shape = RoundedCornerShape(radius.lg),
+            )
+
+            TripStartPhase.Loading, TripStartPhase.NotTravelDay -> StartButton(
+                label = stringResource(R.string.trip_detail_start_travel),
+                onClick = {},
+                shape = RoundedCornerShape(radius.lg),
+                enabled = false,
+            )
+        }
         TextButton(
             onClick = onEditItinerary,
             modifier = Modifier.heightIn(min = MIN_TOUCH),
@@ -621,6 +728,43 @@ private fun ItineraryActions(onEditItinerary: () -> Unit) {
         }
     }
 }
+
+/** 시작 영역의 전체 너비 주 버튼. [busy]면 라벨 옆에 진행 표시를 붙인다(UI-008). */
+@Composable
+private fun StartButton(
+    label: String,
+    onClick: () -> Unit,
+    shape: RoundedCornerShape,
+    enabled: Boolean = true,
+    busy: Boolean = false,
+) {
+    val spacing = LocalGilpickSpacing.current
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = PRIMARY_BUTTON_HEIGHT),
+        shape = shape,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(spacing.space2))
+        }
+        Text(label)
+    }
+}
+
+/** 시작 요청 실패 원인 문구. 세션 만료는 앱 전체 흐름이 다루므로 여기서는 일반 실패로 안내한다. */
+private val ProgressError.startMessageRes: Int
+    get() = when (this) {
+        ProgressError.Network -> R.string.trip_detail_start_error_network
+        else -> R.string.trip_detail_start_error_unexpected
+    }
 
 /**
  * 날짜별 일정 영역.
