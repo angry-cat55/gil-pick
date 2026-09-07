@@ -36,3 +36,25 @@ cd ..\android
 - 360dp, 일반 phone, 최대 font scale screenshot과 실제 지도 gesture/inset 확인
 
 Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log·fixture에 key나 불필요한 정밀 좌표를 남기지 않는다.
+
+## Android 검증 기록 (T034, 2026-09-07, jy)
+
+자동 검증은 branch `test/jy-route-final-verification`(#226 → #229 → #230 위) 기준이다.
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| route unit test | `android\gradlew.bat --offline -q :app:testDebugUnitTest --tests 'com.gilpick.route.*'` | 통과 30건 (`RouteApiTest` 7, `RouteRepositoryTest` 8, `RouteViewModelTest` 15) |
+| 전체 unit test·build | `android\gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug` | 통과 290건, build 성공(Naver map-sdk 3.23.3 merge 확인) |
+| route UI·screenshot·navigation test | `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.route` (AVD `gilpick_api36`, API 36 ATD) | 통과 28건 (`DayRouteScreenTest` 12, `DayRouteScreenshotTest` 12, `RouteNavigationTest` 2, `TripDetailRouteScreenshotTest` 2) |
+| 여행 상세 회귀 | `...package=com.gilpick.trip` | 통과 65건 |
+| 네 상태 | `DayRouteScreenTest`: loading 1초 지연, empty(`장소 추가`·`돌아가기`), error(조회 실패·계산 실패 code별 문구·`다시 시도` 48dp·세션 만료 `다시 로그인`), content | 통과 |
+| 혼합 이동수단 | 도보(TMAP)·대중교통(ODsay)·자동차(TMAP) 세 구간이 아이콘+문구·시간·거리로 구분, 목록 순서 = 마커 순서 | 통과 (`혼합_이동수단_구간은_각각_아이콘과_문구로_구분된다`, screenshot `route_content_mixed`) |
+| 1곳 | 구간 없음, 총 이동 0분·0m, 장소 한 행, attribution 없음 | 통과 |
+| 정상 경로 재계산 없음 | content에 `다시 시도`·`다시 계산`·`다른 경로` 없음 | 통과 |
+| 360dp·일반 phone·최대 글자 배율 | screenshot 14장(`route_*` 12, `trip_detail_route_states*` 2): 일반 phone(411dp), 360dp, 글자 2.0, 360dp+2.0. 가로 스크롤·잘림 없음, 장소명은 단어 중간 줄바꿈 | 통과 (사람 확인) |
+| attribution | sheet에 `출처: 경로 정보 제공: TMAP · 대중교통 정보 제공: ODsay` 표시. Naver 지도 로고는 SDK 기본값 유지(숨기지 않음) | 문구는 통과, 지도 로고는 아래 미검증 |
+| 지도 gesture·inset·polyline·marker | 실제 Naver 지도 렌더링 | **미검증**: 로컬에 NCP Key ID가 없어 지도 인증 불가. `~/.gradle/gradle.properties`에 `GILPICK_NAVER_MAPS_CLIENT_ID`를 넣고 `gilpick_api36_play`(창 있는 AVD)에서 이동·확대·축소, 마커 번호, polyline, sheet가 로고를 가리지 않는지(`setContentPadding`), 화면 재진입 시 overlay 중복 없음을 확인해야 한다 |
+
+screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`로 실행 후 `adb pull`).
+
+발견 사항: 글자 배율 2.0에서 여행 상세 통계 `정보 없음`이 `정보 …`로 잘린다(F002 `Stat`, hs 소유, F005 범위 밖).
