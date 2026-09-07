@@ -38,7 +38,7 @@ data class ActiveTravelRoute(
  * 진행 화면 destination을 app navigation graph에 등록한다.
  *
  * 진입점은 여행 상세의 `오늘 여행 시작`·`여행 진행 화면으로`뿐이다(plan.md). `장소 추가`는 오늘 날짜의
- * 일정 편집(장소 검색 바로 열기)으로, `경로 보기`는 오늘 날짜의 F005 경로 화면으로 간다. 돌아오면
+ * 일정 편집(장소 검색 바로 열기)으로, `경로 보기`는 보고 있는 날짜의 F005 경로 화면으로 간다. 돌아오면
  * 이 entry가 다시 RESUMED가 되므로 [LifecycleResumeEffect]가 개요·진행 현황을 다시 조회한다. 앱을
  * 잠시 나갔다 와도 같은 경로로 재조회한다.
  *
@@ -87,6 +87,9 @@ fun NavGraphBuilder.progressGraph(
             onDepart = viewModel::depart,
             onRetryAction = viewModel::retryAction,
             onDismissActionError = viewModel::dismissActionError,
+            onStatusAction = viewModel::updateStatus,
+            onSelectDate = viewModel::selectDate,
+            onReturnToToday = viewModel::returnToToday,
             map = map,
         )
     }

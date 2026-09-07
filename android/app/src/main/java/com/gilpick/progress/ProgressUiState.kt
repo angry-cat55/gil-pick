@@ -33,6 +33,7 @@ sealed interface ProgressUiState {
      * @property now 남은·지난 시간 계산에 쓰는 기기 시각. ViewModel이 1분마다 갱신한다.
      * @property pendingAction 서버에 보낸 뒤 응답을 기다리는 전환. 있는 동안 진행 행동 버튼은 비활성이다(UI-008).
      * @property actionError 마지막 전환 실패. 내용은 요청 전 그대로이고 원인과 `다시 시도`를 보인다(US2 시나리오 8).
+     * @property viewingDate 목록에 보이는 날짜(UI-005). `null`이면 오늘이다. 오늘이 아니면 카드·행동·시트가 없다.
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -40,33 +41,54 @@ sealed interface ProgressUiState {
         val now: Instant,
         val pendingAction: ProgressAction? = null,
         val actionError: ProgressActionFailure? = null,
+        val viewingDate: LocalDate? = null,
     ) : ProgressUiState {
         /** 진행 현황의 날짜(오늘, KST). */
         val today: LocalDate get() = LocalDate.parse(progress.date)
 
+        /** 목록에 보이는 날짜. 기본은 오늘이다. */
+        val viewing: LocalDate get() = viewingDate ?: today
+
+        /** 오늘을 보고 있다. 다음 장소 카드·진행 행동·상태 수정 시트는 오늘에만 있다(UI-005). */
+        val isToday: Boolean get() = viewing == today
+
         /** 오늘 날짜의 개요. 개요에 오늘이 없으면(기간 밖) `null`이다. */
         val todayItinerary: DayItineraryDto? get() = days.firstOrNull { it.date == progress.date }
 
+        /** 보고 있는 날짜의 개요. 기간 밖이면 `null`이다. */
+        val viewingItinerary: DayItineraryDto? get() = days.firstOrNull { it.date == viewing.toString() }
+
         /** 오늘 날짜의 장소 행. 개요 순서를 따르고 진행 항목이 없는 장소는 `PLANNED`로 본다. */
-        val rows: List<ProgressRow>
+        val todayRows: List<ProgressRow>
             get() {
                 val byId = progress.items.associateBy { it.itemId }
                 return todayItinerary?.items.orEmpty().map { item ->
-                    ProgressRow(item = item, progress = byId[item.itemId] ?: plannedProgress(item))
+                    ProgressRow(item = item, progress = byId[item.itemId] ?: plannedProgress(item, item.status))
                 }
             }
 
+        /**
+         * 목록에 보이는 날짜의 장소 행. 오늘이면 [todayRows]이고, 다른 날짜는 F004 개요의 저장된 상태만
+         * 있어 시각 없이 상태만 보인다(US4 시나리오 1).
+         */
+        val rows: List<ProgressRow>
+            get() = if (isToday) todayRows else viewingItinerary?.items.orEmpty().map { ProgressRow(it, plannedProgress(it, it.status)) }
+
+        /** 보고 있는 날짜가 시작됐다. 오늘은 `dayStatus`, 다른 날짜는 저장된 상태에 `PLANNED` 아닌 것이 있는지로 본다. */
+        val viewingStarted: Boolean
+            get() = if (isToday) progress.dayStatus != DayStatus.NOT_STARTED else rows.any { it.progress.status != ItemStatus.PLANNED }
+
         /** `ARRIVED` 장소(현재 장소). 없으면 `null`. */
-        val currentRow: ProgressRow? get() = progress.currentItemId?.let { id -> rows.firstOrNull { it.item.itemId == id } }
+        val currentRow: ProgressRow? get() = progress.currentItemId?.let { id -> todayRows.firstOrNull { it.item.itemId == id } }
 
         /** 다음 장소(`EN_ROUTE` 또는 첫 `PLANNED`). 남은 장소가 없으면 `null`. */
-        val nextRow: ProgressRow? get() = progress.nextItemId?.let { id -> rows.firstOrNull { it.item.itemId == id } }
+        val nextRow: ProgressRow? get() = progress.nextItemId?.let { id -> todayRows.firstOrNull { it.item.itemId == id } }
 
         /** 방문을 마친 장소 수(`COMPLETED`·`ARRIVED`). 헤더의 `x/y 완료`에 쓴다. */
         val visitedCount: Int get() = progress.items.count { it.status == ItemStatus.COMPLETED || it.status == ItemStatus.ARRIVED }
 
-        private fun plannedProgress(item: ItineraryItemDto) = ProgressItemDto(
-            itemId = item.itemId, sequence = item.sequence, status = ItemStatus.PLANNED,
+        private fun plannedProgress(item: ItineraryItemDto, status: ItemStatus) = ProgressItemDto(
+            itemId = item.itemId, sequence = item.sequence, status = status,
             estimatedArrivalAt = null, estimatedDepartureAt = null, actualArrivedAt = null, completedAt = null,
             inboundTravel = null,
         )

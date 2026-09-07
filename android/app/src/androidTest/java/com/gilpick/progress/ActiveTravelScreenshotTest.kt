@@ -57,6 +57,37 @@ class ActiveTravelScreenshotTest {
     fun 진행_시작_전() = capture("progress_not_started") { Screen(content(progress = notStartedProgress())) }
 
     @Test
+    fun 진행_다른_날짜_지난_일정() = capture("progress_viewing_past") {
+        Screen(content(days = threeDays()).copy(viewingDate = java.time.LocalDate.parse("2026-09-07")))
+    }
+
+    @Test
+    fun 진행_다른_날짜_예정_일정() = capture("progress_viewing_future") {
+        Screen(content(days = threeDays()).copy(viewingDate = java.time.LocalDate.parse("2026-09-09")))
+    }
+
+    @Test
+    fun 상태_수정_시트_완료() = capture("progress_sheet_completed") { Sheet(content(progress = allDoneProgress()).rows[0]) }
+
+    @Test
+    fun 상태_수정_시트_건너뜀() = capture("progress_sheet_skipped") { Sheet(content(progress = allDoneProgress()).rows[1]) }
+
+    @Test
+    fun 상태_수정_시트_도착() = capture("progress_sheet_arrived") { Sheet(content(progress = allDoneProgress()).rows[2]) }
+
+    @Test
+    fun 상태_수정_시트_이동_중() = capture("progress_sheet_en_route") { Sheet(content().rows[1]) }
+
+    @Test
+    fun 상태_수정_시트_예정_최대_글자배율() = capture("progress_sheet_planned_fontscale2") { LargeFont { Sheet(content().rows[2]) } }
+
+    /** 시트는 별도 window라 화면 capture에 찍히지 않는다. 내용만 inline으로 그린다(F004와 같은 방식). */
+    @Composable
+    private fun Sheet(row: ProgressRow) {
+        GilpickTheme { StatusSheetContent(row = row, onAction = {}, onCancel = {}) }
+    }
+
+    @Test
     fun 진행_요청_중() = capture("progress_pending") {
         Screen(content().copy(pendingAction = ProgressAction(ITEM_B, ItemStatus.ARRIVED)))
     }

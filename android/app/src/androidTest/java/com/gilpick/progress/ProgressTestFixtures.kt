@@ -34,14 +34,20 @@ internal val NOW_BEFORE_ETA: Instant = Instant.parse("2026-09-08T05:08:00Z")
 /** 오후 2:25 KST. ETA를 5분 지났다(Figma `· 5분 지났어요`). */
 internal val NOW_AFTER_ETA: Instant = Instant.parse("2026-09-08T05:25:00Z")
 
-internal fun itineraryItem(itemId: String, sequence: Int, name: String, transportToNext: TransportMode?) = ItineraryItemDto(
+internal fun itineraryItem(
+    itemId: String,
+    sequence: Int,
+    name: String,
+    transportToNext: TransportMode?,
+    status: ItemStatus = ItemStatus.PLANNED,
+) = ItineraryItemDto(
     itemId = itemId,
     place = ItineraryPlaceDto(placeId = "tourapi:$sequence", name = name, category = PlaceCategory.HISTORY_CULTURE, address = null, imageUrl = null),
     sequence = sequence,
     plannedStayMinutes = 90,
     staySource = StaySource.RECOMMENDED,
     transportModeToNext = transportToNext,
-    status = ItemStatus.PLANNED,
+    status = status,
 )
 
 /** 오늘(9/8, 2일차)의 개요. 경로는 F005 READY 경로다. [route]를 `null`로 주면 경로가 아직 없는 날짜다. */
@@ -56,6 +62,19 @@ internal fun todayItinerary(route: com.gilpick.route.RouteDto? = readyRoute(sche
         itineraryItem(ITEM_C, 3, "인사동거리", null),
     ),
     route = route,
+)
+
+/** 사흘 여행의 개요. 어제(완료된 창덕궁)와 내일(예정 남산타워)에 장소가 한 곳씩 있다(US4). */
+internal fun threeDays(today: DayItineraryDto = todayItinerary()) = listOf(
+    DayItineraryDto(
+        date = "2026-09-07", dayNumber = 1, version = 1, routeStatus = RouteStatus.NOT_CALCULATED,
+        items = listOf(itineraryItem("item-past", 1, "창덕궁", null, status = ItemStatus.COMPLETED)), route = null,
+    ),
+    today,
+    DayItineraryDto(
+        date = "2026-09-09", dayNumber = 3, version = 1, routeStatus = RouteStatus.NOT_CALCULATED,
+        items = listOf(itineraryItem("item-future", 1, "남산타워", null)), route = null,
+    ),
 )
 
 /** 사흘 여행의 개요. 어제·내일은 장소가 없다. */

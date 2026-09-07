@@ -350,6 +350,16 @@
     <string name="progress_action_skip">건너뛰기</string>
     <string name="progress_action_depart">다음 장소로 출발</string>
     <string name="progress_action_pending">처리 중</string>
+    <string name="progress_sheet_arrive">도착으로 변경</string>
+    <string name="progress_sheet_undo_complete">완료 취소</string>
+    <string name="progress_sheet_undo_skip">건너뛰기 취소</string>
+    <string name="progress_sheet_cancel">취소</string>
+    <string name="progress_sheet_description">%1$s 상태 수정</string>
+    <string name="progress_viewing_past">%1$d일차 · 지난 일정</string>
+    <string name="progress_viewing_future">%1$d일차 · 예정 일정</string>
+    <string name="progress_return_today">오늘로 돌아가기</string>
+    <string name="progress_row_description_no_time">%1$d번째 장소 %2$s, %3$s</string>
+    <string name="progress_row_description_planned">%1$d번째 장소 %2$s</string>
     <string name="progress_dismiss">닫기</string>
     <string name="progress_all_done_title">오늘 일정을 모두 마쳤어요</string>
     <string name="progress_all_done_body">%1$d곳 방문 · 마지막 도착 %2$s</string>
