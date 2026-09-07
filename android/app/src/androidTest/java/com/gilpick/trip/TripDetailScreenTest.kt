@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -22,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryError
@@ -35,9 +37,11 @@ import com.gilpick.route.RouteError
 import com.gilpick.route.RouteFailureDto
 import com.gilpick.route.RouteMarkerDto
 import com.gilpick.place.PlaceCategory
+import com.gilpick.progress.ProgressError
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.Serializable
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,6 +63,16 @@ class TripDetailScreenTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    /** 위치 권한을 미리 허용해 `오늘 여행 시작` 탭이 시스템 권한 창 없이 바로 시작 콜백으로 이어지게 한다. */
+    @Before
+    fun grantLocationPermission() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.uiAutomation.grantRuntimePermission(
+            instrumentation.targetContext.packageName,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+        )
+    }
 
     @Serializable
     private object ListRoute
@@ -323,11 +337,10 @@ class TripDetailScreenTest {
 
     @Test
     fun F005와_F006_범위인_값은_비활성이거나_정보_없음으로_둔다() {
-        // spec UI-006: 총 이동 시간과 `오늘 여행 시작`은 F004에서 값이 없다.
+        // spec UI-006: 총 이동 시간은 F004에서 값이 없다. `오늘 여행 시작`은 진행 현황을 받기 전(F006 Loading)이라 비활성이다.
         setDetail(detailWith(ItineraryOverviewPhase.Content(emptyList())))
 
         composeRule.onNodeWithText("오늘 여행 시작").assertIsNotEnabled()
-        composeRule.onNodeWithText("여행 진행 기능은 준비 중이에요").assertIsDisplayed()
         composeRule.onNodeWithText("총 이동").assertIsDisplayed()
         composeRule.onNodeWithText("정보 없음").assertIsDisplayed()
     }
@@ -390,6 +403,100 @@ class TripDetailScreenTest {
         composeRule.onNodeWithContentDescription("9월 1일 경로 다시 시도").assertDoesNotExist()
         composeRule.onNodeWithText("경로 계산 중").assertDoesNotExist()
     }
+
+    // --- 5. F006 T018: 오늘 여행 시작 버튼 ---
+
+    @Test
+    fun 기간_밖이면_시작_버튼이_비활성이고_이유를_함께_적는다() {
+        setDetail(startWith(TripStartPhase.NotTravelDay))
+
+        composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithText("오늘은 여행 날짜가 아닙니다").assertIsDisplayed()
+    }
+
+    @Test
+    fun 장소가_없으면_시작_대신_장소_추가를_안내하고_오늘_날짜로_추가에_들어간다() {
+        var added: String? = null
+        setDetail(startWith(TripStartPhase.NoPlaces("2026-09-02")), onAddPlace = { added = it })
+
+        composeRule.onNodeWithText("오늘 일정에 장소가 없어요", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("오늘 여행 시작").assertDoesNotExist()
+        composeRule.onNodeWithText("장소 추가").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+
+        assertEquals("2026-09-02", added)
+    }
+
+    @Test
+    fun 시작할_수_있으면_버튼이_활성이고_누르면_시작을_요청한다() {
+        var started = 0
+        setDetail(startWith(TripStartPhase.Ready("2026-09-02", 0)), onStartToday = { started++ })
+
+        composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().assertIsEnabled().performClick()
+
+        assertEquals(1, started)
+    }
+
+    @Test
+    fun 시작_중에는_버튼을_잠그고_진행_중임을_적는다() {
+        setDetail(startWith(TripStartPhase.Starting("2026-09-02")))
+
+        composeRule.onNodeWithText("시작하는 중").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun 이미_시작된_날짜는_여행_진행_화면으로_버튼이_되고_누르면_진행_화면으로_간다() {
+        var opened: String? = null
+        setDetail(startWith(TripStartPhase.Started("2026-09-02")), onOpenProgress = { opened = it })
+
+        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().assertIsEnabled().performClick()
+
+        assertEquals("2026-09-02", opened)
+        composeRule.onNodeWithText("오늘 여행 시작").assertDoesNotExist()
+    }
+
+    @Test
+    fun 방금_시작되면_진행_화면으로_이동하고_신호를_소비한다() {
+        var opened: String? = null
+        var consumed = 0
+        setDetail(startWith(TripStartPhase.Launched("2026-09-02")), onOpenProgress = { opened = it }, onLaunchConsumed = { consumed++ })
+
+        composeRule.waitForIdle()
+
+        assertEquals("2026-09-02", opened)
+        assertEquals(1, consumed)
+    }
+
+    @Test
+    fun 시작_실패는_원인과_다시_시도를_보인다() {
+        var retried = 0
+        setDetail(startWith(TripStartPhase.Failed(ProgressError.Network)), onRetryStart = { retried++ })
+
+        composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요.").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").performScrollTo().performClick()
+
+        assertEquals(1, retried)
+    }
+
+    @Test
+    fun 시작_요청_실패의_다시_시도는_권한_확인_후_같은_시작을_다시_요청한다() {
+        var started = 0
+        setDetail(
+            startWith(TripStartPhase.Failed(ProgressError.Unexpected, ready = TripStartPhase.Ready("2026-09-02", 0))),
+            onStartToday = { started++ },
+        )
+
+        composeRule.onNodeWithText("지금은 여행을 시작할 수 없습니다", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").performScrollTo().performClick()
+
+        assertEquals(1, started)
+    }
+
+    /** 여행은 받았고 시작 영역만 [start] 상태인 상세 화면 상태를 만든다. */
+    private fun startWith(start: TripStartPhase): TripDetailUiState = TripDetailUiState(
+        phase = TripDetailPhase.Content(sample("t1", startDate = "2026-09-01", endDate = "2026-09-03")),
+        itinerary = ItineraryOverviewPhase.Content(listOf(day("2026-09-01", 1), day("2026-09-02", 2), day("2026-09-03", 3))),
+        start = start,
+    )
 
     /** 여행은 받았고 일정 영역만 [itinerary] 상태인 상세 화면 상태를 만든다. */
     private fun detailWith(
@@ -503,6 +610,10 @@ class TripDetailScreenTest {
         onSelectPlace: (String) -> Unit = {},
         routes: Map<String, DayRoutePhase> = emptyMap(),
         onRetryRoute: (String) -> Unit = {},
+        onStartToday: () -> Unit = {},
+        onRetryStart: () -> Unit = {},
+        onOpenProgress: (String) -> Unit = {},
+        onLaunchConsumed: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -519,6 +630,10 @@ class TripDetailScreenTest {
                     onSelectPlace = onSelectPlace,
                     routes = routes,
                     onRetryRoute = onRetryRoute,
+                    onStartToday = onStartToday,
+                    onRetryStart = onRetryStart,
+                    onOpenProgress = onOpenProgress,
+                    onLaunchConsumed = onLaunchConsumed,
                 )
             }
         }

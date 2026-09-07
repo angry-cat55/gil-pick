@@ -27,6 +27,10 @@ import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.createItineraryRetrofit
+import com.gilpick.progress.CurrentLocationProvider
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.ProgressService
+import com.gilpick.progress.createProgressRetrofit
 import com.gilpick.route.RouteRepository
 import com.gilpick.route.RouteService
 import com.gilpick.route.createRouteRetrofit
@@ -66,6 +70,7 @@ class TripDetailNavigationTest {
     private lateinit var repository: TripRepository
     private lateinit var itineraryRepository: ItineraryRepository
     private lateinit var routeRepository: RouteRepository
+    private lateinit var progressRepository: ProgressRepository
 
     @Before
     fun setUp() {
@@ -109,6 +114,10 @@ class TripDetailNavigationTest {
         )
         routeRepository = RouteRepository(
             api = createRouteRetrofit(server.url("/api/v1/").toString()).create(RouteService::class.java),
+            auth = auth,
+        )
+        progressRepository = ProgressRepository(
+            api = createProgressRetrofit(server.url("/api/v1/").toString()).create(ProgressService::class.java),
             auth = auth,
         )
     }
@@ -203,6 +212,8 @@ class TripDetailNavigationTest {
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
                                 routeRepository = routeRepository,
+                                progressRepository = progressRepository,
+                                locationProvider = CurrentLocationProvider { null },
                                 tripId = tripId,
                             )
                         }
