@@ -32,16 +32,18 @@
 
 **Design Sources**: `docs/design/ui-guidelines.md`, Figma Make 사본 `ActiveTravelScreen.tsx`(진행 화면 정본), `TripDetailScreen.tsx`(시작 버튼), `LocationPermissionScreen.tsx`(권한 안내), `ErrorScreen.tsx`(오류 상태). Figma에 없는 **도착 상태 카드(`다음 장소로 출발`)·당일 완료 상태·상태 수정 시트**는 구현 전 Figma에 추가한 뒤 사본을 갱신하고 그 모양을 따른다(spec UI-002·UI-003·UI-006). Figma의 변수 경고 배너·날씨 안내·알림/변수 버튼·도착/출발 확인 시트·변경 토스트는 F007·F008·F010·F011 범위라 그리지 않는다.
 
-**Figma 추가 요소 확인(T003)**: 2026-09-07 Figma MCP로 `ActiveTravelScreen` 원본을 다시 읽어 저장소 사본과 비교했다. 원본은 사본과 동일하며 아래 4건은 아직 Figma에 없다. Feature Owner(jy)가 Figma Make에서 추가하면 사본을 다시 받아 이 표를 닫는다(T020 선행 조건).
+**Figma 추가 요소 확인(T003)**: 2026-09-07 hs가 Figma Make `ActiveTravelScreen`에 4건을 추가했고, 같은 날 Figma MCP로 원본을 다시 받아 저장소 사본을 갱신했다(`TripDetailScreen.tsx`는 원본과 사본이 동일). 구현은 아래 사본의 모양을 따른다.
 
 | # | 추가 요소 | 근거 | Figma 반영 |
 |---|---|---|---|
-| 1 | 다음 장소 카드의 `도착` 상태(`다음 장소로 출발` 단일 행동) | UI-002 | 미반영 |
-| 2 | 당일 완료 상태(카드 자리에 완료 표시, 출발 행동 없음) | UI-006 | 미반영 |
-| 3 | 상태 수정 시트(장소 행 탭 → 현재 상태별 행동만 표시) | UI-003 | 미반영 |
-| 4 | 도착 예정 시각이 지난 카드의 `N분 지났어요` 문구 | UI-002 | 미반영 |
+| 1 | 다음 장소 카드의 `도착` 상태: 라벨 `현재 장소`, 장소명, `오후 2:33 도착 · 체류 예정 90분`, 전체 너비 `다음 장소로 출발` 하나 | UI-002 | 반영 |
+| 2 | 당일 완료 상태: 카드 자리에 초록 체크 아이콘, `오늘 일정을 모두 마쳤어요`, `N곳 방문 · 마지막 도착 오후 6:30`, 출발 행동 없음 | UI-006 | 반영 |
+| 3 | 상태 수정 시트: 장소명+상태 칩, 현재 상태별 행동만(`STATUS_ACTIONS`가 UI-003 표와 동일), 행 48px, `취소` | UI-003 | 반영 |
+| 4 | 도착 예정 시각이 지난 카드: `· 12분 남았어요` 자리에 주황(#F97316) `· 5분 지났어요`, 도착 시각은 그대로 | UI-002 | 반영 |
 
-F006 구현에서 제외하는 Figma 요소: 변수 경고 배너·날씨 안내(F008), 알림 버튼(F011), 변수 버튼·장소 변경 토스트·`되돌리기`(F010), 도착·출발 확인 시트(F007). `TripDetailScreen`의 초 단위 카운트다운은 데모 연출이라 구현하지 않는다(UI-007).
+함께 바뀐 것: 일정 목록 행이 오늘 날짜에서만 탭 가능(시트 열기)하고 다섯 상태 모두 칩(`STATUS_CHIP`)과 아이콘(완료·도착 체크, 건너뜀 X, 이동 중 화살표, 예정 번호)으로 표시된다(UI-004). 출발 확인 모달은 Figma에서 제거됐다. 헤더의 `이동 중/도착/지연/완료` 토글 행은 데모용 전환 장치라 구현하지 않는다.
+
+F006 구현에서 제외하는 Figma 요소: 변수 경고 배너·날씨 안내(F008), 알림 버튼(F011), 변수 버튼·장소 변경 토스트·`되돌리기`(F010), 도착 확인 시트(F007). `TripDetailScreen`의 초 단위 카운트다운은 데모 연출이라 구현하지 않는다(UI-007).
 
 **Tokens & Components**: 기존 `com.gilpick.ui.theme` token. 재사용: F005 `RouteMap`(marker/path 데이터만 전달, 시작 위치 marker 추가), F004 `ItineraryLabels`의 이동수단 아이콘·문구, F002/F004 `TripDetailScreen` 구조, 공통 오류 화면. 신규: `ActiveTravelScreen`(header·day dots·`NextPlaceCard`·지도·`ProgressItemList`), `StatusSheet`(ModalBottomSheet), `ProgressLabels`. 상태 칩은 문구+아이콘 병기.
 

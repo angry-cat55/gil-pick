@@ -25,7 +25,7 @@
   - 담당: jy
   - 선행: T001
   - 검증: `play-services-location` 추가와 `ACCESS_FINE_LOCATION`·`ACCESS_COARSE_LOCATION` 선언 후 `--offline` debug build 성공, 백그라운드 위치 권한은 선언하지 않음(F007 범위)을 PR에 기록
-- [ ] T003 [P] Figma `ActiveTravelScreen` 추가 요소 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/ActiveTravelScreen.tsx, docs/design/figma-make/src/screens/TripDetailScreen.tsx
+- [x] T003 [P] Figma `ActiveTravelScreen` 추가 요소 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/ActiveTravelScreen.tsx, docs/design/figma-make/src/screens/TripDetailScreen.tsx
   - 영역: FE
   - 담당: jy
   - 선행: 없음
