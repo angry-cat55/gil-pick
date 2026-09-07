@@ -57,3 +57,20 @@ android\gradlew.bat --offline -q :app:connectedDebugAndroidTest -Pandroid.testIn
 - `docs/design/api-spec.md` 5.1·ITIN-001·002에 `place` 스냅샷, `staySource`, `routeStatus NOT_CALCULATED`, ITIN-003, `422 INVALID_ITINERARY`·`409 ITINERARY_ITEM_LOCKED`, TRIP-004의 `deletedItemCount` 실제 계산을 반영한다.
 - `docs/design/er-schema.md`는 변경하지 않는다(5.2~5.4 그대로 구현). 변경이 생기면 같은 PR에서 고친다.
 - Figma: 이동 수단 시트의 체류 시간 조절 제거, 순서 변경 손잡이·버튼, 여행 상세 날짜 헤더 `장소 추가`, 여행 수정 삭제 확인 대화상자 반영 여부를 구현 전에 확인한다.
+
+## Android 검증 기록 (T034, 2026-09-07, jy)
+
+`origin/main`(951c3be, #228 merge 후) 기준, branch `test/jy-itinerary-final-verification`.
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| unit test·build | `android\gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug` | 통과 251건 (itinerary 37, trip 101, place 45, auth 68), build 성공 |
+| itinerary UI·screenshot·navigation | `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.itinerary` (AVD `gilpick_api36`) | 통과 36건 (`ItineraryEditScreenTest` 19, `ItineraryEditScreenshotTest` 14, `ItineraryNavigationTest` 3) |
+| trip UI·flow | `...package=com.gilpick.trip` | 통과 61건 |
+| 필수 KDoc | `com.gilpick.itinerary` 최상위 public 선언 전수 확인(script) | 누락 없음 |
+| 수동 항목 6 (360dp·글자 2.0) | screenshot 14장: 4상태(loading/empty/error/content), 10곳·긴 장소명, 처리된 항목 fixture, 체류 시간 대화상자, 이동 수단 시트, 360dp·글자 2.0 조합 | 잘림·가로 스크롤 없음. 글자 2.0에서 `변경` 칩이 두 줄(`변`/`경`)로 꺾이는 기존 발견 사항 유지 |
+| 취소 확인 대화상자 | 별도 window라 `captureToImage`에 잡히지 않음. `ItineraryEditScreenTest`의 문구·행동 검증으로 대신 | 통과 |
+| 수동 항목 1~4 (실서버·`gilpick_api36_play`) | 로컬 API를 붙인 생성→편집→검색→저장, 순서·체류·이동 수단 변경, 동시 저장 409 자동 재저장, 10곳 비활성 | **미실행**: 항목 5와 한 세션에서 함께 확인하기 위해 #195 merge 뒤로 미룸 |
+| 수동 항목 5 (기간 축소 대화상자) | F002 수정 화면 | **미실행**: #195(hs, PR #227) 미merge |
+
+screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` 후 `adb pull`).
