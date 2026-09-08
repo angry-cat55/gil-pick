@@ -113,7 +113,7 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409':
-          description: VERSION_CONFLICT 또는 DAY_NOT_STARTED
+          description: VERSION_CONFLICT, DAY_NOT_STARTED 또는 IDEMPOTENCY_KEY_CONFLICT
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
@@ -235,7 +235,7 @@ components:
           properties:
             code:
               type: string
-              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, ITINERARY_ITEM_NOT_FOUND, VERSION_CONFLICT, DAY_NOT_TODAY, DAY_EMPTY, DAY_NOT_STARTED, INVALID_STATUS_TRANSITION]
+              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, ITINERARY_ITEM_NOT_FOUND, VERSION_CONFLICT, IDEMPOTENCY_KEY_CONFLICT, DAY_NOT_TODAY, DAY_EMPTY, DAY_NOT_STARTED, INVALID_STATUS_TRANSITION]
             message: { type: string }
             retryable: { type: boolean }
         meta: { $ref: '#/components/schemas/Meta' }

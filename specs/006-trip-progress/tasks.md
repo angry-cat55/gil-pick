@@ -158,12 +158,12 @@
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] 전환 파생 규칙·불변식 unit test 작성 in api/tests/unit/test_progress_service.py
+- [X] T022 [P] [US2] 전환 파생 규칙·불변식 unit test 작성 in api/tests/unit/test_progress_service.py
   - 영역: BE
   - 담당: jh
   - 선행: T005, T006
   - 검증: research 결정 3 표의 `ARRIVED`·`COMPLETED`·`SKIPPED` 행, `EN_ROUTE`·`ARRIVED` 각 ≤1, 남은 장소 0이면 당일 완료·`detection_active=false`, 허용되지 않는 조합 `INVALID_STATUS_TRANSITION`, 실제 시각 저장
-- [ ] T023 [P] [US2] 상태 전환 contract·integration test 작성 in api/tests/contract/test_progress_contract.py, api/tests/integration/test_progress_flow.py
+- [X] T023 [P] [US2] 상태 전환 contract·integration test 작성 in api/tests/contract/test_progress_contract.py, api/tests/integration/test_progress_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T004, T006
@@ -181,17 +181,17 @@
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] 도착·출발·건너뛰기 전환 service 구현 in api/app/services/progress.py
+- [X] T026 [US2] 도착·출발·건너뛰기 전환 service 구현 in api/app/services/progress.py
   - 영역: BE
   - 담당: jh
   - 선행: T014, T022
   - 검증: 항목→날짜→여행 소유권, `DAY_NOT_STARTED`, `Idempotency-Key` 기존 기록 반환, `progress_version` 비교, 파생 변경·실제 시각·당일 완료·transition(`affected_items` 전부)·`progress_version+1`을 한 transaction으로 적용. T022 통과
-- [ ] T027 [US2] 건너뛰기 인접 구간 계산 연결 in api/app/services/progress.py
+- [X] T027 [US2] 건너뛰기 인접 구간 계산 연결 in api/app/services/progress.py
   - 영역: BE
   - 담당: jh
   - 선행: T007, T026
   - 검증: 커밋 후 transaction 밖에서 `이전 장소 transport_mode_to_next`로 단일 구간 계산 → `progress_segments` upsert → ETA 재계산. 이미 있는 쌍은 재호출하지 않음. 실패 시 ETA null·전환 성공. T023 통과
-- [ ] T028 [US2] 상태 전환 endpoint 등록 in api/app/api/v1/progress.py
+- [X] T028 [US2] 상태 전환 endpoint 등록 in api/app/api/v1/progress.py
   - 영역: BE
   - 담당: jh
   - 선행: T027
