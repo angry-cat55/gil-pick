@@ -32,12 +32,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 교차 확인: hs
   - 선행: 없음
   - 검증: PROG-003 요청(`eventId`·`geofenceId`·`occurredAt`·`location`)과 응답(`accepted`·`rejectionReason`·`candidate`·`cancelledTransitionId`), PROG-004 `decision` 3종과 `undoDeadline` null 규칙(FR-020), PROG-005 응답(`restoredItems`·`dayStatus`·`detectionResumeAt`), 신설 오류 code 4종(`TRANSITION_NOT_PENDING`·`INVALID_DECISION`·`UNDO_WINDOW_EXPIRED`·`TRANSITION_NOT_UNDOABLE`), F006 PROG-001 응답 확장 3종(`detectionTargets`·`pendingCandidate`·`undoable`)이 api-spec에 반영되고 BE `ts`와 FE `hs`가 확인. F006 계약 파일의 `ProgressData`에도 세 field를 추가하고 "F007 확장" 주석으로 정의 위치를 `detection.openapi.yaml`로 가리킴(F006 파일 수정이므로 `jy` review). ERD 7.1·7.2와 10절 enum은 변경 없이 그대로 쓰는지 대조
-- [ ] T002 [P] Android 백그라운드 위치 권한과 지오펜스 receiver 선언 in android/app/src/main/AndroidManifest.xml, android/app/build.gradle.kts
+- [x] T002 [P] Android 백그라운드 위치 권한과 지오펜스 receiver 선언 in android/app/src/main/AndroidManifest.xml, android/app/build.gradle.kts
   - 영역: FE
   - 담당: hs
   - 선행: 없음
   - 검증: `ACCESS_BACKGROUND_LOCATION` 선언과 지오펜스 broadcast receiver 등록 후 `--offline` debug build 성공. `play-services-location`은 F006이 이미 추가했으므로 새 의존성이 없음을 PR에 기록
-- [ ] T003 [P] Figma `ActiveTravelScreen` 부족 요소 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/ActiveTravelScreen.tsx
+- [x] T003 [P] Figma `ActiveTravelScreen` 부족 요소 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/ActiveTravelScreen.tsx
   - 영역: FE
   - 담당: hs
   - 선행: 없음
