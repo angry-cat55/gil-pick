@@ -206,6 +206,20 @@ class ProgressService:
 
     async def get_day(self, *, trip_id: uuid.UUID, visit_date: date) -> ProgressData:
         day = await self._load_day(trip_id, visit_date)
+        if day is None:
+            return ProgressData(
+                trip_id=trip_id,
+                date=visit_date,
+                day_status="NOT_STARTED",
+                progress_version=0,
+                schedule_version=0,
+                actual_started_at=None,
+                completed_at=None,
+                start_location=None,
+                current_item_id=None,
+                next_item_id=None,
+                items=[],
+            )
         return self._to_data(day)
 
     async def update_item_status(
@@ -445,7 +459,7 @@ class ProgressService:
             .with_for_update()
         )
         if day is None:
-            raise AppError(404, "TRIP_NOT_FOUND", "여행 날짜를 찾을 수 없습니다.")
+            raise AppError(422, "DAY_EMPTY", "장소가 없는 날짜는 시작할 수 없습니다.")
         if visit_date != datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date():
             raise AppError(409, "DAY_NOT_TODAY", "오늘 날짜만 시작할 수 있습니다.")
         existing = await self.session.scalar(select(ProgressTransition).where(
@@ -572,15 +586,16 @@ class ProgressService:
                     )
         return self._to_data(day)
 
-    async def _load_day(self, trip_id: uuid.UUID, visit_date: date) -> TripDay:
+    async def _load_day(
+        self, trip_id: uuid.UUID, visit_date: date
+    ) -> TripDay | None:
         day = await self.session.scalar(
             select(TripDay)
             .options(selectinload(TripDay.items), selectinload(TripDay.routes), selectinload(TripDay.progress_segments))
             .where(TripDay.trip_id == trip_id, TripDay.visit_date == visit_date)
         )
-        if day is None:
-            raise AppError(404, "TRIP_NOT_FOUND", "여행 날짜를 찾을 수 없습니다.")
-        await self._attach_start_location(day)
+        if day is not None:
+            await self._attach_start_location(day)
         return day
 
     async def _attach_start_location(self, day: TripDay) -> None:
