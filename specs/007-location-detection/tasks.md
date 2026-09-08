@@ -51,22 +51,22 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 **⚠️ CRITICAL**: 이 단계 완료 전에는 User Story 구현을 시작하지 않는다.
 
-- [ ] T004 `progress_events` migration과 DB 제약 구현 in api/migrations/versions/006_create_progress_events.py
+- [x] T004 `progress_events` migration과 DB 제약 구현 in api/migrations/versions/007_create_progress_events.py
   - 영역: BE
   - 담당: ts
   - 선행: T001
   - 검증: upgrade·downgrade 왕복, `UNIQUE(client_event_id)`, `trip_days` cascade 삭제, `INDEX(trip_day_id, occurred_at DESC)`, `progress_transitions.trigger_event_id` FK 연결을 `api/tests/integration/test_detection_migration.py`로 검증. **`progress_transitions`에 컬럼을 추가하지 않음**(migration 005가 이미 생성)을 PR에 기록
-- [ ] T005 [P] `ProgressEvent` ORM model in api/app/models/progress.py, api/app/models/__init__.py
+- [x] T005 [P] `ProgressEvent` ORM model in api/app/models/progress.py, api/app/models/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: T004
   - 검증: model과 migration의 column·constraint 일치, `location` geography(Point,4326), relationship·cascade를 `api/tests/unit/test_detection_model.py`에서 확인
-- [ ] T006 [P] 감지 schema·enum·오류 code in api/app/schemas/progress.py
+- [x] T006 [P] 감지 schema·enum·오류 code in api/app/schemas/progress.py
   - 영역: BE
   - 담당: ts
   - 선행: T001
   - 검증: 계약의 `ProgressEventRequest`(좌표 범위·정확도 validation), `TransitionCandidate`(`allowedDecisions`·`evidence`), `DecisionRequest`, `TransitionResult`, `UndoResult`, `DetectionTarget`을 `api/tests/unit/test_detection_schema.py`에서 검증. `rejection_reason` 7종과 신설 오류 code 4종 포함
-- [ ] T007 이벤트 검증·저장과 멱등 처리 in api/app/services/detection.py
+- [x] T007 이벤트 검증·저장과 멱등 처리 in api/app/services/detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T006

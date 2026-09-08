@@ -57,6 +57,100 @@ class ProgressErrorCode(StrEnum):
     DAY_EMPTY = "DAY_EMPTY"
     DAY_NOT_STARTED = "DAY_NOT_STARTED"
     INVALID_STATUS_TRANSITION = "INVALID_STATUS_TRANSITION"
+    TRANSITION_NOT_PENDING = "TRANSITION_NOT_PENDING"
+    INVALID_DECISION = "INVALID_DECISION"
+    UNDO_WINDOW_EXPIRED = "UNDO_WINDOW_EXPIRED"
+    TRANSITION_NOT_UNDOABLE = "TRANSITION_NOT_UNDOABLE"
+
+
+class ProgressEventType(StrEnum):
+    DWELL = "DWELL"
+    EXIT = "EXIT"
+    REENTER = "REENTER"
+
+
+class TransitionType(StrEnum):
+    ARRIVAL = "ARRIVAL"
+    DEPARTURE = "DEPARTURE"
+
+
+class TransitionDecision(StrEnum):
+    CONFIRM = "CONFIRM"
+    NOT_ARRIVED = "NOT_ARRIVED"
+    STILL_HERE = "STILL_HERE"
+
+
+class RejectionReason(StrEnum):
+    LOW_ACCURACY = "LOW_ACCURACY"
+    STALE = "STALE"
+    DAY_NOT_IN_PROGRESS = "DAY_NOT_IN_PROGRESS"
+    ITEM_NOT_ELIGIBLE = "ITEM_NOT_ELIGIBLE"
+    DETECTION_PAUSED = "DETECTION_PAUSED"
+    PROMPT_LIMIT_REACHED = "PROMPT_LIMIT_REACHED"
+    DEPARTURE_DETECTION_STOPPED = "DEPARTURE_DETECTION_STOPPED"
+
+
+class EventLocation(ProgressRequestModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    accuracy_meters: float = Field(ge=0)
+
+
+class ProgressEventRequest(ProgressRequestModel):
+    event_id: uuid.UUID
+    event_type: ProgressEventType
+    item_id: uuid.UUID
+    geofence_id: str
+    occurred_at: datetime
+    location: EventLocation
+
+
+class TransitionCandidate(ApiModel):
+    transition_id: uuid.UUID
+    item_id: uuid.UUID
+    type: TransitionType
+    status: Literal["PENDING_CONFIRMATION"]
+    detected_at: datetime
+    auto_finalize_at: datetime
+    allowed_decisions: list[TransitionDecision]
+    evidence: CandidateEvidence
+
+
+class ProgressEventResult(ApiModel):
+    event_id: uuid.UUID
+    accepted: bool
+    rejection_reason: RejectionReason | None
+    candidate: TransitionCandidate | None
+    cancelled_transition_id: uuid.UUID | None
+
+
+class DecisionRequest(ProgressRequestModel):
+    decision: TransitionDecision
+
+
+class AffectedItem(ApiModel):
+    item_id: uuid.UUID
+    before_status: ItemStatus
+    after_status: ItemStatus
+
+
+class TransitionResult(ApiModel):
+    transition_id: uuid.UUID
+    status: Literal["CONFIRMED", "AUTO_CONFIRMED", "CANCELLED"]
+    affected_items: list[AffectedItem]
+    day_status: Literal["IN_PROGRESS", "COMPLETED"] | None
+    undo_deadline: datetime | None
+    next_prompt_at: datetime | None
+    progress_version: int
+
+
+class UndoResult(ApiModel):
+    transition_id: uuid.UUID
+    status: Literal["UNDONE"]
+    restored_items: list[AffectedItem]
+    day_status: Literal["IN_PROGRESS", "COMPLETED"] | None
+    detection_resume_at: datetime
+    progress_version: int
 
 
 class CurrentLocation(ProgressRequestModel):
@@ -168,9 +262,13 @@ class ProgressEnvelope(ApiModel):
 
 
 __all__ = [
-    "CandidateEvidence", "CurrentLocation", "DayStatus", "DetectionTarget",
-    "InboundTravel", "InboundTravelSource", "PendingCandidate", "ProgressData",
-    "ProgressEnvelope", "ProgressErrorCode", "ProgressItem", "ProgressTargetStatus",
-    "StartDayProgressRequest", "StartLocation", "UndoableTransition",
+    "AffectedItem", "CandidateEvidence", "CurrentLocation", "DayStatus",
+    "DecisionRequest", "DetectionTarget", "EventLocation", "InboundTravel",
+    "InboundTravelSource", "ProgressData", "ProgressEnvelope",
+    "ProgressErrorCode", "ProgressEventRequest", "ProgressEventResult",
+    "ProgressEventType", "ProgressItem", "ProgressTargetStatus", "PendingCandidate",
+    "RejectionReason", "StartDayProgressRequest", "StartLocation",
+    "TransitionCandidate", "TransitionDecision", "TransitionResult",
+    "TransitionType", "UndoResult", "UndoableTransition",
     "UpdateItemProgressStatusRequest",
 ]
