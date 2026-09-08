@@ -174,7 +174,7 @@ components:
         meta: { $ref: '#/components/schemas/ResponseMeta' }
     ProgressEventResult:
       type: object
-      required: [eventId, accepted]
+      required: [eventId, accepted, rejectionReason, candidate, cancelledTransitionId]
       properties:
         eventId: { type: string, format: uuid }
         accepted:
@@ -203,7 +203,7 @@ components:
           description: REENTER로 취소된 출발 후보의 ID. 취소가 없었으면 null
     TransitionCandidate:
       type: object
-      required: [transitionId, itemId, type, status, detectedAt, autoFinalizeAt]
+      required: [transitionId, itemId, type, status, detectedAt, autoFinalizeAt, allowedDecisions, evidence]
       properties:
         transitionId: { type: string, format: uuid }
         itemId: { type: string, format: uuid }
@@ -251,7 +251,7 @@ components:
         meta: { $ref: '#/components/schemas/ResponseMeta' }
     TransitionResult:
       type: object
-      required: [transitionId, status, affectedItems, progressVersion]
+      required: [transitionId, status, affectedItems, dayStatus, undoDeadline, nextPromptAt, progressVersion]
       properties:
         transitionId: { type: string, format: uuid }
         status:
@@ -285,7 +285,7 @@ components:
         meta: { $ref: '#/components/schemas/ResponseMeta' }
     UndoResult:
       type: object
-      required: [transitionId, status, restoredItems, progressVersion]
+      required: [transitionId, status, restoredItems, dayStatus, detectionResumeAt, progressVersion]
       properties:
         transitionId: { type: string, format: uuid }
         status:
@@ -319,7 +319,7 @@ components:
       description: |
         F006 PROG-001 응답에 추가되는 감지 대상 하나. 앱은 이 목록과 현재 등록 상태의 차이만 반영한다.
         목록이 비면 등록된 지오펜스를 모두 해제한다.
-      required: [itemId, kind, geofenceId, latitude, longitude, radiusMeters]
+      required: [itemId, kind, geofenceId, latitude, longitude, radiusMeters, dwellMinutes]
       properties:
         itemId: { type: string, format: uuid }
         kind:
@@ -367,7 +367,9 @@ components:
           type: object
           required: [code, message, retryable]
           properties:
-            code: { type: string }
+            code:
+              type: string
+              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, TRANSITION_NOT_PENDING, INVALID_DECISION, UNDO_WINDOW_EXPIRED, TRANSITION_NOT_UNDOABLE, IDEMPOTENCY_KEY_CONFLICT]
             message: { type: string }
             retryable: { type: boolean }
             details:

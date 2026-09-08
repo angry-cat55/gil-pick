@@ -1064,7 +1064,20 @@ Response `200`:
           "source": "COMPUTED"
         }
       }
-    ]
+    ],
+    "detectionTargets": [
+      {
+        "itemId": "uuid",
+        "kind": "DEPARTURE",
+        "geofenceId": "uuid:DEPARTURE",
+        "latitude": 37.5796,
+        "longitude": 126.9770,
+        "radiusMeters": 400,
+        "dwellMinutes": null
+      }
+    ],
+    "pendingCandidate": null,
+    "undoable": null
   },
   "meta": {
     "requestId": "uuid"
@@ -1117,6 +1130,7 @@ Request Body:
   "eventId": "uuid",
   "eventType": "DWELL",
   "itemId": "uuid",
+  "geofenceId": "uuid:ARRIVAL",
   "occurredAt": "2026-08-22T10:10:00+09:00",
   "location": {
     "latitude": 37.5796,
@@ -1134,13 +1148,24 @@ Response `200`:
 {
   "success": true,
   "data": {
+    "eventId": "uuid",
     "accepted": true,
-    "transition": {
+    "rejectionReason": null,
+    "candidate": {
       "transitionId": "uuid",
-      "type": "ARRIVAL_CANDIDATE",
-      "status": "WAITING_USER_DECISION",
-      "expiresAt": "2026-08-22T10:15:00+09:00"
-    }
+      "itemId": "uuid",
+      "type": "ARRIVAL",
+      "status": "PENDING_CONFIRMATION",
+      "detectedAt": "2026-08-22T10:10:00+09:00",
+      "autoFinalizeAt": "2026-08-22T10:15:00+09:00",
+      "allowedDecisions": ["CONFIRM", "NOT_ARRIVED"],
+      "evidence": {
+        "occurredAt": "2026-08-22T10:10:00+09:00",
+        "accuracyMeters": 35,
+        "dwellMinutes": 5
+      }
+    },
+    "cancelledTransitionId": null
   },
   "meta": {
     "requestId": "uuid"
@@ -1148,13 +1173,15 @@ Response `200`:
 }
 ```
 
-기준 미충족 이벤트는 오류로 만들기보다 자동 감지 판단에서 제외할 수 있다.
+기준 미충족 이벤트도 저장하고 `accepted=false`와 `rejectionReason`을 반환한다. 같은 `eventId` 재전송은 최초 결과를 반환한다.
 
-주요 오류: `400`, `403`, `404`, `409 DUPLICATE_EVENT`
+주요 오류: `400`, `401`, `403`, `404`
 
 ### PROG-004 자동 감지 확인 응답
 
 `POST /api/v1/progress/transitions/{transitionId}/decisions`
+
+Header: `Idempotency-Key`
 
 Request Body 예시:
 
@@ -1164,7 +1191,7 @@ Request Body 예시:
 }
 ```
 
-허용 decision은 transition 종류에 따라 `CONFIRM`, `NOT_YET`, `STILL_STAYING` 등을 사용한다.
+허용 decision은 도착 후보의 `CONFIRM`·`NOT_ARRIVED`, 출발 후보의 `CONFIRM`·`STILL_HERE`다.
 
 Response `200`:
 
@@ -1173,9 +1200,18 @@ Response `200`:
   "success": true,
   "data": {
     "transitionId": "uuid",
-    "resultStatus": "ARRIVED",
-    "itemId": "uuid",
-    "undoExpiresAt": "2026-08-22T10:20:00+09:00"
+    "status": "CONFIRMED",
+    "affectedItems": [
+      {
+        "itemId": "uuid",
+        "beforeStatus": "EN_ROUTE",
+        "afterStatus": "ARRIVED"
+      }
+    ],
+    "dayStatus": null,
+    "undoDeadline": null,
+    "nextPromptAt": null,
+    "progressVersion": 8
   },
   "meta": {
     "requestId": "uuid"
@@ -1183,11 +1219,15 @@ Response `200`:
 }
 ```
 
-주요 오류: `404`, `409 TRANSITION_EXPIRED`, `409 ALREADY_DECIDED`
+사용자가 직접 확인한 전환의 `undoDeadline`은 항상 null이다.
+
+주요 오류: `400`, `401`, `403`, `404`, `409 TRANSITION_NOT_PENDING`, `409 INVALID_DECISION`
 
 ### PROG-005 자동 확정 되돌리기
 
 `POST /api/v1/progress/transitions/{transitionId}/undo`
+
+Header: `Idempotency-Key`
 
 Response `200`:
 
@@ -1196,8 +1236,17 @@ Response `200`:
   "success": true,
   "data": {
     "transitionId": "uuid",
-    "restoredStatus": "EN_ROUTE",
-    "itemId": "uuid"
+    "status": "UNDONE",
+    "restoredItems": [
+      {
+        "itemId": "uuid",
+        "beforeStatus": "EN_ROUTE",
+        "afterStatus": "ARRIVED"
+      }
+    ],
+    "dayStatus": "IN_PROGRESS",
+    "detectionResumeAt": "2026-08-22T10:30:00+09:00",
+    "progressVersion": 9
   },
   "meta": {
     "requestId": "uuid"
@@ -1208,7 +1257,7 @@ Response `200`:
 - 자동 도착·출발 확정 후 5분 이내 허용
 - 5분 이후에는 일반 수동 상태 수정 기능으로 보정
 
-주요 오류: `404`, `409 UNDO_EXPIRED`, `409 ALREADY_UNDONE`
+주요 오류: `401`, `403`, `404`, `409 UNDO_WINDOW_EXPIRED`, `409 TRANSITION_NOT_UNDOABLE`
 
 ### PROG-006 수동 진행 상태 처리
 
