@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_principal
@@ -30,13 +32,58 @@ class _Trip:
 
 class _Progress:
     async def get_day(self, **kwargs):
-        return ProgressData(tripId=kwargs["trip_id"], date=kwargs["visit_date"], dayStatus="NOT_STARTED", progressVersion=0, scheduleVersion=1, actualStartedAt=None, completedAt=None, startLocation=None, currentItemId=None, nextItemId=None, items=[])
+        return ProgressData(
+            tripId=kwargs["trip_id"],
+            date=kwargs["visit_date"],
+            dayStatus="NOT_STARTED",
+            progressVersion=0,
+            scheduleVersion=1,
+            actualStartedAt=None,
+            completedAt=None,
+            startLocation=None,
+            currentItemId=None,
+            nextItemId=None,
+            items=[],
+            detectionTargets=[],
+            pendingCandidate=None,
+            undoable=None,
+        )
 
     async def start_day(self, **kwargs):
-        return ProgressData(tripId=kwargs["trip_id"], date=kwargs["visit_date"], dayStatus="IN_PROGRESS", progressVersion=1, scheduleVersion=1, actualStartedAt=datetime.now(UTC), completedAt=None, startLocation=None, currentItemId=None, nextItemId=None, items=[])
+        return ProgressData(
+            tripId=kwargs["trip_id"],
+            date=kwargs["visit_date"],
+            dayStatus="IN_PROGRESS",
+            progressVersion=1,
+            scheduleVersion=1,
+            actualStartedAt=datetime.now(UTC),
+            completedAt=None,
+            startLocation=None,
+            currentItemId=None,
+            nextItemId=None,
+            items=[],
+            detectionTargets=[],
+            pendingCandidate=None,
+            undoable=None,
+        )
 
     async def update_item_status(self, **kwargs):
-        return ProgressData(tripId=uuid.uuid4(), date=date(2026, 9, 1), dayStatus="IN_PROGRESS", progressVersion=2, scheduleVersion=1, actualStartedAt=datetime.now(UTC), completedAt=None, startLocation=None, currentItemId=kwargs["item_id"], nextItemId=None, items=[])
+        return ProgressData(
+            tripId=uuid.uuid4(),
+            date=date(2026, 9, 1),
+            dayStatus="IN_PROGRESS",
+            progressVersion=2,
+            scheduleVersion=1,
+            actualStartedAt=datetime.now(UTC),
+            completedAt=None,
+            startLocation=None,
+            currentItemId=kwargs["item_id"],
+            nextItemId=None,
+            items=[],
+            detectionTargets=[],
+            pendingCandidate=None,
+            undoable=None,
+        )
 
 
 class _UnstoredDayProgress:
@@ -46,6 +93,7 @@ class _UnstoredDayProgress:
             dayStatus="NOT_STARTED", progressVersion=0, scheduleVersion=0,
             actualStartedAt=None, completedAt=None, startLocation=None,
             currentItemId=None, nextItemId=None, items=[],
+            detectionTargets=[], pendingCandidate=None, undoable=None,
         )
 
     async def start_day(self, **kwargs):
@@ -71,6 +119,9 @@ def test_progress_paths_and_start_contract() -> None:
         response = client.get(f"/api/v1/trips/{trip_id}/days/2026-09-01/progress")
         assert response.status_code == 200
         assert response.json()["data"]["dayStatus"] == "NOT_STARTED"
+        assert response.json()["data"]["detectionTargets"] == []
+        assert response.json()["data"]["pendingCandidate"] is None
+        assert response.json()["data"]["undoable"] is None
         missing = client.post(f"/api/v1/trips/{trip_id}/days/2026-09-01/progress/start", json={"progressVersion": 0})
         assert missing.status_code == 400
         started = client.post(
@@ -80,6 +131,9 @@ def test_progress_paths_and_start_contract() -> None:
         )
         assert started.status_code == 200
         assert started.json()["data"]["dayStatus"] == "IN_PROGRESS"
+        assert started.json()["data"]["detectionTargets"] == []
+        assert started.json()["data"]["pendingCandidate"] is None
+        assert started.json()["data"]["undoable"] is None
     finally:
         app.dependency_overrides.clear()
 
@@ -88,9 +142,50 @@ def test_progress_openapi_declares_expected_responses() -> None:
     schema = app.openapi()
     get_op = schema["paths"]["/api/v1/trips/{tripId}/days/{date}/progress"]["get"]
     start_op = schema["paths"]["/api/v1/trips/{tripId}/days/{date}/progress/start"]["post"]
-    assert {"200", "401", "403", "404"} <= set(get_op["responses"])
-    assert {"200", "401", "403", "404", "409", "422"} <= set(start_op["responses"])
+    assert {"200", "400", "401", "403", "404"} <= set(get_op["responses"])
+    assert {"200", "400", "401", "403", "404", "409", "422"} <= set(start_op["responses"])
     assert "422" not in get_op["responses"]
+
+    progress_schema = schema["components"]["schemas"]["ProgressData"]
+    assert {"detectionTargets", "pendingCandidate", "undoable"} <= set(
+        progress_schema["required"]
+    )
+    assert progress_schema["properties"]["detectionTargets"]["items"]["$ref"].endswith(
+        "/DetectionTarget"
+    )
+    assert "PendingCandidate" in str(
+        progress_schema["properties"]["pendingCandidate"]
+    )
+    assert "UndoableTransition" in str(progress_schema["properties"]["undoable"])
+
+
+def test_progress_source_contract_matches_common_validation_error_policy() -> None:
+    contract_path = (
+        Path(__file__).parents[3]
+        / "specs"
+        / "006-trip-progress"
+        / "contracts"
+        / "progress.openapi.yaml"
+    )
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    paths = contract["paths"]
+    get_responses = paths["/trips/{tripId}/days/{date}/progress"]["get"]["responses"]
+    start_responses = paths["/trips/{tripId}/days/{date}/progress/start"]["post"][
+        "responses"
+    ]
+    update_responses = paths["/itinerary-items/{itemId}/status"]["patch"][
+        "responses"
+    ]
+    error_body = contract["components"]["schemas"]["ErrorEnvelope"]["properties"][
+        "error"
+    ]
+
+    assert "400" in get_responses
+    assert "400" in start_responses
+    assert "400" in update_responses
+    assert "INVALID_REQUEST" not in start_responses["422"]["description"]
+    assert "details" in error_body["required"]
+    assert "details" in error_body["properties"]
 
 
 def test_unstored_day_progress_contract_returns_empty_and_rejects_start() -> None:
@@ -125,6 +220,9 @@ def test_unstored_day_progress_contract_returns_empty_and_rejects_start() -> Non
         "currentItemId": None,
         "nextItemId": None,
         "items": [],
+        "detectionTargets": [],
+        "pendingCandidate": None,
+        "undoable": None,
     }
     assert start.status_code == 422
     assert start.json()["error"]["code"] == "DAY_EMPTY"
@@ -206,6 +304,9 @@ def test_update_status_contract_requires_idempotency_key_and_returns_progress() 
     assert missing.status_code == 400
     assert response.status_code == 200
     assert response.json()["data"]["progressVersion"] == 2
+    assert response.json()["data"]["detectionTargets"] == []
+    assert response.json()["data"]["pendingCandidate"] is None
+    assert response.json()["data"]["undoable"] is None
     operation = app.openapi()["paths"]["/api/v1/itinerary-items/{itemId}/status"]["patch"]
-    assert {"200", "401", "403", "404", "409", "422"} <= set(operation["responses"])
+    assert {"200", "400", "401", "403", "404", "409", "422"} <= set(operation["responses"])
     assert ProgressErrorCode.IDEMPOTENCY_KEY_CONFLICT == "IDEMPOTENCY_KEY_CONFLICT"

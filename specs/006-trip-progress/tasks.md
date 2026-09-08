@@ -280,7 +280,7 @@
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T038 [P] Backend 문서·설정 최종 일치와 전체 자동 검증 기록 in docs/design/api-spec.md, docs/design/er-schema.md, api/.env.example, specs/006-trip-progress/quickstart.md
+- [X] T038 [P] Backend 문서·설정 최종 일치와 전체 자동 검증 기록 in docs/design/api-spec.md, docs/design/er-schema.md, api/.env.example, specs/006-trip-progress/quickstart.md
   - 영역: BE
   - 담당: jh
   - 선행: T028, T034
