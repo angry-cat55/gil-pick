@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     route_provider_timeout_seconds: float = Field(default=5.0, gt=0)
     route_calculation_deadline_seconds: float = Field(default=10.0, gt=0)
     route_provider_concurrency: int = Field(default=3, gt=0)
+    kma_base_url: str = (
+        "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
+    )
+    kma_service_key: SecretStr = SecretStr("")
+    seoul_citydata_base_url: str = "http://openapi.seoul.go.kr:8088"
+    seoul_citydata_api_key: SecretStr = SecretStr("")
+    detection_provider_timeout_seconds: float = Field(default=5.0, gt=0)
+    detection_cycle_seconds: int = Field(default=600, gt=0)
 
     @field_validator("jwt_signing_secret")
     @classmethod

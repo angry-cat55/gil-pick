@@ -1,0 +1,18 @@
+{
+  "version": "2026-09-08-fixture",
+  "source": "서울시 실시간 도시데이터 검증용 초기 지점",
+  "areas": [
+    {
+      "name": "검증용 광화문 지점",
+      "areaCode": "FIXTURE-001",
+      "latitude": 37.5752,
+      "longitude": 126.9768
+    },
+    {
+      "name": "검증용 홍대 지점",
+      "areaCode": "FIXTURE-002",
+      "latitude": 37.5563,
+      "longitude": 126.9236
+    }
+  ]
+}

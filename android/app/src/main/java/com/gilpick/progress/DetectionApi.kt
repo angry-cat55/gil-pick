@@ -41,6 +41,15 @@ enum class ProgressEventType { DWELL, EXIT, REENTER }
 enum class DetectionKind { ARRIVAL, DEPARTURE }
 
 /**
+ * 되돌릴 수 있는 전환의 종류.
+ *
+ * [COMPOSITE]는 이전 장소를 벗어난 기록 없이 다음 장소 도착이 확정돼 두 변경이 함께 적용된
+ * 경우다(FR-009). 후보·감지 대상에는 없고 확정된 전환에만 나타나므로 [DetectionKind]와 나눈다.
+ */
+@Serializable
+enum class UndoableKind { ARRIVAL, DEPARTURE, COMPOSITE }
+
+/**
  * 확인 시트에서 보낼 수 있는 응답.
  *
  * 후보 종류마다 받는 값이 다르다. 도착은 [CONFIRM]·[NOT_ARRIVED], 출발은 [CONFIRM]·[STILL_HERE]이며
@@ -223,7 +232,7 @@ data class DetectionTargetDto(
 data class UndoableTransitionDto(
     val transitionId: String,
     val itemId: String,
-    val type: DetectionKind,
+    val type: UndoableKind,
     val confirmedAt: String,
     val undoDeadline: String,
 )

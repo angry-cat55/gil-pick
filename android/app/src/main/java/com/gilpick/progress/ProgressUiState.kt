@@ -34,6 +34,11 @@ sealed interface ProgressUiState {
      * @property pendingAction 서버에 보낸 뒤 응답을 기다리는 전환. 있는 동안 진행 행동 버튼은 비활성이다(UI-008).
      * @property actionError 마지막 전환 실패. 내용은 요청 전 그대로이고 원인과 `다시 시도`를 보인다(US2 시나리오 8).
      * @property viewingDate 목록에 보이는 날짜(UI-005). `null`이면 오늘이다. 오늘이 아니면 카드·행동·시트가 없다.
+     * @property decisionPending 확인 시트에서 보낸 뒤 응답을 기다리는 답. 있는 동안 두 행동이 잠긴다(UI-006).
+     * @property decisionError 마지막 확인 응답 실패. 후보는 그대로 두고 원인과 다시 시도를 보인다(UI-006).
+     * @property candidateDismissed 사용자가 시트를 닫았다. 후보는 살아 있지만 시트를 다시 띄우지 않는다(UI-007).
+     * @property undoPending 되돌리기를 보낸 뒤 응답을 기다리는 중. 버튼을 잠근다.
+     * @property undoError 마지막 되돌리기 실패. 토스트에 원인을 보인다.
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -42,7 +47,42 @@ sealed interface ProgressUiState {
         val pendingAction: ProgressAction? = null,
         val actionError: ProgressActionFailure? = null,
         val viewingDate: LocalDate? = null,
+        val decisionPending: TransitionDecision? = null,
+        val decisionError: DetectionError? = null,
+        val candidateDismissed: Boolean = false,
+        val undoPending: Boolean = false,
+        val undoError: DetectionError? = null,
     ) : ProgressUiState {
+
+        /**
+         * 지금 확인 시트를 띄울 후보. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다(UI-007).
+         */
+        val visibleCandidate: TransitionCandidateDto?
+            get() = progress.pendingCandidate?.takeIf { isToday && !candidateDismissed }
+
+        /** 확인 시트가 가리키는 장소명. 일정에서 찾는다. */
+        val candidatePlaceName: String
+            get() = progress.pendingCandidate?.let { candidate ->
+                todayRows.firstOrNull { it.item.itemId == candidate.itemId }?.item?.place?.name
+            }.orEmpty()
+
+        /** 지금 되돌리기 토스트를 띄울 자동 확정. 오늘을 보고 있을 때만이다. */
+        val visibleUndoable: UndoableTransitionDto? get() = progress.undoable?.takeIf { isToday }
+
+        /** 되돌리기 토스트가 가리키는 장소명. */
+        val undoablePlaceName: String
+            get() = progress.undoable?.let { undoable ->
+                todayRows.firstOrNull { it.item.itemId == undoable.itemId }?.item?.place?.name
+            }.orEmpty()
+
+        /**
+         * 자동으로 처리된 장소(UI-004).
+         *
+         * 지금 계약에서 "자동으로 바뀌었다"를 알 수 있는 유일한 값이 되돌릴 수 있는 전환이다.
+         * 되돌릴 수 있는 시간이 지나면 표시도 사라진다. 그 뒤에도 남기려면 서버가 항목별
+         * 처리 출처를 함께 내려줘야 한다.
+         */
+        val autoProcessedItemId: String? get() = progress.undoable?.itemId
         /** 진행 현황의 날짜(오늘, KST). */
         val today: LocalDate get() = LocalDate.parse(progress.date)
 

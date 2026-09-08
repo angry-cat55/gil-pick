@@ -106,12 +106,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T007
   - 검증: 파생 판정 4종(질문 횟수 상한, 재질문 가능 시각, `EN_ROUTE`만 도착 대상, 한 item에 `PENDING` 하나) 경계값. `progress_transitions` 조회만으로 판정하고 새 컬럼을 읽지 않음
-- [ ] T012 [P] [US1] 도착 확인 시트 UI test in android/app/src/androidTest/java/com/gilpick/progress/ConfirmSheetTest.kt
+- [x] T012 [P] [US1] 도착 확인 시트 UI test in android/app/src/androidTest/java/com/gilpick/progress/ConfirmSheetTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T009
   - 검증: 장소명·감지 근거·자동 확정까지 남은 시간·두 행동 표시(UI-001), 응답 중 버튼 잠금과 진행 표시, 실패 시 원인+다시 시도와 후보 유지(UI-006), 시트를 닫아도 수동 진행 가능(UI-007), 48dp·8dp 간격(UI-008)
-- [ ] T013 [P] [US1] `GeofenceManager` 차이 반영 unit test in android/app/src/test/java/com/gilpick/progress/GeofenceManagerTest.kt
+- [x] T013 [P] [US1] `GeofenceManager` 차이 반영 unit test in android/app/src/test/java/com/gilpick/progress/GeofenceManagerTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T009
@@ -139,12 +139,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T015, T016
   - 검증: T010 통과. 기준 미충족 이벤트도 `200`. PROG-003은 요청 본문의 `eventId`로 멱등 처리하고, PROG-004는 `Idempotency-Key`를 필수로 사용. 이미 처리된 후보는 `409 TRANSITION_NOT_PENDING`, 후보 종류에 없는 응답은 `409 INVALID_DECISION`. 소유권 검증 재사용
-- [ ] T018 [US1] `GeofenceManager`·`GeofenceReceiver` 구현 in android/app/src/main/java/com/gilpick/progress/GeofenceManager.kt, android/app/src/main/java/com/gilpick/progress/GeofenceReceiver.kt
+- [x] T018 [US1] `GeofenceManager`·`GeofenceReceiver` 구현 in android/app/src/main/java/com/gilpick/progress/GeofenceManager.kt, android/app/src/main/java/com/gilpick/progress/GeofenceReceiver.kt
   - 영역: FE
   - 담당: hs
   - 선행: T013, T002
   - 검증: T013 통과. 도착용 반경·`loiteringDelay`로 `DWELL`, 출발용 반경으로 `EXIT`·`ENTER` 등록(`geofenceId`는 `{itemId}:{kind}`). broadcast를 `client_event_id`와 함께 전송하고 실패 시 재시도. 등록 실패는 자동 감지만 끄고 진행을 막지 않음(FR-024)
-- [ ] T019 [US1] 도착 확인 시트와 `ProgressViewModel` 후보 상태 in android/app/src/main/java/com/gilpick/progress/ConfirmSheet.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [x] T019 [US1] 도착 확인 시트와 `ProgressViewModel` 후보 상태 in android/app/src/main/java/com/gilpick/progress/ConfirmSheet.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T012, T018, T003
@@ -167,7 +167,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T017
   - 검증: quickstart BE 3(자동 확정·되돌리기·만료 `409`)·BE 4(되돌린 뒤 재개). 서버 시각을 고정해 만료를 재현하고 기기 시각과 무관함을 확인(FR-018, SC-007)
-- [ ] T021 [P] [US2] 되돌리기 토스트·자동 처리 표시 UI test in android/app/src/androidTest/java/com/gilpick/progress/UndoToastTest.kt
+- [x] T021 [P] [US2] 되돌리기 토스트·자동 처리 표시 UI test in android/app/src/androidTest/java/com/gilpick/progress/UndoToastTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T019
@@ -190,7 +190,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T023
   - 검증: quickstart BE 4. 재개 시각은 `max(undone_at) + 재질문 간격`으로 파생 계산하고 새 컬럼을 만들지 않음(FR-017a, research 3절). 쉬는 시간 중 이벤트는 `DETECTION_PAUSED`. 재개 후 질문도 상한에 포함. PROG-001 응답에 `undoable`이 내려감
-- [ ] T025 [US2] 되돌리기 토스트와 만료 시각 재조회 in android/app/src/main/java/com/gilpick/progress/UndoToast.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [x] T025 [US2] 되돌리기 토스트와 만료 시각 재조회 in android/app/src/main/java/com/gilpick/progress/UndoToast.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T021, T024

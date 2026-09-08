@@ -65,6 +65,12 @@ fun NavGraphBuilder.progressGraph(
                 tripId = route.tripId,
                 progressRepository = repository(context),
                 itineraryRepository = itineraryRepository(context),
+                detectionRepository = DetectionRepository.default(context),
+                // 서버가 감지 대상을 내려주기 시작하면(#261) 그대로 등록된다. 그전에는 빈 목록이라 아무 것도 걸지 않는다.
+                geofenceManager = GeofenceManager(
+                    client = PlayServicesGeofenceClient(context),
+                    session = PrefsDetectionSessionStore(context),
+                ),
             )
         }
         val viewModel: ProgressViewModel = viewModel(factory = factory)
@@ -90,6 +96,10 @@ fun NavGraphBuilder.progressGraph(
             onStatusAction = viewModel::updateStatus,
             onSelectDate = viewModel::selectDate,
             onReturnToToday = viewModel::returnToToday,
+            onDecide = viewModel::decide,
+            onRetryDecision = viewModel::retryDecision,
+            onDismissCandidate = viewModel::dismissCandidate,
+            onUndo = viewModel::undo,
             map = map,
         )
     }

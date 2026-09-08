@@ -47,6 +47,8 @@ class ProgressViewModel(
     private val itineraryRepository: ItineraryRepository,
     private val tripId: String,
     private val clock: Clock = Clock.system(KST),
+    private val detectionRepository: DetectionRepository? = null,
+    private val geofenceManager: GeofenceManager? = null,
 ) : ViewModel() {
 
     /** 진행 현황을 조회하는 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다. */
@@ -62,6 +64,7 @@ class ProgressViewModel(
 
     init {
         viewModelScope.launch { tickEveryMinute() }
+        viewModelScope.launch { scheduleDeadlineReload() }
     }
 
     /**
@@ -87,10 +90,37 @@ class ProgressViewModel(
                         pendingAction = kept.pendingAction,
                         actionError = kept.actionError,
                         viewingDate = kept.viewingDate,
+                        decisionPending = kept.decisionPending,
+                        decisionError = kept.decisionError,
+                        undoPending = kept.undoPending,
+                        // 되돌릴 대상이 바뀌면 지난 실패 안내를 지운다.
+                        undoError = kept.undoError.takeIf {
+                            kept.progress.undoable?.transitionId == next.progress.undoable?.transitionId
+                        },
+                        // 후보가 바뀌면 닫아 둔 시트를 다시 띄운다. 새 질문이기 때문이다.
+                        candidateDismissed = kept.candidateDismissed &&
+                            kept.progress.pendingCandidate?.transitionId == next.progress.pendingCandidate?.transitionId,
                     )
                 }
             }
+            syncGeofences()
         }
+    }
+
+    /**
+     * 서버가 준 감지 대상과 실제 등록 상태를 맞춘다(FR-023·research 4절).
+     *
+     * 앱은 무엇을 감지할지 계산하지 않고 받은 목록만 반영한다. 등록에 실패해도 자동 감지만
+     * 꺼지고 수동 진행은 그대로다(FR-024).
+     */
+    private suspend fun syncGeofences() {
+        val manager = geofenceManager ?: return
+        val content = _state.value as? ProgressUiState.Content
+        if (content == null) {
+            manager.clear()
+            return
+        }
+        manager.sync(tripId, content.progress.date, content.progress.detectionTargets)
     }
 
     /** 이동 중 카드의 `도착했어요`: 다음 장소를 `ARRIVED`로(US2 시나리오 1·4). */
@@ -126,6 +156,91 @@ class ProgressViewModel(
                 }
             }
             if (error == ProgressError.VersionConflict || error == ProgressError.InvalidTransition) load()
+        }
+    }
+
+    /**
+     * 확인 시트의 응답을 보낸다(PROG-004).
+     *
+     * 보내는 동안 후보는 그대로 두고 두 행동만 잠근다. 성공하면 최신 진행 현황을 다시 조회해
+     * 후보·상태·감지 대상을 한 번에 맞춘다. 실패하면 후보를 임의로 취소하지 않고 원인만 남긴다(UI-006).
+     */
+    fun decide(decision: TransitionDecision) {
+        val content = _state.value as? ProgressUiState.Content ?: return
+        val candidate = content.progress.pendingCandidate ?: return
+        val repository = detectionRepository ?: return
+        if (content.decisionPending != null) return
+
+        _state.value = content.copy(decisionPending = decision, decisionError = null)
+        viewModelScope.launch {
+            when (val result = repository.decide(candidate.transitionId, decision)) {
+                is AuthResult.Success -> {
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = null) ?: current
+                    }
+                    // 응답은 전환 결과만 준다. 후보·상태·감지 대상은 진행 조회로 한 번에 맞춘다.
+                    load()
+                }
+
+                is AuthResult.Failure -> {
+                    val error = result.error.toDetectionError()
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = error) ?: current
+                    }
+                    // 이미 처리된 후보는 최신 상태를 다시 받아야 화면이 맞는다.
+                    if (error == DetectionError.TransitionNotPending || error == DetectionError.InvalidDecision) load()
+                }
+            }
+        }
+    }
+
+    /** 실패한 확인 응답을 같은 내용으로 다시 보낸다. */
+    fun retryDecision() {
+        val pending = (_state.value as? ProgressUiState.Content) ?: return
+        val decision = pending.decisionError?.let { pending.progress.pendingCandidate?.allowedDecisions?.firstOrNull() } ?: return
+        _state.value = pending.copy(decisionError = null)
+        decide(decision)
+    }
+
+    /**
+     * 자동으로 확정된 전환을 되돌린다(PROG-005).
+     *
+     * 만료 판정은 서버가 한다(FR-018). 앱은 남은 시간을 표시만 하므로, 눌린 시점에 이미
+     * 지났으면 서버가 `409`로 거절하고 그 원인을 토스트에 보인다.
+     */
+    fun undo() {
+        val content = _state.value as? ProgressUiState.Content ?: return
+        val undoable = content.progress.undoable ?: return
+        val repository = detectionRepository ?: return
+        if (content.undoPending) return
+
+        _state.value = content.copy(undoPending = true, undoError = null)
+        viewModelScope.launch {
+            when (val result = repository.undo(undoable.transitionId)) {
+                is AuthResult.Success -> {
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(undoPending = false, undoError = null) ?: current
+                    }
+                    // 복원 결과는 진행 조회로 받는다. 상태·ETA·감지 대상이 함께 되돌아간다.
+                    load()
+                }
+
+                is AuthResult.Failure -> {
+                    val error = result.error.toDetectionError()
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(undoPending = false, undoError = error) ?: current
+                    }
+                    // 만료·대상 아님은 최신 상태를 받아야 토스트가 사라진다.
+                    if (error == DetectionError.UndoWindowExpired || error == DetectionError.TransitionNotUndoable) load()
+                }
+            }
+        }
+    }
+
+    /** 확인 시트를 닫는다. 후보는 살아 있고 수동 진행을 계속할 수 있다(UI-007). */
+    fun dismissCandidate() {
+        _state.update { state ->
+            if (state is ProgressUiState.Content) state.copy(candidateDismissed = true, decisionError = null) else state
         }
     }
 
@@ -171,6 +286,37 @@ class ProgressViewModel(
         }
     }
 
+    /**
+     * 자동 확정·되돌리기 만료 시각에 맞춰 진행을 다시 조회한다(T025).
+     *
+     * 서버는 요청이 올 때 만료된 후보를 확정하므로(`research.md` 2절), 그 시각에 아무도
+     * 조회하지 않으면 화면이 옛 상태로 남는다. 앱이 해당 시각을 지나면 한 번 더 조회해
+     * 확정 결과와 되돌리기 만료를 화면에 반영한다.
+     */
+    private suspend fun scheduleDeadlineReload() {
+        var lastTarget: String? = null
+        while (true) {
+            val content = _state.value as? ProgressUiState.Content
+            val target = content?.progress?.pendingCandidate?.autoFinalizeAt
+                ?: content?.progress?.undoable?.undoDeadline
+            if (target != null && target != lastTarget) {
+                lastTarget = target
+                val millis = millisUntil(target)
+                if (millis > 0) delay(millis)
+                load()
+            }
+            delay(DEADLINE_POLL_MILLIS)
+        }
+    }
+
+    /** 지정 시각까지 남은 밀리초. 파싱할 수 없거나 이미 지났으면 0이다. */
+    private fun millisUntil(isoInstant: String): Long {
+        val target = runCatching { java.time.Instant.parse(isoInstant) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(isoInstant).toInstant() }.getOrNull()
+            ?: return 0
+        return (target.toEpochMilli() - clock.millis()).coerceAtLeast(0)
+    }
+
     /** 매분 정각에 [ProgressUiState.Content.now]를 갱신해 `N분 남았어요`가 분 단위로 맞게 한다. */
     private suspend fun tickEveryMinute() {
         while (true) {
@@ -184,17 +330,24 @@ class ProgressViewModel(
     companion object {
         private const val MINUTE_MILLIS = 60_000L
 
+        /** 새 만료 시각이 생겼는지 확인하는 주기. 토스트 남은 초 표시와 같은 정도면 충분하다. */
+        private const val DEADLINE_POLL_MILLIS = 1_000L
+
         /** 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다. */
         fun factory(
             tripId: String,
             progressRepository: ProgressRepository,
             itineraryRepository: ItineraryRepository,
+            detectionRepository: DetectionRepository? = null,
+            geofenceManager: GeofenceManager? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ProgressViewModel(
                     progressRepository = progressRepository,
                     itineraryRepository = itineraryRepository,
                     tripId = tripId,
+                    detectionRepository = detectionRepository,
+                    geofenceManager = geofenceManager,
                 )
             }
         }
