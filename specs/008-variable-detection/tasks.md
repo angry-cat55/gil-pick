@@ -56,32 +56,32 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 **⚠️ CRITICAL**: 이 단계 완료 전에는 User Story 구현을 시작하지 않는다.
 
-- [ ] T005 `detections` migration 007 in api/migrations/versions/007_create_detections_table.py
+- [x] T005 `detections` migration 008 in api/migrations/versions/008_create_detections_table.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
-  - 검증: `er-schema.md` §8.1 컬럼 전체(`detection_id`·`trip_day_id`·`item_id`·`primary_type`·`status`·`eta`·`score numeric(7,6)`·`reason`·`evaluation_snapshot jsonb`·`fingerprint`·`detected_at`·`last_evaluated_at`·`read_at`·`resolved_at`), `UNIQUE INDEX uq_detections_active_fingerprint ON detections(fingerprint) WHERE status='ACTIVE'`, `INDEX ix_detections_day_status_detected(trip_day_id, status, detected_at DESC)`, `INDEX ix_detections_item(item_id)`, `CHECK` 3종(score 범위·primary_type·status), `trip_days`·`itinerary_items` `ON DELETE CASCADE`. upgrade·downgrade 왕복을 `api/tests/integration/test_detection_migration.py`에서 확인
-- [ ] T006 [P] `Detection` ORM model in api/app/models/detection.py, api/app/models/__init__.py
+  - 검증: `er-schema.md` §8.1 컬럼 전체(`detection_id`·`trip_day_id`·`item_id`·`primary_type`·`status`·`eta`·`score numeric(7,6)`·`reason`·`evaluation_snapshot jsonb`·`fingerprint`·`detected_at`·`last_evaluated_at`·`read_at`·`resolved_at`), `UNIQUE INDEX uq_detections_active_fingerprint ON detections(fingerprint) WHERE status='ACTIVE'`, `INDEX ix_detections_day_status_detected(trip_day_id, status, detected_at DESC)`, `INDEX ix_detections_item(item_id)`, `CHECK` 3종(score 범위·primary_type·status), `trip_days`·`itinerary_items` `ON DELETE CASCADE`. upgrade·downgrade 왕복을 `api/tests/integration/test_variable_detection_migration.py`에서 확인
+- [x] T006 [P] `Detection` ORM model in api/app/models/detection.py, api/app/models/__init__.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
-  - 검증: model column·constraint가 migration과 일치, `evaluation_snapshot`은 `JSON().with_variant(JSONB, "postgresql")`, `trip_day`·`item` relationship, `fingerprint` 기본 생성 helper(`f"{trip_day_id}:{item_id}"`)를 `api/tests/unit/test_detection_model.py`에서 확인
-- [ ] T007 [P] DETECT 공개 스키마·enum in api/app/schemas/detection.py
+  - 검증: model column·constraint가 migration과 일치, `evaluation_snapshot`은 `JSON().with_variant(JSONB, "postgresql")`, `trip_day`·`item` relationship, `fingerprint` 기본 생성 helper(`f"{trip_day_id}:{item_id}"`)를 `api/tests/unit/test_variable_detection_model.py`에서 확인
+- [x] T007 [P] DETECT 공개 스키마·enum in api/app/schemas/detection.py
   - 영역: BE
   - 담당: jh
   - 선행: T001
-  - 검증: 계약의 `DetectionStatus`·`DetectionType`·`UnavailableReason`, `DetectionListEnvelope`/`DetectionListItem`, `DetectionDetailEnvelope`/`DetectionDetail`, `VariableVerdicts`와 세 변수 verdict(`CongestionVerdict`·`WeatherVerdict`·`OperatingHoursVerdict`), `DetectionReadEnvelope`, `PaginatedMeta`, `ErrorEnvelope`(code 6종)을 `api/tests/unit/test_detection_schema.py`에서 계약과 대조. 응답 전용 모델은 camelCase alias
-- [ ] T008 [P] 기상청 단기예보 client in api/app/clients/kma.py
+  - 검증: 계약의 `DetectionStatus`·`DetectionType`·`UnavailableReason`, `DetectionListEnvelope`/`DetectionListItem`, `DetectionDetailEnvelope`/`DetectionDetail`, `VariableVerdicts`와 세 변수 verdict(`CongestionVerdict`·`WeatherVerdict`·`OperatingHoursVerdict`), `DetectionReadEnvelope`, `PaginatedMeta`, `ErrorEnvelope`(code 6종)을 `api/tests/unit/test_variable_detection_schema.py`에서 계약과 대조. 응답 전용 모델은 camelCase alias
+- [x] T008 [P] 기상청 단기예보 client in api/app/clients/kma.py
   - 영역: BE
   - 담당: jh
   - 선행: T002
   - 검증: 위경도 → 기상청 LCC(DFS) 격자(nx·ny) 변환, `getVilageFcst` 호출(`base_date`/`base_time` 최신 발표 선택), 응답에서 `POP`·`PCP`·`PTY`를 `fcstDate`+`fcstTime` 슬롯별로 파싱. 타임아웃 5초·시간 초과·일시 오류만 1회 재시도, 최종 실패·격자 변환 불가 시 `None`. `api/tests/unit/test_kma_client.py`에서 `httpx` mock transport와 계약 fixture로 확인. 실데이터 검증은 G001
-- [ ] T009 [P] 서울시 실시간 도시데이터 client in api/app/clients/seoul_citydata.py
+- [x] T009 [P] 서울시 실시간 도시데이터 client in api/app/clients/seoul_citydata.py
   - 영역: BE
   - 담당: jh
   - 선행: T002
   - 검증: `citydata_ppltn` 호출(JSON), `AREA_CONGEST_LVL`와 `FCST_PPLTN[].{FCST_TIME, FCST_CONGEST_LVL}` 파싱, 4단계(`여유`·`보통`·`약간 붐빔`·`붐빔`) → `RELAXED`·`NORMAL`·`SLIGHTLY_CROWDED`·`CROWDED` 매핑. 타임아웃 5초·1회 재시도, 최종 실패 시 `None`. `api/tests/unit/test_seoul_citydata_client.py`에서 mock transport와 fixture로 확인. 실데이터 검증은 G001
-- [ ] T010 [P] Google Places 운영시간 조회 helper in api/app/services/detection/operating_hours_source.py
+- [x] T010 [P] Google Places 운영시간 조회 helper in api/app/services/detection/operating_hours_source.py
   - 영역: BE
   - 담당: jh
   - 선행: T002
