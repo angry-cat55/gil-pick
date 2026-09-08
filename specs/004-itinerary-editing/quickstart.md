@@ -80,3 +80,12 @@ android\gradlew.bat --offline -q :app:connectedDebugAndroidTest -Pandroid.testIn
 실서버 구동 방법: `docker compose up -d postgres` → `alembic upgrade head` → `uvicorn app.main:app --host 127.0.0.1 --port 8000` → `adb reverse tcp:8000 tcp:8000` → `-PGILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/`로 설치 → `users`·`device_sessions`에 세션을 심고(`client_device_id` = 앱 `AuthSessionStore.deviceId()`) 앱 저장소에 토큰 주입. 여행 생성은 F002가 검증한 화면 대신 API로 만들었다. 실서버 흐름은 임시 instrumented 스크립트(`ItineraryLiveE2E`, 커밋하지 않음)로 구동했고 screenshot 14장(`s1_*`~`s6_*`)을 남겼다. TMAP/ODsay 경로 계산은 이 검증에서 `FAILED`로 돌아왔으나(#211 T036 범위) F004 저장은 영향 없이 성공했다.
 
 screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` 후 `adb pull`).
+
+## 통합 최종 검증 기록 (T035, 2026-09-08, ts)
+
+- 환경: `origin/main` 822f687 기반, 로컬 PostgreSQL·uvicorn `127.0.0.1:8000`, `adb reverse tcp:8000 tcp:8000`, AVD `gilpick_api36_play`(Android 16, API 36).
+- 수동 항목 1: 사람이 여행 상세 진입부터 경복궁 추가(대중교통·90분), 저장 완료 후 상세의 `1일차 · 1곳` 확인까지 직접 조작했으며 약 40초가 걸렸다. SC-001의 5분 이내 기준을 충족했다. 화면에는 경복궁·1시간 30분이 표시됐고 DB는 해당 날짜 `schedule_version 3`·항목 1개로 일치했다.
+- 수동 항목 2~5: T034에 기록된 순서·체류 시간·이동 수단 저장과 재조회, 두 세션 충돌 자동 재저장, 10곳 상한, 기간 축소 동의·취소 증빙을 `main` 반영 상태와 대조했다. T035에서는 별도로 재실행하지 않았다.
+- 자동 회귀 검증: Backend F004 contract·unit·integration 64건 통과, Android itinerary·trip unit test와 `assembleDebug` 통과, API 36 AVD의 itinerary·trip `connectedDebugAndroidTest` 통과.
+- 계약 교차 확인: `contracts/itinerary.openapi.yaml`, Backend `api/app/schemas/itinerary.py`·`api/app/schemas/route.py`, Android `ItineraryApi.kt`를 대조했다. `TransportMode(WALK/TRANSIT/CAR)`, `ItemStatus`, `RouteStatus`, `StaySource`, nullable `itemId`·`place`·`transportModeToNext`·`route`, 오류 code, 신규 항목의 `place` 스냅샷 필드가 일치해 계약 수정은 필요하지 않았다.
+- 참고: 첫 Backend 재실행은 `TEST_DATABASE_URL` 미설정으로 integration 12건이 setup error였으며, 로컬 compose DB URL을 지정한 재실행에서 전체 64건이 통과했다. 첫 장소 검색은 제한된 네트워크로 실행한 uvicorn에서 `502 TOUR_API_FAILED`였고, 외부 연동 가능한 로컬 프로세스로 재시작한 뒤 경복궁 검색 `200`·12건을 확인하고 수동 시간을 처음부터 다시 측정했다.

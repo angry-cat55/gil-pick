@@ -271,12 +271,13 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: jy
   - 선행: T023, T028, T032
   - 검증: `testDebugUnitTest`, `connectedDebugAndroidTest`(itinerary·trip), `assembleDebug`, 필수 KDoc, quickstart Android 수동 6항목 스크린샷(4상태, 10곳·긴 장소명, 처리된 항목 fixture, 취소 확인, 기간 축소 대화상자, 360dp·font scale 2.0)
-- [ ] T035 실서버 종단간 검증과 계약 최종 동기화 in specs/004-itinerary-editing/quickstart.md, specs/004-itinerary-editing/contracts/itinerary.openapi.yaml
+- [x] T035 실서버 종단간 검증과 계약 최종 동기화 in specs/004-itinerary-editing/quickstart.md, specs/004-itinerary-editing/contracts/itinerary.openapi.yaml
   - 영역: 통합
   - 담당: ts
   - 교차 확인: jy
   - 선행: T033, T034
   - 검증: 로컬 API + AVD로 quickstart 수동 1~5(추가·편집·저장, 두 세션 충돌 자동 재저장, 10곳 상한, 기간 축소), 수동 1번의 상세 진입 → 저장 소요 시간을 기록해 SC-001(5분) 확인, enum·nullable·오류 code·`place` 스냅샷이 양쪽 구현과 일치하는지 BE `ts`와 FE `jy`가 교차 확인 기록
+  - 기록(2026-09-08, #198, ts): T034의 로컬 API + AVD `gilpick_api36_play` 수동 1~5 결과를 재확인하고, 수동 1을 사람이 다시 수행해 여행 상세 진입부터 경복궁 추가(대중교통·90분)·저장 완료까지 약 40초로 SC-001(5분 이내)을 충족했다. 화면의 `1일차 · 1곳`·경복궁·1시간 30분과 DB `schedule_version 3`·항목 1개가 일치했다. OpenAPI·Backend·Android의 이동 수단·항목 상태·경로 상태·체류 출처 enum, nullable 필드, 오류 code, `place` 스냅샷을 교차 대조해 불일치가 없음을 확인했다. FE `jy`는 #198 댓글에서 T034 자동 조작 8초 기록을 사람 소요시간 근거에서 제외하고 수동 재측정이 필요함을 확인했다.
 
 ---
 
