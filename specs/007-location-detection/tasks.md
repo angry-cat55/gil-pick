@@ -71,12 +71,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T005, T006
   - 검증: 정확도 초과 → `LOW_ACCURACY`, 유효 시간 경과 → `STALE`, 시작 전·완료 날짜 → `DAY_NOT_IN_PROGRESS`, 대상 아님 → `ITEM_NOT_ELIGIBLE`로 `accepted=false` 저장(행은 남김). 같은 `client_event_id` 재전송이 최초 결과를 그대로 반환. 소유권 위반은 `403`. quickstart BE 7-1·7-2·7-3·7-4·7-5. 좌표를 log에 남기지 않음
-- [ ] T008 [P] Android 감지 API DTO와 Retrofit 계약 in android/app/src/main/java/com/gilpick/progress/DetectionApi.kt
+- [x] T008 [P] Android 감지 API DTO와 Retrofit 계약 in android/app/src/main/java/com/gilpick/progress/DetectionApi.kt
   - 영역: FE
   - 담당: hs
   - 선행: T001
   - 검증: 계약의 세 endpoint와 `DetectionTarget`·`TransitionCandidate`·`UndoableTransition` DTO 직렬화를 `android/app/src/test/java/com/gilpick/progress/DetectionApiTest.kt`에서 MockWebServer로 확인. 모르는 key 무시, nullable field는 key째 전송
-- [ ] T009 Android `DetectionRepository`와 오류 분류 in android/app/src/main/java/com/gilpick/progress/DetectionRepository.kt
+- [x] T009 Android `DetectionRepository`와 오류 분류 in android/app/src/main/java/com/gilpick/progress/DetectionRepository.kt
   - 영역: FE
   - 담당: hs
   - 선행: T008
