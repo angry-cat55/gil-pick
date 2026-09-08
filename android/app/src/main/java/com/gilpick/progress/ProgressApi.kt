@@ -89,6 +89,10 @@ data class StartLocationDto(
  * @property progressVersion 진행 상태 version. 일정 version([scheduleVersion])과 별개로 전환마다 1 증가한다.
  * @property currentItemId `ARRIVED` 장소. 없으면 `null`.
  * @property nextItemId `EN_ROUTE` 장소, 없으면 순서상 첫 `PLANNED` 장소. 남은 장소가 없으면 `null`.
+ * @property detectionTargets F007 확장. 지금 지오펜스를 걸어야 할 대상. 정의는
+ *   `contracts/detection.openapi.yaml`이다. 서버가 아직 내려주지 않으면 빈 목록이다.
+ * @property pendingCandidate F007 확장. 답을 기다리는 도착·출발 후보. 없으면 `null`.
+ * @property undoable F007 확장. 아직 되돌릴 수 있는 자동 확정. 없으면 `null`.
  */
 @Serializable
 data class ProgressData(
@@ -103,6 +107,10 @@ data class ProgressData(
     val currentItemId: String?,
     val nextItemId: String?,
     val items: List<ProgressItemDto>,
+    // F007 확장. 서버 구현(#261) 전에도 F006 응답을 그대로 파싱할 수 있도록 기본값을 둔다.
+    val detectionTargets: List<DetectionTargetDto> = emptyList(),
+    val pendingCandidate: TransitionCandidateDto? = null,
+    val undoable: UndoableTransitionDto? = null,
 )
 
 /**
