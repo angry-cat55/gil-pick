@@ -224,7 +224,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] 상태 수정 unit·integration test 작성 in api/tests/unit/test_progress_service.py, api/tests/integration/test_progress_flow.py
+- [X] T032 [P] [US3] 상태 수정 unit·integration test 작성 in api/tests/unit/test_progress_service.py, api/tests/integration/test_progress_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T026
@@ -237,7 +237,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] 완료 취소·건너뛰기 취소·도착으로 변경·날짜 복귀 규칙 구현 in api/app/services/progress.py
+- [X] T034 [US3] 완료 취소·건너뛰기 취소·도착으로 변경·날짜 복귀 규칙 구현 in api/app/services/progress.py
   - 영역: BE
   - 담당: jh
   - 선행: T032

@@ -1,4 +1,4 @@
-"""F006 수동 진행 전환의 파생 규칙과 불변식을 검증한다."""
+"""F006 수동 진행 전환·상태 수정의 파생 규칙과 불변식을 검증한다."""
 
 import uuid
 from datetime import UTC, date, datetime
@@ -103,3 +103,94 @@ def test_completed_day_rejects_departure_from_last_arrived_item() -> None:
         apply_manual_transition(day, item, "COMPLETED", datetime.now(UTC))
 
     assert error.value.code == "INVALID_STATUS_TRANSITION"
+
+
+def test_undo_complete_restores_day_and_resets_following_items() -> None:
+    now = datetime(2026, 9, 8, 4, tzinfo=UTC)
+    completed, following = _item(1, "COMPLETED"), _item(2, "SKIPPED")
+    following.trip_day_id = completed.trip_day_id
+    completed.actual_arrived_at = datetime(2026, 9, 8, 2, tzinfo=UTC)
+    completed.actual_departed_at = completed.completed_at = datetime(
+        2026, 9, 8, 3, tzinfo=UTC
+    )
+    following.actual_arrived_at = following.actual_departed_at = now
+    following.completed_at = now
+    day = _day([completed, following])
+    day.status = "COMPLETED"
+    day.completed_at = now
+    day.detection_active = False
+
+    affected, transition_type = apply_manual_transition(
+        day, completed, "ARRIVED", now
+    )
+
+    assert transition_type == "UNDO_COMPLETE"
+    assert completed.status == "ARRIVED"
+    assert completed.actual_arrived_at == datetime(2026, 9, 8, 2, tzinfo=UTC)
+    assert completed.actual_departed_at is None
+    assert completed.completed_at is None
+    assert following.status == "PLANNED"
+    assert following.actual_arrived_at is None
+    assert following.actual_departed_at is None
+    assert following.completed_at is None
+    assert day.status == "IN_PROGRESS"
+    assert day.completed_at is None
+    assert day.detection_active is True
+    assert len(affected) == 3
+
+
+def test_undo_skip_starts_first_planned_item_and_restores_day() -> None:
+    now = datetime(2026, 9, 8, 5, tzinfo=UTC)
+    skipped, planned = _item(1, "SKIPPED"), _item(2, "PLANNED")
+    planned.trip_day_id = skipped.trip_day_id
+    day = _day([skipped, planned])
+    day.status = "COMPLETED"
+    day.completed_at = now
+    day.detection_active = False
+
+    affected, transition_type = apply_manual_transition(
+        day, skipped, "PLANNED", now
+    )
+
+    assert transition_type == "UNDO_SKIP"
+    assert skipped.status == "EN_ROUTE"
+    assert planned.status == "PLANNED"
+    assert day.status == "IN_PROGRESS"
+    assert day.completed_at is None
+    assert day.detection_active is True
+    assert affected[0]["beforeStatus"] == "SKIPPED"
+    assert affected[-1] == {
+        "dayStatusBefore": "COMPLETED",
+        "dayStatusAfter": "IN_PROGRESS",
+    }
+
+
+def test_change_planned_to_arrived_reconciles_all_other_progress() -> None:
+    now = datetime(2026, 9, 8, 6, tzinfo=UTC)
+    arrived = _item(1, "ARRIVED")
+    en_route = _item(2, "EN_ROUTE")
+    target = _item(3, "PLANNED")
+    following = _item(4, "COMPLETED")
+    for item in (en_route, target, following):
+        item.trip_day_id = arrived.trip_day_id
+    arrived.actual_arrived_at = datetime(2026, 9, 8, 3, tzinfo=UTC)
+    following.actual_arrived_at = following.actual_departed_at = now
+    following.completed_at = now
+    day = _day([arrived, en_route, target, following])
+
+    affected, transition_type = apply_manual_transition(
+        day, target, "ARRIVED", now
+    )
+
+    assert transition_type == "ARRIVE"
+    assert arrived.status == "COMPLETED"
+    assert arrived.actual_departed_at == arrived.completed_at == now
+    assert en_route.status == "PLANNED"
+    assert target.status == "ARRIVED"
+    assert target.actual_arrived_at == now
+    assert following.status == "PLANNED"
+    assert following.actual_arrived_at is None
+    assert following.actual_departed_at is None
+    assert following.completed_at is None
+    assert sum(item.status == "ARRIVED" for item in day.items) == 1
+    assert sum(item.status == "EN_ROUTE" for item in day.items) == 0
