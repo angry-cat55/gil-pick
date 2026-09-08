@@ -17,6 +17,8 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.itinerary.TransportMode
+import com.gilpick.itinerary.ItemStatus
 import com.gilpick.ui.theme.GilpickTheme
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -145,6 +148,44 @@ class DayRouteScreenTest {
     }
 
     @Test
+    fun 시작된_날짜의_진행_표시는_구간_목록에_상태를_문구로_겹치고_없으면_계획만_보인다() {
+        val marks = RouteMarks(
+            start = listOf(126.97, 37.57),
+            statuses = mapOf(ITEM_A to ItemStatus.COMPLETED, ITEM_B to ItemStatus.EN_ROUTE, ITEM_C to ItemStatus.PLANNED),
+        )
+        setScreen(RouteUiState.Content(readyRoute(), marks))
+
+        composeRule.onNodeWithContentDescription("1번째 구간, 경복궁 완료에서 북촌한옥마을 이동 중까지 도보 10분 800m").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("2번째 구간, 북촌한옥마을 이동 중에서 인사동거리 예정까지 대중교통 15분 3.4km").assertIsDisplayed()
+        composeRule.onAllNodesWithText("완료").assertCountEquals(1)
+        composeRule.onAllNodesWithText("이동 중").assertCountEquals(2)
+        composeRule.onAllNodesWithText("예정").assertCountEquals(1)
+    }
+
+    @Test
+    fun 진행_표시가_없는_날짜는_기존_계획_표시_그대로다() {
+        setScreen(RouteUiState.Content(readyRoute()))
+
+        composeRule.onAllNodesWithText("완료").assertCountEquals(0)
+        composeRule.onAllNodesWithText("예정").assertCountEquals(0)
+        composeRule.onNodeWithContentDescription("1번째 구간, 경복궁에서 북촌한옥마을까지 도보 10분 800m").assertIsDisplayed()
+    }
+
+    @Test
+    fun 장소가_한_곳인_시작된_날짜는_장소_행에_상태를_겹친다() {
+        val route = readyRoute().copy(
+            markers = listOf(RouteMarkerDto(ITEM_A, 1, "경복궁", 37.5796, 126.977)),
+            segments = emptyList(),
+            totalDurationSeconds = 0,
+            totalDistanceMeters = 0,
+        )
+        setScreen(RouteUiState.Content(route, RouteMarks(statuses = mapOf(ITEM_A to ItemStatus.ARRIVED))))
+
+        composeRule.onNodeWithContentDescription("1번째 장소 경복궁 도착").assertIsDisplayed()
+        composeRule.onNodeWithText("도착").assertIsDisplayed()
+    }
+
+    @Test
     fun 정상_content에는_재계산이나_후보_선택_버튼이_없다() {
         setScreen(RouteUiState.Content(readyRoute()))
 
@@ -250,7 +291,7 @@ class DayRouteScreenTest {
             onRetry = onRetry,
             onAddPlace = onAddPlace,
             onReauthenticate = onReauthenticate,
-            map = { _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
+            map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
         )
     }
 }

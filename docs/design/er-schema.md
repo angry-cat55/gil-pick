@@ -12,7 +12,7 @@
 - 날짜별 실제 진행 상태와 일정 버전은 `trip_days`에 저장한다.
 - 현재 장소 상태는 `itinerary_items`에 저장하고 모든 상태 변경 근거는 `progress_transitions`에 남긴다.
 - 위치 이벤트와 최종 상태 변경을 분리한다. 지오펜스 이벤트만으로 일정 상태를 바로 변경하지 않는다.
-- 경로 구간은 개별 검색 대상이 아니므로 별도 테이블 대신 `routes.route_payload`에 저장한다.
+- 계획 경로 구간은 개별 검색 대상이 아니므로 `routes.route_payload`에 저장한다. 여행 진행 중 계획 경로에 없는 시작·건너뛰기 구간만 `progress_segments`에 저장한다.
 - 외부 API 원문, 평점·운영시간 캐시, 추천 후보 목록은 영구 테이블로 저장하지 않는다.
 - 감지 평가값, 복합 상태 변경, 임시 경로처럼 수명이 짧은 스냅샷만 `jsonb`를 사용한다.
 - 대체 경로 미리보기와 승인된 장소 변경은 분리한다.
@@ -22,7 +22,7 @@
 
 ## 2. 테이블 구성
 
-MVP는 15개 테이블로 구성한다.
+MVP는 16개 테이블로 구성한다.
 
 | 영역 | 테이블 | 역할 |
 |---|---|---|
@@ -36,6 +36,7 @@ MVP는 15개 테이블로 구성한다.
 | 경로 | `routes` | 실제 일정에 적용된 경로 스냅샷 |
 | 위치 이벤트 | `progress_events` | DWELL·EXIT·REENTER 입력과 중복 방지 |
 | 상태 전환 | `progress_transitions` | 자동·수동 진행 변경과 되돌리기 근거 |
+| 진행 구간 | `progress_segments` | 계획 경로에 없는 시작·건너뛰기 구간의 이동시간 |
 | 변수 감지 | `detections` | 혼잡·날씨·운영시간 평가 사건 |
 | 경로 미리보기 | `route_previews` | 승인 전 대체 경로 임시 데이터 |
 | 장소 변경 | `replacements` | 승인된 장소·경로 변경과 되돌리기 |
@@ -56,11 +57,14 @@ erDiagram
     TRIP_DAYS ||--o{ ROUTES : has
     TRIP_DAYS ||--o{ PROGRESS_EVENTS : receives
     TRIP_DAYS ||--o{ PROGRESS_TRANSITIONS : records
+    TRIP_DAYS ||--o{ PROGRESS_SEGMENTS : computes
     TRIP_DAYS ||--o{ DETECTIONS : evaluates
 
     PLACES ||--o{ ITINERARY_ITEMS : assigned_to
     ITINERARY_ITEMS ||--o{ PROGRESS_EVENTS : targets
     ITINERARY_ITEMS ||--o{ PROGRESS_TRANSITIONS : primary_target
+    ITINERARY_ITEMS o|--o{ PROGRESS_SEGMENTS : starts_from
+    ITINERARY_ITEMS ||--o{ PROGRESS_SEGMENTS : arrives_at
     ITINERARY_ITEMS ||--o{ DETECTIONS : evaluated_for
     ITINERARY_ITEMS ||--o{ ROUTE_PREVIEWS : replaces
     ITINERARY_ITEMS ||--o{ REPLACEMENTS : changed_by
@@ -180,7 +184,8 @@ erDiagram
 | `visit_date` | date | N | 여행 안의 날짜 |
 | `day_number` | smallint | N | 1부터 시작 |
 | `status` | varchar(20) | N | `NOT_STARTED`, `IN_PROGRESS`, `COMPLETED` |
-| `schedule_version` | integer | N | 일정·진행 변경마다 증가, 기본 1 |
+| `schedule_version` | integer | N | 일정 변경마다 증가, 기본 1 |
+| `progress_version` | integer | N | 진행 시작·상태 전환마다 증가, 기본 0 |
 | `actual_started_at` | timestamptz | Y | 여행 시작 API 최초 서버 수신 시각 |
 | `start_location` | geography(Point,4326) | Y | 최초 ETA 기준 위치 |
 | `start_accuracy_meters` | numeric(6,2) | Y | 시작 위치 정확도 |
@@ -195,6 +200,7 @@ erDiagram
 - `UNIQUE(trip_id, visit_date)`
 - `UNIQUE(trip_id, day_number)`
 - `actual_started_at`은 최초 저장 후 여행 재개로 변경하지 않는다.
+- 요청의 `progressVersion`이 저장값과 다르면 `409 VERSION_CONFLICT`로 거부한다.
 - 마지막 장소 도착 시 `status=COMPLETED`, `detection_active=false`로 함께 변경한다.
 
 ### 5.3 `places`
@@ -322,13 +328,15 @@ erDiagram
 |---|---|---:|---|
 | `transition_id` | uuid | N | PK |
 | `trip_day_id` | uuid | N | FK → `trip_days.trip_day_id` |
-| `primary_item_id` | uuid | N | FK → `itinerary_items.item_id` |
+| `primary_item_id` | uuid | Y | FK → `itinerary_items.item_id`, `START` 전환은 null |
 | `trigger_event_id` | uuid | Y | FK → `progress_events.progress_event_id` |
-| `transition_type` | varchar(30) | N | 도착·출발·복합·수동·건너뛰기 |
+| `transition_type` | varchar(30) | N | F006 `START`, `ARRIVE`, `DEPART`, `SKIP`, `UNDO_COMPLETE`, `UNDO_SKIP`; F007 자동 감지 유형도 사용 |
 | `status` | varchar(30) | N | 후보·확정·자동확정·취소·되돌림 |
-| `source` | varchar(30) | N | 버튼·지오펜스·자동확정 |
+| `source` | varchar(30) | N | F006 `MANUAL`; F007 자동 감지 source도 사용 |
 | `decision` | varchar(30) | Y | 확인 응답 |
 | `affected_items` | jsonb | N | 각 item의 변경 전·후·복원 상태와 시각 |
+| `request_target_status` | varchar(20) | Y | 상태 전환 요청의 목표 상태. `START`는 null |
+| `response_snapshot` | jsonb | Y | 같은 멱등 요청에 반환할 최초 `ProgressData` 응답 |
 | `detected_at` | timestamptz | N | 후보 또는 수동 처리 생성 시각 |
 | `auto_finalize_at` | timestamptz | Y | 후보 생성 후 자동 확정 예정시각 |
 | `confirmed_at` | timestamptz | Y | 확정 시각 |
@@ -337,6 +345,8 @@ erDiagram
 | `undone_at` | timestamptz | Y | 되돌리기 시각 |
 | `schedule_version_before` | integer | N | 전환 전 버전 |
 | `schedule_version_after` | integer | Y | 확정 후 버전 |
+| `progress_version_after` | integer | N | 전환 적용 후 진행 버전 |
+| `idempotency_key` | uuid | N | 요청 `Idempotency-Key` |
 | `created_at` | timestamptz | N | 생성 시각 |
 
 `affected_items` 예시:
@@ -361,9 +371,33 @@ erDiagram
 제약:
 
 - 하나의 item에는 `PENDING_CONFIRMATION` transition이 동시에 하나만 존재한다.
+- `UNIQUE(trip_day_id, idempotency_key)`로 같은 진행 요청의 재처리를 막고 최초 결과를 식별한다.
 - 모든 수동 상태 변경도 transition을 생성하므로 별도 상태 이력 테이블을 만들지 않는다.
 - 가까운 장소 전환은 두 item을 `affected_items`에 함께 기록하고 한 트랜잭션으로 적용한다.
 - 마지막 장소 전환에는 날짜 상태와 감지 활성값의 전후 스냅샷도 함께 기록한다.
+
+### 7.3 `progress_segments`
+
+계획 경로에 없는 시작 위치→첫 장소 또는 건너뛰기로 새로 인접한 장소 구간만 저장한다.
+
+| 컬럼 | 타입 | NULL | 설명 |
+|---|---|---:|---|
+| `progress_segment_id` | uuid | N | PK |
+| `trip_day_id` | uuid | N | FK → `trip_days.trip_day_id`, 삭제 시 cascade |
+| `from_item_id` | uuid | Y | FK → `itinerary_items.item_id`, null이면 시작 위치, 삭제 시 cascade |
+| `to_item_id` | uuid | N | FK → `itinerary_items.item_id`, 삭제 시 cascade |
+| `transport_mode` | varchar(20) | N | `WALK`, `TRANSIT`, `CAR` |
+| `provider` | varchar(20) | N | `TMAP`, `ODSAY` |
+| `duration_seconds` | integer | N | 이동시간(초), 0 이상 |
+| `distance_meters` | integer | N | 이동거리(m), 0 이상 |
+| `computed_at` | timestamptz | N | 계산 시각 |
+
+제약:
+
+- `from_item_id IS NOT NULL`이면 partial `UNIQUE(trip_day_id, from_item_id, to_item_id)`를 적용한다.
+- `from_item_id IS NULL`이면 partial `UNIQUE(trip_day_id, to_item_id)`를 적용해 시작 구간도 날짜별 한 행만 유지한다.
+- `CHECK(duration_seconds >= 0)`과 `CHECK(distance_meters >= 0)`을 적용한다.
+- 계산 실패 시 행을 만들지 않으며 진행 상태 전환은 성공으로 유지한다.
 
 ## 8. 변수 감지와 대체 변경
 
@@ -488,9 +522,9 @@ FCM 기기별 전달 이력은 저장하지 않는다. 전송 중 무효 Token�
 | `transport_mode` | `WALK`, `CAR`, `TRANSIT` |
 | `route_status` | `READY`, `FAILED`, `HISTORICAL` |
 | `progress_event_type` | `DWELL`, `EXIT`, `REENTER` |
-| `transition_type` | `ARRIVAL`, `DEPARTURE`, `COMPOSITE`, `MANUAL_STATUS`, `SKIP` |
+| `transition_type` | `START`, `ARRIVE`, `DEPART`, `SKIP`, `UNDO_COMPLETE`, `UNDO_SKIP`, `ARRIVAL`, `DEPARTURE`, `COMPOSITE`, `MANUAL_STATUS` |
 | `transition_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `AUTO_CONFIRMED`, `CANCELLED`, `UNDONE` |
-| `transition_source` | `USER_BUTTON`, `GEOFENCE_DWELL`, `GEOFENCE_EXIT`, `GEOFENCE_CONFIRMED`, `GEOFENCE_AUTO`, `USER_EDIT` |
+| `transition_source` | `MANUAL`, `USER_BUTTON`, `GEOFENCE_DWELL`, `GEOFENCE_EXIT`, `GEOFENCE_CONFIRMED`, `GEOFENCE_AUTO`, `USER_EDIT` |
 | `transition_decision` | `CONFIRM`, `NOT_ARRIVED`, `STILL_HERE` |
 | `detection_type` | `CONGESTION`, `WEATHER`, `OPERATING_HOURS` |
 | `detection_status` | `ACTIVE`, `RESOLVED`, `DISMISSED`, `INVALIDATED` |
@@ -504,19 +538,21 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 ### 오늘 여행 시작
 
 1. `trip_days` 행을 잠근다.
-2. 최초 요청이면 `actual_started_at`, 선택적 시작 위치, `status=IN_PROGRESS`를 저장한다.
-3. 첫 일정 장소를 `EN_ROUTE`로 변경하고 transition을 기록한다.
-4. 경로와 ETA를 저장하고 `detection_active=true`로 변경한다.
-5. `schedule_version`을 증가시킨다.
+2. `progress_version`과 `Idempotency-Key`를 검증한다.
+3. 최초 요청이면 `actual_started_at`, 선택적 시작 위치, `status=IN_PROGRESS`, `detection_active=true`를 저장한다.
+4. 첫 일정 장소를 `EN_ROUTE`로 변경하고 `START` transition을 기록한다.
+5. `progress_version`을 증가시키고 같은 transaction으로 commit한다.
+6. 현재 위치→첫 장소 provider 계산은 transaction 밖에서 수행한다. 성공하면 `progress_segments`를 별도 transaction으로 upsert하고 ETA를 갱신하며, 실패해도 시작 상태는 유지한다.
 
-### 도착·출발 확정
+### 수동 진행 상태 전환
 
-1. transition과 `trip_days` 행을 잠근다.
-2. transition 상태와 일정 버전을 재검증한다.
-3. `affected_items`에 따라 일정 장소 상태와 실제 시각을 변경한다.
+1. `trip_days` 행을 잠그고 `progress_version`과 `Idempotency-Key`를 검증한다.
+2. 일정 장소 상태·실제 시각과 파생 상태 변경을 적용한다.
+3. 변경 전후 값을 `affected_items`에 기록한 transition을 생성한다.
 4. 영향받는 이후 ETA를 갱신한다.
 5. 마지막 장소이면 날짜 완료와 감지 종료를 함께 처리한다.
-6. transition 확정 상태와 새 일정 버전을 기록한다.
+6. `progress_version`을 증가시키고 `progress_version_after`를 기록해 같은 transaction으로 commit한다.
+7. 건너뛰기로 생긴 미계획 구간의 provider 계산은 transaction 밖에서 수행한다. 성공하면 `progress_segments`를 별도 transaction으로 upsert하고 ETA를 다시 갱신하며, 실패해도 상태 전환은 유지한다.
 
 ### 대체 장소 승인
 
@@ -538,7 +574,8 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `places` | partial unique `(tour_content_id)`, partial unique `(google_place_id)`, GiST `(location)` |
 | `routes` | `(trip_day_id, schedule_version)`, partial unique `(trip_day_id)` where `is_active=true` |
 | `progress_events` | unique `(client_event_id)`, `(trip_day_id, occurred_at)` |
-| `progress_transitions` | `(trip_day_id, status, detected_at)`, `(auto_finalize_at)` for pending rows |
+| `progress_transitions` | unique `(trip_day_id, idempotency_key)`, `(trip_day_id, status, detected_at)`, `(auto_finalize_at)` for pending rows |
+| `progress_segments` | partial unique `(trip_day_id, from_item_id, to_item_id)` where `from_item_id is not null`, partial unique `(trip_day_id, to_item_id)` where `from_item_id is null` |
 | `detections` | active fingerprint partial unique, `(trip_day_id, status, detected_at)` |
 | `route_previews` | `(status, expires_at)`, `(original_item_id, created_at)` |
 | `replacements` | unique `(preview_id)`, `(item_id, approved_at)` |
@@ -553,7 +590,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | TRIP | `trips`, `trip_days` |
 | ITIN·PLACE | `itinerary_items`, `places` |
 | ROUTE | `routes` |
-| PROG | `trip_days`, `itinerary_items`, `progress_events`, `progress_transitions` |
+| PROG | `trip_days`, `itinerary_items`, `progress_events`, `progress_transitions`, `progress_segments` |
 | DETECT·ALT | `detections`, `places` |
 | REPL | `route_previews`, `replacements`, `routes`, `itinerary_items` |
 | NOTI | `notifications`, `device_sessions` |
@@ -568,7 +605,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `place_categories`, `provider_category_mappings` | 서버의 버전 관리된 설정 파일로 관리 |
 | `place_provider_refs`, `place_provider_snapshots`, `place_images` | `places`의 최소 참조정보만 저장하고 외부 데이터는 실시간 조회 |
 | `congestion_areas`, `place_congestion_areas` | 서울시 지원 장소 좌표를 버전 관리된 설정으로 두고 500m 공간 계산 |
-| `route_segments` | `routes.route_payload`에 저장 |
+| `route_segments` | 계획 경로 구간은 `routes.route_payload`에 저장. 여행 진행 중 계획 밖 구간은 `progress_segments` 사용 |
 | `detection_signals` | `detections.evaluation_snapshot`에 저장 |
 | `alternative_candidates` | 요청 때 계산하고 짧은 수명의 서명 `candidateId` 사용 |
 | `notification_deliveries` | MVP에서는 FCM 결과를 별도 이력화하지 않음 |

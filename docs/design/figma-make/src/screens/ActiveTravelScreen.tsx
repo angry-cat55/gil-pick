@@ -10,42 +10,43 @@ interface Props {
   onNotifications: () => void;
 }
 
-type ModalType = "departed" | "arrived" | null;
+type CardMode = "moving" | "arrived" | "overdue" | "allDone";
+type ModalType = "departed" | "arrived" | "departConfirm" | null;
+type PlaceStatus = "예정" | "이동 중" | "도착" | "완료" | "건너뜀";
 
 interface ItineraryItem {
   id: string;
   name: string;
   time: string;
-  status: "done" | "active" | "upcoming";
-  statusLabel?: string;
+  status: PlaceStatus;
   transport?: string;
   transportIcon?: "walk" | "subway" | "bus";
 }
 
 const DAY_ITINERARIES: Record<number, ItineraryItem[]> = {
   1: [
-    { id: "1", name: "경복궁", time: "방문 완료", status: "done", transport: "도보 18분", transportIcon: "walk" },
-    { id: "2", name: "창덕궁", time: "방문 완료", status: "done", transport: "지하철 12분", transportIcon: "subway" },
-    { id: "3", name: "북촌한옥마을", time: "방문 완료", status: "done" },
+    { id: "1", name: "경복궁", time: "방문 완료", status: "완료", transport: "도보 18분", transportIcon: "walk" },
+    { id: "2", name: "창덕궁", time: "방문 완료", status: "완료", transport: "지하철 12분", transportIcon: "subway" },
+    { id: "3", name: "북촌한옥마을", time: "방문 완료", status: "완료" },
   ],
   2: [
-    { id: "1", name: "경복궁", time: "12:30 방문 완료", status: "done", transport: "도보 18분", transportIcon: "walk" },
-    { id: "2", name: "북촌한옥마을", time: "오후 2:35 도착 예정", status: "active", statusLabel: "이동 중", transport: "지하철 12분", transportIcon: "subway" },
-    { id: "3", name: "인사동거리", time: "오후 4:00 도착 예정", status: "upcoming", statusLabel: "예정", transport: "버스 24분", transportIcon: "bus" },
-    { id: "4", name: "남산서울타워", time: "오후 6:30 도착 예정", status: "upcoming", statusLabel: "예정" },
+    { id: "1", name: "경복궁", time: "12:30 방문 완료", status: "완료", transport: "도보 18분", transportIcon: "walk" },
+    { id: "2", name: "북촌한옥마을", time: "오후 2:35 도착 예정", status: "이동 중", transport: "지하철 12분", transportIcon: "subway" },
+    { id: "3", name: "인사동거리", time: "오후 4:00 도착 예정", status: "예정", transport: "버스 24분", transportIcon: "bus" },
+    { id: "4", name: "남산서울타워", time: "오후 6:30 도착 예정", status: "예정" },
   ],
   3: [
-    { id: "1", name: "서울숲", time: "10:00 예정", status: "upcoming", transport: "지하철 20분", transportIcon: "subway" },
-    { id: "2", name: "덕수궁", time: "12:30 예정", status: "upcoming", transport: "도보 10분", transportIcon: "walk" },
-    { id: "3", name: "인사동거리", time: "14:00 예정", status: "upcoming" },
+    { id: "1", name: "서울숲", time: "10:00 예정", status: "예정", transport: "지하철 20분", transportIcon: "subway" },
+    { id: "2", name: "덕수궁", time: "12:30 예정", status: "예정", transport: "도보 10분", transportIcon: "walk" },
+    { id: "3", name: "인사동거리", time: "14:00 예정", status: "예정" },
   ],
   4: [
-    { id: "1", name: "남산서울타워", time: "11:00 예정", status: "upcoming", transport: "버스 30분", transportIcon: "bus" },
-    { id: "2", name: "국립중앙박물관", time: "14:00 예정", status: "upcoming" },
+    { id: "1", name: "남산서울타워", time: "11:00 예정", status: "예정", transport: "버스 30분", transportIcon: "bus" },
+    { id: "2", name: "국립중앙박물관", time: "14:00 예정", status: "예정" },
   ],
   5: [
-    { id: "1", name: "광장시장", time: "09:00 예정", status: "upcoming", transport: "지하철 20분", transportIcon: "subway" },
-    { id: "2", name: "가로수길", time: "11:00 예정", status: "upcoming" },
+    { id: "1", name: "광장시장", time: "09:00 예정", status: "예정", transport: "지하철 20분", transportIcon: "subway" },
+    { id: "2", name: "가로수길", time: "11:00 예정", status: "예정" },
   ],
 };
 
@@ -59,16 +60,37 @@ const TransportIcon = ({ type }: { type?: "walk" | "subway" | "bus" }) => {
   return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12h1M22 12h1M5 12H3a2 2 0 0 0-2 2v2h18v-2a2 2 0 0 0-2-2h-2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>;
 };
 
+const STATUS_ACTIONS: Record<PlaceStatus, { label: string; color: string }[]> = {
+  "예정":    [{ label: "도착으로 변경", color: "text-[#3B7BF8]" }, { label: "건너뛰기", color: "text-[#F97316]" }],
+  "이동 중": [{ label: "도착으로 변경", color: "text-[#3B7BF8]" }, { label: "건너뛰기", color: "text-[#F97316]" }],
+  "도착":    [{ label: "건너뛰기", color: "text-[#F97316]" }],
+  "완료":    [{ label: "완료 취소", color: "text-[#6B7280]" }, { label: "건너뛰기", color: "text-[#F97316]" }],
+  "건너뜀":  [{ label: "건너뛰기 취소", color: "text-[#3B7BF8]" }],
+};
+
+const STATUS_CHIP: Record<PlaceStatus, { bg: string; text: string }> = {
+  "예정":    { bg: "bg-[#EBF2FF]", text: "text-[#3B7BF8]" },
+  "이동 중": { bg: "bg-[#EBF2FF]", text: "text-[#3B7BF8]" },
+  "도착":    { bg: "bg-[#ECFDF5]", text: "text-[#10B981]" },
+  "완료":    { bg: "bg-[#ECFDF5]", text: "text-[#10B981]" },
+  "건너뜀":  { bg: "bg-[#F4F6FB]", text: "text-[#94A3B8]" },
+};
+
 export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPlace, onRoutePreview: _onRoutePreview, onDayRoute, onVariableMonitor, onNotifications }: Props) {
   const [modal, setModal] = useState<ModalType>("arrived");
   const [viewingDay, setViewingDay] = useState(CURRENT_DAY);
+  const [cardMode, setCardMode] = useState<CardMode>("moving");
+  const [statusSheet, setStatusSheet] = useState<ItineraryItem | null>(null);
+  const [locationDenied, setLocationDenied] = useState(true);
+  const [autoDoneIds, setAutoDoneIds] = useState<Set<string>>(new Set(["1"]));
+  const [itinerary, setItinerary] = useState<ItineraryItem[]>(DAY_ITINERARIES[CURRENT_DAY]);
   const [toast, setToast] = useState<{ msg: string; countdown: number } | null>({
     msg: "장소가 창덕궁으로 변경되었습니다",
     countdown: 12,
   });
 
   const isToday = viewingDay === CURRENT_DAY;
-  const itinerary = DAY_ITINERARIES[viewingDay] ?? [];
+  const displayItinerary = isToday ? itinerary : (DAY_ITINERARIES[viewingDay] ?? []);
 
   useEffect(() => {
     if (!toast) return;
@@ -78,6 +100,78 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
   }, [toast]);
 
   const dayLabels = ["5/20", "5/21", "5/22", "5/23", "5/24"];
+
+  const applyStatusAction = (item: ItineraryItem, action: string) => {
+    setItinerary((prev) => prev.map((p) => {
+      if (p.id !== item.id) return p;
+      if (action === "도착으로 변경") return { ...p, status: "완료" };
+      if (action === "건너뛰기") return { ...p, status: "건너뜀" };
+      if (action === "완료 취소") return { ...p, status: "예정" };
+      if (action === "건너뛰기 취소") return { ...p, status: "예정" };
+      return p;
+    }));
+    setStatusSheet(null);
+  };
+
+  /* ── Next-place card ── */
+  const renderCard = () => {
+    if (cardMode === "allDone") {
+      return (
+        <div className="mx-4 mt-3 bg-white rounded-3xl p-5" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+          <div className="flex flex-col items-center text-center py-2">
+            <div className="w-14 h-14 rounded-2xl bg-[#ECFDF5] flex items-center justify-center mb-3">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <p className="text-[18px] font-black text-[#111827] mb-1" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>오늘 일정을 모두 마쳤어요</p>
+            <p className="text-[13px] text-[#94A3B8]">4곳 방문 · 마지막 도착 오후 6:30</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (cardMode === "arrived") {
+      return (
+        <div className="mx-4 mt-3 bg-white rounded-3xl p-5" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+          <p className="text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider mb-1">현재 장소</p>
+          <h2 className="text-[22px] font-black text-[#111827] mb-0.5" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>북촌한옥마을</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-[13px] font-semibold text-[#10B981]">오후 2:33 도착</span>
+            <span className="w-1 h-1 rounded-full bg-[#E2E8F0]" />
+            <span className="text-[13px] text-[#94A3B8]">체류 예정 90분</span>
+          </div>
+          <button onClick={() => setModal("departConfirm")} className="w-full h-[48px] rounded-2xl font-bold text-[15px] text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>
+            다음 장소로 출발
+          </button>
+        </div>
+      );
+    }
+
+    /* moving / overdue */
+    return (
+      <div className="mx-4 mt-3 bg-white rounded-3xl p-5" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+        <p className="text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider mb-1">다음 장소</p>
+        <h2 className="text-[22px] font-black text-[#111827] mb-0.5" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>북촌한옥마을</h2>
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-[13px] font-semibold text-[#94A3B8]">예상 도착</span>
+          <span className="text-[26px] font-black text-[#3B7BF8]" style={{ fontFamily: "Outfit, sans-serif" }}>오후 2:35</span>
+          {cardMode === "overdue"
+            ? <span className="text-[13px] font-semibold text-[#F97316]">· 5분 지났어요</span>
+            : <span className="text-[13px] text-[#94A3B8]">· 12분 남았어요</span>
+          }
+        </div>
+        <p className="text-[13px] text-[#94A3B8] mb-3">경복궁에서 도보 18분 · 1.4km</p>
+        <div className="flex items-center gap-2 bg-[#EFF6FF] rounded-xl px-3 py-2 mb-4">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B7BF8" strokeWidth="2"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="16" y1="16" x2="16.01" y2="16"/></svg>
+          <p className="text-[12px] text-[#3B7BF8] font-semibold flex-1">도착 시간에 비가 올 수 있어요</p>
+          <span className="text-[10px] text-[#93C5FD]">기상청 3분 전</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setModal("arrived")} className="flex-1 h-[48px] rounded-xl font-bold text-[14px] text-white" style={{ background: "linear-gradient(135deg, #10B981 0%, #059669 100%)" }}>도착했어요</button>
+          <button className="flex-1 h-[48px] rounded-xl font-semibold text-[14px] text-[#6B7280] bg-[#F4F6FB]">건너뛰기</button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#F4F6FB] relative overflow-hidden">
@@ -93,34 +187,23 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
           </div>
           <div className="flex items-center gap-2 mt-1">
             <button onClick={onNotifications} className="relative w-9 h-9 rounded-xl bg-[#F4F6FB] flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#F97316] rounded-full" />
             </button>
             <button onClick={onVariableMonitor} className="w-9 h-9 rounded-xl bg-[#FFF7ED] flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </button>
             <button onClick={onSettings} className="w-9 h-9 rounded-xl bg-[#F4F6FB] flex items-center justify-center">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           </div>
         </div>
 
-        {/* Day progress with day markers */}
+        {/* Day progress */}
         <div className="relative">
-          {/* Track */}
           <div className="relative h-1.5 bg-[#E2E8F0] rounded-full overflow-visible mx-1">
             <div className="h-full bg-[#3B7BF8] rounded-full" style={{ width: `${((CURRENT_DAY - 1) / TOTAL_DAYS) * 100}%` }} />
           </div>
-          {/* Day dots */}
           <div className="flex justify-between mt-1.5 px-0.5">
             {Array.from({ length: TOTAL_DAYS }, (_, i) => {
               const day = i + 1;
@@ -130,9 +213,7 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
               return (
                 <button key={day} onClick={() => setViewingDay(day)} className="flex flex-col items-center gap-1">
                   <div className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                    isPast ? "bg-[#3B7BF8] border-[#3B7BF8]" :
-                    isCurrent ? "bg-[#3B7BF8] border-[#3B7BF8]" :
-                    "bg-white border-[#CBD5E1]"
+                    isPast || isCurrent ? "bg-[#3B7BF8] border-[#3B7BF8]" : "bg-white border-[#CBD5E1]"
                   } ${isViewing ? "ring-2 ring-[#3B7BF8] ring-offset-1" : ""}`} />
                   <span className={`text-[9px] font-bold transition-colors ${isViewing ? "text-[#3B7BF8]" : "text-[#CBD5E1]"}`}>{dayLabels[i]}</span>
                 </button>
@@ -141,7 +222,6 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
           </div>
         </div>
 
-        {/* Viewing non-today indicator */}
         {!isToday && (
           <div className="mt-2.5 flex items-center justify-between bg-[#F4F6FB] rounded-xl px-3.5 py-2">
             <span className="text-[12px] font-semibold text-[#94A3B8]">
@@ -150,21 +230,40 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
             <button onClick={() => setViewingDay(CURRENT_DAY)} className="text-[12px] font-bold text-[#3B7BF8]">오늘로 돌아가기</button>
           </div>
         )}
+
+        {/* Demo toggle */}
+        <div className="mt-2.5 flex gap-1.5">
+          {(["moving", "arrived", "overdue", "allDone"] as CardMode[]).map((m) => {
+            const labels: Record<CardMode, string> = { moving: "이동 중", arrived: "도착", overdue: "지연", allDone: "완료" };
+            return (
+              <button key={m} onClick={() => setCardMode(m)}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${cardMode === m ? "bg-[#3B7BF8] text-white" : "bg-[#F4F6FB] text-[#94A3B8]"}`}>
+                {labels[m]}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Today-only: alert banner */}
-        {isToday && (
-          <button
-            onClick={onAlternative}
-            className="mx-4 mt-4 w-[calc(100%-32px)] rounded-2xl px-4 py-3 flex items-center gap-3 active:scale-[0.99] transition-transform"
-            style={{ background: "linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)", border: "1px solid #FED7AA" }}
-          >
+        {/* Location permission banner */}
+        {locationDenied && (
+          <div className="mx-4 mt-4 flex items-center gap-3 bg-[#FFFBEB] rounded-2xl px-4 py-3" style={{ border: "1px solid #FDE68A" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" className="flex-shrink-0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/><line x1="12" y1="2" x2="12" y2="2.5"/></svg>
+            <p className="flex-1 text-[12px] font-medium text-[#92400E]">위치 권한이 없어 자동 감지가 꺼져 있어요</p>
+            <button onClick={() => setLocationDenied(false)} className="text-[12px] font-black text-[#D97706] flex-shrink-0">권한 허용</button>
+            <button onClick={() => setLocationDenied(false)} className="ml-1 flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" opacity="0.6"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        )}
+
+        {/* Alert banner — today + not allDone */}
+        {isToday && cardMode !== "allDone" && (
+          <button onClick={onAlternative} className="mx-4 mt-4 w-[calc(100%-32px)] rounded-2xl px-4 py-3 flex items-center gap-3 active:scale-[0.99] transition-transform"
+            style={{ background: "linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)", border: "1px solid #FED7AA" }}>
             <div className="w-9 h-9 rounded-xl bg-[#F97316] flex items-center justify-center flex-shrink-0">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </div>
             <div className="flex-1 text-left">
               <p className="text-[13px] font-bold text-[#92400E]">인사동거리 지금 매우 혼잡해요</p>
@@ -174,28 +273,8 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
           </button>
         )}
 
-        {/* Today-only: next place card */}
-        {isToday && (
-          <div className="mx-4 mt-3 bg-white rounded-3xl p-5" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
-            <p className="text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider mb-1">다음 장소</p>
-            <h2 className="text-[22px] font-black text-[#111827] mb-0.5" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>북촌한옥마을</h2>
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-[13px] font-semibold text-[#94A3B8]">예상 도착</span>
-              <span className="text-[26px] font-black text-[#3B7BF8]" style={{ fontFamily: "Outfit, sans-serif" }}>오후 2:35</span>
-              <span className="text-[13px] text-[#94A3B8]">· 12분 남았어요</span>
-            </div>
-            <p className="text-[13px] text-[#94A3B8] mb-3">경복궁에서 도보 18분 · 1.4km</p>
-            <div className="flex items-center gap-2 bg-[#EFF6FF] rounded-xl px-3 py-2 mb-4">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B7BF8" strokeWidth="2"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="16" y1="16" x2="16.01" y2="16"/></svg>
-              <p className="text-[12px] text-[#3B7BF8] font-semibold flex-1">도착 시간에 비가 올 수 있어요</p>
-              <span className="text-[10px] text-[#93C5FD]">기상청 3분 전</span>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setModal("arrived")} className="flex-1 h-[48px] rounded-xl font-bold text-[14px] text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>도착했어요</button>
-              <button className="flex-1 h-[48px] rounded-xl font-semibold text-[14px] text-[#6B7280] bg-[#F4F6FB]">건너뛰기</button>
-            </div>
-          </div>
-        )}
+        {/* Next-place / status card */}
+        {isToday && renderCard()}
 
         {/* Map */}
         <div className="mx-4 mt-3 h-[150px] rounded-2xl overflow-hidden relative">
@@ -221,47 +300,57 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
         {/* Itinerary */}
         <div className="mx-4 mt-3 mb-3">
           <div className="flex items-center justify-between mb-2 px-1">
-            <h3 className="text-[14px] font-bold text-[#111827]">
-              {viewingDay}일차 일정
-            </h3>
-            <span className="text-[12px] text-[#94A3B8]">5월 {19 + viewingDay}일 · {itinerary.length}곳</span>
+            <h3 className="text-[14px] font-bold text-[#111827]">{viewingDay}일차 일정</h3>
+            <span className="text-[12px] text-[#94A3B8]">5월 {19 + viewingDay}일 · {displayItinerary.length}곳</span>
           </div>
           <div className="bg-white rounded-2xl px-4 py-3 space-y-3">
-            {itinerary.map((item, i) => (
+            {displayItinerary.map((item, i) => (
               <div key={item.id} className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    item.status === "done" ? "bg-[#10B981]" : item.status === "active" ? "bg-[#3B7BF8]" : "bg-[#E2E8F0]"
+                    item.status === "완료" ? "bg-[#10B981]"
+                    : item.status === "건너뜀" ? "bg-[#CBD5E1]"
+                    : item.status === "도착" ? "bg-[#10B981]"
+                    : item.status === "이동 중" ? "bg-[#3B7BF8]"
+                    : "bg-[#E2E8F0]"
                   }`}>
-                    {item.status === "done" ? (
+                    {item.status === "완료" || item.status === "도착" ? (
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    ) : item.status === "active" ? (
+                    ) : item.status === "건너뜀" ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    ) : item.status === "이동 중" ? (
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M9 18l6-6-6-6"/></svg>
                     ) : (
                       <span className="text-[9px] font-black text-[#94A3B8]">{i + 1}</span>
                     )}
                   </div>
-                  {i < itinerary.length - 1 && (
-                    <div className={`w-px h-7 mt-1 ${item.status === "done" ? "bg-[#10B981]" : "bg-[#E2E8F0]"}`} />
+                  {i < displayItinerary.length - 1 && (
+                    <div className={`w-px h-7 mt-1 ${item.status === "완료" ? "bg-[#10B981]" : "bg-[#E2E8F0]"}`} />
                   )}
                 </div>
-                <div className="flex-1 pb-0.5">
+                <button
+                  className="flex-1 pb-0.5 text-left"
+                  onClick={() => isToday ? setStatusSheet(item) : undefined}
+                >
                   <div className="flex items-center gap-2">
-                    <p className={`font-semibold text-[14px] ${item.status === "upcoming" ? "text-[#94A3B8]" : "text-[#111827]"}`}>{item.name}</p>
-                    {item.statusLabel && item.status !== "done" && (
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                        item.status === "active" ? "bg-[#EBF2FF] text-[#3B7BF8]" : "bg-[#F4F6FB] text-[#94A3B8]"
-                      }`}>{item.statusLabel}</span>
+                    <p className={`font-semibold text-[14px] ${item.status === "예정" ? "text-[#94A3B8]" : "text-[#111827]"}`}>{item.name}</p>
+                    {isToday && (
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${STATUS_CHIP[item.status].bg} ${STATUS_CHIP[item.status].text}`}>
+                        {item.status}
+                      </span>
+                    )}
+                    {isToday && autoDoneIds.has(item.id) && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#F4F6FB] text-[#94A3B8]">자동 처리</span>
                     )}
                   </div>
-                  <p className={`text-[12px] mt-0.5 ${item.status === "upcoming" ? "text-[#CBD5E1]" : "text-[#94A3B8]"}`}>{item.time}</p>
+                  <p className={`text-[12px] mt-0.5 ${item.status === "예정" ? "text-[#CBD5E1]" : "text-[#94A3B8]"}`}>{item.time}</p>
                   {item.transport && (
                     <div className="flex items-center gap-1 mt-0.5 text-[#CBD5E1]">
                       <TransportIcon type={item.transportIcon} />
                       <span className="text-[11px]">{item.transport}</span>
                     </div>
                   )}
-                </div>
+                </button>
               </div>
             ))}
           </div>
@@ -291,7 +380,7 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
         </div>
       )}
 
-      {/* Arrived modal — today only */}
+      {/* Arrived modal */}
       {isToday && modal === "arrived" && (
         <div className="absolute inset-0 z-40 flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
           <div className="bg-white rounded-t-[32px] px-6 pt-5 pb-8" style={{ animation: "slide-up 0.25s ease-out" }}>
@@ -316,17 +405,54 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
         </div>
       )}
 
-      {isToday && modal === "departed" && (
+      {/* Depart confirm sheet */}
+      {isToday && modal === "departConfirm" && (
         <div className="absolute inset-0 z-40 flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
-          <div className="bg-white rounded-t-[32px] px-6 pt-5 pb-8">
+          <div className="bg-white rounded-t-[32px] px-6 pt-5 pb-8" style={{ animation: "slide-up 0.25s ease-out" }}>
             <div className="w-10 h-1 bg-[#E2E8F0] rounded-full mx-auto mb-5" />
-            <h3 className="text-[20px] font-black text-[#111827] mb-1" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>경복궁에서 출발하셨나요?</h3>
-            <p className="text-[13px] text-[#94A3B8] mb-5">이 장소를 벗어나는 것으로 보여요 · 오후 12:28 감지</p>
+            <div className="w-12 h-12 rounded-2xl bg-[#EBF2FF] flex items-center justify-center mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B7BF8" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+            <h3 className="text-[20px] font-black text-[#111827] mb-1" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>북촌한옥마을에서 출발하셨나요?</h3>
+            <p className="text-[13px] text-[#94A3B8] mb-4">이 근처를 벗어났어요 · 오후 3:10 감지</p>
+            <div className="flex items-center gap-2 bg-[#ECFDF5] rounded-xl px-4 py-2.5 mb-5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span className="text-[12px] font-semibold text-[#10B981] flex-1">4분 뒤 자동으로 출발 처리돼요</span>
+              <span className="text-[13px] font-black text-[#111827]" style={{ fontFamily: "Outfit, sans-serif" }}>3:14</span>
+            </div>
             <button onClick={() => setModal(null)} className="w-full h-[52px] rounded-2xl font-bold text-[15px] text-white mb-2" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>
               네, 출발했어요
             </button>
             <button onClick={() => setModal(null)} className="w-full h-[48px] rounded-2xl font-medium text-[14px] text-[#6B7280] bg-[#F4F6FB]">
-              아직 머무는 중이에요
+              아직 머무는 중
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Status sheet */}
+      {statusSheet && (
+        <div className="absolute inset-0 z-40 flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+          onClick={() => setStatusSheet(null)}>
+          <div className="bg-white rounded-t-[32px] px-5 pt-5 pb-8" onClick={(e) => e.stopPropagation()} style={{ animation: "slide-up 0.22s ease-out" }}>
+            <div className="w-10 h-1 bg-[#E2E8F0] rounded-full mx-auto mb-5" />
+            <div className="flex items-center gap-2 mb-5 px-1">
+              <p className="text-[17px] font-black text-[#111827]" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>{statusSheet.name}</p>
+              <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold ${STATUS_CHIP[statusSheet.status].bg} ${STATUS_CHIP[statusSheet.status].text}`}>
+                {statusSheet.status}
+              </span>
+            </div>
+            <div className="space-y-1 mb-4">
+              {STATUS_ACTIONS[statusSheet.status].map((action) => (
+                <button key={action.label} onClick={() => applyStatusAction(statusSheet, action.label)}
+                  className={`w-full h-[48px] rounded-2xl text-left px-5 text-[15px] font-semibold bg-[#F4F6FB] ${action.color}`}>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setStatusSheet(null)}
+              className="w-full h-[48px] rounded-2xl text-[14px] font-semibold text-[#6B7280] bg-[#F4F6FB]">
+              취소
             </button>
           </div>
         </div>

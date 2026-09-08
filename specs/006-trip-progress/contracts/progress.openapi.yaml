@@ -1,0 +1,247 @@
+openapi: 3.1.0
+info:
+  title: 길픽 F006 여행 진행 계약
+  version: 0.1.0
+  description: |
+    당일 진행 현황 조회(PROG-001), 오늘 여행 시작(PROG-002), 수동 진행 상태 처리(PROG-006).
+    장소명·체류 시간·이동수단은 F004 일정 계약(ITIN-003 overview)에서, 계획 경로는 F005 경로 계약에서 가져온다.
+    F007의 위치 이벤트(PROG-003)·확인 응답(PROG-004)·되돌리기(PROG-005)는 이 계약에 없다.
+servers:
+  - url: /api/v1
+paths:
+  /trips/{tripId}/days/{date}/progress:
+    get:
+      operationId: getDayProgress
+      summary: 당일 진행 현황 조회
+      description: 시작 전 날짜는 dayStatus NOT_STARTED이고 모든 항목이 PLANNED·eta null이다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /trips/{tripId}/days/{date}/progress/start:
+    post:
+      operationId: startDayProgress
+      summary: 오늘 여행 시작
+      description: |
+        서버 수신 시각을 actualStartedAt으로 한 번만 저장한다. 이미 IN_PROGRESS·COMPLETED면 저장된 값을 그대로 200으로 돌려준다.
+        currentLocation이 유효(정확도 100m 이하, occurredAt이 수신 기준 2분 이내)하면 start_location으로 저장하고
+        도보로 첫 장소까지 이동시간을 계산한다. 계산 실패는 시작을 막지 않는다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [progressVersion]
+              properties:
+                progressVersion: { type: integer, minimum: 0 }
+                currentLocation:
+                  type: object
+                  nullable: true
+                  required: [latitude, longitude, accuracyMeters, occurredAt]
+                  properties:
+                    latitude: { type: number, minimum: -90, maximum: 90 }
+                    longitude: { type: number, minimum: -180, maximum: 180 }
+                    accuracyMeters: { type: number, minimum: 0 }
+                    occurredAt: { type: string, format: date-time }
+      responses:
+        '200':
+          description: 시작됨 또는 이미 시작됨. 전체 진행 현황을 돌려준다.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: VERSION_CONFLICT 또는 DAY_NOT_TODAY(오늘이 아닌 날짜)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '422':
+          description: DAY_EMPTY(장소 없음) 또는 INVALID_REQUEST
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  /itinerary-items/{itemId}/status:
+    patch:
+      operationId: updateItemProgressStatus
+      summary: 수동 진행 상태 처리
+      description: |
+        목표 상태만 보내고 파생 전환(다음 장소 EN_ROUTE, 이후 장소 PLANNED 초기화, 기존 ARRIVED의 COMPLETED 처리,
+        당일 완료·복귀)은 서버가 한 transaction으로 적용한다. 허용 조합은 research.md 결정 3을 따른다.
+        건너뛰기로 새 인접 구간이 생기면 이전 장소의 이동수단으로 이동시간을 계산해 ETA에 반영한다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, progressVersion]
+              properties:
+                status:
+                  type: string
+                  enum: [ARRIVED, COMPLETED, SKIPPED, PLANNED]
+                progressVersion: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: 전환 적용 후 날짜 전체 진행 현황
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgressEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: VERSION_CONFLICT, DAY_NOT_STARTED 또는 IDEMPOTENCY_KEY_CONFLICT
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '422':
+          description: INVALID_STATUS_TRANSITION
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VisitDate:
+      name: date
+      in: path
+      required: true
+      schema: { type: string, format: date }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    DayStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, COMPLETED]
+    ItemStatus:
+      type: string
+      enum: [PLANNED, EN_ROUTE, ARRIVED, COMPLETED, SKIPPED]
+    TransportMode:
+      type: string
+      enum: [WALK, TRANSIT, CAR]
+    InboundTravel:
+      description: 직전 처리 장소(또는 시작 위치)에서 이 장소까지의 이동 정보. 계산 불가면 null.
+      type: object
+      nullable: true
+      required: [fromItemId, transportMode, durationSeconds, distanceMeters, source]
+      properties:
+        fromItemId:
+          type: string
+          format: uuid
+          nullable: true
+          description: null이면 시작 위치에서 출발
+        transportMode: { $ref: '#/components/schemas/TransportMode' }
+        durationSeconds: { type: integer, minimum: 0 }
+        distanceMeters: { type: integer, minimum: 0 }
+        source:
+          type: string
+          enum: [PLANNED_ROUTE, COMPUTED]
+          description: PLANNED_ROUTE는 F005 활성 경로 구간, COMPUTED는 progress_segments
+    ProgressItem:
+      type: object
+      required: [itemId, sequence, status, estimatedArrivalAt, estimatedDepartureAt, actualArrivedAt, completedAt, inboundTravel]
+      properties:
+        itemId: { type: string, format: uuid }
+        sequence: { type: integer, minimum: 1, maximum: 10 }
+        status: { $ref: '#/components/schemas/ItemStatus' }
+        estimatedArrivalAt: { type: string, format: date-time, nullable: true }
+        estimatedDepartureAt: { type: string, format: date-time, nullable: true }
+        actualArrivedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        inboundTravel: { $ref: '#/components/schemas/InboundTravel' }
+    ProgressData:
+      type: object
+      required: [tripId, date, dayStatus, progressVersion, scheduleVersion, actualStartedAt, completedAt, startLocation, currentItemId, nextItemId, items]
+      properties:
+        tripId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        dayStatus: { $ref: '#/components/schemas/DayStatus' }
+        progressVersion: { type: integer, minimum: 0 }
+        scheduleVersion: { type: integer, minimum: 0 }
+        actualStartedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        startLocation:
+          type: object
+          nullable: true
+          required: [latitude, longitude]
+          properties:
+            latitude: { type: number }
+            longitude: { type: number }
+        currentItemId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ARRIVED 상태인 장소. 없으면 null
+        nextItemId:
+          type: string
+          format: uuid
+          nullable: true
+          description: EN_ROUTE 장소, 없으면 순서상 첫 PLANNED 장소. 남은 장소가 없으면 null
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressItem' }
+    Meta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string, format: uuid }
+    ProgressEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/ProgressData' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code:
+              type: string
+              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, ITINERARY_ITEM_NOT_FOUND, VERSION_CONFLICT, IDEMPOTENCY_KEY_CONFLICT, DAY_NOT_TODAY, DAY_EMPTY, DAY_NOT_STARTED, INVALID_STATUS_TRANSITION]
+            message: { type: string }
+            retryable: { type: boolean }
+        meta: { $ref: '#/components/schemas/Meta' }
+  responses:
+    Error:
+      description: 인증·소유권·날짜·version 또는 요청 상태 오류
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }

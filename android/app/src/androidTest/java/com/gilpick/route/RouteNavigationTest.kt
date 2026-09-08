@@ -29,6 +29,10 @@ import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
+import com.gilpick.progress.CurrentLocationProvider
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.ProgressService
+import com.gilpick.progress.createProgressRetrofit
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.itinerary.itineraryGraph
 import com.gilpick.trip.TripDetailScreen
@@ -68,6 +72,7 @@ class RouteNavigationTest {
     private lateinit var repository: TripRepository
     private lateinit var itineraryRepository: ItineraryRepository
     private lateinit var routeRepository: RouteRepository
+    private lateinit var progressRepository: ProgressRepository
     private val routeRequests = mutableListOf<String>()
 
     @Before
@@ -86,6 +91,8 @@ class RouteNavigationTest {
                         routeRequests += path
                         json(routeEnvelopeJson("FAILED", failure = failureJson(), scheduleVersion = 1))
                     }
+                    // 시작 전 여행이라 진행 현황이 없다. 경로 화면은 계획만 그린다(T031).
+                    path.endsWith("/progress") -> MockResponse(code = 404)
                     path.contains("/trips/") -> json(TRIP_JSON)
                     else -> MockResponse(code = 404)
                 }
@@ -113,6 +120,7 @@ class RouteNavigationTest {
         repository = TripRepository(api = createTripRetrofit(base).create(TripService::class.java), auth = auth)
         itineraryRepository = ItineraryRepository(api = createItineraryRetrofit(base).create(ItineraryService::class.java), auth = auth)
         routeRepository = RouteRepository(api = createRouteRetrofit(base).create(RouteService::class.java), auth = auth)
+        progressRepository = ProgressRepository(api = createProgressRetrofit(base).create(ProgressService::class.java), auth = auth)
     }
 
     @After
@@ -189,6 +197,8 @@ class RouteNavigationTest {
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
                                 routeRepository = routeRepository,
+                                progressRepository = progressRepository,
+                                locationProvider = CurrentLocationProvider { null },
                                 tripId = tripId,
                             )
                         }
@@ -217,7 +227,8 @@ class RouteNavigationTest {
                         navController,
                         onSessionExpired = {},
                         repository = { routeRepository },
-                        map = { _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
+                        progressRepository = { progressRepository },
+                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
                     )
                 }
             }

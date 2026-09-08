@@ -2,6 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- F006 진행 시작 시 앱 사용 중 1회 위치. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!--
+      F007 자동 감지. 사용자가 앱을 열어 두지 않아도 지오펜스가 발화해야 하므로
+      백그라운드 위치가 필요하다(spec Assumptions).
+
+      Android 11 이상은 이 권한을 앱 사용 중 권한과 같은 화면에서 함께 요청할 수 없다.
+      진행을 시작한 뒤 자동 감지를 켤 때 별도로 요청하고, 거부해도 자동 감지만 끄고
+      F006 수동 진행은 그대로 둔다(spec FR-024, research.md 8절).
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -18,6 +30,15 @@
         <meta-data
             android:name="com.naver.maps.map.NCP_KEY_ID"
             android:value="${naverMapsClientId}" />
+
+        <!--
+          F007 지오펜스 broadcast 수신 지점. Play Services가 프로세스를 깨워 전달하므로
+          앱이 실행 중이 아니어도 도착·출발 이벤트를 받는다. 앱 안에서만 쓰이므로
+          외부에 노출하지 않는다.
+        -->
+        <receiver
+            android:name=".progress.GeofenceReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

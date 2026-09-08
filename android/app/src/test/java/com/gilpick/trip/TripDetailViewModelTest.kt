@@ -21,6 +21,16 @@ import com.gilpick.itinerary.SaveDayItineraryRequest
 import com.gilpick.itinerary.StaySource
 import com.gilpick.itinerary.TransportMode
 import com.gilpick.place.PlaceCategory
+import com.gilpick.progress.CurrentLocationDto
+import com.gilpick.progress.CurrentLocationProvider
+import com.gilpick.progress.FakeProgressService
+import com.gilpick.progress.ProgressError
+import com.gilpick.progress.ProgressErrorCodes
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.inProgress
+import com.gilpick.progress.notStarted
+import com.gilpick.progress.progressError
+import com.gilpick.progress.progressOk
 import com.gilpick.route.FakeRouteService
 import com.gilpick.route.RouteRepository
 import com.gilpick.route.dayRoute
@@ -29,6 +39,7 @@ import com.gilpick.route.routeError
 import com.gilpick.route.routeFailure
 import com.gilpick.route.routeOk
 import java.io.File
+import java.time.LocalDate
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Response
@@ -43,6 +54,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -79,6 +92,13 @@ class TripDetailViewModelTest {
     private val service = FakeTripService()
     private val itineraryService = FakeItineraryService()
     private val routeService = FakeRouteService()
+    private val progressService = FakeProgressService()
+
+    /** 시작 요청에 실릴 현재 위치. 기본은 위치를 못 얻은 경우다. */
+    private var location: CurrentLocationDto? = null
+
+    /** 오늘 날짜(KST). 기본 여행 기간(9/1~9/3) 안이다. */
+    private var today: LocalDate = LocalDate.of(2026, 9, 2)
 
     @Before
     fun setUp() {
@@ -594,6 +614,188 @@ class TripDetailViewModelTest {
         assertEquals(DayRoutePhase.NotCalculated, viewModel.routes.value["2026-09-08"])
     }
 
+    // --- F006 T012: 오늘 여행 시작 흐름 ---
+
+    @Test
+    fun `오늘이 여행 기간 밖이면 진행 현황을 묻지 않고 NotTravelDay다`() = runTest {
+        today = LocalDate.of(2026, 9, 10)
+        service.onGet = { detail(trip(TRIP_ID)) }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.NotTravelDay, viewModel.state.value.start)
+        assertTrue(progressService.getCalls.isEmpty())
+    }
+
+    @Test
+    fun `오늘 날짜에 장소가 없으면 NoPlaces다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        progressService.onGet = { progressOk(notStarted(date = it, items = emptyList())) }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.NoPlaces("2026-09-02"), viewModel.state.value.start)
+        assertEquals(listOf("2026-09-02"), progressService.getCalls)
+    }
+
+    @Test
+    fun `시작 전 날짜에 장소가 있으면 Ready이고 version 0을 든다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.Ready("2026-09-02", progressVersion = 0), viewModel.state.value.start)
+    }
+
+    @Test
+    fun `이미 시작된 날짜는 Started다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        progressService.onGet = { progressOk(inProgress().copy(date = it)) }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.Started("2026-09-02"), viewModel.state.value.start)
+    }
+
+    @Test
+    fun `시작하면 위치를 실어 보내고 성공 시 Launched가 되며 소비하면 Started다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        location = CurrentLocationDto(37.57, 126.97, 12.0, "2026-09-02T00:59:30Z")
+        progressService.onStart = { progressOk(inProgress(progressVersion = 1).copy(date = "2026-09-02")) }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.startToday()
+        assertEquals(TripStartPhase.Starting("2026-09-02"), viewModel.state.value.start)
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.Launched("2026-09-02"), viewModel.state.value.start)
+        val (_, body) = progressService.startCalls.single()
+        assertEquals(0, body.progressVersion)
+        assertEquals(location, body.currentLocation)
+
+        viewModel.consumeLaunched()
+        assertEquals(TripStartPhase.Started("2026-09-02"), viewModel.state.value.start)
+    }
+
+    @Test
+    fun `위치를 못 얻으면 currentLocation null로 시작한다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        location = null
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.startToday()
+        advanceUntilIdle()
+
+        assertNull(progressService.startCalls.single().second.currentLocation)
+        assertEquals(TripStartPhase.Launched("2026-09-02"), viewModel.state.value.start)
+    }
+
+    @Test
+    fun `시작 요청이 통신 실패하면 Failed이고 다시 시도는 같은 멱등 키로 다시 보낸다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        var attempts = 0
+        progressService.onStart = {
+            if (attempts++ == 0) throw java.io.IOException("offline") else progressOk(inProgress(1).copy(date = "2026-09-02"))
+        }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.startToday()
+        advanceUntilIdle()
+        val failed = viewModel.state.value.start as TripStartPhase.Failed
+        assertEquals(ProgressError.Network, failed.error)
+        assertEquals(TripStartPhase.Ready("2026-09-02", 0), failed.ready)
+
+        viewModel.retryStart()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.Launched("2026-09-02"), viewModel.state.value.start)
+        assertEquals(2, progressService.startCalls.size)
+        assertEquals(progressService.startCalls[0].first, progressService.startCalls[1].first)
+    }
+
+    @Test
+    fun `DAY_EMPTY와 DAY_NOT_TODAY는 각각 NoPlaces·NotTravelDay로 돌아간다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        progressService.onStart = { progressError(422, ProgressErrorCodes.DAY_EMPTY) }
+        viewModel.startToday()
+        advanceUntilIdle()
+        assertEquals(TripStartPhase.NoPlaces("2026-09-02"), viewModel.state.value.start)
+
+        viewModel.load()
+        advanceUntilIdle()
+        progressService.onStart = { progressError(409, ProgressErrorCodes.DAY_NOT_TODAY) }
+        viewModel.startToday()
+        advanceUntilIdle()
+        assertEquals(TripStartPhase.NotTravelDay, viewModel.state.value.start)
+    }
+
+    @Test
+    fun `VERSION_CONFLICT면 진행 현황을 다시 받아 분기한다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        // 다른 기기가 먼저 시작했다.
+        progressService.onStart = { progressError(409, ProgressErrorCodes.VERSION_CONFLICT) }
+        progressService.onGet = { progressOk(inProgress().copy(date = it)) }
+        viewModel.startToday()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.Started("2026-09-02"), viewModel.state.value.start)
+        assertEquals(2, progressService.getCalls.size)
+    }
+
+    @Test
+    fun `진행 현황 조회가 실패하면 Failed이고 다시 시도는 조회부터 한다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        progressService.onGet = { throw java.io.IOException("offline") }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(TripStartPhase.Failed(ProgressError.Network), viewModel.state.value.start)
+
+        progressService.onGet = { progressOk(notStarted(date = it)) }
+        viewModel.retryStart()
+        advanceUntilIdle()
+
+        assertEquals(TripStartPhase.Ready("2026-09-02", 0), viewModel.state.value.start)
+        assertTrue(progressService.startCalls.isEmpty())
+    }
+
+    @Test
+    fun `Ready나 시작 실패가 아닌 상태에서는 startToday가 아무 것도 하지 않는다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        progressService.onGet = { progressOk(inProgress().copy(date = it)) }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.startToday()
+        advanceUntilIdle()
+
+        assertTrue(progressService.startCalls.isEmpty())
+        assertEquals(TripStartPhase.Started("2026-09-02"), viewModel.state.value.start)
+    }
+
     private suspend fun newViewModel(): TripDetailViewModel {
         val store = AuthSessionStore(
             // DataStore 기본 scope는 Dispatchers.IO다. 그대로 두면 저장소 작업이 test
@@ -623,7 +825,10 @@ class TripDetailViewModelTest {
             repository = TripRepository(api = service, auth = auth),
             itineraryRepository = ItineraryRepository(api = itineraryService, auth = auth),
             routeRepository = RouteRepository(api = routeService, auth = auth),
+            progressRepository = ProgressRepository(api = progressService, auth = auth),
+            locationProvider = CurrentLocationProvider { location },
             tripId = TRIP_ID,
+            today = { today },
         )
     }
 

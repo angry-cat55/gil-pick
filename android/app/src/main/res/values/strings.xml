@@ -81,7 +81,14 @@
     <string name="trip_detail_day_value">%1$d일</string>
     <!-- F006 여행 진행 전까지 누를 수 없다. 비활성 이유를 함께 적는다(가이드라인 9절). -->
     <string name="trip_detail_start_travel">오늘 여행 시작</string>
-    <string name="trip_detail_start_travel_unavailable">여행 진행 기능은 준비 중이에요</string>
+    <string name="trip_detail_start_travel_unavailable">오늘은 여행 날짜가 아닙니다</string>
+    <string name="trip_detail_open_progress">여행 진행 화면으로</string>
+    <string name="trip_detail_starting">시작하는 중</string>
+    <string name="trip_detail_start_no_places">오늘 일정에 장소가 없어요. 장소를 추가하면 시작할 수 있어요.</string>
+    <string name="trip_detail_start_add_place">장소 추가</string>
+    <string name="trip_detail_start_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="trip_detail_start_error_unexpected">지금은 여행을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <string name="trip_detail_start_retry">다시 시도</string>
     <string name="trip_detail_edit_itinerary">일정 편집</string>
 
     <!-- 여행 상세 일정 영역 -->
@@ -303,6 +310,8 @@
     <string name="route_segment_arrow">→</string>
     <string name="route_segment_detail">%1$s · %2$s · %3$s</string>
     <string name="route_marker_description">%1$d번째 장소 %2$s</string>
+    <string name="route_marker_start">현위치</string>
+    <string name="route_status_name">%1$s %2$s</string>
     <string name="route_duration_minutes">%1$d분</string>
     <string name="route_duration_hours">%1$d시간</string>
     <string name="route_duration_hours_minutes">%1$d시간 %2$d분</string>
@@ -320,4 +329,66 @@
     <string name="trip_detail_route_retry">다시 시도</string>
     <string name="trip_detail_route_retrying">경로 계산 중</string>
     <string name="trip_detail_route_retry_description">%1$s 경로 다시 시도</string>
+
+    <!-- F006 진행 화면 (Figma ActiveTravelScreen) -->
+    <string name="progress_badge_in_progress">여행 중</string>
+    <string name="progress_day_summary">%1$d일차 · %2$d/%3$d 완료</string>
+    <string name="progress_day_dot">%1$d/%2$d</string>
+    <string name="progress_day_dot_description">%1$d일차 %2$d월 %3$d일</string>
+    <string name="progress_card_next">다음 장소</string>
+    <string name="progress_card_current">현재 장소</string>
+    <string name="progress_eta_prefix">예상 도착</string>
+    <string name="progress_eta_unknown">정보 없음</string>
+    <string name="progress_remaining">· %1$s 남았어요</string>
+    <string name="progress_overdue">· %1$s 지났어요</string>
+    <string name="progress_inbound_from">%1$s에서 %2$s %3$s · %4$s</string>
+    <string name="progress_inbound_from_start">출발 위치에서 %1$s %2$s · %3$s</string>
+    <string name="progress_inbound_unknown">이동 정보 없음</string>
+    <string name="progress_arrived_at">%1$s 도착</string>
+    <string name="progress_stay_planned">체류 예정 %1$d분</string>
+    <string name="progress_action_arrive">도착했어요</string>
+    <string name="progress_action_skip">건너뛰기</string>
+    <string name="progress_action_depart">다음 장소로 출발</string>
+    <string name="progress_action_pending">처리 중</string>
+    <string name="progress_sheet_arrive">도착으로 변경</string>
+    <string name="progress_sheet_undo_complete">완료 취소</string>
+    <string name="progress_sheet_undo_skip">건너뛰기 취소</string>
+    <string name="progress_sheet_cancel">취소</string>
+    <string name="progress_sheet_description">%1$s 상태 수정</string>
+    <string name="progress_viewing_past">%1$d일차 · 지난 일정</string>
+    <string name="progress_viewing_future">%1$d일차 · 예정 일정</string>
+    <string name="progress_return_today">오늘로 돌아가기</string>
+    <string name="progress_row_description_no_time">%1$d번째 장소 %2$s, %3$s</string>
+    <string name="progress_row_description_planned">%1$d번째 장소 %2$s</string>
+    <string name="progress_dismiss">닫기</string>
+    <string name="progress_all_done_title">오늘 일정을 모두 마쳤어요</string>
+    <string name="progress_all_done_body">%1$d곳 방문 · 마지막 도착 %2$s</string>
+    <string name="progress_all_done_body_no_time">%1$d곳 방문</string>
+    <string name="progress_map_route">경로 보기</string>
+    <string name="progress_map_unavailable">경로를 아직 계산하지 못했어요</string>
+    <string name="progress_list_title">%1$d일차 일정</string>
+    <string name="progress_list_subtitle">%1$s · %2$d곳</string>
+    <string name="progress_row_completed">%1$s 방문 완료</string>
+    <string name="progress_row_arrived">%1$s 도착</string>
+    <string name="progress_row_eta">%1$s 도착 예정</string>
+    <string name="progress_row_skipped">건너뜀</string>
+    <string name="progress_row_description">%1$d번째 장소 %2$s, %3$s, %4$s</string>
+    <string name="progress_status_planned">예정</string>
+    <string name="progress_transport_to_next">%1$s %2$s</string>
+    <string name="progress_add_place">장소 추가</string>
+    <string name="progress_loading">진행 현황을 불러오는 중</string>
+    <string name="progress_empty_title">오늘 일정에 장소가 없어요</string>
+    <string name="progress_empty_body">장소를 추가하면 진행을 시작할 수 있어요</string>
+    <string name="progress_error_title">진행 현황을 보여줄 수 없어요</string>
+    <string name="progress_retry">다시 시도</string>
+    <string name="progress_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="progress_error_not_found">이미 삭제되었거나 없는 여행입니다.</string>
+    <string name="progress_error_forbidden">이 여행의 진행 현황을 볼 권한이 없습니다.</string>
+    <string name="progress_error_session">로그인 상태가 만료됐어요. 다시 로그인해 주세요.</string>
+    <string name="progress_error_conflict">진행 상태가 다른 곳에서 바뀌었어요. 최신 현황을 다시 불러옵니다.</string>
+    <string name="progress_error_not_today">오늘이 아닌 날짜는 진행할 수 없어요.</string>
+    <string name="progress_error_day_empty">오늘 일정에 장소가 없어요. 장소를 추가해 주세요.</string>
+    <string name="progress_error_not_started">아직 시작하지 않은 날짜예요. 여행 상세에서 먼저 시작해 주세요.</string>
+    <string name="progress_error_invalid_transition">지금 상태에서는 할 수 없는 변경이에요. 최신 현황을 다시 불러옵니다.</string>
+    <string name="progress_error_unexpected">지금은 진행 현황을 처리할 수 없어요. 잠시 후 다시 시도해 주세요.</string>
 </resources>

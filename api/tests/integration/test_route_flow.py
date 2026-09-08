@@ -6,7 +6,7 @@ import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from geoalchemy2.elements import WKTElement
@@ -160,6 +160,29 @@ async def test_calculation_persists_ready_route_and_get_returns_same_result(
         )
     assert itinerary.route_status == "READY"
     assert itinerary.route == loaded.route
+
+
+@pytest.mark.asyncio
+async def test_ready_route_recalculates_eta_for_in_progress_day(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, visit_date = await _seed(session_factory)
+    started = datetime(2026, 9, 6, 1, tzinfo=UTC)
+    async with transaction_session(session_factory) as session:
+        day = await session.get(TripDay, day_id)
+        day.status = "IN_PROGRESS"
+        day.actual_started_at = started
+        first = await session.scalar(select(ItineraryItem).where(ItineraryItem.trip_day_id == day_id, ItineraryItem.sequence == 1))
+        first.status = "EN_ROUTE"
+
+    await _service(session_factory, FixedProvider(Provider.TMAP)).calculate_current(
+        trip_id=trip_id, visit_date=visit_date
+    )
+
+    async with session_factory() as session:
+        items = (await session.scalars(select(ItineraryItem).where(ItineraryItem.trip_day_id == day_id).order_by(ItineraryItem.sequence))).all()
+    assert items[0].estimated_arrival_at == started
+    assert items[1].estimated_arrival_at == started + timedelta(hours=1, minutes=10)
 
 
 @pytest.mark.asyncio

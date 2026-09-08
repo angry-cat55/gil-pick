@@ -111,7 +111,7 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 ### 1.6 동시성·멱등성
 
 - 생성·승인·여행 시작처럼 중복 처리 위험이 있는 요청은 `Idempotency-Key`를 사용한다.
-- 일정 수정과 진행 전환은 `version`으로 충돌을 검증한다.
+- 일정 수정은 `scheduleVersion`, 진행 시작·상태 전환은 `progressVersion`으로 충돌을 검증한다.
 - 버전이 최신이 아니면 `409 VERSION_CONFLICT`를 반환한다.
 
 ### 1.7 외부 API 실패 공통 정책
@@ -1034,19 +1034,37 @@ Response `200`:
 {
   "success": true,
   "data": {
+    "tripId": "uuid",
+    "date": "2026-08-22",
     "dayStatus": "IN_PROGRESS",
+    "progressVersion": 1,
+    "scheduleVersion": 6,
     "actualStartedAt": "2026-08-22T09:10:00+09:00",
+    "completedAt": null,
+    "startLocation": {
+      "latitude": 37.5796,
+      "longitude": 126.9770
+    },
     "currentItemId": "uuid",
+    "nextItemId": "uuid",
     "items": [
       {
         "itemId": "uuid",
         "sequence": 1,
         "status": "ARRIVED",
-        "eta": "2026-08-22T10:30:00+09:00"
+        "estimatedArrivalAt": "2026-08-22T10:30:00+09:00",
+        "estimatedDepartureAt": "2026-08-22T11:30:00+09:00",
+        "actualArrivedAt": "2026-08-22T10:28:00+09:00",
+        "completedAt": null,
+        "inboundTravel": {
+          "fromItemId": null,
+          "transportMode": "WALK",
+          "durationSeconds": 900,
+          "distanceMeters": 1100,
+          "source": "COMPUTED"
+        }
       }
-    ],
-    "activeTransition": null,
-    "detectionActive": true
+    ]
   },
   "meta": {
     "requestId": "uuid"
@@ -1054,7 +1072,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `403`, `404`
+주요 오류: `401`, `403`, `404`
 
 ### PROG-002 오늘 여행 시작
 
@@ -1066,31 +1084,27 @@ Request Body:
 
 ```json
 {
-  "version": 6
-}
-```
-
-Response `200`:
-
-```json
-{
-  "success": true,
-  "data": {
-    "dayStatus": "IN_PROGRESS",
-    "actualStartedAt": "2026-08-22T09:10:00+09:00",
-    "version": 7
-  },
-  "meta": {
-    "requestId": "uuid"
+  "progressVersion": 0,
+  "currentLocation": {
+    "latitude": 37.5796,
+    "longitude": 126.9770,
+    "accuracyMeters": 35,
+    "occurredAt": "2026-08-22T09:09:30+09:00"
   }
 }
 ```
 
+`currentLocation`은 생략하거나 null로 보낼 수 있다. 값이 있으면 위 네 필드를 모두 보낸다.
+
+Response `200`: PROG-001과 같은 날짜 전체 진행 현황을 반환한다.
+
 정책:
 - 서버 수신 시각을 `actualStartedAt`으로 저장
-- 진행 재개 시 기존 `actualStartedAt`을 변경하지 않음
+- 이미 `IN_PROGRESS` 또는 `COMPLETED`이면 기존 `actualStartedAt`과 저장된 진행 현황을 변경하지 않고 반환
+- 현재 위치는 정확도 100m 이하이고 서버 수신 기준 2분 이내일 때만 저장
+- 유효한 현재 위치가 있으면 첫 장소까지 도보 구간을 계산하며, 계산 실패는 여행 시작을 막지 않음
 
-주요 오류: `403`, `404`, `409 VERSION_CONFLICT`, `422`
+주요 오류: `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 DAY_NOT_TODAY`, `422 DAY_EMPTY`, `422 INVALID_REQUEST`
 
 ### PROG-003 위치 이벤트 등록
 
@@ -1200,25 +1214,56 @@ Response `200`:
 
 `PATCH /api/v1/itinerary-items/{itemId}/status`
 
+Header: `Idempotency-Key`
+
 Request Body:
 
 ```json
 {
   "status": "ARRIVED",
-  "version": 7
+  "progressVersion": 7
 }
 ```
 
-Response `200`:
+허용 `status`: `ARRIVED`, `COMPLETED`, `SKIPPED`, `PLANNED`
+
+Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 
 ```json
 {
   "success": true,
   "data": {
-    "itemId": "uuid",
-    "status": "ARRIVED",
-    "version": 8,
-    "recalculated": true
+    "tripId": "uuid",
+    "date": "2026-08-22",
+    "dayStatus": "IN_PROGRESS",
+    "progressVersion": 8,
+    "scheduleVersion": 6,
+    "actualStartedAt": "2026-08-22T09:10:00+09:00",
+    "completedAt": null,
+    "startLocation": {
+      "latitude": 37.5796,
+      "longitude": 126.9770
+    },
+    "currentItemId": "uuid",
+    "nextItemId": "uuid",
+    "items": [
+      {
+        "itemId": "uuid",
+        "sequence": 1,
+        "status": "ARRIVED",
+        "estimatedArrivalAt": "2026-08-22T10:30:00+09:00",
+        "estimatedDepartureAt": "2026-08-22T11:30:00+09:00",
+        "actualArrivedAt": "2026-08-22T10:28:00+09:00",
+        "completedAt": null,
+        "inboundTravel": {
+          "fromItemId": null,
+          "transportMode": "WALK",
+          "durationSeconds": 900,
+          "distanceMeters": 1100,
+          "source": "COMPUTED"
+        }
+      }
+    ]
   },
   "meta": {
     "requestId": "uuid"
@@ -1229,9 +1274,11 @@ Response `200`:
 정책:
 - 완료·건너뛰기 취소 허용
 - 수동 상태 교정 허용
-- 해당 장소를 `ARRIVED`로 변경하면 이후 일정 상태를 `PLANNED`로 초기화하고 ETA·변수 감지를 재계산
+- 파생 상태 변경과 당일 완료·복귀를 한 transaction으로 적용
+- 해당 장소를 `ARRIVED`로 변경하면 이후 일정 상태를 `PLANNED`로 초기화하고 ETA를 재계산
+- 건너뛰기로 계획 경로에 없는 인접 구간이 생기면 이동시간을 계산해 ETA에 반영
 
-주요 오류: `403`, `404`, `409 VERSION_CONFLICT`, `422 INVALID_STATUS_TRANSITION`
+주요 오류: `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 IDEMPOTENCY_KEY_CONFLICT`, `409 DAY_NOT_STARTED`, `422 INVALID_STATUS_TRANSITION`
 
 ## 7. 변수 감지·대체 장소 추천
 

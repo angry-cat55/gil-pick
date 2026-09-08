@@ -28,6 +28,7 @@ from app.schemas.itinerary import (
 )
 from app.schemas.route import RouteStatus
 from app.services.route import route_data_from_model
+from app.services.eta import recalculate_day_eta
 
 logger = logging.getLogger("gilpick.itinerary")
 
@@ -188,6 +189,8 @@ class ItineraryService:
         day = await self._load_day(trip_id=trip_id, visit_date=visit_date, refresh=True)
         if day is None:  # pragma: no cover - transaction invariant
             raise RuntimeError("저장한 일정을 다시 조회할 수 없습니다.")
+        if day.status == "IN_PROGRESS":
+            await recalculate_day_eta(self.session, day.trip_day_id)
         logger.info(
             {
                 "operation": "SAVE_DAY_ITINERARY",

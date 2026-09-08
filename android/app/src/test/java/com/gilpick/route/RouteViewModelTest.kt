@@ -5,7 +5,18 @@ import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
+import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.RouteStatus
+import com.gilpick.progress.FakeProgressService
+import com.gilpick.progress.P_ITEM_A
+import com.gilpick.progress.P_ITEM_B
+import com.gilpick.progress.P_ITEM_C
+import com.gilpick.progress.ProgressErrorCodes
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.inProgress
+import com.gilpick.progress.notStarted
+import com.gilpick.progress.progressError
+import com.gilpick.progress.progressOk
 import java.io.File
 import java.io.IOException
 import java.time.LocalDate
@@ -27,9 +38,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * T022: 경로 화면 ViewModel 상태 전이 검증.
+ * T022(F005)·T031(F006): 경로 화면 ViewModel 상태 전이 검증.
  *
- * `spec.md` US2 Acceptance 4~7, US3 Acceptance 6, FR-014·020, UI-003이 대상이다. HTTP 왕복은
+ * `spec.md` US2 Acceptance 4~7, US3 Acceptance 6, FR-014·020, UI-003과 F006 UI-011(시작된 날짜의 진행 표시)이 대상이다. HTTP 왕복은
  * `RouteRepositoryTest`가 보므로 여기서는 [FakeRouteService]로 응답만 정한다.
  *
  * 1초 대기 표시 지연은 다른 화면과 같이 composable(`DayRouteScreen`)이 맡는다. 여기서는 응답 전
@@ -43,6 +54,7 @@ class RouteViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val service = FakeRouteService()
+    private val progressService = FakeProgressService()
     private val date = LocalDate.of(2026, 9, 8)
 
     @Before
@@ -267,11 +279,55 @@ class RouteViewModelTest {
         assertEquals(2, service.getCalls.size)
     }
 
-    private suspend fun newViewModel(): RouteViewModel =
-        RouteViewModel(repository = repository(), tripId = ROUTE_TRIP_ID, date = date)
+    // ---- T031: 진행 표시 ----
 
-    /** 로그인된 session을 가진 repository를 만든다. F004 `ItineraryEditViewModelTest`와 같다. */
-    private suspend fun repository(): RouteRepository {
+    @Test
+    fun `시작된 날짜는 진행 현황을 함께 조회해 marker 상태와 시작 위치를 content에 싣는다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.READY, route = readyRoute())) }
+        progressService.onGet = { progressOk(inProgress()) }
+        val viewModel = newViewModel(withProgress = true)
+        advanceUntilIdle()
+
+        val content = viewModel.state.value as RouteUiState.Content
+        assertEquals(listOf(126.97, 37.57), content.marks.start)
+        assertEquals(
+            mapOf(P_ITEM_A to ItemStatus.COMPLETED, P_ITEM_B to ItemStatus.EN_ROUTE, P_ITEM_C to ItemStatus.PLANNED),
+            content.marks.statuses,
+        )
+        assertEquals(listOf(date.toString()), progressService.getCalls)
+    }
+
+    @Test
+    fun `시작 전 날짜와 진행 조회 실패는 계획만 보이고 진행 지점이 없으면 조회하지 않는다`() = runTest {
+        service.onGet = { routeOk(dayRoute(RouteStatus.READY, route = readyRoute())) }
+        progressService.onGet = { progressOk(notStarted()) }
+        var viewModel = newViewModel(withProgress = true)
+        advanceUntilIdle()
+        assertEquals(RouteMarks.NONE, (viewModel.state.value as RouteUiState.Content).marks)
+
+        progressService.onGet = { progressError(404, ProgressErrorCodes.TRIP_NOT_FOUND) }
+        viewModel = newViewModel(withProgress = true)
+        advanceUntilIdle()
+        assertEquals(RouteUiState.Content(readyRoute()), viewModel.state.value)
+
+        viewModel = newViewModel(withProgress = false)
+        advanceUntilIdle()
+        assertEquals(RouteUiState.Content(readyRoute()), viewModel.state.value)
+        assertEquals(2, progressService.getCalls.size)
+    }
+
+    private suspend fun newViewModel(withProgress: Boolean = false): RouteViewModel {
+        val auth = auth()
+        return RouteViewModel(
+            repository = RouteRepository(api = service, auth = auth),
+            tripId = ROUTE_TRIP_ID,
+            date = date,
+            progressRepository = if (withProgress) ProgressRepository(api = progressService, auth = auth) else null,
+        )
+    }
+
+    /** 로그인된 session을 가진 인증 계층. F004 `ItineraryEditViewModelTest`와 같다. */
+    private suspend fun auth(): AuthRepository {
         val store = AuthSessionStore(
             AuthSessionStore.createDataStore(
                 File(tempFolder.newFolder(), AuthSessionStore.FILE_NAME),
@@ -295,6 +351,6 @@ class RouteViewModelTest {
             accessExpiresAtEpochSeconds = 3_600,
             refreshExpiresAtEpochSeconds = 2_592_000,
         )
-        return RouteRepository(api = service, auth = auth)
+        return auth
     }
 }

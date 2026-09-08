@@ -27,6 +27,7 @@ from app.core.logging import request_id_context
 from app.db import transaction_session
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.route import Route as RouteModel
+from app.services.eta import recalculate_day_eta
 from app.schemas.route import (
     FailedRouteData,
     NotCalculatedRouteData,
@@ -78,6 +79,15 @@ class RouteCalculationResult:
     status: RouteStatus
     route: Route | None
     failure: RouteFailure | None
+
+
+@dataclass(frozen=True, slots=True)
+class SingleSegmentResult:
+    """진행 ETA에 필요한 단일 구간 계산 결과."""
+
+    duration_seconds: int
+    distance_meters: int
+    provider: ClientProvider
 
 
 class RouteCalculationService:
@@ -166,6 +176,69 @@ class RouteCalculationService:
             _route(snapshot, markers=markers, segments=segments),
             None,
         )
+
+    async def calculate_single_segment(
+        self,
+        *,
+        origin: Coordinate,
+        destination: Coordinate,
+        transport_mode: ClientTransportMode,
+        overall_deadline_seconds: float = 8.0,
+    ) -> SingleSegmentResult:
+        """기존 Provider로 진행용 단일 구간을 계산한다.
+
+        Args:
+            origin: WGS84 출발 좌표.
+            destination: WGS84 도착 좌표.
+            transport_mode: 구간 이동수단.
+            overall_deadline_seconds: 재시도를 포함한 전체 제한 시간(초).
+
+        Returns:
+            ETA 저장에 필요한 이동시간, 거리와 Provider.
+
+        Raises:
+            ValueError: 전체 제한 시간이 양수가 아닌 경우.
+            RouteProviderError: Provider가 최종 실패하거나 제한 시간을 초과한 경우.
+
+        Notes:
+            DB를 읽거나 쓰지 않으며 시도당 최대 5초, 일시 오류는 한 번만 재시도한다.
+        """
+        if overall_deadline_seconds <= 0:
+            raise ValueError("전체 deadline은 양수여야 합니다.")
+        overall_deadline = monotonic() + overall_deadline_seconds
+        provider = self.providers[transport_mode]
+
+        for attempt in (1, 2):
+            started_at = monotonic()
+            attempt_deadline = min(started_at + 5.0, overall_deadline)
+            if attempt_deadline <= started_at:
+                raise RouteProviderError("ROUTE_PROVIDER_TIMEOUT", retryable=True)
+            try:
+                async with asyncio.timeout(attempt_deadline - started_at):
+                    normalized = await provider.calculate(
+                        origin,
+                        destination,
+                        transport_mode,
+                        deadline=attempt_deadline,
+                    )
+                return SingleSegmentResult(
+                    duration_seconds=normalized.duration_seconds,
+                    distance_meters=normalized.distance_meters,
+                    provider=normalized.provider,
+                )
+            except TimeoutError:
+                error = RouteProviderError("ROUTE_PROVIDER_TIMEOUT", retryable=True)
+            except RouteProviderError as caught:
+                error = caught
+            except Exception as caught:
+                raise RouteProviderError(
+                    "ROUTE_INVALID_RESULT", retryable=False
+                ) from caught
+
+            if not error.retryable or attempt == 2 or monotonic() >= overall_deadline:
+                raise error
+
+        raise RuntimeError("단일 구간 재시도 상태가 올바르지 않습니다.")
 
     async def _calculate_segment(
         self,
@@ -464,6 +537,8 @@ class RouteService:
                 set_={key: value for key, value in values.items() if key != "route_id"},
             )
             await session.execute(statement)
+            if result.status is RouteStatus.READY:
+                await recalculate_day_eta(session, snapshot.trip_day_id)
             return True
 
     async def _persist_retry(
@@ -501,6 +576,8 @@ class RouteService:
                 set_={key: value for key, value in values.items() if key != "route_id"},
             )
             await session.execute(statement)
+            if result.status is RouteStatus.READY:
+                await recalculate_day_eta(session, snapshot.trip_day_id)
             return True
 
 
