@@ -100,4 +100,6 @@ def test_progress_migration_round_trip_and_database_contract() -> None:
         assert "progress_segments" not in downgraded["tables"]
         assert downgraded["progress_default"] is None
     finally:
-        command.upgrade(config, "006_progress_response_snapshot")
+        # 공유 DB를 최신 head까지 되돌린다. 006에서 멈추면 이후 F007 migration(007,
+        # progress_events)이 빠져 뒤따르는 감지 테스트가 깨진다.
+        command.upgrade(config, "head")

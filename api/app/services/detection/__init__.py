@@ -24,6 +24,8 @@ from app.schemas.progress import (
     ProgressEventResult,
     TransitionCandidate,
     TransitionResult,
+    UndoableTransition,
+    UndoResult,
 )
 from app.services.eta import recalculate_day_eta
 from app.services.progress import apply_manual_transition
@@ -33,6 +35,11 @@ MAX_EVENT_AGE_SECONDS = 120
 MAX_ARRIVAL_PROMPTS = 2
 REPROMPT_DELAY_MINUTES = 10
 AUTO_FINALIZE_MINUTES = 5
+# 무응답 자동 확정 뒤 되돌릴 수 있는 시간(분). requirements.md PROG-07이 확정한 값.
+UNDO_WINDOW_MINUTES = 5
+# 도착 후보를 파생 판정할 때 함께 세는 전환 종류. COMPOSITE는 도착이 이전 완료를
+# 함께 처리한 전환이므로 도착 질문 횟수·재개 시각 계산에 포함한다.
+_ARRIVAL_TRANSITION_TYPES = ("ARRIVAL", "COMPOSITE")
 logger = logging.getLogger("gilpick.detection")
 
 
@@ -80,6 +87,8 @@ class DetectionService:
         )
         if day is None:
             raise AppError(404, "TRIP_NOT_FOUND", "해당 날짜의 여행을 찾을 수 없습니다.")
+        # 지연 확정: 이 요청을 처리하기 전에 만료된 후보를 먼저 자동 확정한다.
+        await self.finalize_due_candidates(day, now=now)
         existing = await self.session.scalar(
             select(ProgressEvent).where(
                 ProgressEvent.client_event_id == payload.event_id
@@ -103,7 +112,9 @@ class DetectionService:
                         select(ProgressTransition).where(
                             ProgressTransition.trip_day_id == day.trip_day_id,
                             ProgressTransition.primary_item_id == item.item_id,
-                            ProgressTransition.transition_type == "ARRIVAL",
+                            ProgressTransition.transition_type.in_(
+                                _ARRIVAL_TRANSITION_TYPES
+                            ),
                         )
                     )
                 ).all()
@@ -195,6 +206,8 @@ class DetectionService:
         trip = await self.session.get(Trip, day.trip_id)
         if trip is None or trip.user_id != user_id:
             raise AppError(403, "TRIP_FORBIDDEN", "다른 여행의 진행 전환에는 접근할 수 없습니다.")
+        # 지연 확정: 만료된 다른 후보(또는 이 후보 자체)를 먼저 자동 확정한다.
+        await self.finalize_due_candidates(day, now=now)
         if transition.status != "PENDING_CONFIRMATION":
             if (
                 transition.idempotency_key == idempotency_key
@@ -312,6 +325,246 @@ class DetectionService:
         )
         return result
 
+    async def finalize_due_candidates(
+        self, day: TripDay | None, *, now: datetime | None = None
+    ) -> None:
+        """만료된 무응답 후보를 저장된 auto_finalize_at 기준으로 자동 확정한다.
+
+        주기 작업자 없이(지연 확정, research 2절), 그 날짜에 대한 다음 요청을
+        처리하기 전에 호출한다. 확정 시각과 되돌리기 마감은 실행 시각이 아니라
+        후보에 저장된 `auto_finalize_at`을 기준으로 기록한다(FR-015a·FR-018).
+
+        Args:
+            day: 확정 대상을 찾을 여행 날짜 aggregate. items가 로드돼 있어야 한다.
+            now: 만료 판정에 쓸 서버 시각. 테스트에서 주입한다.
+        """
+        if day is None:
+            return
+        now = now or datetime.now(UTC)
+        due = list(
+            (
+                await self.session.scalars(
+                    select(ProgressTransition)
+                    .where(
+                        ProgressTransition.trip_day_id == day.trip_day_id,
+                        ProgressTransition.status == "PENDING_CONFIRMATION",
+                        ProgressTransition.auto_finalize_at.is_not(None),
+                        ProgressTransition.auto_finalize_at <= now,
+                    )
+                    .order_by(ProgressTransition.auto_finalize_at)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        for transition in due:
+            await self._auto_confirm(day, transition)
+
+    async def _auto_confirm(
+        self, day: TripDay, transition: ProgressTransition
+    ) -> None:
+        """무응답 후보 하나를 F006 전환 규칙으로 확정하거나, 대상이 바뀌었으면 취소한다."""
+        finalized_at = transition.auto_finalize_at
+        item = next(
+            (x for x in day.items if x.item_id == transition.primary_item_id), None
+        )
+        is_arrival = transition.transition_type in _ARRIVAL_TRANSITION_TYPES
+        eligible = item is not None and (
+            (is_arrival and item.status == "EN_ROUTE")
+            or (not is_arrival and item.status == "ARRIVED")
+        )
+        if not eligible:
+            transition.status, transition.cancelled_at = "CANCELLED", finalized_at
+            await self.session.flush()
+            logger.info(
+                {
+                    "operation": "AUTO_CONFIRM_PROGRESS_TRANSITION",
+                    "transition_id": str(transition.transition_id),
+                    "result": "CANCELLED",
+                }
+            )
+            return
+        composite = is_arrival and any(
+            x.status == "ARRIVED" and x.item_id != item.item_id for x in day.items
+        )
+        affected, _ = apply_manual_transition(
+            day, item, "ARRIVED" if is_arrival else "COMPLETED", finalized_at
+        )
+        day.progress_version += 1
+        transition.transition_type = (
+            "COMPOSITE" if composite else transition.transition_type
+        )
+        transition.status, transition.source = "AUTO_CONFIRMED", "GEOFENCE_AUTO"
+        transition.affected_items, transition.confirmed_at = affected, finalized_at
+        transition.undo_deadline = finalized_at + timedelta(
+            minutes=UNDO_WINDOW_MINUTES
+        )
+        transition.schedule_version_after = day.schedule_version
+        transition.progress_version_after = day.progress_version
+        await recalculate_day_eta(self.session, day.trip_day_id)
+        await self.session.flush()
+        logger.info(
+            {
+                "operation": "AUTO_CONFIRM_PROGRESS_TRANSITION",
+                "transition_id": str(transition.transition_id),
+                "result": "AUTO_CONFIRMED",
+            }
+        )
+
+    async def undo_transition(
+        self,
+        *,
+        user_id: uuid.UUID,
+        transition_id: uuid.UUID,
+        idempotency_key: uuid.UUID,
+        undone_at: datetime | None = None,
+    ) -> UndoResult:
+        """무응답으로 자동 확정된 전환을 되돌린다(PROG-005).
+
+        `affected_items`에 기록된 모든 상태 변경과 날짜 상태 스냅샷을 확정 직전으로
+        복원하고 ETA를 다시 계산한다(FR-017·FR-019). 만료는 서버 시각으로 판정한다.
+
+        Args:
+            user_id: 요청 사용자 ID.
+            transition_id: 되돌릴 전환 ID.
+            idempotency_key: 되돌리기 요청의 멱등 키.
+            undone_at: 테스트에서 주입할 서버 되돌리기 시각.
+
+        Returns:
+            복원 결과와 감지 재개 시각.
+
+        Raises:
+            AppError: 전환이 없거나, 소유권이 없거나, 자동 확정이 아니거나,
+                되돌릴 수 있는 시간이 지난 경우.
+        """
+        now = undone_at or datetime.now(UTC)
+        transition = await self.session.scalar(
+            select(ProgressTransition)
+            .options(
+                selectinload(ProgressTransition.trip_day).selectinload(TripDay.items)
+            )
+            .where(ProgressTransition.transition_id == transition_id)
+            .with_for_update()
+        )
+        if transition is None:
+            raise AppError(404, "TRANSITION_NOT_FOUND", "진행 전환을 찾을 수 없습니다.")
+        day = transition.trip_day
+        trip = await self.session.get(Trip, day.trip_id)
+        if trip is None or trip.user_id != user_id:
+            raise AppError(403, "TRIP_FORBIDDEN", "다른 여행의 진행 전환에는 접근할 수 없습니다.")
+        if transition.status == "UNDONE":
+            if (
+                transition.idempotency_key == idempotency_key
+                and transition.response_snapshot
+            ):
+                return UndoResult.model_validate(transition.response_snapshot)
+            raise AppError(409, "TRANSITION_NOT_UNDOABLE", "이미 되돌린 진행 전환입니다.")
+        if transition.status != "AUTO_CONFIRMED":
+            raise AppError(
+                409,
+                "TRANSITION_NOT_UNDOABLE",
+                "무응답으로 자동 확정된 전환만 되돌릴 수 있습니다.",
+            )
+        if transition.undo_deadline is None or now >= transition.undo_deadline:
+            raise AppError(409, "UNDO_WINDOW_EXPIRED", "되돌릴 수 있는 시간이 지났습니다.")
+        key_owner = await self.session.scalar(
+            select(ProgressTransition).where(
+                ProgressTransition.trip_day_id == day.trip_day_id,
+                ProgressTransition.idempotency_key == idempotency_key,
+                ProgressTransition.transition_id != transition.transition_id,
+            )
+        )
+        if key_owner is not None:
+            raise AppError(
+                409,
+                "IDEMPOTENCY_KEY_CONFLICT",
+                "같은 Idempotency-Key를 다른 진행 전환 요청에 사용할 수 없습니다.",
+            )
+        items_by_id = {x.item_id: x for x in day.items}
+        restored: list[dict[str, str]] = []
+        day_restored = False
+        for entry in transition.affected_items or []:
+            if "itemId" in entry:
+                target = items_by_id.get(uuid.UUID(entry["itemId"]))
+                if target is None or target.status != entry["afterStatus"]:
+                    continue
+                target.status = entry["beforeStatus"]
+                self._reset_actuals(target, entry["beforeStatus"])
+                restored.append(
+                    {
+                        "itemId": str(target.item_id),
+                        "beforeStatus": entry["afterStatus"],
+                        "afterStatus": entry["beforeStatus"],
+                    }
+                )
+            elif "dayStatusBefore" in entry:
+                day.status = entry["dayStatusBefore"]
+                day_restored = True
+                if day.status == "IN_PROGRESS":
+                    day.completed_at = None
+                    day.detection_active = True
+        day.progress_version += 1
+        transition.status, transition.undone_at = "UNDONE", now
+        transition.idempotency_key = idempotency_key
+        transition.schedule_version_after = day.schedule_version
+        transition.progress_version_after = day.progress_version
+        await recalculate_day_eta(self.session, day.trip_day_id)
+        result = UndoResult(
+            transition_id=transition.transition_id,
+            status="UNDONE",
+            restored_items=restored,
+            day_status=day.status if day_restored else None,
+            detection_resume_at=now + timedelta(minutes=REPROMPT_DELAY_MINUTES),
+            progress_version=day.progress_version,
+        )
+        transition.response_snapshot = result.model_dump(mode="json", by_alias=True)
+        await self.session.flush()
+        logger.info(
+            {
+                "operation": "UNDO_PROGRESS_TRANSITION",
+                "transition_id": str(transition.transition_id),
+                "result": "UNDONE",
+            }
+        )
+        return result
+
+    async def current_undoable(
+        self, day: TripDay | None, *, now: datetime | None = None
+    ) -> UndoableTransition | None:
+        """되돌리기 창이 아직 열린 자동 확정 전환을 PROG-001 응답용으로 반환한다."""
+        if day is None:
+            return None
+        now = now or datetime.now(UTC)
+        transition = await self.session.scalar(
+            select(ProgressTransition)
+            .where(
+                ProgressTransition.trip_day_id == day.trip_day_id,
+                ProgressTransition.status == "AUTO_CONFIRMED",
+                ProgressTransition.undo_deadline.is_not(None),
+                ProgressTransition.undo_deadline > now,
+            )
+            .order_by(ProgressTransition.confirmed_at.desc())
+        )
+        if transition is None:
+            return None
+        return UndoableTransition(
+            transition_id=transition.transition_id,
+            item_id=transition.primary_item_id,
+            type=transition.transition_type,
+            confirmed_at=transition.confirmed_at,
+            undo_deadline=transition.undo_deadline,
+        )
+
+    @staticmethod
+    def _reset_actuals(item: ItineraryItem, status: str) -> None:
+        """되돌린 항목의 실제 시각 필드를 복원 상태에 맞춰 지운다."""
+        if status in ("PLANNED", "EN_ROUTE"):
+            item.actual_arrived_at = None
+            item.actual_departed_at = None
+            item.completed_at = None
+        elif status == "ARRIVED":
+            item.actual_departed_at = None
+            item.completed_at = None
+
     async def build_state(
         self, day: TripDay
     ) -> tuple[list[DetectionTarget], PendingCandidate | None]:
@@ -389,20 +642,24 @@ class DetectionService:
     def _arrival_block_reason(
         transitions: Sequence[ProgressTransition], now: datetime
     ) -> str | None:
-        """도착 후보 이력에서 현재 생성 차단 사유를 계산한다."""
-        arrivals = [x for x in transitions if x.transition_type == "ARRIVAL"]
+        """도착 후보 이력에서 현재 생성 차단 사유를 계산한다.
+
+        되돌린 자동 도착은 그 시각부터 재질문 간격만큼 감지를 쉬고(FR-017a),
+        그 질문도 장소별 상한(FR-008)에 포함해 무한 반복을 막는다.
+        """
+        arrivals = [
+            x for x in transitions if x.transition_type in _ARRIVAL_TRANSITION_TYPES
+        ]
         if any(x.status == "PENDING_CONFIRMATION" for x in arrivals):
             return "DETECTION_PAUSED"
         if len(arrivals) >= MAX_ARRIVAL_PROMPTS:
             return "PROMPT_LIMIT_REACHED"
-        last = max(
-            (
-                x.cancelled_at
-                for x in arrivals
-                if x.decision == "NOT_ARRIVED" and x.cancelled_at is not None
-            ),
-            default=None,
-        )
+        resume_bases = [
+            x.cancelled_at
+            for x in arrivals
+            if x.decision == "NOT_ARRIVED" and x.cancelled_at is not None
+        ] + [x.undone_at for x in arrivals if x.undone_at is not None]
+        last = max(resume_bases, default=None)
         if last is not None and now < last + timedelta(minutes=REPROMPT_DELAY_MINUTES):
             return "DETECTION_PAUSED"
         return None

@@ -162,7 +162,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] 지연 확정·되돌리기 contract·integration test in api/tests/contract/test_detection_contract.py, api/tests/integration/test_detection_flow.py
+- [x] T020 [P] [US2] 지연 확정·되돌리기 contract·integration test in api/tests/contract/test_detection_contract.py, api/tests/integration/test_detection_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T017
@@ -175,17 +175,17 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] 지연 확정 진입점과 무응답 자동 확정 in api/app/services/progress.py, api/app/services/detection.py
+- [x] T022 [US2] 지연 확정 진입점과 무응답 자동 확정 in api/app/services/progress.py, api/app/services/detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T020
   - 검증: T020 통과. 그 날짜에 대한 모든 요청(PROG-001·003·004·005·006) 처리 전에 만료된 `PENDING_CONFIRMATION`을 먼저 확정하고 본 요청을 같은 transaction에서 이어 처리. `status=AUTO_CONFIRMED`, `source=GEOFENCE_AUTO`, `confirmed_at`·`undo_deadline`은 저장된 `auto_finalize_at` 기준(실행 시각과 무관). 주기 작업자를 도입하지 않음(research 2절). F006 파일 수정이므로 `jy` review
-- [ ] T023 [US2] PROG-005 되돌리기 endpoint와 복원 in api/app/api/v1/progress.py, api/app/services/detection.py
+- [x] T023 [US2] PROG-005 되돌리기 endpoint와 복원 in api/app/api/v1/progress.py, api/app/services/detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T022
   - 검증: T020 통과. `affected_items` 전부와 날짜 상태 스냅샷을 확정 직전으로 복원하고 ETA 재계산(FR-017·FR-019), `status=UNDONE`·`undone_at` 기록, `progress_version` +1, 한 transaction. 만료는 `409 UNDO_WINDOW_EXPIRED`, 사용자 확인 전환은 `409 TRANSITION_NOT_UNDOABLE`. `Idempotency-Key` 멱등
-- [ ] T024 [US2] 되돌린 뒤 감지 재개 규칙과 `undoable` 응답 in api/app/services/detection.py, api/app/schemas/progress.py
+- [x] T024 [US2] 되돌린 뒤 감지 재개 규칙과 `undoable` 응답 in api/app/services/detection.py, api/app/schemas/progress.py
   - 영역: BE
   - 담당: ts
   - 선행: T023

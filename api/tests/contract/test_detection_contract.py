@@ -89,3 +89,39 @@ def test_detection_contract_declares_candidate_and_decision_rules() -> None:
         "nextPromptAt",
         "progressVersion",
     } <= set(result["required"])
+
+
+def test_detection_source_contract_declares_undo_endpoint() -> None:
+    contract_path = (
+        Path(__file__).parents[3]
+        / "specs"
+        / "007-location-detection"
+        / "contracts"
+        / "detection.openapi.yaml"
+    )
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+
+    undo = contract["paths"]["/progress/transitions/{transitionId}/undo"]["post"]
+    assert {"200", "401", "403", "404", "409"} <= set(undo["responses"])
+    assert "IdempotencyKey" in {
+        parameter["$ref"].split("/")[-1] for parameter in undo["parameters"]
+    }
+    assert undo["responses"]["200"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/UndoResultEnvelope")
+
+    error_codes = contract["components"]["schemas"]["ErrorEnvelope"]["properties"][
+        "error"
+    ]["properties"]["code"]["enum"]
+    assert {"UNDO_WINDOW_EXPIRED", "TRANSITION_NOT_UNDOABLE"} <= set(error_codes)
+
+
+def test_runtime_openapi_exposes_undo_endpoint_and_response_model() -> None:
+    paths = app.openapi()["paths"]
+    undo = paths["/api/v1/progress/transitions/{transitionId}/undo"]["post"]
+
+    assert {"200", "401", "403", "404", "409"} <= set(undo["responses"])
+    assert "UndoResultEnvelope" in str(undo["responses"]["200"])
+    assert "Idempotency-Key" in {
+        item["name"] for item in undo.get("parameters", [])
+    }

@@ -24,6 +24,7 @@ from app.schemas.progress import (
     ProgressEnvelope,
     StartDayProgressRequest,
     TransitionResultEnvelope,
+    UndoResultEnvelope,
     UpdateItemProgressStatusRequest,
 )
 from app.schemas.trip import Trip
@@ -151,6 +152,33 @@ async def decide_progress_transition(
         user_id=principal.user_id,
         transition_id=transition_id,
         decision=payload.decision.value,
+        idempotency_key=idempotency_key,
+    )
+    return success_response(request, data)
+
+
+@transition_router.post(
+    "/{transitionId}/undo",
+    response_model=UndoResultEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
+    },
+)
+async def undo_progress_transition(
+    transition_id: Annotated[uuid.UUID, Path(alias="transitionId")],
+    request: Request,
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> JSONResponse:
+    """무응답으로 자동 확정된 진행 전환을 되돌린다(PROG-005)."""
+    data = await DetectionService(session).undo_transition(
+        user_id=principal.user_id,
+        transition_id=transition_id,
         idempotency_key=idempotency_key,
     )
     return success_response(request, data)

@@ -273,6 +273,12 @@ class TransitionResultEnvelope(ApiModel):
     meta: ResponseMeta
 
 
+class UndoResultEnvelope(ApiModel):
+    success: Literal[True]
+    data: UndoResult
+    meta: ResponseMeta
+
+
 __all__ = [
     "AffectedItem", "CandidateEvidence", "CurrentLocation", "DayStatus",
     "DecisionRequest", "DetectionTarget", "EventLocation", "InboundTravel",
@@ -283,6 +289,6 @@ __all__ = [
     "RejectionReason", "StartDayProgressRequest", "StartLocation",
     "TransitionCandidate", "TransitionDecision", "TransitionResult",
     "TransitionResultEnvelope",
-    "TransitionType", "UndoResult", "UndoableTransition",
+    "TransitionType", "UndoResult", "UndoResultEnvelope", "UndoableTransition",
     "UpdateItemProgressStatusRequest",
 ]
