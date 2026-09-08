@@ -1085,7 +1085,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `401`, `403`, `404`
+주요 오류: `400 INVALID_REQUEST`, `401`, `403`, `404`
 
 ### PROG-002 오늘 여행 시작
 
@@ -1117,7 +1117,7 @@ Response `200`: PROG-001과 같은 날짜 전체 진행 현황을 반환한다.
 - 현재 위치는 정확도 100m 이하이고 서버 수신 기준 2분 이내일 때만 저장
 - 유효한 현재 위치가 있으면 첫 장소까지 도보 구간을 계산하며, 계산 실패는 여행 시작을 막지 않음
 
-주요 오류: `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 DAY_NOT_TODAY`, `422 DAY_EMPTY`, `422 INVALID_REQUEST`
+주요 오류: `400 INVALID_REQUEST`, `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 DAY_NOT_TODAY`, `422 DAY_EMPTY`
 
 ### PROG-003 위치 이벤트 등록
 
@@ -1327,7 +1327,7 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 - 해당 장소를 `ARRIVED`로 변경하면 이후 일정 상태를 `PLANNED`로 초기화하고 ETA를 재계산
 - 건너뛰기로 계획 경로에 없는 인접 구간이 생기면 이동시간을 계산해 ETA에 반영
 
-주요 오류: `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 IDEMPOTENCY_KEY_CONFLICT`, `409 DAY_NOT_STARTED`, `422 INVALID_STATUS_TRANSITION`
+주요 오류: `400 INVALID_REQUEST`, `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 IDEMPOTENCY_KEY_CONFLICT`, `409 DAY_NOT_STARTED`, `422 INVALID_STATUS_TRANSITION`
 
 ## 7. 변수 감지·대체 장소 추천
 

@@ -280,17 +280,17 @@
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T038 [P] Backend 문서·설정 최종 일치와 전체 자동 검증 기록 in docs/design/api-spec.md, docs/design/er-schema.md, api/.env.example, specs/006-trip-progress/quickstart.md
+- [X] T038 [P] Backend 문서·설정 최종 일치와 전체 자동 검증 기록 in docs/design/api-spec.md, docs/design/er-schema.md, api/.env.example, specs/006-trip-progress/quickstart.md
   - 영역: BE
   - 담당: jh
   - 선행: T028, T034
   - 검증: 구현된 응답·오류 code·table이 계약·ERD와 일치, `uv run pytest tests/unit tests/contract tests/integration` 결과와 미실행 항목을 quickstart에 기록, 시작·전환 응답 시간(위치 없음 2초, 구간 계산 포함 10초 이내, SC-001)을 integration test 또는 로컬 측정으로 기록, log에 좌표·key 없음
-- [ ] T039 [P] Android 접근성·시각·screenshot 최종 검증 in android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt, specs/006-trip-progress/quickstart.md
+- [x] T039 [P] Android 접근성·시각·screenshot 최종 검증 in android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt, specs/006-trip-progress/quickstart.md
   - 영역: FE
   - 담당: jy
   - 선행: T035, T037
   - 검증: 시작 전·이동 중·도착·완료·건너뜀 포함·당일 완료·다른 날짜 + loading/empty/error를 360dp·최대 글자 배율로 screenshot, 48dp·8dp·색 단독 금지 확인, unit·connected 결과 기록
-- [ ] T040 F006 종단간 검증과 Feature 상태 갱신 in specs/006-trip-progress/quickstart.md, docs/planning/mvp-features.md
+- [x] T040 F006 종단간 검증과 Feature 상태 갱신 in specs/006-trip-progress/quickstart.md, docs/planning/mvp-features.md
   - 영역: 통합
   - 담당: jy
   - 교차 확인: jh

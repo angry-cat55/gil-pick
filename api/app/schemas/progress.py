@@ -105,12 +105,6 @@ class ProgressEventRequest(ProgressRequestModel):
     location: EventLocation
 
 
-class CandidateEvidence(ApiModel):
-    occurred_at: datetime
-    accuracy_meters: float
-    dwell_minutes: int | None = None
-
-
 class TransitionCandidate(ApiModel):
     transition_id: uuid.UUID
     item_id: uuid.UUID
@@ -159,16 +153,6 @@ class UndoResult(ApiModel):
     progress_version: int
 
 
-class DetectionTarget(ApiModel):
-    item_id: uuid.UUID
-    kind: TransitionType
-    geofence_id: str
-    latitude: float
-    longitude: float
-    radius_meters: int = Field(ge=1)
-    dwell_minutes: int | None
-
-
 class CurrentLocation(ProgressRequestModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
@@ -210,6 +194,49 @@ class ProgressItem(ApiModel):
     inbound_travel: InboundTravel | None
 
 
+class DetectionTarget(ApiModel):
+    """F007이 실제 값을 채우는 위치 감지 대상 계약."""
+
+    item_id: uuid.UUID
+    kind: Literal["ARRIVAL", "DEPARTURE"]
+    geofence_id: str
+    latitude: float
+    longitude: float
+    radius_meters: int = Field(ge=1)
+    dwell_minutes: int | None
+
+
+class CandidateEvidence(ApiModel):
+    """자동 감지 후보를 사용자에게 설명하는 최소 근거."""
+
+    occurred_at: datetime
+    accuracy_meters: float
+    dwell_minutes: int | None = None
+
+
+class PendingCandidate(ApiModel):
+    """F007 확인 응답을 기다리는 진행 전환 후보."""
+
+    transition_id: uuid.UUID
+    item_id: uuid.UUID
+    type: Literal["ARRIVAL", "DEPARTURE"]
+    status: Literal["PENDING_CONFIRMATION"]
+    detected_at: datetime
+    auto_finalize_at: datetime
+    allowed_decisions: list[Literal["CONFIRM", "NOT_ARRIVED", "STILL_HERE"]]
+    evidence: CandidateEvidence
+
+
+class UndoableTransition(ApiModel):
+    """F007 자동 확정 후 되돌릴 수 있는 전환 계약."""
+
+    transition_id: uuid.UUID
+    item_id: uuid.UUID
+    type: Literal["ARRIVAL", "DEPARTURE", "COMPOSITE"]
+    confirmed_at: datetime
+    undo_deadline: datetime
+
+
 class ProgressData(ApiModel):
     trip_id: uuid.UUID
     date: date
@@ -222,6 +249,10 @@ class ProgressData(ApiModel):
     current_item_id: uuid.UUID | None
     next_item_id: uuid.UUID | None
     items: list[ProgressItem]
+    # F007 구현 전에는 호출자가 []·null·null을 명시해 비활성 상태를 반환한다.
+    detection_targets: list[DetectionTarget]
+    pending_candidate: PendingCandidate | None
+    undoable: UndoableTransition | None
 
 
 class ProgressEnvelope(ApiModel):
@@ -235,9 +266,9 @@ __all__ = [
     "DecisionRequest", "DetectionTarget", "EventLocation", "InboundTravel",
     "InboundTravelSource", "ProgressData", "ProgressEnvelope",
     "ProgressErrorCode", "ProgressEventRequest", "ProgressEventResult",
-    "ProgressEventType",
-    "ProgressItem", "ProgressTargetStatus", "RejectionReason",
-    "StartDayProgressRequest", "StartLocation", "TransitionCandidate",
-    "TransitionDecision", "TransitionResult", "TransitionType", "UndoResult",
+    "ProgressEventType", "ProgressItem", "ProgressTargetStatus", "PendingCandidate",
+    "RejectionReason", "StartDayProgressRequest", "StartLocation",
+    "TransitionCandidate", "TransitionDecision", "TransitionResult",
+    "TransitionType", "UndoResult", "UndoableTransition",
     "UpdateItemProgressStatusRequest",
 ]

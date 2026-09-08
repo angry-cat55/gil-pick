@@ -237,6 +237,7 @@ async def test_provider_failure_keeps_start_success_and_unknown_eta(
     message = " ".join(record.getMessage() for record in caplog.records)
     assert "ROUTE_PROVIDER_UNAVAILABLE" in message
     assert "37.57" not in message
+    assert "126.98" not in message
 
 
 @pytest.mark.asyncio
@@ -320,36 +321,49 @@ async def test_invalid_location_is_ignored_without_provider_call(
 @pytest.mark.asyncio
 async def test_arrive_depart_and_skip_update_versions_and_complete_day(
     session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     trip_id, day_id, user_id = await _seed_three(session_factory)
     today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+    caplog.set_level(logging.INFO, logger="gilpick.progress")
+    idempotency_keys: list[uuid.UUID] = []
     async with session_factory() as session:
+        start_key = uuid.uuid4()
+        idempotency_keys.append(start_key)
         started = await ProgressService(session).start_day(
             trip_id=trip_id, visit_date=today,
             payload=StartDayProgressRequest.model_validate({"progressVersion": 0}),
-            idempotency_key=uuid.uuid4(),
+            idempotency_key=start_key,
         )
     first, second, third = [item.item_id for item in started.items]
 
     async with session_factory() as session:
+        arrive_key = uuid.uuid4()
+        idempotency_keys.append(arrive_key)
         arrived = await ProgressService(session).update_item_status(
             user_id=user_id, item_id=first, target_status="ARRIVED",
-            progress_version=1, idempotency_key=uuid.uuid4(),
+            progress_version=1, idempotency_key=arrive_key,
         )
     async with session_factory() as session:
+        depart_key = uuid.uuid4()
+        idempotency_keys.append(depart_key)
         departed = await ProgressService(session).update_item_status(
             user_id=user_id, item_id=first, target_status="COMPLETED",
-            progress_version=2, idempotency_key=uuid.uuid4(),
+            progress_version=2, idempotency_key=depart_key,
         )
     async with session_factory() as session:
+        skip_key = uuid.uuid4()
+        idempotency_keys.append(skip_key)
         skipped = await ProgressService(session).update_item_status(
             user_id=user_id, item_id=second, target_status="SKIPPED",
-            progress_version=3, idempotency_key=uuid.uuid4(),
+            progress_version=3, idempotency_key=skip_key,
         )
     async with session_factory() as session:
+        complete_key = uuid.uuid4()
+        idempotency_keys.append(complete_key)
         completed = await ProgressService(session).update_item_status(
             user_id=user_id, item_id=third, target_status="ARRIVED",
-            progress_version=4, idempotency_key=uuid.uuid4(),
+            progress_version=4, idempotency_key=complete_key,
         )
         transitions = await session.scalar(select(func.count()).select_from(ProgressTransition).where(ProgressTransition.trip_day_id == day_id))
 
@@ -359,6 +373,8 @@ async def test_arrive_depart_and_skip_update_versions_and_complete_day(
     assert completed.day_status == "COMPLETED"
     assert completed.progress_version == 5
     assert transitions == 5
+    message = " ".join(record.getMessage() for record in caplog.records)
+    assert all(str(key) not in message for key in idempotency_keys)
 
 
 @pytest.mark.asyncio
@@ -716,7 +732,9 @@ async def test_undo_complete_restores_completed_day_and_recalculates_eta(
     old_time = datetime.now(UTC) - timedelta(minutes=10)
     async with transaction_session(session_factory) as session:
         items = (await session.scalars(
-            select(ItineraryItem).where(ItineraryItem.trip_day_id == day_id)
+            select(ItineraryItem)
+            .where(ItineraryItem.trip_day_id == day_id)
+            .order_by(ItineraryItem.sequence)
         )).all()
         for item, status in zip(items, ("COMPLETED", "SKIPPED", "ARRIVED"), strict=True):
             item.status = status

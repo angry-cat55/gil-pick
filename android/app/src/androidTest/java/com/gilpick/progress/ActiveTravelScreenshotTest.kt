@@ -25,7 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * T020: 진행 화면의 상태별 screenshot 증빙(UI-012).
+ * T020·T039: 진행 화면의 상태별 screenshot 증빙(UI-012·SC-007).
  *
  * 검증이 아니라 기록이다. F005 `DayRouteScreenshotTest`와 같은 방식으로 각 상태를 그려 기기 저장소에
  * PNG로 남기고 `adb pull`로 꺼내 사람이 Figma `ActiveTravelScreen`과 대조한다. 지도는 SDK 인증 없이
@@ -119,19 +119,60 @@ class ActiveTravelScreenshotTest {
     @Test
     fun 진행_이동_중_최대_글자배율() = capture("progress_moving_fontscale2") { LargeFont { Screen(content()) } }
 
+    // T039: 360dp + 최대 글자 배율(2.0) 조합. 시작 전·이동 중·지연·도착·당일 완료(건너뜀 포함)·다른 날짜·loading/empty/error·전환 실패.
     @Test
-    fun 진행_이동_중_360dp_최대_글자배율() = capture("progress_moving_360dp_fontscale2") {
-        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(content()) } }
+    fun 진행_이동_중_360dp_최대_글자배율() = capture("progress_moving_360dp_fontscale2") { Narrow { Screen(content()) } }
+
+    @Test
+    fun 진행_지연_360dp_최대_글자배율() = capture("progress_overdue_360dp_fontscale2") { Narrow { Screen(content(now = NOW_AFTER_ETA)) } }
+
+    @Test
+    fun 진행_도착_360dp_최대_글자배율() = capture("progress_arrived_360dp_fontscale2") { Narrow { Screen(content(progress = arrivedProgress())) } }
+
+    @Test
+    fun 진행_당일_완료_360dp_최대_글자배율() = capture("progress_all_done_360dp_fontscale2") { Narrow { Screen(content(progress = allDoneProgress())) } }
+
+    @Test
+    fun 진행_시작_전_360dp_최대_글자배율() = capture("progress_not_started_360dp_fontscale2") { Narrow { Screen(content(progress = notStartedProgress())) } }
+
+    @Test
+    fun 진행_다른_날짜_지난_일정_360dp_최대_글자배율() = capture("progress_viewing_past_360dp_fontscale2") {
+        Narrow { Screen(content(days = threeDays()).copy(viewingDate = java.time.LocalDate.parse("2026-09-07"))) }
     }
 
     @Test
-    fun 진행_도착_360dp_최대_글자배율() = capture("progress_arrived_360dp_fontscale2") {
-        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(content(progress = arrivedProgress())) } }
+    fun 진행_다른_날짜_예정_일정_360dp_최대_글자배율() = capture("progress_viewing_future_360dp_fontscale2") {
+        Narrow { Screen(content(days = threeDays()).copy(viewingDate = java.time.LocalDate.parse("2026-09-09"))) }
     }
 
     @Test
-    fun 진행_당일_완료_360dp_최대_글자배율() = capture("progress_all_done_360dp_fontscale2") {
-        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(content(progress = allDoneProgress())) } }
+    fun 진행_전환_실패_360dp_최대_글자배율() = capture("progress_action_error_360dp_fontscale2") {
+        Narrow { Screen(content().copy(actionError = ProgressActionFailure(ProgressAction(ITEM_B, ItemStatus.ARRIVED), ProgressError.Network))) }
+    }
+
+    @Test
+    fun 진행_empty_360dp_최대_글자배율() = capture("progress_empty_360dp_fontscale2") { Narrow { Screen(ProgressUiState.Empty) } }
+
+    @Test
+    fun 진행_error_360dp_최대_글자배율() = capture("progress_error_360dp_fontscale2") { Narrow { Screen(ProgressUiState.Error(ProgressError.Network)) } }
+
+    @Test
+    fun 진행_loading_360dp_최대_글자배율() {
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent { GilpickTheme { Narrow { Screen(ProgressUiState.Loading) } } }
+        composeRule.mainClock.advanceTimeBy(1_200)
+        save("progress_loading_360dp_fontscale2")
+    }
+
+    @Test
+    fun 상태_수정_시트_도착_360dp_최대_글자배율() = capture("progress_sheet_arrived_360dp_fontscale2") {
+        Narrow { Sheet(content(progress = allDoneProgress()).rows[2]) }
+    }
+
+    /** 360dp 너비 + 최대 글자 배율. */
+    @Composable
+    private fun Narrow(content: @Composable () -> Unit) {
+        Box(modifier = Modifier.width(360.dp)) { LargeFont { content() } }
     }
 
     @Composable

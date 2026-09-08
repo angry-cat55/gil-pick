@@ -43,6 +43,9 @@ def test_progress_data_serializes_nullable_inbound_travel_with_camel_case() -> N
                 inbound_travel=None,
             )
         ],
+        detection_targets=[],
+        pending_candidate=None,
+        undoable=None,
     )
 
     payload = data.model_dump(mode="json", by_alias=True)
