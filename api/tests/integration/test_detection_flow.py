@@ -93,12 +93,14 @@ def _payload(
     accuracy: float = 20,
     occurred_at: datetime | None = None,
     geofence_id: str | None = None,
+    event_type: str = "DWELL",
 ) -> ProgressEventRequest:
+    default_kind = "ARRIVAL" if event_type == "DWELL" else "DEPARTURE"
     return ProgressEventRequest.model_validate({
         "eventId": str(event_id or uuid.uuid4()),
-        "eventType": "DWELL",
+        "eventType": event_type,
         "itemId": str(item_id),
-        "geofenceId": geofence_id or f"{item_id}:ARRIVAL",
+        "geofenceId": geofence_id or f"{item_id}:{default_kind}",
         "occurredAt": (occurred_at or now).isoformat(),
         "location": {
             "latitude": 37.5,
@@ -106,6 +108,28 @@ def _payload(
             "accuracyMeters": accuracy,
         },
     })
+
+
+async def _register(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    trip_id: uuid.UUID,
+    item_id: uuid.UUID,
+    user_id: uuid.UUID,
+    now: datetime,
+    event_type: str = "DWELL",
+    event_id: uuid.UUID | None = None,
+):
+    async with transaction_session(factory) as session:
+        return await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=_payload(
+                item_id, now, event_type=event_type, event_id=event_id
+            ),
+            received_at=now,
+        )
 
 
 @pytest.mark.asyncio
@@ -963,3 +987,382 @@ async def test_get_day_lazy_finalizes_and_reports_undoable(
             trip_id=trip_id, visit_date=now.date()
         )
     assert later.undoable is None
+
+
+# --- US3: 출발 감지와 오판 대응 (T026) ---
+
+
+async def _auto_confirm_departure(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    trip_id: uuid.UUID,
+    item_id: uuid.UUID,
+    user_id: uuid.UUID,
+    now: datetime,
+) -> tuple[uuid.UUID, datetime]:
+    created = await _register(
+        factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+        event_type="EXIT",
+    )
+    assert created.candidate is not None
+    finalize_at = created.candidate.auto_finalize_at
+    await _finalize(factory, trip_id, now=finalize_at + timedelta(seconds=1))
+    return created.candidate.transition_id, finalize_at
+
+
+@pytest.mark.asyncio
+async def test_exit_creates_departure_candidate(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    await _add_item(session_factory, trip_id, sequence=2, status="PLANNED")
+
+    created = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+        event_type="EXIT",
+    )
+
+    assert created.accepted is True
+    assert created.candidate is not None
+    assert created.candidate.type == "DEPARTURE"
+    assert created.candidate.allowed_decisions == ["CONFIRM", "STILL_HERE"]
+    assert created.candidate.evidence.dwell_minutes is None
+    assert created.candidate.auto_finalize_at == now + timedelta(minutes=5)
+
+    async with session_factory() as session:
+        transition = await session.get(
+            ProgressTransition, created.candidate.transition_id
+        )
+    assert transition is not None
+    assert transition.transition_type == "DEPARTURE"
+    assert transition.source == "GEOFENCE_EXIT"
+
+
+@pytest.mark.asyncio
+async def test_reenter_cancels_pending_departure_candidate(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    await _add_item(session_factory, trip_id, sequence=2, status="PLANNED")
+    created = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+        event_type="EXIT",
+    )
+    assert created.candidate is not None
+
+    reentered = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now + timedelta(seconds=30),
+        event_type="REENTER",
+    )
+
+    assert reentered.accepted is True
+    assert reentered.cancelled_transition_id == created.candidate.transition_id
+    async with session_factory() as session:
+        transition = await session.get(
+            ProgressTransition, created.candidate.transition_id
+        )
+        item = await session.get(ItineraryItem, item_id)
+    assert transition is not None and transition.status == "CANCELLED"
+    assert item is not None and item.status == "ARRIVED"
+
+
+@pytest.mark.asyncio
+async def test_still_here_stops_departure_detection_for_the_day(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    await _add_item(session_factory, trip_id, sequence=2, status="PLANNED")
+    created = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+        event_type="EXIT",
+    )
+    assert created.candidate is not None
+
+    async with transaction_session(session_factory) as session:
+        result = await DetectionService(session).decide_transition(
+            user_id=user_id,
+            transition_id=created.candidate.transition_id,
+            decision="STILL_HERE",
+            idempotency_key=uuid.uuid4(),
+            decided_at=now,
+        )
+    assert result.status == "CANCELLED"
+    assert result.affected_items == []
+    assert result.next_prompt_at is None
+
+    async with session_factory() as session:
+        item = await session.get(ItineraryItem, item_id)
+    assert item is not None and item.status == "ARRIVED"
+
+    blocked = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now + timedelta(hours=1),
+        event_type="EXIT",
+    )
+    assert blocked.accepted is False
+    assert blocked.rejection_reason == "DEPARTURE_DETECTION_STOPPED"
+    assert blocked.candidate is None
+
+    async with transaction_session(session_factory) as session:
+        day = await session.scalar(
+            select(TripDay)
+            .options(selectinload(TripDay.items))
+            .where(TripDay.trip_id == trip_id)
+        )
+        targets, _ = await DetectionService(session).build_state(day)
+    assert all(t.item_id != item_id for t in targets)
+
+
+@pytest.mark.asyncio
+async def test_departure_confirm_completes_and_advances(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, first_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    second_id = await _add_item(
+        session_factory, trip_id, sequence=2, status="PLANNED"
+    )
+    created = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=first_id,
+        user_id=user_id,
+        now=now,
+        event_type="EXIT",
+    )
+    assert created.candidate is not None
+
+    async with transaction_session(session_factory) as session:
+        result = await DetectionService(session).decide_transition(
+            user_id=user_id,
+            transition_id=created.candidate.transition_id,
+            decision="CONFIRM",
+            idempotency_key=uuid.uuid4(),
+            decided_at=now,
+        )
+    async with session_factory() as session:
+        first = await session.get(ItineraryItem, first_id)
+        second = await session.get(ItineraryItem, second_id)
+
+    assert result.status == "CONFIRMED"
+    assert result.undo_deadline is None
+    assert first is not None and first.status == "COMPLETED"
+    assert second is not None and second.status == "EN_ROUTE"
+
+
+@pytest.mark.asyncio
+async def test_no_response_auto_departure_advances_and_is_undoable(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, first_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    second_id = await _add_item(
+        session_factory, trip_id, sequence=2, status="PLANNED"
+    )
+    transition_id, finalize_at = await _auto_confirm_departure(
+        session_factory,
+        trip_id=trip_id,
+        item_id=first_id,
+        user_id=user_id,
+        now=now,
+    )
+
+    async with session_factory() as session:
+        first = await session.get(ItineraryItem, first_id)
+        second = await session.get(ItineraryItem, second_id)
+        transition = await session.get(ProgressTransition, transition_id)
+
+    assert first is not None and first.status == "COMPLETED"
+    assert second is not None and second.status == "EN_ROUTE"
+    assert transition is not None
+    assert transition.status == "AUTO_CONFIRMED"
+    assert transition.source == "GEOFENCE_AUTO"
+    assert transition.undo_deadline == finalize_at + timedelta(
+        minutes=UNDO_WINDOW_MINUTES
+    )
+
+
+@pytest.mark.asyncio
+async def test_second_departure_undo_stops_detection_for_the_day(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, first_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    await _add_item(session_factory, trip_id, sequence=2, status="PLANNED")
+
+    transition_id, finalize_at = await _auto_confirm_departure(
+        session_factory,
+        trip_id=trip_id,
+        item_id=first_id,
+        user_id=user_id,
+        now=now,
+    )
+    undo_one = finalize_at + timedelta(minutes=1)
+    async with transaction_session(session_factory) as session:
+        await DetectionService(session).undo_transition(
+            user_id=user_id,
+            transition_id=transition_id,
+            idempotency_key=uuid.uuid4(),
+            undone_at=undo_one,
+        )
+
+    paused = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=first_id,
+        user_id=user_id,
+        now=undo_one + timedelta(minutes=5),
+        event_type="EXIT",
+    )
+    assert paused.rejection_reason == "DETECTION_PAUSED"
+
+    resume = undo_one + timedelta(minutes=REPROMPT_DELAY_MINUTES)
+    second = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=first_id,
+        user_id=user_id,
+        now=resume,
+        event_type="EXIT",
+    )
+    assert second.candidate is not None
+    await _finalize(session_factory, trip_id, now=resume + timedelta(minutes=6))
+    async with transaction_session(session_factory) as session:
+        await DetectionService(session).undo_transition(
+            user_id=user_id,
+            transition_id=second.candidate.transition_id,
+            idempotency_key=uuid.uuid4(),
+            undone_at=resume + timedelta(minutes=7),
+        )
+
+    stopped = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=first_id,
+        user_id=user_id,
+        now=resume + timedelta(hours=1),
+        event_type="EXIT",
+    )
+    assert stopped.accepted is False
+    assert stopped.rejection_reason == "DEPARTURE_DETECTION_STOPPED"
+    assert stopped.candidate is None
+
+
+@pytest.mark.asyncio
+async def test_manual_departure_then_late_exit_creates_no_candidate(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    await _add_item(session_factory, trip_id, sequence=2, status="PLANNED")
+
+    async with transaction_session(session_factory) as session:
+        await ProgressService(session).update_item_status(
+            user_id=user_id,
+            item_id=item_id,
+            target_status="COMPLETED",
+            progress_version=1,
+            idempotency_key=uuid.uuid4(),
+        )
+
+    late = await _register(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now + timedelta(minutes=1),
+        event_type="EXIT",
+    )
+    assert late.accepted is False
+    assert late.rejection_reason == "ITEM_NOT_ELIGIBLE"
+    assert late.candidate is None
+    async with session_factory() as session:
+        pending = await session.scalar(
+            select(func.count())
+            .select_from(ProgressTransition)
+            .where(
+                ProgressTransition.primary_item_id == item_id,
+                ProgressTransition.status == "PENDING_CONFIRMATION",
+            )
+        )
+    assert pending == 0
+
+
+# --- US4: 정확도가 계속 미달이면 후보가 없고 수동은 정상 (T032) ---
+
+
+@pytest.mark.asyncio
+async def test_persistent_low_accuracy_never_creates_candidate_manual_still_works(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+    await _add_item(session_factory, trip_id, sequence=2, status="PLANNED")
+
+    for minute in range(4):
+        async with transaction_session(session_factory) as session:
+            result = await DetectionService(session).register_event(
+                user_id=user_id,
+                trip_id=trip_id,
+                visit_date=now.date(),
+                payload=_payload(
+                    item_id, now + timedelta(minutes=minute), accuracy=250
+                ),
+                received_at=now + timedelta(minutes=minute),
+            )
+        assert result.accepted is False
+        assert result.rejection_reason == "LOW_ACCURACY"
+        assert result.candidate is None
+
+    async with session_factory() as session:
+        transitions = await session.scalar(
+            select(func.count())
+            .select_from(ProgressTransition)
+            .where(ProgressTransition.primary_item_id == item_id)
+        )
+    assert transitions == 0
+
+    async with transaction_session(session_factory) as session:
+        data = await ProgressService(session).update_item_status(
+            user_id=user_id,
+            item_id=item_id,
+            target_status="ARRIVED",
+            progress_version=1,
+            idempotency_key=uuid.uuid4(),
+        )
+    assert data.progress_version == 2
+    async with session_factory() as session:
+        item = await session.get(ItineraryItem, item_id)
+    assert item is not None and item.status == "ARRIVED"

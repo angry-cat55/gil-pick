@@ -125,3 +125,19 @@ def test_runtime_openapi_exposes_undo_endpoint_and_response_model() -> None:
     assert "Idempotency-Key" in {
         item["name"] for item in undo.get("parameters", [])
     }
+
+
+def test_detection_contract_covers_departure_decision_and_reenter() -> None:
+    schemas = app.openapi()["components"]["schemas"]
+
+    assert set(schemas["TransitionDecision"]["enum"]) == {
+        "CONFIRM",
+        "NOT_ARRIVED",
+        "STILL_HERE",
+    }
+    assert "cancelledTransitionId" in set(
+        schemas["ProgressEventResult"]["required"]
+    )
+    assert "DEPARTURE_DETECTION_STOPPED" in set(
+        schemas["RejectionReason"]["enum"]
+    )
