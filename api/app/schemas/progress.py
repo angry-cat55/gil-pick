@@ -261,14 +261,34 @@ class ProgressEnvelope(ApiModel):
     meta: ResponseMeta
 
 
+class ProgressEventEnvelope(ApiModel):
+    success: Literal[True]
+    data: ProgressEventResult
+    meta: ResponseMeta
+
+
+class TransitionResultEnvelope(ApiModel):
+    success: Literal[True]
+    data: TransitionResult
+    meta: ResponseMeta
+
+
+class UndoResultEnvelope(ApiModel):
+    success: Literal[True]
+    data: UndoResult
+    meta: ResponseMeta
+
+
 __all__ = [
     "AffectedItem", "CandidateEvidence", "CurrentLocation", "DayStatus",
     "DecisionRequest", "DetectionTarget", "EventLocation", "InboundTravel",
     "InboundTravelSource", "ProgressData", "ProgressEnvelope",
-    "ProgressErrorCode", "ProgressEventRequest", "ProgressEventResult",
+    "ProgressErrorCode", "ProgressEventEnvelope", "ProgressEventRequest",
+    "ProgressEventResult",
     "ProgressEventType", "ProgressItem", "ProgressTargetStatus", "PendingCandidate",
     "RejectionReason", "StartDayProgressRequest", "StartLocation",
     "TransitionCandidate", "TransitionDecision", "TransitionResult",
-    "TransitionType", "UndoResult", "UndoableTransition",
+    "TransitionResultEnvelope",
+    "TransitionType", "UndoResult", "UndoResultEnvelope", "UndoableTransition",
     "UpdateItemProgressStatusRequest",
 ]
