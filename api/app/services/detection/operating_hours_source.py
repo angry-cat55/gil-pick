@@ -19,10 +19,11 @@ class OperatingHours:
     status: BusinessStatus = BusinessStatus.UNKNOWN
     closes_at: datetime | None = None
     utc_offset_minutes: int | None = None
+    is_open: bool | None = None
 
     @property
     def known(self) -> bool:
-        return self.status in {BusinessStatus.CLOSED_TEMPORARILY, BusinessStatus.CLOSED_PERMANENTLY} or self.closes_at is not None
+        return self.status in {BusinessStatus.CLOSED_TEMPORARILY, BusinessStatus.CLOSED_PERMANENTLY} or self.is_open is not None
 
 
 class OperatingHoursSource:
@@ -59,6 +60,7 @@ class OperatingHoursSource:
             containing = [end for start, end in candidates if start <= local_eta <= end]
             same_day = [end for start, end in candidates if start.date() == local_eta.date()]
             closes_at = min(containing or same_day) if containing or same_day else None
-            return OperatingHours(status, closes_at, offset)
+            is_open = bool(containing) if containing or same_day else None
+            return OperatingHours(status, closes_at, offset, is_open)
         except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
             return OperatingHours()

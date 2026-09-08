@@ -48,3 +48,13 @@ async def test_operating_hours_malformed_payload_is_unknown() -> None:
     eta = datetime(2026, 9, 8, 17, 0, tzinfo=timezone(timedelta(hours=9)))
     source = OperatingHoursSource(_settings(), StubPlaces({"regularOpeningHours": []}))
     assert (await source.get("place", eta)).known is False
+
+
+@pytest.mark.asyncio
+async def test_operating_hours_before_open_is_not_in_business_period() -> None:
+    places = StubPlaces({"businessStatus":"OPERATIONAL","utcOffsetMinutes":540,
+        "regularOpeningHours":{"periods":[{"open":{"day":2,"hour":10},"close":{"day":2,"hour":18}}]}})
+    eta = datetime(2026, 9, 8, 9, 0, tzinfo=timezone(timedelta(hours=9)))
+    result = await OperatingHoursSource(_settings(), places).get("place", eta)
+    assert result.known is True
+    assert result.is_open is False

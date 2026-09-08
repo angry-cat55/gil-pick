@@ -99,17 +99,17 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] DETECT-001·002·003 계약 test in api/tests/contract/test_detections_contract.py
+- [x] T011 [P] [US1] DETECT-001·002·003 계약 test in api/tests/contract/test_detections_contract.py
   - 영역: BE
   - 담당: jh
   - 선행: T007
   - 검증: 세 endpoint의 응답 envelope·필드·enum이 `contracts/detections.openapi.yaml`과 일치, cursor 페이지네이션 meta(`nextCursor`·`hasNext`), 오류 code(`TRIP_FORBIDDEN`·`TRIP_NOT_FOUND`·`DETECTION_FORBIDDEN`·`DETECTION_NOT_FOUND`)
-- [ ] T012 [P] [US1] 운영시간 방문 불가 감지 생성·조회 integration test in api/tests/integration/test_detection_operating_hours.py
+- [x] T012 [P] [US1] 운영시간 방문 불가 감지 생성·조회 integration test in api/tests/integration/test_detection_operating_hours.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007
   - 검증: quickstart BE 1(폐점 이후 ETA → `ACTIVE`·`OPERATING_HOURS`·`visitBlocked=true`가 목록·상세에 노출, 위험 없는 다른 장소는 미생성), quickstart BE 6(시작 전·완료 날짜·타 사용자·ETA null 제외), SC-002·SC-006
-- [ ] T013 [P] [US1] 날씨·혼잡 변수 판정 integration test in api/tests/integration/test_detection_weather_congestion.py
+- [x] T013 [P] [US1] 날씨·혼잡 변수 판정 integration test in api/tests/integration/test_detection_weather_congestion.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007
@@ -117,42 +117,42 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] 날씨 평가기 in api/app/services/detection/weather.py
+- [x] T014 [P] [US1] 날씨 평가기 in api/app/services/detection/weather.py
   - 영역: BE
   - 담당: jh
   - 선행: T004, T008
   - 검증: `kma` 예보 슬롯을 ETA에 맞춰 선택하고 `policy` 임계값으로 위험 판정. 실내외 노출도가 `INDOOR`면 `available=false`·`unavailableReason=INDOOR`, 예보 없음/실패면 `NO_FORECAST`/`TIMEOUT`. `WeatherVerdict` 반환. 단위 test 포함
-- [ ] T015 [P] [US1] 혼잡 평가기 in api/app/services/detection/congestion.py
+- [x] T015 [P] [US1] 혼잡 평가기 in api/app/services/detection/congestion.py
   - 영역: BE
   - 담당: jh
   - 선행: T003, T004, T009
   - 검증: 500m 지원 지점 매핑 → `seoul_citydata` ETA 슬롯 혼잡 수준 → 카테고리 민감도로 위험 판정(거리 감쇠 없음). 지원지역 아님 → `NOT_IN_SUPPORT_AREA`, 실패 → `TIMEOUT`. `CongestionVerdict`(`level`·`sensitivity`·`crowded`) 반환. 단위 test 포함
-- [ ] T016 [P] [US1] 운영시간 평가기 in api/app/services/detection/operating_hours.py
+- [x] T016 [P] [US1] 운영시간 평가기 in api/app/services/detection/operating_hours.py
   - 영역: BE
   - 담당: jh
   - 선행: T004, T010
   - 검증: `operating_hours_source` 결과로 ETA ≥ 폐점 → `visitBlocked=true`, 폐점 30분 전 이내 → `closingSoon=true`, 임시·영구 휴업 → `visitBlocked=true`·`tempClosed`. 미상 → `available=false`·`unavailableReason=HOURS_UNKNOWN`(운영 중 가정). `OperatingHoursVerdict` 반환. 단위 test 포함
-- [ ] T017 [US1] 종합 위험 점수 산출 in api/app/services/detection/scoring.py
+- [x] T017 [US1] 종합 위험 점수 산출 in api/app/services/detection/scoring.py
   - 영역: BE
   - 담당: jh
   - 선행: T004
   - 검증: `available=false` 변수를 빼고 `policy` 가중치를 비례 재정규화 후 심각도 가중합(0~1). `round(score*100)`이 표시용 `totalRiskScore`. `primary_type`은 기여 최대 변수(동점 시 `OPERATING_HOURS`>`WEATHER`>`CONGESTION`). `api/tests/unit/test_detection_scoring.py`에서 재정규화·반올림·동점 규칙 확인
-- [ ] T018 [US1] 평가 orchestrator: 대상 선별·평가·`ACTIVE` upsert in api/app/services/detection/evaluator.py
+- [x] T018 [US1] 평가 orchestrator: 대상 선별·평가·`ACTIVE` upsert in api/app/services/detection/evaluator.py
   - 영역: BE
   - 담당: jh
   - 선행: T006, T014, T015, T016, T017
   - 검증: 대상 = `detection_active=true` AND `trip_days.status='IN_PROGRESS'` AND `visit_date=오늘(KST)` 날짜의 `itinerary_items.status IN ('PLANNED','EN_ROUTE')` AND `estimated_arrival_at IS NOT NULL`. 세 변수 평가 후 위험 ≥ 1이면 `INSERT ... ON CONFLICT (fingerprint) WHERE status='ACTIVE' DO UPDATE`로 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 저장. 위험 0이면 생성 안 함. 세 변수 모두 `available=false`면 생성 안 함(오류 아님). `evaluation_snapshot`에 변수별 원값·가용성·가중치·판정·`unavailable_reason`과 사용 ETA 기록, 좌표·이동 경로 미기록. `evaluate_all_active(session)` 공개. quickstart BE 1·2로 검증
-- [ ] T019 [US1] 10분 주기 작업 in api/app/jobs/variable_detection.py
+- [x] T019 [US1] 10분 주기 작업 in api/app/jobs/variable_detection.py
   - 영역: BE
   - 담당: jh
   - 선행: T018
   - 검증: `run_variable_detection(session_factory, *, interval_seconds=600)`가 `run_auth_cleanup` 패턴(`while True: try / logger.exception / await asyncio.sleep`)으로 `evaluate_all_active`를 호출. 실패는 log만 남기고 다음 주기 진행. `interval_seconds`는 `detection_cycle_seconds`에서 주입. `api/tests/unit/test_variable_detection_job.py`에서 1회 tick 동작과 예외 격리 확인
-- [ ] T020 [US1] DETECT-001·002·003 endpoint와 소유권 검증 in api/app/api/v1/detections.py
+- [x] T020 [US1] DETECT-001·002·003 endpoint와 소유권 검증 in api/app/api/v1/detections.py
   - 영역: BE
   - 담당: jh
   - 선행: T007, T018
   - 검증: `GET /api/v1/trips/{tripId}/detections`(cursor·limit, 정렬 `detected_at DESC, detection_id`, 불투명 cursor), `GET /api/v1/detections/{detectionId}`, `PATCH /api/v1/detections/{detectionId}/read`(멱등, 이미 읽음이면 `read_at` 유지). DETECT-001은 `trip→user`, DETECT-002·003은 `detection→trip_day→trip→user` 소유권 검증 후 타인 요청 `403`/`404`. quickstart BE 6·7, SC-008
-- [ ] T021 [US1] lifespan 작업 등록과 router include in api/app/main.py
+- [x] T021 [US1] lifespan 작업 등록과 router include in api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T019, T020
