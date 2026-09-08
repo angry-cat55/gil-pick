@@ -82,12 +82,12 @@
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] ETA 재계산 unit test 작성 in api/tests/unit/test_eta_service.py
+- [X] T010 [P] [US1] ETA 재계산 unit test 작성 in api/tests/unit/test_eta_service.py
   - 영역: BE
   - 담당: jh
   - 선행: T005, T006
   - 검증: data-model.md ETA 규칙(시작 위치 유무, 계획 구간·`progress_segments`·null 구간, `ARRIVED`·`COMPLETED` 기준 시각, `SKIPPED` 제외, `COMPLETED`·`SKIPPED` ETA 불변)을 fixture로 검증
-- [ ] T011 [P] [US1] 시작·조회 contract·integration test 작성 in api/tests/contract/test_progress_contract.py, api/tests/integration/test_progress_flow.py
+- [X] T011 [P] [US1] 시작·조회 contract·integration test 작성 in api/tests/contract/test_progress_contract.py, api/tests/integration/test_progress_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T004, T006
@@ -100,22 +100,22 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] ETA 재계산 service 구현 in api/app/services/eta.py
+- [X] T013 [US1] ETA 재계산 service 구현 in api/app/services/eta.py
   - 영역: BE
   - 담당: jh
   - 선행: T010
   - 검증: T010 통과, 활성 route payload·`progress_segments` 조회를 한 함수로 캡슐화하고 transaction 안에서 호출 가능
-- [ ] T014 [US1] 시작 service와 진행 현황 조회 구현 in api/app/services/progress.py
+- [X] T014 [US1] 시작 service와 진행 현황 조회 구현 in api/app/services/progress.py
   - 영역: BE
   - 담당: jh
   - 선행: T007, T013
   - 검증: 오늘(KST)·장소 수 검증, `FOR UPDATE`로 동시 시작 직렬화, 이미 시작이면 저장값 반환, 위치 유효성(100m·2분) 서버 재검증, `START` transition·`progress_version+1` 커밋 후 transaction 밖 도보 구간 계산 → `progress_segments` 저장·ETA 재계산, PROG-001 `inboundTravel`·`nextItemId` 파생. T011 통과
-- [ ] T015 [US1] 진행 router 등록(GET progress, POST start) in api/app/api/v1/progress.py, api/app/main.py
+- [X] T015 [US1] 진행 router 등록(GET progress, POST start) in api/app/api/v1/progress.py, api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T014
   - 검증: 인증·소유권 dependency 재사용, `Idempotency-Key` header 필수, request ID·trip/day·transition_type log(좌표 미기록), T011 contract 통과
-- [ ] T016 [US1] F004 저장·F005 경로 확정 뒤 ETA 재계산 연결 in api/app/services/itinerary.py, api/app/services/route.py
+- [X] T016 [US1] F004 저장·F005 경로 확정 뒤 ETA 재계산 연결 in api/app/services/itinerary.py, api/app/services/route.py
   - 영역: BE
   - 담당: jh
   - 선행: T013

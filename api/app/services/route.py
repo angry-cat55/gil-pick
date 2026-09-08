@@ -27,6 +27,7 @@ from app.core.logging import request_id_context
 from app.db import transaction_session
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.route import Route as RouteModel
+from app.services.eta import recalculate_day_eta
 from app.schemas.route import (
     FailedRouteData,
     NotCalculatedRouteData,
@@ -536,6 +537,8 @@ class RouteService:
                 set_={key: value for key, value in values.items() if key != "route_id"},
             )
             await session.execute(statement)
+            if result.status is RouteStatus.READY:
+                await recalculate_day_eta(session, snapshot.trip_day_id)
             return True
 
     async def _persist_retry(
@@ -573,6 +576,8 @@ class RouteService:
                 set_={key: value for key, value in values.items() if key != "route_id"},
             )
             await session.execute(statement)
+            if result.status is RouteStatus.READY:
+                await recalculate_day_eta(session, snapshot.trip_day_id)
             return True
 
 
