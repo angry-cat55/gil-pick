@@ -9,12 +9,13 @@ import pytest
 from geoalchemy2 import WKTElement
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
 
 from app.api.errors import AppError
 from app.db import transaction_session
 from app.models.auth import User
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.progress import ProgressEvent
+from app.models.progress import ProgressEvent, ProgressTransition
 from app.models.trip import Trip
 from app.schemas.progress import ProgressEventRequest
 from app.services.detection import DetectionService
@@ -200,3 +201,302 @@ async def test_event_rejects_other_trip_owner(
 
     assert forbidden.value.status_code == 403
     assert forbidden.value.code == "TRIP_FORBIDDEN"
+
+
+@pytest.mark.asyncio
+async def test_dwell_creates_arrival_candidate_without_incrementing_progress_version(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+
+    async with transaction_session(session_factory) as session:
+        result = await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=_payload(item_id, now),
+            received_at=now,
+        )
+
+    async with session_factory() as session:
+        day = await session.scalar(
+            select(TripDay).where(
+                TripDay.trip_id == trip_id,
+                TripDay.visit_date == now.date(),
+            )
+        )
+        transition = await session.scalar(
+            select(ProgressTransition).where(
+                ProgressTransition.primary_item_id == item_id,
+                ProgressTransition.status == "PENDING_CONFIRMATION",
+            )
+        )
+
+    assert result.accepted is True
+    assert result.candidate is not None
+    assert result.candidate.type == "ARRIVAL"
+    assert result.candidate.status == "PENDING_CONFIRMATION"
+    assert result.candidate.allowed_decisions == ["CONFIRM", "NOT_ARRIVED"]
+    assert result.candidate.auto_finalize_at == now + timedelta(minutes=5)
+    assert result.candidate.evidence.occurred_at == now
+    assert result.candidate.evidence.accuracy_meters == 20
+    assert transition is not None
+    assert transition.transition_type == "ARRIVAL"
+    assert transition.source == "GEOFENCE_DWELL"
+    assert transition.auto_finalize_at == now + timedelta(minutes=5)
+    assert day is not None and day.progress_version == 1
+
+
+@pytest.mark.asyncio
+async def test_duplicate_dwell_returns_same_candidate_and_creates_one_transition(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+    event_id = uuid.uuid4()
+    payload = _payload(item_id, now, event_id=event_id)
+
+    async with transaction_session(session_factory) as session:
+        first = await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=payload,
+            received_at=now,
+        )
+    async with transaction_session(session_factory) as session:
+        retried = await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=payload,
+            received_at=now,
+        )
+    async with session_factory() as session:
+        transition_count = await session.scalar(
+            select(func.count())
+            .select_from(ProgressTransition)
+            .where(ProgressTransition.primary_item_id == item_id)
+        )
+
+    assert retried == first
+    assert first.candidate is not None
+    assert transition_count == 1
+
+
+async def _register_arrival(
+    factory: async_sessionmaker[AsyncSession],
+    *,
+    trip_id: uuid.UUID,
+    item_id: uuid.UUID,
+    user_id: uuid.UUID,
+    now: datetime,
+):
+    async with transaction_session(factory) as session:
+        return await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=_payload(item_id, now),
+            received_at=now,
+        )
+
+
+@pytest.mark.asyncio
+async def test_not_arrived_pauses_once_then_stops_after_second_prompt(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+    first = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+    )
+    assert first.candidate is not None
+
+    async with transaction_session(session_factory) as session:
+        cancelled = await DetectionService(session).decide_transition(
+            user_id=user_id,
+            transition_id=first.candidate.transition_id,
+            decision="NOT_ARRIVED",
+            idempotency_key=uuid.uuid4(),
+            decided_at=now,
+        )
+
+    assert cancelled.status == "CANCELLED"
+    assert cancelled.affected_items == []
+    assert cancelled.next_prompt_at == now + timedelta(minutes=10)
+
+    paused = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now + timedelta(minutes=9, seconds=59),
+    )
+    assert paused.accepted is False
+    assert paused.rejection_reason == "DETECTION_PAUSED"
+    assert paused.candidate is None
+
+    second = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now + timedelta(minutes=10),
+    )
+    assert second.candidate is not None
+    async with transaction_session(session_factory) as session:
+        await DetectionService(session).decide_transition(
+            user_id=user_id,
+            transition_id=second.candidate.transition_id,
+            decision="NOT_ARRIVED",
+            idempotency_key=uuid.uuid4(),
+            decided_at=now + timedelta(minutes=10),
+        )
+
+    limited = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now + timedelta(minutes=20),
+    )
+    assert limited.accepted is False
+    assert limited.rejection_reason == "PROMPT_LIMIT_REACHED"
+    assert limited.candidate is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_arrival_changes_item_and_has_no_undo_deadline(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+    event = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+    )
+    assert event.candidate is not None
+
+    async with transaction_session(session_factory) as session:
+        result = await DetectionService(session).decide_transition(
+            user_id=user_id,
+            transition_id=event.candidate.transition_id,
+            decision="CONFIRM",
+            idempotency_key=uuid.uuid4(),
+            decided_at=now,
+        )
+    async with session_factory() as session:
+        item = await session.get(ItineraryItem, item_id)
+        day = await session.scalar(select(TripDay).where(TripDay.trip_id == trip_id))
+
+    assert result.status == "CONFIRMED"
+    assert result.undo_deadline is None
+    assert result.progress_version == 2
+    assert item is not None and item.status == "ARRIVED"
+    assert day is not None and day.progress_version == 2
+
+
+@pytest.mark.asyncio
+async def test_confirm_next_arrival_records_composite_transition(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, first_id, user_id, now = await _seed(
+        session_factory, item_status="ARRIVED"
+    )
+    async with transaction_session(session_factory) as session:
+        day = await session.scalar(select(TripDay).where(TripDay.trip_id == trip_id))
+        place = Place(
+            tour_content_id=f"detection-{uuid.uuid4()}",
+            name="다음 장소",
+            category="OTHER",
+            location=WKTElement("POINT(127.01 37.51)", srid=4326),
+        )
+        session.add(place)
+        await session.flush()
+        next_item = ItineraryItem(
+            trip_day_id=day.trip_day_id,
+            place_id=place.place_id,
+            sequence=2,
+            status="EN_ROUTE",
+            planned_stay_minutes=30,
+            stay_source="USER_ADJUSTED",
+        )
+        session.add(next_item)
+        await session.flush()
+        next_id = next_item.item_id
+
+    event = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=next_id,
+        user_id=user_id,
+        now=now,
+    )
+    assert event.candidate is not None
+    async with transaction_session(session_factory) as session:
+        result = await DetectionService(session).decide_transition(
+            user_id=user_id,
+            transition_id=event.candidate.transition_id,
+            decision="CONFIRM",
+            idempotency_key=uuid.uuid4(),
+            decided_at=now,
+        )
+    async with session_factory() as session:
+        transition = await session.get(
+            ProgressTransition, event.candidate.transition_id
+        )
+
+    assert transition is not None and transition.transition_type == "COMPOSITE"
+    assert [(item.item_id, item.before_status, item.after_status) for item in result.affected_items] == [
+        (first_id, "ARRIVED", "COMPLETED"),
+        (next_id, "EN_ROUTE", "ARRIVED"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_state_returns_detection_targets_and_pending_candidate(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+    async with transaction_session(session_factory) as session:
+        day = await session.scalar(
+            select(TripDay)
+            .options(selectinload(TripDay.items))
+            .where(TripDay.trip_id == trip_id)
+        )
+        targets, pending = await DetectionService(session).build_state(day)
+
+    assert pending is None
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.item_id == item_id
+    assert target.kind == "ARRIVAL"
+    assert target.geofence_id == f"{item_id}:ARRIVAL"
+    assert target.radius_meters == 300
+    assert target.dwell_minutes == 5
+
+    event = await _register_arrival(
+        session_factory,
+        trip_id=trip_id,
+        item_id=item_id,
+        user_id=user_id,
+        now=now,
+    )
+    assert event.candidate is not None
+
+    async with transaction_session(session_factory) as session:
+        day = await session.scalar(
+            select(TripDay)
+            .options(selectinload(TripDay.items))
+            .where(TripDay.trip_id == trip_id)
+        )
+        targets, pending = await DetectionService(session).build_state(day)
+
+    assert pending is not None
+    assert pending.model_dump(mode="json") == event.candidate.model_dump(mode="json")
+    assert targets == []
