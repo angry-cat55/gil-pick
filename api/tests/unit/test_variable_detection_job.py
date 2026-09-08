@@ -34,6 +34,7 @@ async def test_job_subtracts_evaluation_time_from_interval(monkeypatch: pytest.M
     class Session:
         async def __aenter__(self): return self
         async def __aexit__(self, *args): return None
+        def begin(self): return self
 
     class Loop:
         values = iter((100.0, 102.5))
@@ -51,3 +52,30 @@ async def test_job_subtracts_evaluation_time_from_interval(monkeypatch: pytest.M
     with pytest.raises(asyncio.CancelledError):
         await variable_detection.run_variable_detection(lambda: Session(), interval_seconds=10)
     assert sleeps == [7.5]
+
+
+@pytest.mark.asyncio
+async def test_job_continues_after_failed_tick(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+
+    class Session:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        def begin(self): return self
+
+    async def evaluate(session):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("tick failed")
+
+    async def sleep(_):
+        if calls == 2:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(variable_detection, "evaluate_all_active", evaluate)
+    monkeypatch.setattr(variable_detection.asyncio, "sleep", sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await variable_detection.run_variable_detection(lambda: Session(), interval_seconds=1)
+    assert calls == 2

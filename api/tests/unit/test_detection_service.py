@@ -19,6 +19,7 @@ def _transition(
     status: str = "CANCELLED",
     decision: str | None = None,
     cancelled_at: datetime | None = None,
+    undone_at: datetime | None = None,
     transition_type: str = "ARRIVAL",
 ) -> ProgressTransition:
     return ProgressTransition(
@@ -26,6 +27,7 @@ def _transition(
         status=status,
         decision=decision,
         cancelled_at=cancelled_at,
+        undone_at=undone_at,
     )
 
 
@@ -89,6 +91,53 @@ def test_not_arrived_allows_reprompt_at_exact_boundary() -> None:
     ]
 
     assert detection.DetectionService._arrival_block_reason(transitions, NOW) is None
+
+
+def _departure(**kwargs) -> ProgressTransition:
+    kwargs.setdefault("transition_type", "DEPARTURE")
+    return _transition(**kwargs)
+
+
+def test_departure_pending_blocks_duplicate() -> None:
+    transitions = [_departure(status="PENDING_CONFIRMATION")]
+
+    assert (
+        detection.DetectionService._departure_block_reason(transitions, NOW)
+        == "DETECTION_PAUSED"
+    )
+
+
+def test_departure_still_here_stops_for_the_day() -> None:
+    transitions = [_departure(decision="STILL_HERE")]
+
+    assert (
+        detection.DetectionService._departure_block_reason(transitions, NOW)
+        == "DEPARTURE_DETECTION_STOPPED"
+    )
+
+
+def test_departure_two_undos_stop_for_the_day() -> None:
+    transitions = [
+        _departure(status="UNDONE", undone_at=NOW - timedelta(hours=2)),
+        _departure(status="UNDONE", undone_at=NOW - timedelta(hours=1)),
+    ]
+
+    assert detection.DEPARTURE_UNDO_STOP_COUNT == 2
+    assert (
+        detection.DetectionService._departure_block_reason(transitions, NOW)
+        == "DEPARTURE_DETECTION_STOPPED"
+    )
+
+
+def test_departure_single_undo_pauses_until_resume_then_allows() -> None:
+    before = [_departure(status="UNDONE", undone_at=NOW - timedelta(minutes=9))]
+    after = [_departure(status="UNDONE", undone_at=NOW - timedelta(minutes=10))]
+
+    assert (
+        detection.DetectionService._departure_block_reason(before, NOW)
+        == "DETECTION_PAUSED"
+    )
+    assert detection.DetectionService._departure_block_reason(after, NOW) is None
 
 
 @pytest.mark.parametrize("item_status", ["PLANNED", "ARRIVED", "COMPLETED", "SKIPPED"])

@@ -62,4 +62,34 @@ async def test_visit_blocked_creates_one_active_detection(monkeypatch: pytest.Mo
         await engine.dispose()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"day_status": "NOT_STARTED"},
+        {"day_status": "COMPLETED"},
+        {"visit_offset_days": -1},
+        {"with_eta": False},
+    ],
+)
+async def test_ineligible_items_are_not_evaluated(
+    monkeypatch: pytest.MonkeyPatch, options: dict[str, object]
+) -> None:
+    engine, session_factory = await factory()
+    try:
+        _, item_id, user_id = await seed(session_factory, **options)
+        providers(monkeypatch, evaluator)
+        async with transaction_session(session_factory) as session:
+            assert await evaluator.evaluate_all_active(session) == 0
+        async with session_factory() as session:
+            assert await session.scalar(
+                select(Detection).where(Detection.item_id == item_id)
+            ) is None
+    finally:
+        if "user_id" in locals():
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id == user_id))
+        await engine.dispose()
+
+
 async def _value(value): return value

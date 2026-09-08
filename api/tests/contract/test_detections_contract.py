@@ -33,7 +33,8 @@ def test_cursor_requires_timezone_aware_timestamp() -> None:
 
 
 def test_detection_routes_match_documented_methods_and_models() -> None:
-    paths = create_app().openapi()["paths"]
+    runtime = create_app().openapi()
+    paths = runtime["paths"]
     listing = paths["/api/v1/trips/{tripId}/detections"]["get"]
     detail = paths["/api/v1/detections/{detectionId}"]["get"]
     read = paths["/api/v1/detections/{detectionId}/read"]["patch"]
@@ -46,3 +47,34 @@ def test_detection_routes_match_documented_methods_and_models() -> None:
     assert {"400", "401", "403", "404"} <= set(listing["responses"])
     assert {"401", "403", "404"} <= set(detail["responses"])
     assert {"401", "403", "404"} <= set(read["responses"])
+    schemas = runtime["components"]["schemas"]
+    assert set(schemas["DetectionListItem"]["required"]) == {
+        "detectionId", "itemId", "placeName", "primaryType", "status",
+        "totalRiskScore", "createdAt", "read",
+    }
+    assert set(schemas["DetectionStatus"]["enum"]) == {
+        "ACTIVE", "RESOLVED", "DISMISSED", "INVALIDATED",
+    }
+    assert {"nextCursor", "hasNext"} == set(
+        schemas["app__schemas__detection__Pagination"]["required"]
+    )
+    assert {
+        "INVALID_REQUEST", "INVALID_ACCESS_TOKEN", "TRIP_FORBIDDEN",
+        "TRIP_NOT_FOUND", "DETECTION_NOT_FOUND", "DETECTION_FORBIDDEN",
+    } == set(schemas["DetectionErrorCode"]["enum"])
+    source = yaml.safe_load(
+        (Path(__file__).parents[3] / "specs/008-variable-detection/contracts/detections.openapi.yaml")
+        .read_text(encoding="utf-8")
+    )["components"]["schemas"]
+    for name in (
+        "DetectionListItem",
+        "DetectionDetail",
+        "VariableVerdicts",
+        "CongestionVerdict",
+        "WeatherVerdict",
+        "OperatingHoursVerdict",
+    ):
+        assert set(schemas[name].get("required", [])) == set(source[name].get("required", []))
+        assert set(schemas[name]["properties"]) == set(source[name]["properties"])
+    assert set(schemas["DetectionType"]["enum"]) == set(source["DetectionType"]["enum"])
+    assert set(schemas["DetectionReadData"]["required"]) == {"detectionId", "read"}

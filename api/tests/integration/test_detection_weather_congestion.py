@@ -33,4 +33,43 @@ async def test_weather_and_congestion_can_independently_create_detection(monkeyp
         await engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_indoor_weather_alone_does_not_create_detection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine, session_factory = await factory()
+    try:
+        _, item_id, user_id = await seed(session_factory, category="CAFE")
+        providers(monkeypatch, evaluator)
+        monkeypatch.setattr(
+            evaluator,
+            "evaluate_congestion",
+            lambda *a, **k: _value(
+                CongestionVerdict(
+                    available=False, unavailable_reason="NOT_IN_SUPPORT_AREA"
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            evaluator,
+            "evaluate_operating_hours",
+            lambda *a, **k: _value(
+                OperatingHoursVerdict(
+                    available=False, unavailable_reason="HOURS_UNKNOWN"
+                )
+            ),
+        )
+        async with transaction_session(session_factory) as session:
+            assert await evaluator.evaluate_all_active(session) == 0
+        async with session_factory() as session:
+            assert await session.scalar(
+                select(Detection).where(Detection.item_id == item_id)
+            ) is None
+    finally:
+        if "user_id" in locals():
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id == user_id))
+        await engine.dispose()
+
+
 async def _value(value): return value

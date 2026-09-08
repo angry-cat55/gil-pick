@@ -20,7 +20,8 @@ async def run_variable_detection(
         started_at = asyncio.get_running_loop().time()
         try:
             async with session_factory() as session:
-                await evaluate_all_active(session)
+                async with session.begin():
+                    await evaluate_all_active(session)
         except Exception:
             logger.exception("여행 변수 감지 실행 실패")
         elapsed = asyncio.get_running_loop().time() - started_at

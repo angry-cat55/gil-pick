@@ -55,7 +55,6 @@ async def evaluate_all_active(session: AsyncSession) -> int:
         )
         .values(status="INVALIDATED", resolved_at=now)
     )
-    await session.commit()
     rows = (
         await session.execute(
             select(ItineraryItem, Place, TripDay, func.ST_Y(point), func.ST_X(point))
@@ -89,14 +88,15 @@ async def evaluate_all_active(session: AsyncSession) -> int:
             except Exception:
                 weather = WeatherVerdict(available=False, unavailable_reason="TIMEOUT")
             try:
-                congestion = await evaluate_congestion(
-                    session,
-                    seoul,
-                    category=place.category,
-                    latitude=float(latitude),
-                    longitude=float(longitude),
-                    eta=eta,
-                )
+                async with session.begin_nested():
+                    congestion = await evaluate_congestion(
+                        session,
+                        seoul,
+                        category=place.category,
+                        latitude=float(latitude),
+                        longitude=float(longitude),
+                        eta=eta,
+                    )
             except Exception:
                 congestion = CongestionVerdict(available=False, unavailable_reason="TIMEOUT")
             try:
@@ -110,79 +110,104 @@ async def evaluate_all_active(session: AsyncSession) -> int:
             except Exception:
                 operating = OperatingHoursVerdict(available=False, unavailable_reason="TIMEOUT")
             try:
-                score = score_variables(
-                    congestion=congestion,
-                    weather=weather,
-                    operating_hours=operating,
-                )
-                if score.primary_type is None or score.total_risk_score == 0:
-                    await session.rollback()
-                    continue
-                now = datetime.now(KST)
-                variables = VariableVerdicts(
-                    congestion=congestion,
-                    weather=weather,
-                    operating_hours=operating,
-                )
-                available_weight = sum(
-                    VARIABLE_WEIGHTS[key]
-                    for key, verdict in {
-                        "CONGESTION": congestion,
-                        "WEATHER": weather,
-                        "OPERATING_HOURS": operating,
-                    }.items()
-                    if verdict.available
-                )
-                snapshot = {
-                    "evaluatedAt": now.isoformat(),
-                    "eta": eta.isoformat(),
-                    "variables": variables.model_dump(mode="json", by_alias=True),
-                    "weights": {
-                        key: {
-                            "original": weight,
-                            "normalized": weight / available_weight if available_weight else None,
-                        }
-                        for key, weight in VARIABLE_WEIGHTS.items()
-                    },
-                }
-                values = {
-                    "trip_day_id": day.trip_day_id,
-                    "item_id": item.item_id,
-                    "primary_type": score.primary_type.value,
-                    "status": "ACTIVE",
-                    "eta": eta,
-                    "score": Decimal(str(score.score)),
-                    "reason": _REASONS[score.primary_type.value],
-                    "evaluation_snapshot": snapshot,
-                    "fingerprint": Detection.make_fingerprint(
-                        day.trip_day_id, item.item_id
-                    ),
-                    "detected_at": now,
-                    "last_evaluated_at": now,
-                }
-                statement = insert(Detection).values(**values)
-                statement = statement.on_conflict_do_update(
-                    index_elements=[Detection.fingerprint],
-                    index_where=Detection.status == "ACTIVE",
-                    set_={
-                        key: values[key]
-                        for key in (
-                            "primary_type",
-                            "eta",
-                            "score",
-                            "reason",
-                            "evaluation_snapshot",
-                            "last_evaluated_at",
-                        )
-                    },
-                )
-                await session.execute(statement)
-                await session.commit()
+                async with session.begin_nested():
+                    await _store_detection(
+                        session,
+                        item=item,
+                        day=day,
+                        eta=eta,
+                        congestion=congestion,
+                        weather=weather,
+                        operating=operating,
+                    )
                 count += 1
+            except _NoRisk:
+                continue
             except Exception:
-                await session.rollback()
+                continue
     finally:
         await kma.aclose()
         await seoul.aclose()
         await hours.aclose()
     return count
+
+
+class _NoRisk(Exception):
+    """저장할 위험이 없는 정상 평가를 장소 단위 savepoint에서 제외한다."""
+
+
+async def _store_detection(
+    session: AsyncSession,
+    *,
+    item: ItineraryItem,
+    day: TripDay,
+    eta: datetime,
+    congestion: CongestionVerdict,
+    weather: WeatherVerdict,
+    operating: OperatingHoursVerdict,
+) -> None:
+    """한 장소의 평가 결과를 ACTIVE upsert로 저장한다."""
+    score = score_variables(
+        congestion=congestion,
+        weather=weather,
+        operating_hours=operating,
+    )
+    if score.primary_type is None or score.total_risk_score == 0:
+        raise _NoRisk
+    now = datetime.now(KST)
+    variables = VariableVerdicts(
+        congestion=congestion,
+        weather=weather,
+        operating_hours=operating,
+    )
+    available_weight = sum(
+        VARIABLE_WEIGHTS[key]
+        for key, verdict in {
+            "CONGESTION": congestion,
+            "WEATHER": weather,
+            "OPERATING_HOURS": operating,
+        }.items()
+        if verdict.available
+    )
+    snapshot = {
+        "evaluatedAt": now.isoformat(),
+        "eta": eta.isoformat(),
+        "variables": variables.model_dump(mode="json", by_alias=True),
+        "weights": {
+            key: {
+                "original": weight,
+                "normalized": weight / available_weight if available_weight else None,
+            }
+            for key, weight in VARIABLE_WEIGHTS.items()
+        },
+    }
+    values = {
+        "trip_day_id": day.trip_day_id,
+        "item_id": item.item_id,
+        "primary_type": score.primary_type.value,
+        "status": "ACTIVE",
+        "eta": eta,
+        "score": Decimal(str(score.score)),
+        "reason": _REASONS[score.primary_type.value],
+        "evaluation_snapshot": snapshot,
+        "fingerprint": Detection.make_fingerprint(day.trip_day_id, item.item_id),
+        "detected_at": now,
+        "last_evaluated_at": now,
+    }
+    statement = insert(Detection).values(**values)
+    statement = statement.on_conflict_do_update(
+        index_elements=[Detection.fingerprint],
+        index_where=Detection.status == "ACTIVE",
+        set_={
+            key: values[key]
+            for key in (
+                "primary_type",
+                "eta",
+                "score",
+                "reason",
+                "evaluation_snapshot",
+                "last_evaluated_at",
+            )
+        },
+    )
+    await session.execute(statement)

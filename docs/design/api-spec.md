@@ -149,11 +149,11 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
 | ROUTE-002 | 경로 | 남은 경로 재계산 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/recalculate` |
 | ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
-| PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
+| PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
 | PROG-002 | 여행 진행 | 오늘 여행 시작 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/start` |
-| PROG-003 | 여행 진행 | 위치 이벤트 등록 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/events` |
-| PROG-004 | 여행 진행 | 자동 감지 확인 응답 | [ ] | [ ] | POST | `/api/v1/progress/transitions/{transitionId}/decisions` |
-| PROG-005 | 여행 진행 | 자동 확정 되돌리기 | [ ] | [ ] | POST | `/api/v1/progress/transitions/{transitionId}/undo` |
+| PROG-003 | 여행 진행 | 위치 이벤트 등록 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/events` |
+| PROG-004 | 여행 진행 | 자동 감지 확인 응답 | [ ] | [X] | POST | `/api/v1/progress/transitions/{transitionId}/decisions` |
+| PROG-005 | 여행 진행 | 자동 확정 되돌리기 | [ ] | [X] | POST | `/api/v1/progress/transitions/{transitionId}/undo` |
 | PROG-006 | 여행 진행 | 수동 진행 상태 처리 | [ ] | [ ] | PATCH | `/api/v1/itinerary-items/{itemId}/status` |
 | DETECT-001 | 변수 감지 | 감지 목록 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/detections` |
 | DETECT-002 | 변수 감지 | 감지 상세 조회 | [ ] | [ ] | GET | `/api/v1/detections/{detectionId}` |
@@ -1085,6 +1085,10 @@ Response `200`:
 }
 ```
 
+- `detectionTargets`는 저장하지 않고 날짜 상태와 `progress_transitions` 이력에서 매 조회마다 계산한다. `EN_ROUTE` 항목의 `ARRIVAL` 하나와 `ARRIVED` 항목의 `DEPARTURE` 하나만 담기며, 질문 횟수 상한·재질문/재개 대기·`아직 머무는 중`·되돌리기 2회 중단에 걸린 대상은 빠진다. 당일이 완료되면 빈 배열이다.
+- `pendingCandidate`는 지금 확인을 기다리는 후보(PROG-003이 만든 것), `undoable`은 무응답 자동 확정 뒤 되돌리기 창(기본 5분)이 아직 열린 전환이다. 둘 다 서버가 채우며 앱이 추정하지 않는다.
+- 이 조회는 응답을 만들기 전에 만료된 무응답 후보를 먼저 자동 확정한다(지연 확정). 따라서 `items`와 `progressVersion`은 확정이 반영된 값으로 내려간다.
+
 주요 오류: `400 INVALID_REQUEST`, `401`, `403`, `404`
 
 ### PROG-002 오늘 여행 시작
@@ -1140,7 +1144,12 @@ Request Body:
 }
 ```
 
-`eventType` 예시: `DWELL`, `EXIT`, `REENTER`
+- `eventType`: `DWELL`(도착 판정), `EXIT`(출발 판정), `REENTER`(출발 후보 취소)
+- `geofenceId`는 `{itemId}:{ARRIVAL|DEPARTURE}` 형식이며 종류가 항목 상태와 맞지 않으면 `rejectionReason=ITEM_NOT_ELIGIBLE`이다.
+- 서버는 이 요청을 처리하기 전에 그 날짜의 만료된 무응답 후보를 먼저 자동 확정한다(지연 확정).
+- `DWELL`은 `EN_ROUTE` 항목에서 `type=ARRIVAL` 후보(`allowedDecisions=[CONFIRM, NOT_ARRIVED]`)를, `EXIT`는 `ARRIVED` 항목에서 `type=DEPARTURE` 후보(`allowedDecisions=[CONFIRM, STILL_HERE]`, `evidence.dwellMinutes=null`)를 만든다.
+- `REENTER`는 살아 있는 출발 후보를 취소하고 그 ID를 `cancelledTransitionId`로 돌려준다. 취소할 후보가 없으면 `cancelledTransitionId=null`이고 상태는 그대로다.
+- `rejectionReason` 값: `LOW_ACCURACY`, `STALE`, `DAY_NOT_IN_PROGRESS`, `ITEM_NOT_ELIGIBLE`, `DETECTION_PAUSED`(재질문/재개 대기), `PROMPT_LIMIT_REACHED`(도착 질문 상한), `DEPARTURE_DETECTION_STOPPED`(`아직 머무는 중` 또는 자동 출발 되돌리기 2회 이후). `accepted=true`면 `null`이다.
 
 Response `200`:
 
@@ -1219,7 +1228,10 @@ Response `200`:
 }
 ```
 
-사용자가 직접 확인한 전환의 `undoDeadline`은 항상 null이다.
+- `CONFIRM`은 F006 수동 도착·출발과 같은 규칙으로 상태를 바꾸고 ETA를 다시 계산한다. 이전 EXIT 없이 다음 장소에 도착한 경우 이전 완료와 다음 도착을 한 transaction으로 처리하고 `affectedItems`에 함께 담는다.
+- `NOT_ARRIVED`(도착 거절)는 후보만 취소하고 상태를 바꾸지 않으며, 재질문이 가능하면 `nextPromptAt`을, 상한에 도달했으면 `null`을 돌려준다.
+- `STILL_HERE`(아직 머무는 중)는 후보를 취소하고 그 날짜 동안 그 장소의 자동 출발 감지를 멈춘다. `nextPromptAt`은 `null`이다.
+- 사용자가 직접 확인한 전환의 `undoDeadline`은 항상 null이다. 무응답 자동 확정만 되돌리기(PROG-005) 대상이다.
 
 주요 오류: `400`, `401`, `403`, `404`, `409 TRANSITION_NOT_PENDING`, `409 INVALID_DECISION`
 
@@ -1254,10 +1266,13 @@ Response `200`:
 }
 ```
 
-- 자동 도착·출발 확정 후 5분 이내 허용
-- 5분 이후에는 일반 수동 상태 수정 기능으로 보정
+- Header: `Idempotency-Key`. 같은 키 재전송은 최초 결과를 그대로 돌려준다.
+- 무응답 자동 확정 후 5분(`undoDeadline`) 이내에만 허용하며, 만료 판정은 서버 시각으로 한다.
+- `affectedItems`에 기록된 모든 항목 상태와 날짜 상태 스냅샷을 확정 직전으로 복원하고 ETA를 다시 계산한다. 자동 확정이 당일 완료로 이어졌다면 `dayStatus`로 `IN_PROGRESS` 복귀를 알린다.
+- `detectionResumeAt`은 되돌린 시각 + 재질문 간격(10분)이다. 그때까지 같은 장소·같은 종류의 자동 감지는 쉰다. 같은 장소의 자동 출발을 두 번째로 되돌리면 그 날짜 동안 자동 출발 감지를 멈춘다.
+- 사용자가 직접 확인한 전환이거나 이미 되돌린 전환이면 `409 TRANSITION_NOT_UNDOABLE`, 5분이 지났으면 `409 UNDO_WINDOW_EXPIRED`다. 5분 이후에는 PROG-006 수동 상태 수정으로 보정한다.
 
-주요 오류: `401`, `403`, `404`, `409 UNDO_WINDOW_EXPIRED`, `409 TRANSITION_NOT_UNDOABLE`
+주요 오류: `400`, `401`, `403`, `404`, `409 UNDO_WINDOW_EXPIRED`, `409 TRANSITION_NOT_UNDOABLE`
 
 ### PROG-006 수동 진행 상태 처리
 

@@ -40,6 +40,8 @@ UNDO_WINDOW_MINUTES = 5
 # 도착 후보를 파생 판정할 때 함께 세는 전환 종류. COMPOSITE는 도착이 이전 완료를
 # 함께 처리한 전환이므로 도착 질문 횟수·재개 시각 계산에 포함한다.
 _ARRIVAL_TRANSITION_TYPES = ("ARRIVAL", "COMPOSITE")
+# 같은 장소의 자동 출발 확정을 이 횟수만큼 되돌리면 그 날짜 동안 자동 출발을 멈춘다(FR-017a).
+DEPARTURE_UNDO_STOP_COUNT = 2
 logger = logging.getLogger("gilpick.detection")
 
 
@@ -58,7 +60,12 @@ class DetectionService:
         payload: ProgressEventRequest,
         received_at: datetime | None = None,
     ) -> ProgressEventResult:
-        """이벤트를 한 번만 저장하고 유효한 DWELL이면 도착 후보를 만든다.
+        """이벤트를 한 번만 저장하고 종류에 따라 도착·출발 후보를 만들거나 취소한다.
+
+        먼저 그 날짜의 만료된 무응답 후보를 자동 확정한다(지연 확정). 이어서
+        유효한 `DWELL`은 도착 후보, `EXIT`는 출발 후보를 만들고, `REENTER`는
+        살아 있는 출발 후보를 취소한다. 기준 미충족 이벤트도 저장하되
+        `accepted=False`로 둔다.
 
         Args:
             user_id: 요청 사용자 ID.
@@ -68,7 +75,7 @@ class DetectionService:
             received_at: 테스트에서 주입할 서버 수신 시각.
 
         Returns:
-            이벤트 수락 여부와 생성된 후보.
+            이벤트 수락 여부, 생성된 후보, 재진입으로 취소된 후보 ID.
 
         Raises:
             AppError: 여행 또는 일정 항목이 없거나 소유권이 없는 경우.
@@ -105,26 +112,28 @@ class DetectionService:
                 raise AppError(403, "TRIP_FORBIDDEN", "다른 여행의 일정에는 접근할 수 없습니다.")
             raise AppError(404, "ITINERARY_ITEM_NOT_FOUND", "일정 항목을 찾을 수 없습니다.")
         reason = self._rejection_reason(day, item, payload, now)
-        if reason is None and payload.event_type.value == "DWELL":
+        event_type = payload.event_type.value
+        if reason is None and event_type in ("DWELL", "EXIT"):
             history = list(
                 (
                     await self.session.scalars(
                         select(ProgressTransition).where(
                             ProgressTransition.trip_day_id == day.trip_day_id,
                             ProgressTransition.primary_item_id == item.item_id,
-                            ProgressTransition.transition_type.in_(
-                                _ARRIVAL_TRANSITION_TYPES
-                            ),
                         )
                     )
                 ).all()
             )
-            reason = self._arrival_block_reason(history, now)
+            reason = (
+                self._arrival_block_reason(history, now)
+                if event_type == "DWELL"
+                else self._departure_block_reason(history, now)
+            )
         event = ProgressEvent(
             client_event_id=payload.event_id,
             trip_day_id=day.trip_day_id,
             item_id=item.item_id,
-            event_type=payload.event_type.value,
+            event_type=event_type,
             geofence_id=payload.geofence_id,
             location=WKTElement(
                 f"POINT({payload.location.longitude} {payload.location.latitude})",
@@ -139,14 +148,16 @@ class DetectionService:
         self.session.add(event)
         await self.session.flush()
         candidate = None
-        if reason is None and payload.event_type.value == "DWELL":
+        cancelled_id = None
+        if reason is None and event_type in ("DWELL", "EXIT"):
+            is_departure = event_type == "EXIT"
             transition = ProgressTransition(
                 trip_day_id=day.trip_day_id,
                 primary_item_id=item.item_id,
                 trigger_event_id=event.progress_event_id,
-                transition_type="ARRIVAL",
+                transition_type="DEPARTURE" if is_departure else "ARRIVAL",
                 status="PENDING_CONFIRMATION",
-                source="GEOFENCE_DWELL",
+                source="GEOFENCE_EXIT" if is_departure else "GEOFENCE_DWELL",
                 affected_items=[],
                 detected_at=now,
                 auto_finalize_at=now + timedelta(minutes=AUTO_FINALIZE_MINUTES),
@@ -157,6 +168,8 @@ class DetectionService:
             self.session.add(transition)
             await self.session.flush()
             candidate = self._candidate(transition, event)
+        elif event_type == "REENTER":
+            cancelled_id = await self._cancel_pending_departure(day, item, now)
         logger.info(
             {
                 "operation": "REGISTER_PROGRESS_EVENT",
@@ -165,7 +178,34 @@ class DetectionService:
                 "rejection_reason": reason,
             }
         )
-        return self._result(event, candidate)
+        return self._result(event, candidate, cancelled_id)
+
+    async def _cancel_pending_departure(
+        self, day: TripDay, item: ItineraryItem, now: datetime
+    ) -> uuid.UUID | None:
+        """재진입 시 살아 있는 출발 후보를 취소하고 그 ID를 돌려준다(FR-012)."""
+        pending = await self.session.scalar(
+            select(ProgressTransition)
+            .where(
+                ProgressTransition.trip_day_id == day.trip_day_id,
+                ProgressTransition.primary_item_id == item.item_id,
+                ProgressTransition.transition_type == "DEPARTURE",
+                ProgressTransition.status == "PENDING_CONFIRMATION",
+            )
+            .with_for_update()
+        )
+        if pending is None:
+            return None
+        pending.status, pending.cancelled_at = "CANCELLED", now
+        await self.session.flush()
+        logger.info(
+            {
+                "operation": "CANCEL_DEPARTURE_CANDIDATE",
+                "transition_id": str(pending.transition_id),
+                "result": "REENTER",
+            }
+        )
+        return pending.transition_id
 
     async def decide_transition(
         self,
@@ -236,22 +276,28 @@ class DetectionService:
             raise AppError(409, "INVALID_DECISION", "후보 종류에 맞지 않는 응답입니다.")
         transition.idempotency_key = idempotency_key
         transition.decision = decision
-        if decision == "NOT_ARRIVED":
+        if decision in ("NOT_ARRIVED", "STILL_HERE"):
+            # NOT_ARRIVED(도착 거절)와 STILL_HERE(아직 머무는 중) 모두 후보만 취소하고
+            # 상태를 바꾸지 않는다. NOT_ARRIVED만 재질문 시각을 돌려준다(FR-007).
+            # STILL_HERE는 그 날짜의 자동 출발을 멈춘다(FR-013, _departure_block_reason).
             transition.status, transition.cancelled_at = "CANCELLED", now
-            count = await self.session.scalar(
-                select(func.count())
-                .select_from(ProgressTransition)
-                .where(
-                    ProgressTransition.trip_day_id == day.trip_day_id,
-                    ProgressTransition.primary_item_id == transition.primary_item_id,
-                    ProgressTransition.transition_type == "ARRIVAL",
+            next_at = None
+            if decision == "NOT_ARRIVED":
+                count = await self.session.scalar(
+                    select(func.count())
+                    .select_from(ProgressTransition)
+                    .where(
+                        ProgressTransition.trip_day_id == day.trip_day_id,
+                        ProgressTransition.primary_item_id
+                        == transition.primary_item_id,
+                        ProgressTransition.transition_type == "ARRIVAL",
+                    )
                 )
-            )
-            next_at = (
-                now + timedelta(minutes=REPROMPT_DELAY_MINUTES)
-                if (count or 0) < 2
-                else None
-            )
+                next_at = (
+                    now + timedelta(minutes=REPROMPT_DELAY_MINUTES)
+                    if (count or 0) < 2
+                    else None
+                )
             result = TransitionResult(
                 transition_id=transition.transition_id,
                 status="CANCELLED",
@@ -614,15 +660,16 @@ class DetectionService:
             )
         ).all()
         coords = {row[0]: (float(row[2]), float(row[1])) for row in rows}
+        now = datetime.now(UTC)
         targets = []
         for item in items:
             kind = "ARRIVAL" if item.status == "EN_ROUTE" else "DEPARTURE"
             history = [
                 x for x in transitions if x.primary_item_id == item.item_id
             ]
-            if kind == "ARRIVAL" and self._arrival_block_reason(
-                history, datetime.now(UTC)
-            ):
+            if kind == "ARRIVAL" and self._arrival_block_reason(history, now):
+                continue
+            if kind == "DEPARTURE" and self._departure_block_reason(history, now):
                 continue
             lat, lon = coords[item.item_id]
             targets.append(
@@ -665,6 +712,33 @@ class DetectionService:
         return None
 
     @staticmethod
+    def _departure_block_reason(
+        transitions: Sequence[ProgressTransition], now: datetime
+    ) -> str | None:
+        """출발 후보 이력에서 현재 생성 차단 사유를 계산한다.
+
+        `아직 머무는 중`(FR-013)이나 자동 출발 되돌리기 2회(FR-017a)면 그 날짜 동안
+        멈추고, 되돌린 직후에는 재질문 간격만큼 쉬었다가 재개한다.
+        """
+        departures = [x for x in transitions if x.transition_type == "DEPARTURE"]
+        if any(x.status == "PENDING_CONFIRMATION" for x in departures):
+            return "DETECTION_PAUSED"
+        if any(x.decision == "STILL_HERE" for x in departures):
+            return "DEPARTURE_DETECTION_STOPPED"
+        undo_count = sum(1 for x in departures if x.undone_at is not None)
+        if undo_count >= DEPARTURE_UNDO_STOP_COUNT:
+            return "DEPARTURE_DETECTION_STOPPED"
+        last_undo = max(
+            (x.undone_at for x in departures if x.undone_at is not None),
+            default=None,
+        )
+        if last_undo is not None and now < last_undo + timedelta(
+            minutes=REPROMPT_DELAY_MINUTES
+        ):
+            return "DETECTION_PAUSED"
+        return None
+
+    @staticmethod
     def _rejection_reason(
         day: TripDay,
         item: ItineraryItem,
@@ -690,13 +764,14 @@ class DetectionService:
     def _result(
         event: ProgressEvent,
         candidate: TransitionCandidate | None = None,
+        cancelled_transition_id: uuid.UUID | None = None,
     ) -> ProgressEventResult:
         return ProgressEventResult(
             event_id=event.client_event_id,
             accepted=event.accepted,
             rejection_reason=event.rejection_reason,
             candidate=candidate,
-            cancelled_transition_id=None,
+            cancelled_transition_id=cancelled_transition_id,
         )
 
     async def _event_result(self, event: ProgressEvent) -> ProgressEventResult:
@@ -717,6 +792,7 @@ class DetectionService:
     def _candidate(
         transition: ProgressTransition, event: ProgressEvent
     ) -> TransitionCandidate:
+        is_departure = transition.transition_type == "DEPARTURE"
         return TransitionCandidate(
             transition_id=transition.transition_id,
             item_id=transition.primary_item_id,
@@ -724,11 +800,15 @@ class DetectionService:
             status="PENDING_CONFIRMATION",
             detected_at=transition.detected_at,
             auto_finalize_at=transition.auto_finalize_at,
-            allowed_decisions=["CONFIRM", "NOT_ARRIVED"],
+            allowed_decisions=(
+                ["CONFIRM", "STILL_HERE"]
+                if is_departure
+                else ["CONFIRM", "NOT_ARRIVED"]
+            ),
             evidence=CandidateEvidence(
                 occurred_at=event.occurred_at,
                 accuracy_meters=float(event.accuracy_meters),
-                dwell_minutes=5,
+                dwell_minutes=None if is_departure else 5,
             ),
         )
 
