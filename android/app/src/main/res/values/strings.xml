@@ -391,4 +391,28 @@
     <string name="progress_error_not_started">아직 시작하지 않은 날짜예요. 여행 상세에서 먼저 시작해 주세요.</string>
     <string name="progress_error_invalid_transition">지금 상태에서는 할 수 없는 변경이에요. 최신 현황을 다시 불러옵니다.</string>
     <string name="progress_error_unexpected">지금은 진행 현황을 처리할 수 없어요. 잠시 후 다시 시도해 주세요.</string>
+
+    <!-- F007 도착·출발 확인 시트. 문구는 Figma `ActiveTravelScreen`을 따른다. -->
+    <!-- %1$s는 대상 장소명. -->
+    <string name="detection_confirm_arrival_title">%1$s에 도착하셨나요?</string>
+    <string name="detection_confirm_departure_title">%1$s에서 출발하셨나요?</string>
+    <!-- %1$d는 반경 안에 머문 시간(분), %2$s는 감지 시각. -->
+    <string name="detection_evidence_dwell">이 근처에서 %1$d분 머무는 중 · %2$s 감지</string>
+    <string name="detection_evidence_arrival">이 근처에 있어요 · %1$s 감지</string>
+    <string name="detection_evidence_departure">이 근처를 벗어났어요 · %1$s 감지</string>
+    <!-- %1$d는 자동 확정까지 남은 시간(분). 표시 전용이며 판정은 서버가 한다. -->
+    <string name="detection_auto_arrival_notice">%1$d분 뒤 자동으로 도착 처리돼요</string>
+    <string name="detection_auto_departure_notice">%1$d분 뒤 자동으로 출발 처리돼요</string>
+    <string name="detection_confirm_arrival_yes">네, 도착했어요</string>
+    <string name="detection_confirm_arrival_no">아직이에요</string>
+    <string name="detection_confirm_departure_yes">네, 출발했어요</string>
+    <string name="detection_confirm_departure_no">아직 머무는 중</string>
+    <string name="detection_confirm_progress">보내는 중</string>
+    <string name="detection_retry">다시 시도</string>
+    <string name="detection_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="detection_error_not_pending">이미 처리된 알림입니다. 최신 상태를 불러왔어요.</string>
+    <string name="detection_error_undo_expired">되돌릴 수 있는 시간이 지났습니다. 상태 수정으로 바꿀 수 있어요.</string>
+    <string name="detection_error_session">다시 로그인한 뒤 이용할 수 있습니다.</string>
+    <string name="detection_error_not_found">이미 삭제되었거나 볼 수 없는 일정입니다.</string>
+    <string name="detection_error_unexpected">지금은 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
 </resources>

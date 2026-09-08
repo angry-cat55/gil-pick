@@ -112,6 +112,9 @@ fun ActiveTravelScreen(
     onStatusAction: (itemId: String, status: ItemStatus) -> Unit = { _, _ -> },
     onSelectDate: (LocalDate) -> Unit = {},
     onReturnToToday: () -> Unit = {},
+    onDecide: (TransitionDecision) -> Unit = {},
+    onRetryDecision: () -> Unit = {},
+    onDismissCandidate: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -138,6 +141,9 @@ fun ActiveTravelScreen(
                     onRetryAction = onRetryAction,
                     onDismissActionError = onDismissActionError,
                     onStatusAction = onStatusAction,
+                    onDecide = onDecide,
+                    onRetryDecision = onRetryDecision,
+                    onDismissCandidate = onDismissCandidate,
                     map = map,
                 )
             }
@@ -442,6 +448,9 @@ private fun Content(
     onRetryAction: () -> Unit,
     onDismissActionError: () -> Unit,
     onStatusAction: (itemId: String, status: ItemStatus) -> Unit,
+    onDecide: (TransitionDecision) -> Unit,
+    onRetryDecision: () -> Unit,
+    onDismissCandidate: () -> Unit,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -489,6 +498,20 @@ private fun Content(
                 onStatusAction(row.item.itemId, status)
             },
             onDismiss = { sheetRow = null },
+        )
+    }
+
+    // 답을 기다리는 후보가 있으면 확인 시트를 띄운다. 닫아도 후보는 살아 있다(UI-007).
+    content.visibleCandidate?.let { candidate ->
+        ConfirmSheet(
+            candidate = candidate,
+            placeName = content.candidatePlaceName,
+            now = content.now,
+            submitting = content.decisionPending != null,
+            error = content.decisionError,
+            onDecide = onDecide,
+            onRetry = onRetryDecision,
+            onDismiss = onDismissCandidate,
         )
     }
 }

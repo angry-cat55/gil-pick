@@ -47,6 +47,8 @@ class ProgressViewModel(
     private val itineraryRepository: ItineraryRepository,
     private val tripId: String,
     private val clock: Clock = Clock.system(KST),
+    private val detectionRepository: DetectionRepository? = null,
+    private val geofenceManager: GeofenceManager? = null,
 ) : ViewModel() {
 
     /** 진행 현황을 조회하는 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다. */
@@ -87,10 +89,32 @@ class ProgressViewModel(
                         pendingAction = kept.pendingAction,
                         actionError = kept.actionError,
                         viewingDate = kept.viewingDate,
+                        decisionPending = kept.decisionPending,
+                        decisionError = kept.decisionError,
+                        // 후보가 바뀌면 닫아 둔 시트를 다시 띄운다. 새 질문이기 때문이다.
+                        candidateDismissed = kept.candidateDismissed &&
+                            kept.progress.pendingCandidate?.transitionId == next.progress.pendingCandidate?.transitionId,
                     )
                 }
             }
+            syncGeofences()
         }
+    }
+
+    /**
+     * 서버가 준 감지 대상과 실제 등록 상태를 맞춘다(FR-023·research 4절).
+     *
+     * 앱은 무엇을 감지할지 계산하지 않고 받은 목록만 반영한다. 등록에 실패해도 자동 감지만
+     * 꺼지고 수동 진행은 그대로다(FR-024).
+     */
+    private suspend fun syncGeofences() {
+        val manager = geofenceManager ?: return
+        val content = _state.value as? ProgressUiState.Content
+        if (content == null) {
+            manager.clear()
+            return
+        }
+        manager.sync(tripId, content.progress.date, content.progress.detectionTargets)
     }
 
     /** 이동 중 카드의 `도착했어요`: 다음 장소를 `ARRIVED`로(US2 시나리오 1·4). */
@@ -126,6 +150,56 @@ class ProgressViewModel(
                 }
             }
             if (error == ProgressError.VersionConflict || error == ProgressError.InvalidTransition) load()
+        }
+    }
+
+    /**
+     * 확인 시트의 응답을 보낸다(PROG-004).
+     *
+     * 보내는 동안 후보는 그대로 두고 두 행동만 잠근다. 성공하면 최신 진행 현황을 다시 조회해
+     * 후보·상태·감지 대상을 한 번에 맞춘다. 실패하면 후보를 임의로 취소하지 않고 원인만 남긴다(UI-006).
+     */
+    fun decide(decision: TransitionDecision) {
+        val content = _state.value as? ProgressUiState.Content ?: return
+        val candidate = content.progress.pendingCandidate ?: return
+        val repository = detectionRepository ?: return
+        if (content.decisionPending != null) return
+
+        _state.value = content.copy(decisionPending = decision, decisionError = null)
+        viewModelScope.launch {
+            when (val result = repository.decide(candidate.transitionId, decision)) {
+                is AuthResult.Success -> {
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = null) ?: current
+                    }
+                    // 응답은 전환 결과만 준다. 후보·상태·감지 대상은 진행 조회로 한 번에 맞춘다.
+                    load()
+                }
+
+                is AuthResult.Failure -> {
+                    val error = result.error.toDetectionError()
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = error) ?: current
+                    }
+                    // 이미 처리된 후보는 최신 상태를 다시 받아야 화면이 맞는다.
+                    if (error == DetectionError.TransitionNotPending || error == DetectionError.InvalidDecision) load()
+                }
+            }
+        }
+    }
+
+    /** 실패한 확인 응답을 같은 내용으로 다시 보낸다. */
+    fun retryDecision() {
+        val pending = (_state.value as? ProgressUiState.Content) ?: return
+        val decision = pending.decisionError?.let { pending.progress.pendingCandidate?.allowedDecisions?.firstOrNull() } ?: return
+        _state.value = pending.copy(decisionError = null)
+        decide(decision)
+    }
+
+    /** 확인 시트를 닫는다. 후보는 살아 있고 수동 진행을 계속할 수 있다(UI-007). */
+    fun dismissCandidate() {
+        _state.update { state ->
+            if (state is ProgressUiState.Content) state.copy(candidateDismissed = true, decisionError = null) else state
         }
     }
 
@@ -189,12 +263,16 @@ class ProgressViewModel(
             tripId: String,
             progressRepository: ProgressRepository,
             itineraryRepository: ItineraryRepository,
+            detectionRepository: DetectionRepository? = null,
+            geofenceManager: GeofenceManager? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ProgressViewModel(
                     progressRepository = progressRepository,
                     itineraryRepository = itineraryRepository,
                     tripId = tripId,
+                    detectionRepository = detectionRepository,
+                    geofenceManager = geofenceManager,
                 )
             }
         }

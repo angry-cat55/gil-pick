@@ -1,8 +1,15 @@
 package com.gilpick.progress
 
+import android.content.Context
+import com.gilpick.BuildConfig
+import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthError
 import com.gilpick.auth.AuthErrorCodes
 import com.gilpick.auth.AuthRepository
+import com.gilpick.auth.AuthService
+import com.gilpick.auth.AuthSessionStore
+import com.gilpick.auth.SessionRevocationWorker
+import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.auth.AuthResult
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.auth.toAuthResult
@@ -109,6 +116,29 @@ class DetectionRepository(
     /** 같은 요청 내용이면 같은 UUID(v3)를 돌려준다. F006 [ProgressRepository]와 같은 방식이다. */
     private fun idempotencyKey(vararg parts: Any): String =
         UUID.nameUUIDFromBytes(parts.joinToString("|").toByteArray()).toString()
+
+    companion object {
+
+        /**
+         * 실제 서버를 향한 repository를 조립한다.
+         *
+         * 지오펜스 broadcast는 화면·ViewModel 없이 도착하므로 receiver가 직접 만들어 쓸 곳이
+         * 필요하다. F006 `ProgressViewModel.defaultRepository`와 같은 조립이다.
+         */
+        fun default(context: Context): DetectionRepository {
+            val appContext = context.applicationContext
+            val auth = AuthRepository(
+                store = AuthSessionStore.create(appContext),
+                api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
+                appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
+                scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+            )
+            return DetectionRepository(
+                api = createDetectionRetrofit(BuildConfig.API_BASE_URL).create(DetectionService::class.java),
+                auth = auth,
+            )
+        }
+    }
 }
 
 /**
