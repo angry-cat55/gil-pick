@@ -26,7 +26,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 **Purpose**: F007 계약을 공용 문서에 고정하고 Android 백그라운드 위치·지오펜스 준비와 Figma 부족 요소를 채운다.
 
-- [ ] T001 F007 계약·ERD·API 명세 동기화와 교차 review in specs/007-location-detection/contracts/detection.openapi.yaml, specs/006-trip-progress/contracts/progress.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T001 F007 계약·ERD·API 명세 동기화와 교차 review in specs/007-location-detection/contracts/detection.openapi.yaml, specs/006-trip-progress/contracts/progress.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: 통합
   - 담당: ts
   - 교차 확인: hs
