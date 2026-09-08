@@ -11,7 +11,7 @@ interface Props {
 }
 
 type CardMode = "moving" | "arrived" | "overdue" | "allDone";
-type ModalType = "departed" | "arrived" | null;
+type ModalType = "departed" | "arrived" | "departConfirm" | null;
 type PlaceStatus = "예정" | "이동 중" | "도착" | "완료" | "건너뜀";
 
 interface ItineraryItem {
@@ -81,6 +81,8 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
   const [viewingDay, setViewingDay] = useState(CURRENT_DAY);
   const [cardMode, setCardMode] = useState<CardMode>("moving");
   const [statusSheet, setStatusSheet] = useState<ItineraryItem | null>(null);
+  const [locationDenied, setLocationDenied] = useState(true);
+  const [autoDoneIds, setAutoDoneIds] = useState<Set<string>>(new Set(["1"]));
   const [itinerary, setItinerary] = useState<ItineraryItem[]>(DAY_ITINERARIES[CURRENT_DAY]);
   const [toast, setToast] = useState<{ msg: string; countdown: number } | null>({
     msg: "장소가 창덕궁으로 변경되었습니다",
@@ -137,7 +139,7 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
             <span className="w-1 h-1 rounded-full bg-[#E2E8F0]" />
             <span className="text-[13px] text-[#94A3B8]">체류 예정 90분</span>
           </div>
-          <button className="w-full h-[48px] rounded-2xl font-bold text-[15px] text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>
+          <button onClick={() => setModal("departConfirm")} className="w-full h-[48px] rounded-2xl font-bold text-[15px] text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>
             다음 장소로 출발
           </button>
         </div>
@@ -164,7 +166,7 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
           <span className="text-[10px] text-[#93C5FD]">기상청 3분 전</span>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setModal("arrived")} className="flex-1 h-[48px] rounded-xl font-bold text-[14px] text-white" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>도착했어요</button>
+          <button onClick={() => setModal("arrived")} className="flex-1 h-[48px] rounded-xl font-bold text-[14px] text-white" style={{ background: "linear-gradient(135deg, #10B981 0%, #059669 100%)" }}>도착했어요</button>
           <button className="flex-1 h-[48px] rounded-xl font-semibold text-[14px] text-[#6B7280] bg-[#F4F6FB]">건너뛰기</button>
         </div>
       </div>
@@ -244,6 +246,18 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Location permission banner */}
+        {locationDenied && (
+          <div className="mx-4 mt-4 flex items-center gap-3 bg-[#FFFBEB] rounded-2xl px-4 py-3" style={{ border: "1px solid #FDE68A" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" className="flex-shrink-0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/><line x1="12" y1="2" x2="12" y2="2.5"/></svg>
+            <p className="flex-1 text-[12px] font-medium text-[#92400E]">위치 권한이 없어 자동 감지가 꺼져 있어요</p>
+            <button onClick={() => setLocationDenied(false)} className="text-[12px] font-black text-[#D97706] flex-shrink-0">권한 허용</button>
+            <button onClick={() => setLocationDenied(false)} className="ml-1 flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" opacity="0.6"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        )}
+
         {/* Alert banner — today + not allDone */}
         {isToday && cardMode !== "allDone" && (
           <button onClick={onAlternative} className="mx-4 mt-4 w-[calc(100%-32px)] rounded-2xl px-4 py-3 flex items-center gap-3 active:scale-[0.99] transition-transform"
@@ -325,6 +339,9 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
                         {item.status}
                       </span>
                     )}
+                    {isToday && autoDoneIds.has(item.id) && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#F4F6FB] text-[#94A3B8]">자동 처리</span>
+                    )}
                   </div>
                   <p className={`text-[12px] mt-0.5 ${item.status === "예정" ? "text-[#CBD5E1]" : "text-[#94A3B8]"}`}>{item.time}</p>
                   {item.transport && (
@@ -383,6 +400,31 @@ export default function ActiveTravelScreen({ onSettings, onAlternative, onAddPla
             </button>
             <button onClick={() => setModal(null)} className="w-full h-[48px] rounded-2xl font-medium text-[14px] text-[#6B7280] bg-[#F4F6FB]">
               아직이에요
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Depart confirm sheet */}
+      {isToday && modal === "departConfirm" && (
+        <div className="absolute inset-0 z-40 flex flex-col justify-end" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+          <div className="bg-white rounded-t-[32px] px-6 pt-5 pb-8" style={{ animation: "slide-up 0.25s ease-out" }}>
+            <div className="w-10 h-1 bg-[#E2E8F0] rounded-full mx-auto mb-5" />
+            <div className="w-12 h-12 rounded-2xl bg-[#EBF2FF] flex items-center justify-center mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B7BF8" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+            <h3 className="text-[20px] font-black text-[#111827] mb-1" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>북촌한옥마을에서 출발하셨나요?</h3>
+            <p className="text-[13px] text-[#94A3B8] mb-4">이 근처를 벗어났어요 · 오후 3:10 감지</p>
+            <div className="flex items-center gap-2 bg-[#ECFDF5] rounded-xl px-4 py-2.5 mb-5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span className="text-[12px] font-semibold text-[#10B981] flex-1">4분 뒤 자동으로 출발 처리돼요</span>
+              <span className="text-[13px] font-black text-[#111827]" style={{ fontFamily: "Outfit, sans-serif" }}>3:14</span>
+            </div>
+            <button onClick={() => setModal(null)} className="w-full h-[52px] rounded-2xl font-bold text-[15px] text-white mb-2" style={{ background: "linear-gradient(135deg, #3B7BF8 0%, #2457C5 100%)" }}>
+              네, 출발했어요
+            </button>
+            <button onClick={() => setModal(null)} className="w-full h-[48px] rounded-2xl font-medium text-[14px] text-[#6B7280] bg-[#F4F6FB]">
+              아직 머무는 중
             </button>
           </div>
         </div>
