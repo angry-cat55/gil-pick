@@ -1,6 +1,14 @@
 package com.gilpick.progress
 
+import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -71,15 +79,24 @@ fun NavGraphBuilder.progressGraph(
                     client = PlayServicesGeofenceClient(context),
                     session = PrefsDetectionSessionStore(context),
                 ),
+                hasBackgroundPermission = { ProgressViewModel.hasBackgroundLocationPermission(context) },
             )
         }
         val viewModel: ProgressViewModel = viewModel(factory = factory)
         val state by viewModel.state.collectAsStateWithLifecycle()
 
         LifecycleResumeEffect(Unit) {
+            // 재개할 때마다 조회하고, 그 안에서 권한을 다시 확인한다. 설정에서 바꾸고 돌아온 경우와
+            // 진행 중 권한을 회수한 경우가 모두 여기로 들어온다.
             viewModel.load()
             onPauseOrDispose {}
         }
+
+        // 백그라운드 위치는 앱 사용 중 권한과 같은 화면에서 함께 물을 수 없다(research 8절).
+        // F006이 시작 시점에 앱 사용 중 권한을 받았고, 여기서 두 번째 단계만 요청한다.
+        val backgroundLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { viewModel.onBackgroundPermissionResult() }
 
         ActiveTravelScreen(
             state = state,
@@ -100,7 +117,29 @@ fun NavGraphBuilder.progressGraph(
             onRetryDecision = viewModel::retryDecision,
             onDismissCandidate = viewModel::dismissCandidate,
             onUndo = viewModel::undo,
+            onEnableDetection = { requestBackgroundLocation(context, backgroundLauncher) },
+            onDismissDetectionNotice = viewModel::dismissDetectionNotice,
             map = map,
         )
+    }
+}
+
+/**
+ * 백그라운드 위치 권한을 요청한다(T033).
+ *
+ * Android 11 이상은 이 권한을 시스템 대화상자로 바로 허용할 수 없어 앱 설정 화면으로 보낸다.
+ * 그 이전 버전은 일반 권한 요청으로 받는다. 어느 쪽이든 거부해도 진행은 막지 않는다(FR-024).
+ */
+private fun requestBackgroundLocation(
+    context: Context,
+    launcher: ManagedActivityResultLauncher<String, Boolean>,
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    } else {
+        launcher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
     }
 }
