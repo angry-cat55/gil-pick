@@ -223,14 +223,19 @@ class ProgressService:
                 pending_candidate=None,
                 undoable=None,
             )
-        data = self._to_data(day)
-        # 순환 import를 피하면서 F007의 파생 감지 상태를 조회 응답에 합친다.
+        # 순환 import를 피하면서 F007의 지연 확정과 파생 감지 상태를 조회 응답에 합친다.
         from app.services.detection import DetectionService
 
-        targets, pending = await DetectionService(self.session).build_state(day)
+        detection = DetectionService(self.session)
+        # 지연 확정: 조회 전에 만료된 무응답 후보를 먼저 자동 확정한다(research 2절).
+        await detection.finalize_due_candidates(day)
+        data = self._to_data(day)
+        targets, pending = await detection.build_state(day)
+        undoable = await detection.current_undoable(day)
         return data.model_copy(update={
             "detection_targets": targets,
             "pending_candidate": pending,
+            "undoable": undoable,
         })
 
     async def update_item_status(
@@ -307,6 +312,11 @@ class ProgressService:
                 )
             await self.session.commit()
             return recovered
+        # 지연 확정: 상태 전환 전에 만료된 무응답 후보를 먼저 자동 확정한다(research 2절).
+        # 자동 확정이 일어나면 progress_version이 올라 아래 검증에서 재조회를 유도한다.
+        from app.services.detection import DetectionService
+
+        await DetectionService(self.session).finalize_due_candidates(day)
         if day.progress_version != progress_version:
             raise AppError(409, "VERSION_CONFLICT", "진행 버전이 일치하지 않습니다.")
 
