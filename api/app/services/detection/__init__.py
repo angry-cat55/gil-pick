@@ -60,7 +60,12 @@ class DetectionService:
         payload: ProgressEventRequest,
         received_at: datetime | None = None,
     ) -> ProgressEventResult:
-        """이벤트를 한 번만 저장하고 유효한 DWELL이면 도착 후보를 만든다.
+        """이벤트를 한 번만 저장하고 종류에 따라 도착·출발 후보를 만들거나 취소한다.
+
+        먼저 그 날짜의 만료된 무응답 후보를 자동 확정한다(지연 확정). 이어서
+        유효한 `DWELL`은 도착 후보, `EXIT`는 출발 후보를 만들고, `REENTER`는
+        살아 있는 출발 후보를 취소한다. 기준 미충족 이벤트도 저장하되
+        `accepted=False`로 둔다.
 
         Args:
             user_id: 요청 사용자 ID.
@@ -70,7 +75,7 @@ class DetectionService:
             received_at: 테스트에서 주입할 서버 수신 시각.
 
         Returns:
-            이벤트 수락 여부와 생성된 후보.
+            이벤트 수락 여부, 생성된 후보, 재진입으로 취소된 후보 ID.
 
         Raises:
             AppError: 여행 또는 일정 항목이 없거나 소유권이 없는 경우.

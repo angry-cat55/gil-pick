@@ -279,7 +279,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T035 Backend F007 전체 자동 test와 문서 동기화 in docs/design/api-spec.md, api/tests/
+- [x] T035 Backend F007 전체 자동 test와 문서 동기화 in docs/design/api-spec.md, api/tests/
   - 영역: BE
   - 담당: ts
   - 선행: T032
