@@ -208,7 +208,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] 출발 후보·재진입·오판 test in api/tests/contract/test_detection_contract.py, api/tests/integration/test_detection_flow.py, api/tests/unit/test_detection_service.py
+- [x] T026 [P] [US3] 출발 후보·재진입·오판 test in api/tests/contract/test_detection_contract.py, api/tests/integration/test_detection_flow.py, api/tests/unit/test_detection_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T024
@@ -221,12 +221,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] 출발 후보 생성과 재진입 취소 in api/app/services/detection.py
+- [x] T028 [US3] 출발 후보 생성과 재진입 취소 in api/app/services/detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T026
   - 검증: T026 통과. `EXIT` → `DEPARTURE` 후보(`source=GEOFENCE_EXIT`), `REENTER` → `CANCELLED`와 `cancelledTransitionId` 반환(FR-012). `ARRIVED` 항목에만 후보 생성(FR-003). 출발 확정(`CONFIRM`·무응답 자동 모두)은 T015가 쓰는 F006 전환 함수를 그대로 호출해 현재 장소 `COMPLETED`·다음 예정 장소 `EN_ROUTE`·남은 ETA 재계산을 처리하고 규칙을 다시 구현하지 않음(FR-014·FR-016)
-- [ ] T029 [US3] `STILL_HERE`와 반복 되돌리기 중단 규칙 in api/app/services/detection.py
+- [x] T029 [US3] `STILL_HERE`와 반복 되돌리기 중단 규칙 in api/app/services/detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T028
@@ -254,7 +254,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: hs
   - 선행: T030
   - 검증: quickstart FE 5. 권한 없음 상태에서 F006 수동 진행 행동 전부 동작, 자동 감지 꺼짐 안내에 원인과 켜는 방법이 있고 무시 가능(UI-005), 진행 중 권한 회수 시 이미 확정된 상태 유지
-- [ ] T032 [P] [US4] 정확도 미달 이벤트 회귀 test in api/tests/integration/test_detection_flow.py
+- [x] T032 [P] [US4] 정확도 미달 이벤트 회귀 test in api/tests/integration/test_detection_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T029
