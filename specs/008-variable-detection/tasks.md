@@ -26,7 +26,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 **Purpose**: DETECT 계약을 공용 문서에 고정하고, 외부 연동 설정값과 조정 가능한 정책값을 한곳에 만든다.
 
-- [ ] T001 F008 DETECT 계약·ERD·API 명세 대조와 교차 review in specs/008-variable-detection/contracts/detections.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T001 F008 DETECT 계약·ERD·API 명세 대조와 교차 review in specs/008-variable-detection/contracts/detections.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: 통합
   - 담당: jh
   - 교차 확인: FE 담당(미정)

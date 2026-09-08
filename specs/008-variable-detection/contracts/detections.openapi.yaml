@@ -168,7 +168,7 @@ components:
         meta: { $ref: '#/components/schemas/ResponseMeta' }
     DetectionDetail:
       type: object
-      required: [detectionId, tripId, itemId, placeName, primaryType, status, eta, totalRiskScore, variables, read, createdAt, lastEvaluatedAt]
+      required: [detectionId, tripId, itemId, placeName, primaryType, status, eta, totalRiskScore, reason, variables, read, createdAt, lastEvaluatedAt]
       properties:
         detectionId: { type: string, format: uuid }
         tripId: { type: string, format: uuid }
@@ -182,7 +182,7 @@ components:
           description: 평가 기준으로 삼은 도착 예정 시각
         totalRiskScore: { type: integer, minimum: 0, maximum: 100 }
         reason:
-          type: [string, 'null']
+          type: string
           description: 사용자 표시 요약 문구
         variables:
           $ref: '#/components/schemas/VariableVerdicts'
