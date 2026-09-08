@@ -523,7 +523,7 @@ private fun Content(
             placeName = content.candidatePlaceName,
             now = content.now,
             submitting = content.decisionPending != null,
-            error = content.decisionError,
+            error = content.decisionFailure?.error,
             onDecide = onDecide,
             onRetry = onRetryDecision,
             onDismiss = onDismissCandidate,

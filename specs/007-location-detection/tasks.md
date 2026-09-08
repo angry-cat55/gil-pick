@@ -213,7 +213,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T024
   - 검증: quickstart BE 5 전체(후보·`REENTER` 취소·`STILL_HERE` 중단·무응답 자동 출발·두 번째 되돌리기 중단). 수동 출발 후 뒤늦은 `EXIT`가 추가 전환을 만들지 않음(US3 Acceptance 5). 반복 회귀: 도착은 되돌리기 → 재개 → 상한 도달로, 출발은 되돌리기 2회로 각각 유한 횟수 안에 멈추고 같은 장소에서 무한 반복이 생기지 않음(SC-011)
-- [ ] T027 [P] [US3] 출발 확인 시트 UI test in android/app/src/androidTest/java/com/gilpick/progress/ConfirmSheetTest.kt
+- [X] T027 [P] [US3] 출발 확인 시트 UI test in android/app/src/androidTest/java/com/gilpick/progress/ConfirmSheetTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T025
@@ -231,7 +231,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T028
   - 검증: T026 통과. `STILL_HERE` 이후 그 날짜 자동 출발 중단(`DEPARTURE_DETECTION_STOPPED`, FR-013), 같은 장소의 출발 되돌리기 2회 이후 중단(FR-017a). 두 규칙 모두 `progress_transitions` 파생 계산이며 새 컬럼 없음
-- [ ] T030 [US3] 출발 확인 시트 연결 in android/app/src/main/java/com/gilpick/progress/ConfirmSheet.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [X] T030 [US3] 출발 확인 시트 연결 in android/app/src/main/java/com/gilpick/progress/ConfirmSheet.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T027, T003

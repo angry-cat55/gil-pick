@@ -35,7 +35,7 @@ sealed interface ProgressUiState {
      * @property actionError 마지막 전환 실패. 내용은 요청 전 그대로이고 원인과 `다시 시도`를 보인다(US2 시나리오 8).
      * @property viewingDate 목록에 보이는 날짜(UI-005). `null`이면 오늘이다. 오늘이 아니면 카드·행동·시트가 없다.
      * @property decisionPending 확인 시트에서 보낸 뒤 응답을 기다리는 답. 있는 동안 두 행동이 잠긴다(UI-006).
-     * @property decisionError 마지막 확인 응답 실패. 후보는 그대로 두고 원인과 다시 시도를 보인다(UI-006).
+     * @property decisionFailure 마지막 확인 응답 실패. 후보는 그대로 두고 원인과 다시 시도를 보인다(UI-006).
      * @property candidateDismissed 사용자가 시트를 닫았다. 후보는 살아 있지만 시트를 다시 띄우지 않는다(UI-007).
      * @property undoPending 되돌리기를 보낸 뒤 응답을 기다리는 중. 버튼을 잠근다.
      * @property undoError 마지막 되돌리기 실패. 토스트에 원인을 보인다.
@@ -48,7 +48,7 @@ sealed interface ProgressUiState {
         val actionError: ProgressActionFailure? = null,
         val viewingDate: LocalDate? = null,
         val decisionPending: TransitionDecision? = null,
-        val decisionError: DetectionError? = null,
+        val decisionFailure: DecisionFailure? = null,
         val candidateDismissed: Boolean = false,
         val undoPending: Boolean = false,
         val undoError: DetectionError? = null,
@@ -163,6 +163,15 @@ data class ProgressAction(val itemId: String, val status: ItemStatus)
 data class ProgressActionFailure(val action: ProgressAction, val error: ProgressError) {
     val retryable: Boolean get() = error == ProgressError.Network || error == ProgressError.Unexpected
 }
+
+/**
+ * 확인 시트 응답 실패. **어떤 답이 실패했는지**를 [decision]에 함께 담는다.
+ *
+ * 후보가 허용하는 답은 여러 개이고(`allowedDecisions`) 그 뜻이 서로 반대다. 실패한 답을
+ * 기억하지 않으면 `다시 시도`가 사용자가 고르지 않은 답을 보낼 수 있다. 특히 `아직 머무는 중`
+ * 실패 후 `출발 확정`을 보내면 사용자가 거절한 전환을 확정하게 된다.
+ */
+data class DecisionFailure(val decision: TransitionDecision, val error: DetectionError)
 
 /**
  * 일정 목록 한 행. F004 저장 항목(장소명·체류·이동수단)과 F006 진행 항목(상태·시각)을 잇는다.

@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -66,6 +67,7 @@ class ProgressViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val progressService = FakeProgressService()
     private val itineraryService = FakeItineraryService()
+    private val detectionService = FakeDetectionService()
 
     /** 2026-09-08 11:10:30 KST. [inProgress]의 B ETA(02:20Z = 11:20 KST)까지 9분 30초 남았다. */
     private var now: Instant = Instant.parse("2026-09-08T02:10:30Z")
@@ -334,6 +336,57 @@ class ProgressViewModelTest {
     }
 
     @Test
+    fun `확인 응답이 실패하면 보낸 답과 원인을 함께 남긴다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        detectionService.onDecide = { decideServerError() }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.decide(TransitionDecision.STILL_HERE)
+        runCurrent()
+
+        val failed = viewModel.state.value as ProgressUiState.Content
+        assertNull(failed.decisionPending)
+        assertEquals(DecisionFailure(TransitionDecision.STILL_HERE, DetectionError.Unexpected), failed.decisionFailure)
+        // 후보는 그대로 둔다. 사용자가 다시 답할 수 있어야 한다(UI-006).
+        assertNotNull(failed.visibleCandidate)
+    }
+
+    @Test
+    fun `다시 시도는 실패한 답을 그대로 다시 보낸다`() = viewModelTest { viewModel ->
+        // `allowedDecisions`의 첫 값(CONFIRM)을 보내면 사용자가 거절한 출발을 확정하게 된다.
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        var fail = true
+        detectionService.onDecide = { if (fail) decideServerError() else decideOk() }
+        viewModel.load()
+        runCurrent()
+        viewModel.decide(TransitionDecision.STILL_HERE)
+        runCurrent()
+
+        fail = false
+        viewModel.retryDecision()
+        runCurrent()
+
+        assertEquals(
+            listOf(TransitionDecision.STILL_HERE, TransitionDecision.STILL_HERE),
+            detectionService.decideCalls.map { it.second },
+        )
+        assertNull((viewModel.state.value as ProgressUiState.Content).decisionFailure)
+    }
+
+    @Test
+    fun `실패한 답이 없으면 다시 시도는 아무것도 보내지 않는다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.retryDecision()
+        runCurrent()
+
+        assertEquals(emptyList<Pair<String, TransitionDecision>>(), detectionService.decideCalls)
+    }
+
+    @Test
     fun `VERSION_CONFLICT면 오류를 남기고 최신 현황을 다시 조회한다`() = viewModelTest { viewModel ->
         progressService.onUpdate = { _, _ -> progressError(409, ProgressErrorCodes.VERSION_CONFLICT) }
         viewModel.load()
@@ -440,6 +493,22 @@ class ProgressViewModelTest {
         ),
     )
 
+    /**
+     * 출발 확인을 기다리는 후보. `아직 머무는 중`과 `출발 확정`을 함께 받는다.
+     *
+     * 두 답의 뜻이 반대여서, 실패한 답을 기억하지 않으면 `다시 시도`가 무엇을 보내는지가 문제가 된다.
+     */
+    private fun departureCandidate() = TransitionCandidateDto(
+        transitionId = TRANSITION_ID,
+        itemId = P_ITEM_B,
+        type = DetectionKind.DEPARTURE,
+        status = TransitionStatus.PENDING_CONFIRMATION,
+        detectedAt = "2026-09-08T02:33:00Z",
+        autoFinalizeAt = "2026-09-08T02:38:00Z",
+        allowedDecisions = listOf(TransitionDecision.CONFIRM, TransitionDecision.STILL_HERE),
+        evidence = CandidateEvidenceDto(occurredAt = "2026-09-08T02:33:00Z", accuracyMeters = 22.0, dwellMinutes = null),
+    )
+
     /** ViewModel을 만들어 test에 넘기고, 끝나면 `onCleared`로 매분 갱신 loop를 멈춘다. */
     private fun viewModelTest(block: suspend TestScope.(ProgressViewModel) -> Unit) = runTest {
         val store = ViewModelStore()
@@ -481,6 +550,7 @@ class ProgressViewModelTest {
             itineraryRepository = ItineraryRepository(api = itineraryService, auth = auth),
             tripId = PROGRESS_TRIP_ID,
             clock = clock,
+            detectionRepository = DetectionRepository(api = detectionService, auth = auth),
         )
     }
 }
