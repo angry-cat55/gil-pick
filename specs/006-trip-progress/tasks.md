@@ -168,12 +168,12 @@
   - 담당: jh
   - 선행: T004, T006
   - 검증: quickstart BE 5~8·10·11(도착·출발·건너뛰기 ETA, 건너뛰기 `progress_segments` 생성·provider 실패 시 ETA null·전환 성공, 당일 완료 두 경로, `DAY_NOT_STARTED`·`VERSION_CONFLICT`, 같은 키 재전송 최초 결과, transition 기록)
-- [ ] T024 [P] [US2] ProgressViewModel 전환 test 작성 in android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
+- [x] T024 [P] [US2] ProgressViewModel 전환 test 작성 in android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T019
   - 검증: 행동→목표 상태 매핑, 요청 중 `pendingAction`·버튼 비활성·내용 유지, 성공 시 응답으로 교체, 실패 시 상태 유지+오류, `VERSION_CONFLICT` 재조회
-- [ ] T025 [P] [US2] 진행 화면 전환·완료 UI test 작성 in android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt
+- [x] T025 [P] [US2] 진행 화면 전환·완료 UI test 작성 in android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T020
@@ -196,17 +196,17 @@
   - 담당: jh
   - 선행: T027
   - 검증: `PATCH /itinerary-items/{itemId}/status`, `Idempotency-Key` 필수, 오류 code 매핑, T023 contract 통과
-- [ ] T029 [US2] ProgressViewModel 전환 행동 구현 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt
+- [x] T029 [US2] ProgressViewModel 전환 행동 구현 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024
   - 검증: `arrive`·`depart`·`skip` 행동, `pendingAction`, 응답 교체, 오류·409 처리. T024 통과
-- [ ] T030 [US2] 다음 장소 카드 세 모드와 당일 완료 표시 구현 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressLabels.kt
+- [x] T030 [US2] 다음 장소 카드 세 모드와 당일 완료 표시 구현 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressLabels.kt
   - 영역: FE
   - 담당: jy
   - 선행: T029, T025
   - 검증: `EN_ROUTE`(도착했어요·건너뛰기)/`ARRIVED`(다음 장소로 출발, 마지막이면 없음)/완료 모드, `N분 남았어요`·`N분 지났어요`, 요청 중 비활성, Figma 정본 대조. T025 통과
-- [ ] T031 [US2] RouteMap 시작 위치·상태별 marker와 경로 화면 진행 상태 표시 in android/app/src/main/java/com/gilpick/route/RouteMap.kt, android/app/src/main/java/com/gilpick/route/RouteUiState.kt, android/app/src/main/java/com/gilpick/route/RouteViewModel.kt, android/app/src/main/java/com/gilpick/route/DayRouteScreen.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [x] T031 [US2] RouteMap 시작 위치·상태별 marker와 경로 화면 진행 상태 표시 in android/app/src/main/java/com/gilpick/route/RouteMap.kt, android/app/src/main/java/com/gilpick/route/RouteUiState.kt, android/app/src/main/java/com/gilpick/route/RouteViewModel.kt, android/app/src/main/java/com/gilpick/route/DayRouteScreen.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T020

@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -55,6 +56,7 @@ import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteMap
+import com.gilpick.route.RouteMarks
 import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.route.routeDateLabel
@@ -81,9 +83,11 @@ import kotlinx.coroutines.delay
  * @param onAddPlace `empty`·목록 아래의 `장소 추가`. 오늘 날짜의 일정 편집(장소 검색)으로 간다.
  * @param onOpenRoute 지도의 `경로 보기`. 오늘 날짜의 F005 경로 화면으로 간다.
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
- * @param onArrive 이동 중 카드의 `도착했어요`. 전환 요청은 US2(T029)가 잇는다.
- * @param onSkip 이동 중 카드의 `건너뛰기`. 전환 요청은 US2(T029)가 잇는다.
- * @param onDepart 도착 카드의 `다음 장소로 출발`. 전환 요청은 US2(T029)가 잇는다.
+ * @param onArrive 이동 중 카드의 `도착했어요`(US2).
+ * @param onSkip 이동 중 카드의 `건너뛰기`(US2).
+ * @param onDepart 도착 카드의 `다음 장소로 출발`(US2).
+ * @param onRetryAction 전환 실패 안내의 `다시 시도`. 같은 요청을 다시 보낸다.
+ * @param onDismissActionError 전환 실패 안내의 `닫기`.
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -98,7 +102,11 @@ fun ActiveTravelScreen(
     onArrive: () -> Unit = {},
     onSkip: () -> Unit = {},
     onDepart: () -> Unit = {},
-    map: @Composable (RouteDto, Modifier) -> Unit = { route, mapModifier -> RouteMap(route = route, modifier = mapModifier, sheetFraction = 0f) },
+    onRetryAction: () -> Unit = {},
+    onDismissActionError: () -> Unit = {},
+    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
+        RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
+    },
 ) {
     Column(
         modifier = modifier
@@ -119,6 +127,8 @@ fun ActiveTravelScreen(
                     onArrive = onArrive,
                     onSkip = onSkip,
                     onDepart = onDepart,
+                    onRetryAction = onRetryAction,
+                    onDismissActionError = onDismissActionError,
                     map = map,
                 )
             }
@@ -338,7 +348,9 @@ private fun Content(
     onArrive: () -> Unit,
     onSkip: () -> Unit,
     onDepart: () -> Unit,
-    map: @Composable (RouteDto, Modifier) -> Unit,
+    onRetryAction: () -> Unit,
+    onDismissActionError: () -> Unit,
+    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val itinerary = content.todayItinerary
@@ -352,9 +364,13 @@ private fun Content(
     ) {
         Spacer(modifier = Modifier.height(spacing.space3))
         NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
+        content.actionError?.let { failure ->
+            ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
+        }
         if (itinerary != null) {
             MapSlot(
                 route = itinerary.route,
+                marks = content.progress.toRouteMarks(),
                 onOpenRoute = { onOpenRoute(itinerary.date, itinerary.dayNumber) },
                 map = map,
                 modifier = Modifier.padding(top = spacing.space3),
@@ -372,17 +388,66 @@ private fun Content(
  * - `ARRIVED` 장소가 있음: `현재 장소`, 장소명, `도착 시각 · 체류 예정`, `다음 장소로 출발`.
  * - 다음 장소가 있음: `다음 장소`, 장소명, `예상 도착` 시각과 남은·지난 시간, 이전 장소에서의 이동, `도착했어요`·`건너뛰기`.
  *
- * 시작 전 날짜(`NOT_STARTED`)나 남은 장소가 없는 진행 중 날짜에는 카드를 그리지 않는다.
+ * 시작 전 날짜(`NOT_STARTED`)나 남은 장소가 없는 진행 중 날짜에는 카드를 그리지 않는다. 전환 요청 중에는
+ * 내용을 그대로 두고 행동만 비활성화하며 요청한 버튼에 진행 표시를 겹친다(UI-008).
  */
 @Composable
 private fun NextPlaceCard(content: ProgressUiState.Content, onArrive: () -> Unit, onSkip: () -> Unit, onDepart: () -> Unit) {
     val progress = content.progress
     val current = content.currentRow
     val next = content.nextRow
+    val pending = content.pendingAction
     when {
         progress.dayStatus == DayStatus.COMPLETED -> AllDoneCard(content)
-        current != null -> ArrivedCard(row = current, onDepart = onDepart)
-        next != null && progress.dayStatus == DayStatus.IN_PROGRESS -> MovingCard(content = content, row = next, onArrive = onArrive, onSkip = onSkip)
+        current != null -> ArrivedCard(row = current, hasNext = next != null, pending = pending, onDepart = onDepart)
+        next != null && progress.dayStatus == DayStatus.IN_PROGRESS -> MovingCard(content = content, row = next, pending = pending, onArrive = onArrive, onSkip = onSkip)
+    }
+}
+
+/** 전환 실패 안내(US2 시나리오 8): 원인 문구와 `다시 시도`(재전송이 뜻 있을 때)·`닫기`. */
+@Composable
+private fun ActionErrorBar(failure: ProgressActionFailure, onRetry: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(radius.lg))
+            .background(colors.warningContainer)
+            .padding(horizontal = spacing.space4, vertical = spacing.space3)
+            .testTag(TAG_ACTION_ERROR),
+    ) {
+        Text(
+            text = stringResource(failure.error.messageRes),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onWarningContainer,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2), modifier = Modifier.padding(top = spacing.space1)) {
+            if (failure.retryable) {
+                TextAction(label = stringResource(R.string.progress_retry), onClick = onRetry)
+            }
+            TextAction(label = stringResource(R.string.progress_dismiss), onClick = onDismiss)
+        }
+    }
+}
+
+@Composable
+private fun TextAction(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .heightIn(min = MIN_TOUCH)
+            .clip(RoundedCornerShape(LocalGilpickRadius.current.sm))
+            .clickable(onClick = onClick, role = Role.Button),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space2),
+        )
     }
 }
 
@@ -448,8 +513,12 @@ private fun AllDoneCard(content: ProgressUiState.Content) {
     }
 }
 
+/**
+ * 도착 카드. 뒤에 남은 장소가 없으면 `다음 장소로 출발`을 그리지 않는다(T030 "마지막이면 없음"). 마지막 장소에
+ * 도착하면 서버가 당일 완료로 바꾸므로(FR-013) 보통은 [AllDoneCard]가 대신 보인다.
+ */
 @Composable
-private fun ArrivedCard(row: ProgressRow, onDepart: () -> Unit) {
+private fun ArrivedCard(row: ProgressRow, hasNext: Boolean, pending: ProgressAction?, onDepart: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val arrivedAt = row.progress.actualArrivedAt
@@ -460,7 +529,7 @@ private fun ArrivedCard(row: ProgressRow, onDepart: () -> Unit) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-            modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space4),
+            modifier = Modifier.padding(top = spacing.space1, bottom = if (hasNext) spacing.space4 else 0.dp),
         ) {
             if (arrivedAt != null) {
                 Text(
@@ -477,12 +546,20 @@ private fun ArrivedCard(row: ProgressRow, onDepart: () -> Unit) {
                 color = colors.muted,
             )
         }
-        PrimaryAction(label = stringResource(R.string.progress_action_depart), onClick = onDepart, modifier = Modifier.fillMaxWidth())
+        if (hasNext) {
+            PrimaryAction(
+                label = stringResource(R.string.progress_action_depart),
+                onClick = onDepart,
+                enabled = pending == null,
+                busy = pending?.status == ItemStatus.COMPLETED,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
 @Composable
-private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, onArrive: () -> Unit, onSkip: () -> Unit) {
+private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, pending: ProgressAction?, onArrive: () -> Unit, onSkip: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val radius = LocalGilpickRadius.current
@@ -537,10 +614,13 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, onArr
             color = colors.muted,
             modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space4),
         )
+        val enabled = pending == null
         Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
             PrimaryAction(
                 label = stringResource(R.string.progress_action_arrive),
                 onClick = onArrive,
+                enabled = enabled,
+                busy = pending?.status == ItemStatus.ARRIVED,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(radius.md),
             )
@@ -548,9 +628,10 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, onArr
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = MIN_TOUCH)
+                    .alpha(if (enabled) 1f else DISABLED_ALPHA)
                     .clip(RoundedCornerShape(radius.md))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable(onClick = onSkip, role = Role.Button),
+                    .clickable(enabled = enabled, onClick = onSkip, role = Role.Button),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -559,9 +640,26 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, onArr
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = spacing.space2, vertical = spacing.space3),
                 )
+                if (pending?.status == ItemStatus.SKIPPED) {
+                    BusyIndicator(MaterialTheme.colorScheme.onSurfaceVariant, Modifier.align(Alignment.CenterEnd).padding(end = spacing.space3))
+                }
             }
         }
     }
+}
+
+/** 요청 중인 버튼의 오른쪽 끝에 겹치는 작은 진행 표시(UI-008 "진행 중임을 표시"). 글자를 가리지 않는다. */
+@Composable
+private fun BusyIndicator(color: Color, modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.progress_action_pending)
+    CircularProgressIndicator(
+        color = color,
+        strokeWidth = 2.dp,
+        modifier = modifier
+            .size(BUSY_INDICATOR)
+            .semantics { contentDescription = label }
+            .testTag(TAG_BUSY),
+    )
 }
 
 /** 이전 장소(또는 출발 위치)에서의 이동수단·시간·거리(UI-002). 계산되지 않았으면 `이동 정보 없음`. */
@@ -609,20 +707,28 @@ private fun Dot() {
     )
 }
 
-/** Figma 주버튼: 135° `primary → primaryDark` gradient, 48dp, 흰 글자. F004 저장 버튼과 같은 조립이다. */
+/**
+ * Figma 주버튼: 135° `primary → primaryDark` gradient, 48dp, 흰 글자. F004 저장 버튼과 같은 조립이다.
+ *
+ * @param enabled 요청 중이면 `false`. 눌리지 않고 흐리게 보인다.
+ * @param busy 이 버튼의 요청이 진행 중이다. 글자 옆에 진행 표시를 겹친다.
+ */
 @Composable
 private fun PrimaryAction(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    busy: Boolean = false,
     shape: RoundedCornerShape = RoundedCornerShape(LocalGilpickRadius.current.lg),
 ) {
     Box(
         modifier = modifier
             .heightIn(min = MIN_TOUCH)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .clip(shape)
             .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
-            .clickable(onClick = onClick, role = Role.Button),
+            .clickable(enabled = enabled, onClick = onClick, role = Role.Button),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -632,6 +738,7 @@ private fun PrimaryAction(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space2, vertical = LocalGilpickSpacing.current.space3),
         )
+        if (busy) BusyIndicator(Color.White, Modifier.align(Alignment.CenterEnd).padding(end = LocalGilpickSpacing.current.space3))
     }
 }
 
@@ -644,8 +751,9 @@ private fun PrimaryAction(
 @Composable
 private fun MapSlot(
     route: RouteDto?,
+    marks: RouteMarks,
     onOpenRoute: () -> Unit,
-    map: @Composable (RouteDto, Modifier) -> Unit,
+    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -661,7 +769,7 @@ private fun MapSlot(
             .testTag(TAG_MAP_SLOT),
     ) {
         if (route != null) {
-            map(route, Modifier.fillMaxSize())
+            map(route, marks, Modifier.fillMaxSize())
         } else {
             Text(
                 text = stringResource(R.string.progress_map_unavailable),
@@ -930,11 +1038,19 @@ internal const val TAG_REMAINING = "progress_remaining"
 internal const val TAG_MAP_SLOT = "progress_map_slot"
 internal const val TAG_ROW_PREFIX = "progress_row_"
 internal const val TAG_ADD_PLACE = "progress_add_place"
+internal const val TAG_ACTION_ERROR = "progress_action_error"
+internal const val TAG_BUSY = "progress_busy"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 
 /** 가이드라인 10절 최소 터치 영역. */
 private val MIN_TOUCH: Dp = 48.dp
+
+/** 비활성 버튼의 투명도(F004 저장 버튼과 같다). */
+private const val DISABLED_ALPHA = 0.5f
+
+/** 요청 중 버튼 위 진행 표시 크기. */
+private val BUSY_INDICATOR: Dp = 16.dp
 
 /** Figma 지도 자리 높이(`h-[150px]`). */
 private val MAP_HEIGHT: Dp = 150.dp

@@ -11,7 +11,7 @@ import retrofit2.Response
  * 응답을 test가 직접 정하는 [ProgressService].
  *
  * 실제 HTTP 왕복과 인증 갱신·replay는 `ProgressRepositoryTest`가 MockWebServer로 검증하므로,
- * ViewModel test는 여기서 조회·시작 응답만 정한다.
+ * ViewModel test는 여기서 조회·시작·전환 응답만 정한다.
  */
 class FakeProgressService : ProgressService {
 
@@ -21,7 +21,12 @@ class FakeProgressService : ProgressService {
     /** 지금까지 도착한 시작 요청의 `(Idempotency-Key, body)`. */
     val startCalls = mutableListOf<Pair<String, StartProgressRequest>>()
 
-    var onGet: (date: String) -> Response<SuccessEnvelope<ProgressData>> = { progressOk(notStarted(date = it)) }
+    /** 지금까지 도착한 상태 전환 요청의 `(Idempotency-Key, itemId, body)`. */
+    val updateCalls = mutableListOf<Triple<String, String, UpdateProgressStatusRequest>>()
+
+    var onGet: suspend (date: String) -> Response<SuccessEnvelope<ProgressData>> = { progressOk(notStarted(date = it)) }
+    var onUpdate: suspend (itemId: String, UpdateProgressStatusRequest) -> Response<SuccessEnvelope<ProgressData>> =
+        { _, _ -> progressOk(inProgress(progressVersion = 3)) }
     var onStart: (StartProgressRequest) -> Response<SuccessEnvelope<ProgressData>> =
         { progressOk(inProgress(progressVersion = 1)) }
 
@@ -46,7 +51,10 @@ class FakeProgressService : ProgressService {
         idempotencyKey: String,
         itemId: String,
         body: UpdateProgressStatusRequest,
-    ): Response<SuccessEnvelope<ProgressData>> = error("이 test는 상태 전환 endpoint를 호출하지 않는다")
+    ): Response<SuccessEnvelope<ProgressData>> {
+        updateCalls += Triple(idempotencyKey, itemId, body)
+        return onUpdate(itemId, body)
+    }
 }
 
 /** 시작 전 진행 현황 DTO. [items]가 비면 장소가 없는 날짜다. */

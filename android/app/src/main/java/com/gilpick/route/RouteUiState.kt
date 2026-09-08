@@ -1,5 +1,7 @@
 package com.gilpick.route
 
+import com.gilpick.itinerary.ItemStatus
+
 /**
  * 날짜별 경로 화면의 표시 상태(`plan.md` State & Interaction).
  *
@@ -22,7 +24,25 @@ sealed interface RouteUiState {
      * 장소가 한 곳이면 [RouteDto.segments]가 비고 합계는 0이다(FR-020). 정상 경로에는
      * 재계산·후보 선택 행동이 없다(FR-019).
      */
-    data class Content(val route: RouteDto) : RouteUiState
+    data class Content(val route: RouteDto, val marks: RouteMarks = RouteMarks.NONE) : RouteUiState
+}
+
+/**
+ * 지도와 구간 목록에 겹치는 F006 진행 표시(F006 UI-011, T031).
+ *
+ * 시작 전 날짜와 F005 단독 조회는 [NONE]이라 계획만 그린다. 진행 현황 조회가 실패해도 [NONE]으로
+ * 두어 경로 화면은 성립한다.
+ *
+ * @property start 시작 시 얻은 현재 위치(`[경도, 위도]`). 있으면 `현위치` marker를 그린다.
+ * @property statuses 장소별 진행 상태. 없는 장소는 계획 표시 그대로다.
+ */
+data class RouteMarks(
+    val start: Position? = null,
+    val statuses: Map<String, ItemStatus> = emptyMap(),
+) {
+    companion object {
+        val NONE = RouteMarks()
+    }
 }
 
 /** 경로 화면이 `error` 상태가 된 이유. 문구는 [RouteLabels.kt]가 정한다. */

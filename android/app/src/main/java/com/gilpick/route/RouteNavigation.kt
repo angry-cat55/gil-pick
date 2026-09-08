@@ -13,6 +13,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.gilpick.itinerary.ItineraryEditRoute
+import com.gilpick.progress.ProgressRepository
+import com.gilpick.progress.ProgressViewModel
 import java.time.LocalDate
 import kotlinx.serialization.Serializable
 
@@ -39,20 +41,22 @@ data class DayRouteRoute(
  * @param navController 일정 편집으로 이동하고 뒤로 가는 데 쓴다.
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
  * @param repository 경로 데이터 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
+ * @param progressRepository 진행 현황 접근 지점을 만든다. 시작된 날짜의 상태를 지도·목록에 겹치는 데 쓴다(T031).
  * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.routeGraph(
     navController: NavController,
     onSessionExpired: () -> Unit,
     repository: (Context) -> RouteRepository = RouteViewModel::defaultRepository,
-    map: @Composable (RouteDto, Modifier) -> Unit = { route, modifier -> RouteMap(route = route, modifier = modifier) },
+    progressRepository: (Context) -> ProgressRepository? = ProgressViewModel::defaultRepository,
+    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier -> RouteMap(route = route, marks = marks, modifier = modifier) },
 ) {
     composable<DayRouteRoute> { entry ->
         val route = entry.toRoute<DayRouteRoute>()
         val date = LocalDate.parse(route.date)
         val context = LocalContext.current
         val factory = remember(entry) {
-            RouteViewModel.factory(tripId = route.tripId, date = date, repository = repository(context))
+            RouteViewModel.factory(tripId = route.tripId, date = date, repository = repository(context), progressRepository = progressRepository(context))
         }
         val viewModel: RouteViewModel = viewModel(factory = factory)
         val state by viewModel.state.collectAsStateWithLifecycle()

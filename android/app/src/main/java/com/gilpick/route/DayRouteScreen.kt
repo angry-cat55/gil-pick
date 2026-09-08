@@ -47,8 +47,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
+import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
+import com.gilpick.progress.progressIconRes
+import com.gilpick.progress.progressLabelRes
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSizing
@@ -60,9 +63,10 @@ import kotlinx.coroutines.delay
 /**
  * 날짜별 경로 화면(`spec.md` US2, Figma `DayRouteScreen`).
  *
- * 모양은 Figma의 어두운 전체 화면 지도와 하단 sheet를 따르되, F006 전용 요소(`여행 중` 배지, 완료·이동 중
- * 마커 상태, 현재 위치, 도착 예정 시각)는 그리지 않는다(UI-001·UI-010). 지도 위 정보는 지도를 못 보는
- * 사용자를 위해 같은 순서의 구간 목록으로도 제공한다(UI-005, 가이드라인 10절).
+ * 모양은 Figma의 어두운 전체 화면 지도와 하단 sheet를 따른다. 시작된 날짜는 [RouteUiState.Content.marks]로
+ * marker와 구간 목록에 `완료`·`이동 중`·`건너뜀`을 문구+아이콘으로 겹친다(F006 UI-011, T031). `여행 중` 배지와
+ * 도착 예정 시각은 진행 화면의 몫이라 그리지 않는다(UI-001·UI-010). 지도 위 정보는 지도를 못 보는 사용자를
+ * 위해 같은 순서의 구간 목록으로도 제공한다(UI-005, 가이드라인 10절).
  *
  * @param state 현재 상태.
  * @param dayNumber 헤더 제목의 `N일차`.
@@ -84,7 +88,7 @@ fun DayRouteScreen(
     onAddPlace: () -> Unit,
     onReauthenticate: () -> Unit,
     modifier: Modifier = Modifier,
-    map: @Composable (RouteDto, Modifier) -> Unit = { route, mapModifier -> RouteMap(route = route, modifier = mapModifier) },
+    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier -> RouteMap(route = route, marks = marks, modifier = mapModifier) },
 ) {
     val colors = LocalGilpickColors.current
 
@@ -111,7 +115,7 @@ fun DayRouteScreen(
                     onReauthenticate = onReauthenticate,
                 )
 
-                is RouteUiState.Content -> Content(route = state.route, map = map)
+                is RouteUiState.Content -> Content(route = state.route, marks = state.marks, map = map)
             }
         }
     }
@@ -300,12 +304,13 @@ private fun DarkStateMessage(title: String, body: String, icon: Int, actions: @C
  * 같은 높이만큼 content padding을 둔다.
  */
 @Composable
-private fun Content(route: RouteDto, map: @Composable (RouteDto, Modifier) -> Unit) {
+private fun Content(route: RouteDto, marks: RouteMarks, map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sheetMaxHeight = maxHeight * SHEET_MAX_FRACTION
-        map(route, Modifier.fillMaxSize())
+        map(route, marks, Modifier.fillMaxSize())
         RouteSheet(
             route = route,
+            marks = marks,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .heightIn(max = sheetMaxHeight),
@@ -315,7 +320,7 @@ private fun Content(route: RouteDto, map: @Composable (RouteDto, Modifier) -> Un
 
 /** Figma 하단 sheet: 손잡이, 합계·attribution, 구간 목록. */
 @Composable
-private fun RouteSheet(route: RouteDto, modifier: Modifier = Modifier) {
+private fun RouteSheet(route: RouteDto, marks: RouteMarks, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
@@ -375,7 +380,7 @@ private fun RouteSheet(route: RouteDto, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(spacing.space2),
         ) {
             if (route.segments.isEmpty()) {
-                route.markers.forEach { MarkerRow(it) }
+                route.markers.forEach { MarkerRow(it, status = marks.statuses[it.itemId]) }
             } else {
                 val byId = route.markers.associateBy { it.itemId }
                 route.segments.forEach { segment ->
@@ -383,6 +388,8 @@ private fun RouteSheet(route: RouteDto, modifier: Modifier = Modifier) {
                         segment = segment,
                         from = byId.getValue(segment.fromItemId),
                         to = byId.getValue(segment.toItemId),
+                        fromStatus = marks.statuses[segment.fromItemId],
+                        toStatus = marks.statuses[segment.toItemId],
                     )
                 }
             }
@@ -393,17 +400,25 @@ private fun RouteSheet(route: RouteDto, modifier: Modifier = Modifier) {
 /**
  * 구간 한 행: 출발·도착 순서 번호와 이름, 이동 수단 아이콘+문구, 이동시간·거리(UI-005).
  *
- * 이동 수단은 색이 아니라 아이콘과 문구로 구분한다(UI-007).
+ * 이동 수단은 색이 아니라 아이콘과 문구로 구분한다(UI-007). 진행 상태가 있으면 장소명 옆에 문구로 더한다(T031).
  */
 @Composable
-private fun SegmentRow(segment: RouteSegmentDto, from: RouteMarkerDto, to: RouteMarkerDto) {
+private fun SegmentRow(
+    segment: RouteSegmentDto,
+    from: RouteMarkerDto,
+    to: RouteMarkerDto,
+    fromStatus: ItemStatus? = null,
+    toStatus: ItemStatus? = null,
+) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
     val mode = stringResource(segment.transportMode.labelRes)
     val duration = durationLabel(segment.durationSeconds)
     val distance = distanceLabel(segment.distanceMeters)
-    val description = stringResource(R.string.route_segment_description, segment.sequence, from.name, to.name, mode, duration, distance)
+    val fromName = statusName(from.name, fromStatus)
+    val toName = statusName(to.name, toStatus)
+    val description = stringResource(R.string.route_segment_description, segment.sequence, fromName, toName, mode, duration, distance)
 
     Row(
         modifier = Modifier
@@ -424,25 +439,27 @@ private fun SegmentRow(segment: RouteSegmentDto, from: RouteMarkerDto, to: Route
         )
         Column(modifier = Modifier.weight(1f)) {
             Row(horizontalArrangement = Arrangement.spacedBy(spacing.space1), verticalAlignment = Alignment.CenterVertically) {
-                SequenceDot(from.sequence)
+                SequenceDot(from.sequence, fromStatus)
                 Text(
                     text = from.name,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                StatusText(fromStatus)
                 Text(
                     text = stringResource(R.string.route_segment_arrow),
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.onDarkMuted,
                 )
-                SequenceDot(to.sequence)
+                SequenceDot(to.sequence, toStatus)
                 Text(
                     text = to.name,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                StatusText(toStatus)
             }
             Text(
                 text = stringResource(R.string.route_segment_detail, mode, duration, distance),
@@ -455,10 +472,10 @@ private fun SegmentRow(segment: RouteSegmentDto, from: RouteMarkerDto, to: Route
 
 /** 장소가 한 곳일 때의 유일한 행. 구간이 없으므로 순서 번호와 이름만 보인다. */
 @Composable
-private fun MarkerRow(marker: RouteMarkerDto) {
+private fun MarkerRow(marker: RouteMarkerDto, status: ItemStatus? = null) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
-    val description = stringResource(R.string.route_marker_description, marker.sequence, marker.name)
+    val description = stringResource(R.string.route_marker_description, marker.sequence, statusName(marker.name, status))
 
     Row(
         modifier = Modifier
@@ -471,27 +488,60 @@ private fun MarkerRow(marker: RouteMarkerDto) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.space2),
     ) {
-        SequenceDot(marker.sequence)
+        SequenceDot(marker.sequence, status)
         Text(text = marker.name, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+        StatusText(status)
     }
+}
+
+/** 접근성 설명용 `장소명 상태`. 상태가 없으면 장소명만이다. */
+@Composable
+private fun statusName(name: String, status: ItemStatus?): String =
+    if (status == null) name else stringResource(R.string.route_status_name, name, stringResource(status.progressLabelRes))
+
+/** 장소명 옆 진행 상태 문구. 색 단독이 아니라 문구가 뜻을 전달한다(F006 UI-004). */
+@Composable
+private fun StatusText(status: ItemStatus?) {
+    if (status == null) return
+    val colors = LocalGilpickColors.current
+    Text(
+        text = stringResource(status.progressLabelRes),
+        style = MaterialTheme.typography.labelSmall,
+        color = when (status) {
+            ItemStatus.COMPLETED, ItemStatus.ARRIVED -> colors.success
+            ItemStatus.SKIPPED -> colors.onDarkMuted
+            ItemStatus.EN_ROUTE, ItemStatus.PLANNED -> colors.primaryLight
+        },
+    )
 }
 
 /** 방문 순서 번호. 지도 마커의 번호와 같은 값이다(UI-006). */
 @Composable
-private fun SequenceDot(sequence: Int) {
+private fun SequenceDot(sequence: Int, status: ItemStatus? = null) {
+    val colors = LocalGilpickColors.current
+    val background = when (status) {
+        ItemStatus.COMPLETED, ItemStatus.ARRIVED -> colors.success
+        ItemStatus.SKIPPED, ItemStatus.PLANNED -> colors.faint
+        ItemStatus.EN_ROUTE, null -> MaterialTheme.colorScheme.primary
+    }
+    val icon = status?.progressIconRes
     Box(
         modifier = Modifier
             .size(20.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary),
+            .background(background),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = sequence.toString(),
-            style = MaterialTheme.typography.labelSmall,
-            fontFamily = sequence.toString().displayFont(),
-            color = Color.White,
-        )
+        if (icon != null) {
+            Icon(painter = painterResource(icon), contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+        } else {
+            Text(
+                text = sequence.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = sequence.toString().displayFont(),
+                color = Color.White,
+            )
+        }
     }
 }
 
