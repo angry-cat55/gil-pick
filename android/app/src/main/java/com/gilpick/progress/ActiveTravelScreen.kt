@@ -227,6 +227,8 @@ private fun ViewingBanner(dayNumber: Int, past: Boolean, onReturnToToday: () -> 
     ) {
         Text(
             text = stringResource(if (past) R.string.progress_viewing_past else R.string.progress_viewing_future, dayNumber),
+            // weight로 버튼이 먼저 제 너비를 갖게 한다. 360dp·글자 2.0에서 `오늘로 돌아가기`가 단어 중간에서 접히지 않는다(T039).
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
             color = colors.muted,
@@ -885,6 +887,7 @@ private fun MapSlot(
                 text = stringResource(R.string.progress_map_unavailable),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.muted,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(horizontal = spacing.space4),
