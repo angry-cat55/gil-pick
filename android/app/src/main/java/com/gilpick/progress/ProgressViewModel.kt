@@ -64,6 +64,7 @@ class ProgressViewModel(
 
     init {
         viewModelScope.launch { tickEveryMinute() }
+        viewModelScope.launch { scheduleDeadlineReload() }
     }
 
     /**
@@ -91,6 +92,11 @@ class ProgressViewModel(
                         viewingDate = kept.viewingDate,
                         decisionPending = kept.decisionPending,
                         decisionError = kept.decisionError,
+                        undoPending = kept.undoPending,
+                        // 되돌릴 대상이 바뀌면 지난 실패 안내를 지운다.
+                        undoError = kept.undoError.takeIf {
+                            kept.progress.undoable?.transitionId == next.progress.undoable?.transitionId
+                        },
                         // 후보가 바뀌면 닫아 둔 시트를 다시 띄운다. 새 질문이기 때문이다.
                         candidateDismissed = kept.candidateDismissed &&
                             kept.progress.pendingCandidate?.transitionId == next.progress.pendingCandidate?.transitionId,
@@ -196,6 +202,41 @@ class ProgressViewModel(
         decide(decision)
     }
 
+    /**
+     * 자동으로 확정된 전환을 되돌린다(PROG-005).
+     *
+     * 만료 판정은 서버가 한다(FR-018). 앱은 남은 시간을 표시만 하므로, 눌린 시점에 이미
+     * 지났으면 서버가 `409`로 거절하고 그 원인을 토스트에 보인다.
+     */
+    fun undo() {
+        val content = _state.value as? ProgressUiState.Content ?: return
+        val undoable = content.progress.undoable ?: return
+        val repository = detectionRepository ?: return
+        if (content.undoPending) return
+
+        _state.value = content.copy(undoPending = true, undoError = null)
+        viewModelScope.launch {
+            when (val result = repository.undo(undoable.transitionId)) {
+                is AuthResult.Success -> {
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(undoPending = false, undoError = null) ?: current
+                    }
+                    // 복원 결과는 진행 조회로 받는다. 상태·ETA·감지 대상이 함께 되돌아간다.
+                    load()
+                }
+
+                is AuthResult.Failure -> {
+                    val error = result.error.toDetectionError()
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)?.copy(undoPending = false, undoError = error) ?: current
+                    }
+                    // 만료·대상 아님은 최신 상태를 받아야 토스트가 사라진다.
+                    if (error == DetectionError.UndoWindowExpired || error == DetectionError.TransitionNotUndoable) load()
+                }
+            }
+        }
+    }
+
     /** 확인 시트를 닫는다. 후보는 살아 있고 수동 진행을 계속할 수 있다(UI-007). */
     fun dismissCandidate() {
         _state.update { state ->
@@ -245,6 +286,37 @@ class ProgressViewModel(
         }
     }
 
+    /**
+     * 자동 확정·되돌리기 만료 시각에 맞춰 진행을 다시 조회한다(T025).
+     *
+     * 서버는 요청이 올 때 만료된 후보를 확정하므로(`research.md` 2절), 그 시각에 아무도
+     * 조회하지 않으면 화면이 옛 상태로 남는다. 앱이 해당 시각을 지나면 한 번 더 조회해
+     * 확정 결과와 되돌리기 만료를 화면에 반영한다.
+     */
+    private suspend fun scheduleDeadlineReload() {
+        var lastTarget: String? = null
+        while (true) {
+            val content = _state.value as? ProgressUiState.Content
+            val target = content?.progress?.pendingCandidate?.autoFinalizeAt
+                ?: content?.progress?.undoable?.undoDeadline
+            if (target != null && target != lastTarget) {
+                lastTarget = target
+                val millis = millisUntil(target)
+                if (millis > 0) delay(millis)
+                load()
+            }
+            delay(DEADLINE_POLL_MILLIS)
+        }
+    }
+
+    /** 지정 시각까지 남은 밀리초. 파싱할 수 없거나 이미 지났으면 0이다. */
+    private fun millisUntil(isoInstant: String): Long {
+        val target = runCatching { java.time.Instant.parse(isoInstant) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(isoInstant).toInstant() }.getOrNull()
+            ?: return 0
+        return (target.toEpochMilli() - clock.millis()).coerceAtLeast(0)
+    }
+
     /** 매분 정각에 [ProgressUiState.Content.now]를 갱신해 `N분 남았어요`가 분 단위로 맞게 한다. */
     private suspend fun tickEveryMinute() {
         while (true) {
@@ -257,6 +329,9 @@ class ProgressViewModel(
 
     companion object {
         private const val MINUTE_MILLIS = 60_000L
+
+        /** 새 만료 시각이 생겼는지 확인하는 주기. 토스트 남은 초 표시와 같은 정도면 충분하다. */
+        private const val DEADLINE_POLL_MILLIS = 1_000L
 
         /** 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다. */
         fun factory(

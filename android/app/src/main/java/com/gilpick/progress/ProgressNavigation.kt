@@ -99,6 +99,7 @@ fun NavGraphBuilder.progressGraph(
             onDecide = viewModel::decide,
             onRetryDecision = viewModel::retryDecision,
             onDismissCandidate = viewModel::dismissCandidate,
+            onUndo = viewModel::undo,
             map = map,
         )
     }
