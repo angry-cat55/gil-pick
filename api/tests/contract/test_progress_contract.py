@@ -39,6 +39,27 @@ class _Progress:
         return ProgressData(tripId=uuid.uuid4(), date=date(2026, 9, 1), dayStatus="IN_PROGRESS", progressVersion=2, scheduleVersion=1, actualStartedAt=datetime.now(UTC), completedAt=None, startLocation=None, currentItemId=kwargs["item_id"], nextItemId=None, items=[])
 
 
+class _UnstoredDayProgress:
+    async def get_day(self, **kwargs):
+        return ProgressData(
+            tripId=kwargs["trip_id"], date=kwargs["visit_date"],
+            dayStatus="NOT_STARTED", progressVersion=0, scheduleVersion=0,
+            actualStartedAt=None, completedAt=None, startLocation=None,
+            currentItemId=None, nextItemId=None, items=[],
+        )
+
+    async def start_day(self, **kwargs):
+        raise AppError(422, "DAY_EMPTY", "장소가 없는 날짜는 시작할 수 없습니다.")
+
+
+class _UnexpectedProgress:
+    async def get_day(self, **kwargs):
+        raise AssertionError("기간·소유권 검증 실패 시 진행 서비스를 호출하면 안 됩니다.")
+
+    async def start_day(self, **kwargs):
+        raise AssertionError("기간·소유권 검증 실패 시 진행 서비스를 호출하면 안 됩니다.")
+
+
 def test_progress_paths_and_start_contract() -> None:
     principal = AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
     app.dependency_overrides[get_current_principal] = lambda: principal
@@ -72,6 +93,68 @@ def test_progress_openapi_declares_expected_responses() -> None:
     assert "422" not in get_op["responses"]
 
 
+def test_unstored_day_progress_contract_returns_empty_and_rejects_start() -> None:
+    principal = AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_trip_service] = lambda: _Trip()
+    app.dependency_overrides[_service] = lambda: _UnstoredDayProgress()
+    trip_id = uuid.uuid4()
+    try:
+        client = TestClient(app)
+        progress = client.get(
+            f"/api/v1/trips/{trip_id}/days/2026-09-08/progress"
+        )
+        start = client.post(
+            f"/api/v1/trips/{trip_id}/days/2026-09-08/progress/start",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"progressVersion": 0},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert progress.status_code == 200
+    assert progress.json()["data"] == {
+        "tripId": str(trip_id),
+        "date": "2026-09-08",
+        "dayStatus": "NOT_STARTED",
+        "progressVersion": 0,
+        "scheduleVersion": 0,
+        "actualStartedAt": None,
+        "completedAt": None,
+        "startLocation": None,
+        "currentItemId": None,
+        "nextItemId": None,
+        "items": [],
+    }
+    assert start.status_code == 422
+    assert start.json()["error"]["code"] == "DAY_EMPTY"
+
+
+def test_out_of_range_day_is_rejected_before_progress_service() -> None:
+    principal = AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_trip_service] = lambda: _Trip()
+    app.dependency_overrides[_service] = lambda: _UnexpectedProgress()
+    trip_id = uuid.uuid4()
+    try:
+        client = TestClient(app)
+        progress = client.get(
+            f"/api/v1/trips/{trip_id}/days/2026-09-11/progress"
+        )
+        start = client.post(
+            f"/api/v1/trips/{trip_id}/days/2026-09-11/progress/start",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"progressVersion": 0},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert progress.status_code == 404
+    assert progress.json()["error"]["code"] == "TRIP_NOT_FOUND"
+    assert start.status_code == 404
+    assert start.json()["error"]["code"] == "TRIP_NOT_FOUND"
+
+
 @pytest.mark.parametrize(
     ("error", "expected_status", "expected_code"),
     [
@@ -83,13 +166,22 @@ def test_progress_reuses_trip_ownership_errors(error, expected_status, expected_
     principal = AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
     app.dependency_overrides[get_current_principal] = lambda: principal
     app.dependency_overrides[_trip_service] = lambda: _Trip(error)
-    app.dependency_overrides[_service] = lambda: _Progress()
+    app.dependency_overrides[_service] = lambda: _UnexpectedProgress()
     try:
-        response = TestClient(app).get(f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/progress")
+        client = TestClient(app)
+        trip_id = uuid.uuid4()
+        response = client.get(f"/api/v1/trips/{trip_id}/days/2026-09-01/progress")
+        start = client.post(
+            f"/api/v1/trips/{trip_id}/days/2026-09-01/progress/start",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"progressVersion": 0},
+        )
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == expected_status
     assert response.json()["error"]["code"] == expected_code
+    assert start.status_code == expected_status
+    assert start.json()["error"]["code"] == expected_code
 
 
 def test_update_status_contract_requires_idempotency_key_and_returns_progress() -> None:

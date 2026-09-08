@@ -1,13 +1,16 @@
 """F006 수동 진행 전환·상태 수정의 파생 규칙과 불변식을 검증한다."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import AppError
 from app.models.itinerary import ItineraryItem, TripDay
-from app.services.progress import apply_manual_transition
+from app.schemas.progress import StartDayProgressRequest
+from app.services.progress import ProgressService, apply_manual_transition
 
 
 def _item(sequence: int, status: str) -> ItineraryItem:
@@ -25,6 +28,44 @@ def _day(items: list[ItineraryItem]) -> TripDay:
         schedule_version=1, progress_version=1, detection_active=True,
         items=items,
     )
+
+
+@pytest.mark.asyncio
+async def test_get_unstored_day_returns_empty_not_started_progress() -> None:
+    trip_id = uuid.uuid4()
+    visit_date = date(2026, 9, 8)
+    session = AsyncMock(spec=AsyncSession)
+    session.scalar.return_value = None
+
+    result = await ProgressService(session).get_day(
+        trip_id=trip_id,
+        visit_date=visit_date,
+    )
+
+    assert result.trip_id == trip_id
+    assert result.date == visit_date
+    assert result.day_status == "NOT_STARTED"
+    assert result.progress_version == 0
+    assert result.schedule_version == 0
+    assert result.items == []
+
+
+@pytest.mark.asyncio
+async def test_start_unstored_day_is_rejected_as_empty() -> None:
+    session = AsyncMock(spec=AsyncSession)
+    session.scalar.return_value = None
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+
+    with pytest.raises(AppError) as error:
+        await ProgressService(session).start_day(
+            trip_id=uuid.uuid4(),
+            visit_date=today,
+            payload=StartDayProgressRequest.model_validate({"progressVersion": 0}),
+            idempotency_key=uuid.uuid4(),
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.code == "DAY_EMPTY"
 
 
 def test_arrive_records_actual_time_and_completes_last_remaining_item() -> None:
