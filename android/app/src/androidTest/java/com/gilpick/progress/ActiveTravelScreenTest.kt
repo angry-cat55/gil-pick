@@ -24,8 +24,11 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.route.ITEM_A
 import com.gilpick.route.ITEM_B
+import com.gilpick.route.ITEM_C
 import com.gilpick.ui.theme.GilpickTheme
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -33,13 +36,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * T020·T025: 진행 화면의 네 상태·헤더·다음 장소 카드 세 모양·지도 자리·일정 목록·`장소 추가`·접근성 기본 케이스와
- * 전환 행동(요청 중 비활성·진행 표시, 실패 안내와 `다시 시도`, 마지막 장소의 출발 행동 부재).
+ * T020·T025·T033·T036: 진행 화면의 네 상태·헤더·다음 장소 카드 세 모양·지도 자리·일정 목록·`장소 추가`·접근성 기본
+ * 케이스, 전환 행동(요청 중 비활성·진행 표시, 실패 안내와 `다시 시도`, 마지막 장소의 출발 행동 부재), 상태 수정
+ * 시트(UI-003: 상태별 행동만, 오늘 아님·시작 전에는 없음), 다른 날짜 조회(UI-005: 카드·행동·시트 부재, 안내와
+ * `오늘로 돌아가기`).
  *
  * `spec.md` UI-001(구성), UI-002(카드·`N분 지났어요`), UI-004(상태 문구+아이콘, 실제 시각/ETA/`정보 없음`),
  * UI-006(당일 완료), UI-008(네 상태·요청 중 유지), UI-009(48dp), UI-011(지도 자리)이 대상이다. 상태 전이는
  * `ProgressViewModelTest`가 다루므로 여기서는 상태를 직접 넣는다. 지도는 SDK 인증이 필요해 자리 표시로
- * 바꿔 끼운다. 상태 수정 시트(US3)는 후속 task가 검증한다.
+ * 바꿔 끼운다.
  */
 @RunWith(AndroidJUnit4::class)
 class ActiveTravelScreenTest {
@@ -287,6 +292,105 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("다음 장소로 출발").assertDoesNotExist()
     }
 
+    // ---- T033: 상태 수정 시트 ----
+
+    @Test
+    fun 장소_행을_누르면_상태별_행동만_있는_시트가_열리고_행동은_목표_상태로_옮겨진다() {
+        val actions = mutableListOf<Pair<String, ItemStatus>>()
+        setScreen(content(progress = allDoneProgress()), onStatusAction = { id, status -> actions += id to status })
+
+        // 완료: `완료 취소`·`건너뛰기`.
+        row(1).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_STATUS_SHEET).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("경복궁 상태 수정").assertIsDisplayed()
+        composeRule.onNodeWithText("완료 취소").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("건너뛰기").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("도착으로 변경").assertDoesNotExist()
+        composeRule.onNodeWithText("건너뛰기 취소").assertDoesNotExist()
+        composeRule.onNodeWithText("완료 취소").performClick()
+        composeRule.onNodeWithTag(TAG_STATUS_SHEET).assertDoesNotExist()
+
+        // 건너뜀: `건너뛰기 취소`만.
+        row(2).performScrollTo().performClick()
+        composeRule.onNodeWithText("건너뛰기 취소").assertIsDisplayed()
+        composeRule.onNodeWithText("건너뛰기").assertDoesNotExist()
+        composeRule.onNodeWithText("건너뛰기 취소").performClick()
+
+        // 도착: `건너뛰기`만. 완료된 날짜에서도 시트가 열린다(UI-006).
+        row(3).performScrollTo().performClick()
+        composeRule.onNodeWithText("건너뛰기").assertIsDisplayed()
+        composeRule.onNodeWithText("완료 취소").assertDoesNotExist()
+        composeRule.onNodeWithText("건너뛰기").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf(ITEM_A to ItemStatus.ARRIVED, ITEM_B to ItemStatus.PLANNED, ITEM_C to ItemStatus.SKIPPED), actions)
+        }
+    }
+
+    @Test
+    fun 예정_이동_중_행은_도착으로_변경과_건너뛰기를_보이고_취소하면_닫힌다() {
+        val actions = mutableListOf<Pair<String, ItemStatus>>()
+        setScreen(content(), onStatusAction = { id, status -> actions += id to status })
+
+        row(3).performScrollTo().performClick()
+        composeRule.onNodeWithText("도착으로 변경").assertIsDisplayed()
+        composeRule.onNodeWithText("취소").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithTag(TAG_STATUS_SHEET).assertDoesNotExist()
+
+        row(2).performScrollTo().performClick()
+        composeRule.onNodeWithText("도착으로 변경").performClick()
+        composeRule.runOnIdle { assertEquals(listOf(ITEM_B to ItemStatus.ARRIVED), actions) }
+    }
+
+    @Test
+    fun 시작_전_날짜에서는_행을_눌러도_시트가_열리지_않는다() {
+        setScreen(content(progress = notStartedProgress()))
+
+        row(1).performClick()
+        composeRule.onNodeWithTag(TAG_STATUS_SHEET).assertDoesNotExist()
+    }
+
+    // ---- T036: 다른 날짜 조회 ----
+
+    @Test
+    fun 다른_날짜를_보면_카드와_행동과_시트가_없고_안내와_오늘로_돌아가기가_있다() {
+        var returned = 0
+        val selected = mutableListOf<LocalDate>()
+        setScreen(
+            content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-07")),
+            onSelectDate = { selected += it },
+            onReturnToToday = { returned++ },
+        )
+
+        composeRule.onNodeWithTag(TAG_VIEWING_BANNER).assertIsDisplayed()
+        composeRule.onNodeWithText("1일차 · 지난 일정").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertDoesNotExist()
+        composeRule.onNodeWithText("도착했어요").assertDoesNotExist()
+        // 헤더의 오늘 요약은 그대로다.
+        composeRule.onNodeWithText("2일차 · 1/3 완료").assertIsDisplayed()
+        composeRule.onNodeWithText("1일차 일정").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("1번째 장소 창덕궁, 완료").performScrollTo().assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag(TAG_STATUS_SHEET).assertDoesNotExist()
+
+        composeRule.onNodeWithText("오늘로 돌아가기").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithContentDescription("3일차 9월 9일").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, returned)
+            assertEquals(listOf(LocalDate.parse("2026-09-09")), selected)
+        }
+    }
+
+    @Test
+    fun 예정_날짜는_예정_일정_안내와_상태_없는_행을_보인다() {
+        setScreen(content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-09")))
+
+        composeRule.onNodeWithText("3일차 · 예정 일정").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("1번째 장소 남산타워").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("예정").assertDoesNotExist()
+    }
+
+    private fun row(sequence: Int) = composeRule.onNodeWithTag("$TAG_ROW_PREFIX$sequence")
+
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
     private fun cardText(cardTag: String, text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(cardTag)))
@@ -302,6 +406,9 @@ class ActiveTravelScreenTest {
         onDepart: () -> Unit = {},
         onRetryAction: () -> Unit = {},
         onDismissActionError: () -> Unit = {},
+        onStatusAction: (String, ItemStatus) -> Unit = { _, _ -> },
+        onSelectDate: (LocalDate) -> Unit = {},
+        onReturnToToday: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -317,6 +424,9 @@ class ActiveTravelScreenTest {
                     onDepart = onDepart,
                     onRetryAction = onRetryAction,
                     onDismissActionError = onDismissActionError,
+                    onStatusAction = onStatusAction,
+                    onSelectDate = onSelectDate,
+                    onReturnToToday = onReturnToToday,
                     map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }

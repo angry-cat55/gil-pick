@@ -86,6 +86,7 @@ class ProgressViewModel(
                         progress = if (next.progress.progressVersion < kept.progress.progressVersion) kept.progress else next.progress,
                         pendingAction = kept.pendingAction,
                         actionError = kept.actionError,
+                        viewingDate = kept.viewingDate,
                     )
                 }
             }
@@ -132,6 +133,18 @@ class ProgressViewModel(
     fun retryAction() {
         val failure = (_state.value as? ProgressUiState.Content)?.actionError ?: return
         updateStatus(failure.action.itemId, failure.action.status)
+    }
+
+    /** 날짜 진행 표시의 점을 눌러 그 날짜의 일정을 본다(US4). 오늘을 고르면 [returnToToday]와 같다. */
+    fun selectDate(date: LocalDate) {
+        _state.update { state ->
+            if (state is ProgressUiState.Content) state.copy(viewingDate = date.takeIf { it != state.today }) else state
+        }
+    }
+
+    /** `오늘로 돌아가기`(UI-005). */
+    fun returnToToday() {
+        _state.update { state -> if (state is ProgressUiState.Content) state.copy(viewingDate = null) else state }
     }
 
     /** 전환 실패 안내를 닫는다. */

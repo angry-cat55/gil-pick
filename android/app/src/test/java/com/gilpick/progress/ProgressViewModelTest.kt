@@ -21,6 +21,7 @@ import java.io.File
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -44,7 +45,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * T019·T024: 진행 화면 ViewModel 상태 전이 검증.
+ * T019·T024·T036: 진행 화면 ViewModel 상태 전이 검증.
  *
  * `spec.md` US1, UI-008(네 상태), `plan.md` State & Interaction(개요+진행 병렬 조회, `onResume` 재조회,
  * 1분 갱신)과 US2 전환(행동→목표 상태, `pendingAction`, 응답 교체, 실패 유지, `VERSION_CONFLICT` 재조회)이 대상이다. HTTP 왕복은 `ProgressRepositoryTest`가 보므로 여기서는 fake service로 응답만 정한다.
@@ -370,6 +371,60 @@ class ProgressViewModelTest {
         runCurrent()
         assertEquals(3, (viewModel.state.value as ProgressUiState.Content).progress.progressVersion)
     }
+
+    // ---- T036: 다른 날짜 조회 ----
+
+    @Test
+    fun `다른 날짜를 고르면 그 날짜의 저장된 상태만 있는 행이고 오늘로 돌아가면 진행 행으로 돌아온다`() = viewModelTest { viewModel ->
+        itineraryService.onOverview = { ok(threeDayOverview()) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.selectDate(LocalDate.parse("2026-09-07"))
+        val past = viewModel.state.value as ProgressUiState.Content
+        assertEquals(LocalDate.parse("2026-09-07"), past.viewing)
+        assertTrue(!past.isToday)
+        assertEquals(listOf("창덕궁"), past.rows.map { it.item.place.name })
+        assertEquals(listOf(ItemStatus.COMPLETED), past.rows.map { it.progress.status })
+        assertTrue(past.viewingStarted)
+        assertNull(past.rows.single().progress.actualArrivedAt)
+        // 오늘의 다음 장소·완료 수는 그대로다.
+        assertEquals("북촌한옥마을", past.nextRow?.item?.place?.name)
+        assertEquals(3, past.todayRows.size)
+
+        viewModel.selectDate(LocalDate.parse("2026-09-09"))
+        val future = viewModel.state.value as ProgressUiState.Content
+        assertTrue(!future.viewingStarted)
+        assertEquals(listOf(ItemStatus.PLANNED), future.rows.map { it.progress.status })
+
+        viewModel.returnToToday()
+        val today = viewModel.state.value as ProgressUiState.Content
+        assertTrue(today.isToday)
+        assertNull(today.viewingDate)
+        assertEquals(ItemStatus.EN_ROUTE, today.rows[1].progress.status)
+    }
+
+    @Test
+    fun `오늘을 고르면 viewingDate가 비고 재조회해도 보던 날짜를 유지한다`() = viewModelTest { viewModel ->
+        itineraryService.onOverview = { ok(threeDayOverview()) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.selectDate(LocalDate.parse(PROGRESS_DATE))
+        assertNull((viewModel.state.value as ProgressUiState.Content).viewingDate)
+
+        viewModel.selectDate(LocalDate.parse("2026-09-09"))
+        viewModel.load()
+        runCurrent()
+        assertEquals(LocalDate.parse("2026-09-09"), (viewModel.state.value as ProgressUiState.Content).viewing)
+    }
+
+    /** 9/7~9/9 사흘 여행 개요. 어제는 완료된 창덕궁 한 곳, 내일은 예정 한 곳이다. */
+    private fun threeDayOverview() = overview(
+        day("2026-09-07", dayNumber = 1, version = 1, items = listOf(savedItem("item-past", 1, name = "창덕궁", status = ItemStatus.COMPLETED))),
+        todayOverview().days.single().copy(dayNumber = 2),
+        day("2026-09-09", dayNumber = 3, version = 1, items = listOf(savedItem("item-future", 1, name = "남산타워"))),
+    )
 
     /** 9/8 하루 여행 개요. [inProgress]의 세 항목과 같은 ID다. */
     private fun todayOverview() = overview(

@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -62,7 +63,8 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * T021: 여행 상세 `여행 진행 화면으로` → 진행 화면 → `장소 추가`·`경로 보기`·뒤로 가기 검증.
+ * T021·T036: 여행 상세 `여행 진행 화면으로` → 진행 화면 → `장소 추가`·`경로 보기`·뒤로 가기, 다른 날짜 조회와
+ * 그 날짜의 `경로 보기`, 편집에서 돌아온 뒤 재조회 검증.
  *
  * `MainActivity.kt`의 `TripDetailRoute` 배선을 그대로 옮겨 [progressGraph]·[itineraryGraph]·[routeGraph]와
  * 한 NavHost에 둔다. 여행·일정 개요·진행 현황은 [MockWebServer]가 준다. 오늘(9/8)은 이미 시작된 날짜라
@@ -89,7 +91,7 @@ class ProgressNavigationTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.url.encodedPath
                 return when {
-                    path.endsWith("/itinerary") -> json(overviewJson())
+                    path.endsWith("/itinerary") -> json(overviewJson(threeDays()))
                     path.endsWith("/progress") -> {
                         progressRequests += path
                         json(progressJson(movingProgress()))
@@ -176,6 +178,40 @@ class ProgressNavigationTest {
                 ItineraryEditRoute(PROGRESS_TRIP_ID, LocalDate.now(KST).toString(), openSearch = true),
                 navController.getBackStackEntry<ItineraryEditRoute>().toRoute<ItineraryEditRoute>(),
             )
+        }
+    }
+
+    @Test
+    fun 다른_날짜를_고르면_그_날짜의_경로_화면으로_가고_편집에서_돌아오면_진행_현황을_다시_조회한다() {
+        setGraph()
+        awaitDetail()
+        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().performClick()
+        awaitProgress()
+        val requestsBefore = progressRequests.size
+
+        composeRule.onNodeWithContentDescription("1일차 9월 7일").performClick()
+        composeRule.onNodeWithText("1일차 · 지난 일정").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertDoesNotExist()
+        composeRule.onNodeWithText("경로 보기").performClick()
+        composeRule.runOnIdle {
+            assertEquals(DayRouteRoute(PROGRESS_TRIP_ID, "2026-09-07", 1), navController.currentBackStackEntry?.toRoute<DayRouteRoute>())
+        }
+        composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithText("오늘로 돌아가기").fetchSemanticsNodes().isNotEmpty() }
+        // 돌아와도 보던 날짜를 유지한다. 재조회는 한 번 더 일어난다.
+        composeRule.onNodeWithText("1일차 · 지난 일정").assertIsDisplayed()
+        composeRule.onNodeWithText("오늘로 돌아가기").performClick()
+        awaitProgress()
+
+        // `장소 추가`는 보던 날짜와 무관하게 오늘 날짜의 편집으로 간다. 돌아오면 다시 조회한다.
+        composeRule.onNodeWithTag(TAG_ADD_PLACE).performScrollTo().performClick()
+        composeRule.waitUntil(WAIT_MILLIS) { navController.currentBackStackEntry?.destination?.hasRoute<PlaceSearchRoute>() == true }
+        composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        awaitProgress()
+        composeRule.waitUntil(WAIT_MILLIS) { progressRequests.size >= requestsBefore + 2 }
+        composeRule.runOnIdle {
+            assertEquals(ActiveTravelRoute(PROGRESS_TRIP_ID, "서울 여행"), navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>())
         }
     }
 

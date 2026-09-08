@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -75,7 +76,8 @@ import kotlinx.coroutines.delay
  * F006은 헤더(`여행 중`·`N일차 · x/y 완료`·여행명), 날짜 진행 표시, 오늘의 다음 장소 카드(이동 중·도착·
  * 당일 완료), 지도 자리와 `경로 보기`, 일정 목록, `장소 추가`를 그린다(UI-001). Figma의 변수 경고 배너·
  * 날씨 안내·알림/변수/설정 버튼·도착 확인 시트·변경 토스트·데모 토글은 F007·F008·F010·F011 범위라
- * 그리지 않는다(plan.md). 상태 수정 시트(UI-003)와 다른 날짜 조회(UI-005)는 US3·US4가 더한다.
+ * 그리지 않는다(plan.md). 장소 행 탭은 상태 수정 시트(UI-003, [StatusSheet])를 열고, 날짜 점은 다른 날짜의
+ * 일정을 보여 준다(UI-005). 오늘이 아닌 날짜에는 카드·행동·시트가 없고 `오늘로 돌아가기`가 있다.
  *
  * @param state 현재 상태.
  * @param tripName 헤더의 여행명. 여행 상세가 이미 알고 있어 다시 조회하지 않는다.
@@ -88,6 +90,9 @@ import kotlinx.coroutines.delay
  * @param onDepart 도착 카드의 `다음 장소로 출발`(US2).
  * @param onRetryAction 전환 실패 안내의 `다시 시도`. 같은 요청을 다시 보낸다.
  * @param onDismissActionError 전환 실패 안내의 `닫기`.
+ * @param onStatusAction 상태 수정 시트에서 고른 `(장소, 목표 상태)`(US3).
+ * @param onSelectDate 날짜 진행 표시의 점을 눌러 그 날짜를 본다(US4).
+ * @param onReturnToToday `오늘로 돌아가기`(UI-005).
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -104,6 +109,9 @@ fun ActiveTravelScreen(
     onDepart: () -> Unit = {},
     onRetryAction: () -> Unit = {},
     onDismissActionError: () -> Unit = {},
+    onStatusAction: (itemId: String, status: ItemStatus) -> Unit = { _, _ -> },
+    onSelectDate: (LocalDate) -> Unit = {},
+    onReturnToToday: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -114,7 +122,7 @@ fun ActiveTravelScreen(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding(),
     ) {
-        Header(state = state, tripName = tripName)
+        Header(state = state, tripName = tripName, onSelectDate = onSelectDate, onReturnToToday = onReturnToToday)
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
                 ProgressUiState.Loading -> Loading()
@@ -129,6 +137,7 @@ fun ActiveTravelScreen(
                     onDepart = onDepart,
                     onRetryAction = onRetryAction,
                     onDismissActionError = onDismissActionError,
+                    onStatusAction = onStatusAction,
                     map = map,
                 )
             }
@@ -136,9 +145,12 @@ fun ActiveTravelScreen(
     }
 }
 
-/** Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시. 내용이 없으면 여행명만 보인다. */
+/**
+ * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시. 내용이 없으면 여행명만 보인다.
+ * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
+ */
 @Composable
-private fun Header(state: ProgressUiState, tripName: String) {
+private fun Header(state: ProgressUiState, tripName: String, onSelectDate: (LocalDate) -> Unit, onReturnToToday: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val radius = LocalGilpickRadius.current
@@ -162,7 +174,7 @@ private fun Header(state: ProgressUiState, tripName: String) {
             val dayNumber = content?.todayItinerary?.dayNumber
             if (content != null && dayNumber != null) {
                 Text(
-                    text = stringResource(R.string.progress_day_summary, dayNumber, content.visitedCount, content.rows.size),
+                    text = stringResource(R.string.progress_day_summary, dayNumber, content.visitedCount, content.todayRows.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.muted,
                     modifier = Modifier.testTag(TAG_DAY_SUMMARY),
@@ -177,7 +189,62 @@ private fun Header(state: ProgressUiState, tripName: String) {
             modifier = Modifier.padding(top = spacing.space1),
         )
         if (content != null) {
-            DayProgress(days = content.days, today = content.today, modifier = Modifier.padding(top = spacing.space3))
+            DayProgress(
+                days = content.days,
+                today = content.today,
+                viewing = content.viewing,
+                onSelectDate = onSelectDate,
+                modifier = Modifier.padding(top = spacing.space3),
+            )
+            val viewingItinerary = content.viewingItinerary
+            if (!content.isToday && viewingItinerary != null) {
+                ViewingBanner(
+                    dayNumber = viewingItinerary.dayNumber,
+                    past = content.viewing < content.today,
+                    onReturnToToday = onReturnToToday,
+                    modifier = Modifier.padding(top = spacing.space2 + 2.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Figma: 오늘이 아닌 날짜의 안내 `N일차 · 지난 일정`/`예정 일정`과 `오늘로 돌아가기`(UI-005). */
+@Composable
+private fun ViewingBanner(dayNumber: Int, past: Boolean, onReturnToToday: () -> Unit, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(radius.md))
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = spacing.space3 + 2.dp, end = spacing.space1)
+            .testTag(TAG_VIEWING_BANNER),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = stringResource(if (past) R.string.progress_viewing_past else R.string.progress_viewing_future, dayNumber),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.muted,
+        )
+        Box(
+            modifier = Modifier
+                .heightIn(min = MIN_TOUCH)
+                .clip(RoundedCornerShape(radius.sm))
+                .clickable(onClick = onReturnToToday, role = Role.Button),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.progress_return_today),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = spacing.space2),
+            )
         }
     }
 }
@@ -185,10 +252,17 @@ private fun Header(state: ProgressUiState, tripName: String) {
 /**
  * 날짜 진행 표시: 지난·오늘 날짜만큼 채운 막대와 날짜별 점·`M/D`(Figma Day progress).
  *
- * 점을 눌러 다른 날짜를 보는 것은 US4(T037)가 더한다. 여기서는 표시만 한다.
+ * 점을 누르면 그 날짜의 일정을 본다(US4). 보고 있는 날짜의 점은 테두리 고리와 파란 글자로 구분한다.
+ * 점은 작지만 터치 영역은 48dp다(UI-009). 여행은 최대 7일이라 360dp 너비에 들어간다(F002 FR-001).
  */
 @Composable
-private fun DayProgress(days: List<DayItineraryDto>, today: LocalDate, modifier: Modifier = Modifier) {
+private fun DayProgress(
+    days: List<DayItineraryDto>,
+    today: LocalDate,
+    viewing: LocalDate,
+    onSelectDate: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val todayIndex = days.indexOfFirst { it.date == today.toString() }
@@ -220,24 +294,34 @@ private fun DayProgress(days: List<DayItineraryDto>, today: LocalDate, modifier:
             days.forEachIndexed { index, day ->
                 val date = LocalDate.parse(day.date)
                 val reached = index <= todayIndex
-                val viewing = index == todayIndex
+                val isViewing = date == viewing
                 val description = stringResource(R.string.progress_day_dot_description, day.dayNumber, date.monthValue, date.dayOfMonth)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(spacing.space1),
-                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+                    modifier = Modifier
+                        .sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+                        .clickable(onClick = { onSelectDate(date) }, role = Role.Button)
+                        .semantics(mergeDescendants = true) { contentDescription = description },
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(DAY_DOT)
-                            .clip(CircleShape)
-                            .background(if (reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-                            .border(2.dp, if (reached) MaterialTheme.colorScheme.primary else colors.faint, CircleShape),
-                    )
+                            .size(DAY_DOT_RING)
+                            .border(2.dp, if (isViewing) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(DAY_DOT)
+                                .clip(CircleShape)
+                                .background(if (reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                .border(2.dp, if (reached) MaterialTheme.colorScheme.primary else colors.faint, CircleShape),
+                        )
+                    }
                     Text(
                         text = stringResource(R.string.progress_day_dot, date.monthValue, date.dayOfMonth),
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (viewing) MaterialTheme.colorScheme.primary else colors.faint,
+                        color = if (isViewing) MaterialTheme.colorScheme.primary else colors.faint,
                     )
                 }
             }
@@ -339,7 +423,12 @@ private fun StateMessage(title: String, body: String, icon: Int, actions: @Compo
     }
 }
 
-/** 세로 스크롤 본문: 다음 장소 카드, 지도, 일정 목록, `장소 추가`. */
+/**
+ * 세로 스크롤 본문: 다음 장소 카드(오늘만), 지도, 일정 목록, `장소 추가`.
+ *
+ * 장소 행을 누르면 [StatusSheet]가 열린다. 오늘이면서 시작된 날짜에서만 열리고(UI-003), 행동을 고르면
+ * 닫힌 뒤 전환을 요청한다. 시트에 보이는 장소는 여는 순간의 행이다.
+ */
 @Composable
 private fun Content(
     content: ProgressUiState.Content,
@@ -350,10 +439,13 @@ private fun Content(
     onDepart: () -> Unit,
     onRetryAction: () -> Unit,
     onDismissActionError: () -> Unit,
+    onStatusAction: (itemId: String, status: ItemStatus) -> Unit,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
-    val itinerary = content.todayItinerary
+    val itinerary = content.viewingItinerary
+    var sheetRow by remember { mutableStateOf<ProgressRow?>(null) }
+    val canEdit = content.isToday && content.viewingStarted
 
     Column(
         modifier = Modifier
@@ -363,21 +455,39 @@ private fun Content(
             .navigationBarsPadding(),
     ) {
         Spacer(modifier = Modifier.height(spacing.space3))
-        NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
+        if (content.isToday) {
+            NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
+        }
         content.actionError?.let { failure ->
             ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
         }
         if (itinerary != null) {
             MapSlot(
                 route = itinerary.route,
-                marks = content.progress.toRouteMarks(),
+                marks = if (content.isToday) content.progress.toRouteMarks() else RouteMarks.NONE,
                 onOpenRoute = { onOpenRoute(itinerary.date, itinerary.dayNumber) },
                 map = map,
                 modifier = Modifier.padding(top = spacing.space3),
             )
-            ItemList(content = content, itinerary = itinerary, modifier = Modifier.padding(top = spacing.space3))
+            ItemList(
+                content = content,
+                itinerary = itinerary,
+                onRowClick = if (canEdit) { row -> sheetRow = row } else null,
+                modifier = Modifier.padding(top = spacing.space3),
+            )
         }
         AddPlaceButton(onAddPlace = onAddPlace, modifier = Modifier.padding(top = spacing.space3, bottom = spacing.space4))
+    }
+
+    sheetRow?.let { row ->
+        StatusSheet(
+            row = row,
+            onAction = { status ->
+                sheetRow = null
+                onStatusAction(row.item.itemId, status)
+            },
+            onDismiss = { sheetRow = null },
+        )
     }
 }
 
@@ -801,9 +911,18 @@ private fun MapSlot(
     }
 }
 
-/** 일정 목록(UI-004): `N일차 일정` 제목, `M월 D일 · K곳`, 장소 행. */
+/**
+ * 일정 목록(UI-004): `N일차 일정` 제목, `M월 D일 · K곳`, 장소 행.
+ *
+ * @param onRowClick 행 탭. `null`이면 행을 누를 수 없다(오늘 아님·시작 전).
+ */
 @Composable
-private fun ItemList(content: ProgressUiState.Content, itinerary: DayItineraryDto, modifier: Modifier = Modifier) {
+private fun ItemList(
+    content: ProgressUiState.Content,
+    itinerary: DayItineraryDto,
+    onRowClick: ((ProgressRow) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
@@ -841,7 +960,9 @@ private fun ItemList(content: ProgressUiState.Content, itinerary: DayItineraryDt
                     row = row,
                     next = rows.getOrNull(index + 1),
                     last = index == rows.lastIndex,
-                    started = content.progress.dayStatus != DayStatus.NOT_STARTED,
+                    started = content.viewingStarted,
+                    showTime = content.isToday,
+                    onClick = onRowClick?.let { click -> { click(row) } },
                 )
             }
         }
@@ -851,22 +972,29 @@ private fun ItemList(content: ProgressUiState.Content, itinerary: DayItineraryDt
 /**
  * 장소 한 행: 상태별 순서 원(아이콘 또는 번호)과 세로선, 장소명과 상태 칩, 실제 시각 또는 ETA, 다음 장소로의 이동.
  *
- * 상태는 칩 문구와 아이콘으로 구분한다(UI-004, 색 단독 금지). 행 탭으로 여는 상태 수정 시트는 US3(T035)가 더한다.
+ * 상태는 칩 문구와 아이콘으로 구분한다(UI-004, 색 단독 금지). [onClick]이 있으면 행 탭으로 상태 수정 시트를 연다.
+ *
+ * @param showTime 오늘이면 실제 시각·ETA를 보인다. 다른 날짜는 개요에 시각이 없어 상태만 보인다.
  */
 @Composable
-private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started: Boolean) {
+private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started: Boolean, showTime: Boolean, onClick: (() -> Unit)?) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val status = row.progress.status
     val name = row.item.place.name
     val statusLabel = stringResource(status.progressLabelRes)
     val timeText = rowTimeLabel(row.progress)
-    val description = stringResource(R.string.progress_row_description, row.item.sequence, name, statusLabel, timeText)
+    val description = when {
+        showTime -> stringResource(R.string.progress_row_description, row.item.sequence, name, statusLabel, timeText)
+        started -> stringResource(R.string.progress_row_description_no_time, row.item.sequence, name, statusLabel)
+        else -> stringResource(R.string.progress_row_description_planned, row.item.sequence, name)
+    }
     val planned = status == ItemStatus.PLANNED
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick, role = Role.Button) else Modifier)
             .semantics(mergeDescendants = true) { contentDescription = description }
             .testTag("$TAG_ROW_PREFIX${row.item.sequence}"),
         horizontalArrangement = Arrangement.spacedBy(spacing.space3),
@@ -894,12 +1022,14 @@ private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started
                 )
                 if (started) StatusChip(status = status, label = statusLabel)
             }
-            Text(
-                text = timeText,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (planned) colors.faint else colors.muted,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+            if (showTime) {
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (planned) colors.faint else colors.muted,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             val toNext = row.item.transportModeToNext
             if (next != null && toNext != null) {
                 val travel = next.progress.inboundTravel
@@ -973,9 +1103,9 @@ private fun StatusCircle(status: ItemStatus, sequence: Int) {
     }
 }
 
-/** Figma `STATUS_CHIP`: 예정·이동 중 파랑, 도착·완료 초록, 건너뜀 회색. 문구가 뜻을 전달한다. */
+/** Figma `STATUS_CHIP`: 예정·이동 중 파랑, 도착·완료 초록, 건너뜀 회색. 문구가 뜻을 전달한다. 상태 수정 시트도 쓴다. */
 @Composable
-private fun StatusChip(status: ItemStatus, label: String) {
+internal fun StatusChip(status: ItemStatus, label: String) {
     val colors = LocalGilpickColors.current
     val radius = LocalGilpickRadius.current
     val spacing = LocalGilpickSpacing.current
@@ -1040,6 +1170,7 @@ internal const val TAG_ROW_PREFIX = "progress_row_"
 internal const val TAG_ADD_PLACE = "progress_add_place"
 internal const val TAG_ACTION_ERROR = "progress_action_error"
 internal const val TAG_BUSY = "progress_busy"
+internal const val TAG_VIEWING_BANNER = "progress_viewing_banner"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 
@@ -1058,6 +1189,9 @@ private val MAP_HEIGHT: Dp = 150.dp
 /** Figma 날짜 진행 막대(`h-1.5`)와 점(`w-2.5`). */
 private val PROGRESS_BAR_HEIGHT: Dp = 6.dp
 private val DAY_DOT: Dp = 10.dp
+
+/** 보고 있는 날짜 점의 고리(Figma `ring-2 ring-offset-1`). */
+private val DAY_DOT_RING: Dp = 18.dp
 
 /** Figma 일정 행의 순서 원(`w-6`), 세로선(`h-7`), 이동수단 아이콘(11px). */
 private val STATUS_CIRCLE: Dp = 24.dp

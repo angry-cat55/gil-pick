@@ -229,7 +229,7 @@
   - 담당: jh
   - 선행: T026
   - 검증: `COMPLETED→ARRIVED`(뒤 `PLANNED`, 완료 날짜 `IN_PROGRESS` 복귀·`completed_at` null·`detection_active=true`), `SKIPPED→PLANNED`(`EN_ROUTE`·`ARRIVED` 없으면 첫 `PLANNED`→`EN_ROUTE`), 임의 `PLANNED`→`ARRIVED`(앞 `ARRIVED`→`COMPLETED`, 앞 `EN_ROUTE`→`PLANNED`, 뒤 초기화), 도착 확정 시 ETA 재계산, `actual_arrived_at` 초기화
-- [ ] T033 [P] [US3] 상태 수정 시트 UI·screenshot test 작성 in android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt
+- [x] T033 [P] [US3] 상태 수정 시트 UI·screenshot test 작성 in android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T020
@@ -242,7 +242,7 @@
   - 담당: jh
   - 선행: T032
   - 검증: research 결정 3 표의 나머지 행과 FR-011·FR-014, transition_type `UNDO_COMPLETE`·`UNDO_SKIP`·`ARRIVE`, T032 통과
-- [ ] T035 [US3] 상태 수정 시트와 목록 행 연결 구현 in android/app/src/main/java/com/gilpick/progress/StatusSheet.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [x] T035 [US3] 상태 수정 시트와 목록 행 연결 구현 in android/app/src/main/java/com/gilpick/progress/StatusSheet.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T030, T033
@@ -260,7 +260,7 @@
 
 ### Tests for User Story 4
 
-- [ ] T036 [P] [US4] 날짜 전환·화면 연결 test 작성 in android/app/src/androidTest/java/com/gilpick/progress/ProgressNavigationTest.kt, android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
+- [x] T036 [P] [US4] 날짜 전환·화면 연결 test 작성 in android/app/src/androidTest/java/com/gilpick/progress/ProgressNavigationTest.kt, android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T021
@@ -268,7 +268,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T037 [US4] 다른 날짜 조회와 F004·F005 연결 구현 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ProgressNavigation.kt
+- [x] T037 [US4] 다른 날짜 조회와 F004·F005 연결 구현 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ProgressNavigation.kt
   - 영역: FE
   - 담당: jy
   - 선행: T036
