@@ -48,3 +48,24 @@ cd ..\android
 
 - `docs/design/er-schema.md`·`docs/design/api-spec.md`가 `contracts/progress.openapi.yaml`·`data-model.md`와 일치하는지 diff로 확인한다.
 - Figma `ActiveTravelScreen`에 도착 상태 카드·당일 완료·상태 수정 시트가 추가되었는지 확인하고 저장소 사본을 갱신한다.
+
+## Android 실서버 검증 기록 (#242·#244, 2026-09-08, jy)
+
+로컬 API(`main` 2c31a1b, BE #237·#238 병합 후) + `gilpick_api36_play`(headless, `adb emu geo fix 126.9770 37.5796` = 경복궁)로 실제 앱을 구동했다. 임시 instrumented 스크립트(`ProgressLiveE2E`, 커밋하지 않음)로 화면을 조작하고 uvicorn 로그·PROG-001 응답으로 서버 상태를 대조했다. 오늘 날짜 여행 `F006 검증`(9/8~9/9, 하루 3곳 도보)을 API로 만들었다.
+
+| 시나리오 | 확인 내용 | 결과 |
+|---|---|---|
+| 상세 시작 분기 (T018) | 오늘 날짜 PROG-001 `NOT_STARTED` → `오늘 여행 시작` 활성. 기간 밖 여행(9/21) → 비활성 + `오늘은 여행 날짜가 아닙니다`. 오늘 장소 0곳(일정을 저장했다 비운 날짜) → `오늘 일정에 장소가 없어요…` + `장소 추가` | 통과 |
+| 권한 허용 시작 (T017·T018) | 권한 허용 → 1회 위치 취득 → `POST …/progress/start` 200 → 진행 화면 이동. 서버 `startLocation` = (37.5796, 126.977), 1번 장소 `출발 위치에서 도보 0분 · 0m`, `예상 도착 오후 12:54` | 통과 |
+| 권한 거부 시작 (T017·T018) | `pm revoke` + `user-fixed` 상태에서 시작 → 시스템 권한 화면이 거부로 즉시 닫힘 → 위치 null로 start 200 → 진행 화면. 서버 `startLocation=null`, 카드 `이동 정보 없음` | 통과 |
+| 시작 후 상세 | 돌아오면 `여행 진행 화면으로` + `여행 중` 배지, 탭하면 진행 화면 재진입 | 통과 |
+| 전환 (T029·T030) | `도착했어요` → `현재 장소` 카드·`오후 12:59 도착`·`체류 예정 90분`·`다음 장소로 출발`. 출발 → 1번 `완료`, 2번 `이동 중` ETA 재계산(오후 1:12). 시작 5분 뒤 카드에 `· 5분 지났어요` | 통과 |
+| 409 재조회 (T029) | host가 API로 2번을 먼저 `SKIPPED`(v3→4)한 뒤 앱에서 `건너뛰기` → 서버 409 `VERSION_CONFLICT` → `진행 상태가 다른 곳에서 바뀌었어요…` 안내 + 자동 재조회로 2번 `건너뜀`·3번 `이동 중` 반영 | 통과 |
+| 당일 완료 (T030) | 마지막 3번 `도착했어요` → 서버 `COMPLETED`(v5) → `오늘 일정을 모두 마쳤어요`·`2곳 방문 · 마지막 도착 오후 12:59`, 출발·도착 행동 없음, 상단 `1일차 · 2/3 완료` | 통과 |
+| 경로 화면 진행 상태 (T031) | 시작된 9/8 `1일차 경로`: Naver 지도에 `현위치` pill, ✓(완료·도착), ✕(건너뜀) marker, 구간 목록 `경복궁 완료 → 북촌한옥마을 건너뜀`. 시작 전 9/9: 상태 문구·`현위치` 없이 기존 계획 표시 | 통과 |
+| 진행 화면 지도 | RouteMap에 같은 marker, `경로 보기` → 오늘 경로 화면 | 통과 |
+
+- 요청 중 버튼 비활성(`pendingAction`)은 로컬 서버 응답이 수백 ms라 실서버에서는 눈으로 잡히지 않았다. `ProgressViewModelTest`·`ActiveTravelScreenTest`가 대신 검증한다.
+- Backend 발견(jh, #237 범위): 일정을 한 번도 저장하지 않은 여행 날짜에 `GET …/days/{date}/progress`가 `404 TRIP_NOT_FOUND`를 돌려준다(`trip_days` 행이 없어서). 계약(`progress.openapi.yaml` GET 설명·`DAY_EMPTY`)대로라면 기간 안 날짜는 `items: []`인 200이어야 하고, 앱은 그 응답으로 `장소 추가`를 안내한다. 지금은 이 경우 `지금은 여행을 시작할 수 없습니다`가 뜬다. 일정을 저장했다 비운 날짜는 200 `items: []`로 정상이다.
+- 지도 marker는 Naver overlay라 Compose semantics에 잡히지 않아 screenshot(`r1_route_today.png`·`t3_after_conflict.png`)으로 확인했다. 시작 위치를 1번 장소와 같게 두어 `현위치` pill이 1번 marker와 겹친 것은 검증 데이터 탓이다.
+- 검증 절차는 F004 quickstart 기록과 같다(postgres → `alembic upgrade head` → uvicorn 127.0.0.1:8000 → `adb reverse` → `-PGILPICK_API_BASE_URL` 빌드 → 세션 주입). TRANSIT 구간은 ODsay 키가 없어 `FAILED`가 되므로 도보만 썼다.
