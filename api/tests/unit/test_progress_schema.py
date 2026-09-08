@@ -123,4 +123,6 @@ def test_progress_error_codes_match_contract() -> None:
         "IDEMPOTENCY_KEY_CONFLICT",
         "DAY_NOT_TODAY", "DAY_EMPTY", "DAY_NOT_STARTED",
         "INVALID_STATUS_TRANSITION",
+        "TRANSITION_NOT_PENDING", "INVALID_DECISION",
+        "UNDO_WINDOW_EXPIRED", "TRANSITION_NOT_UNDOABLE",
     }

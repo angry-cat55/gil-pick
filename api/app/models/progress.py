@@ -5,11 +5,75 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text
+from geoalchemy2 import Geography
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    desc,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+
+
+class ProgressEvent(Base):
+    """클라이언트가 전송한 위치 감지 이벤트와 수락 결과."""
+
+    __tablename__ = "progress_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "client_event_id", name="uq_progress_events_client_event_id"
+        ),
+        CheckConstraint(
+            "event_type IN ('DWELL', 'EXIT', 'REENTER')",
+            name="ck_progress_events_event_type",
+        ),
+        Index(
+            "ix_progress_events_trip_day_occurred_at",
+            "trip_day_id",
+            desc("occurred_at"),
+        ),
+    )
+
+    progress_event_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, default=uuid.uuid4
+    )
+    client_event_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    trip_day_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trip_days.trip_day_id", ondelete="CASCADE"), nullable=False
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("itinerary_items.item_id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    geofence_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    location: Mapped[object] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False),
+        nullable=False,
+    )
+    accuracy_meters: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    accepted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    rejection_reason: Mapped[str | None] = mapped_column(String(80))
+
+    trip_day: Mapped[object] = relationship("TripDay")
+    item: Mapped[object] = relationship("ItineraryItem")
 
 
 class ProgressTransition(Base):
