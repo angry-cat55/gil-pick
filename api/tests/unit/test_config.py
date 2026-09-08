@@ -100,3 +100,32 @@ def test_route_provider_settings_reject_non_positive_values(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **valid_settings(**{field: value}))
+
+
+def test_detection_provider_defaults_allow_missing_optional_keys() -> None:
+    settings = Settings(_env_file=None, **valid_settings())
+
+    assert settings.kma_base_url == (
+        "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
+    )
+    assert settings.seoul_citydata_base_url == "http://openapi.seoul.go.kr:8088"
+    assert settings.detection_provider_timeout_seconds == 5.0
+    assert settings.detection_cycle_seconds == 600
+    assert settings.kma_service_key.get_secret_value() == ""
+    assert settings.seoul_citydata_api_key.get_secret_value() == ""
+    assert str(settings.kma_service_key) == ""
+    assert str(settings.seoul_citydata_api_key) == ""
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("detection_provider_timeout_seconds", 0),
+        ("detection_cycle_seconds", 0),
+    ],
+)
+def test_detection_provider_settings_reject_non_positive_values(
+    field: str, value: int
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **valid_settings(**{field: value}))

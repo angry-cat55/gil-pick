@@ -32,17 +32,17 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 교차 확인: FE 담당(미정)
   - 선행: 없음
   - 검증: `detections.openapi.yaml`의 DETECT-001·002·003 경로가 `api-spec.md` §7과 일치, `status` enum이 `er-schema.md` §10(`ACTIVE`·`RESOLVED`·`DISMISSED`·`INVALIDATED`)과 일치, 상세 응답 확장 필드(`operatingHours.visitBlocked`·`tempClosed`, `weather.precipitationType`, `congestion.sensitivity`, 각 변수 `unavailableReason`)와 `api-spec.md` §7 예시의 `PENDING_DECISION` 교체 대상을 목록화. `er-schema.md` §8.1(`detections`)·§10은 변경 없이 그대로 구현함을 대조해 PR에 기록. 실제 `api-spec.md` 반영은 T029에서 수행
-- [ ] T002 [P] 기상청·서울시·감지 주기 설정값 추가 in api/app/core/config.py
+- [x] T002 [P] 기상청·서울시·감지 주기 설정값 추가 in api/app/core/config.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
   - 검증: `kma_base_url`·`kma_service_key`(SecretStr), `seoul_citydata_base_url`·`seoul_citydata_api_key`(SecretStr), `detection_provider_timeout_seconds`(기본 5.0, gt=0), `detection_cycle_seconds`(기본 600, gt=0) 추가. 키가 비어도 `get_settings()`가 성공하고 앱이 기동되는지 `api/tests/unit/test_config.py`에서 확인(다른 선택 provider 키와 동일 취급)
-- [ ] T003 [P] 서울시 혼잡 지원 지점 설정 파일과 로더 in api/app/services/detection/congestion_areas.json, api/app/services/detection/congestion_areas.py, api/app/services/detection/__init__.py
+- [x] T003 [P] 서울시 혼잡 지원 지점 설정 파일과 로더 in api/app/services/detection/congestion_areas.json, api/app/services/detection/congestion_areas.py, api/app/services/detection/__init__.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
   - 검증: `{version, source, areas:[{name, areaCode, latitude, longitude}]}` 스키마를 로더가 검증. 장소 좌표에서 `ST_DWithin(location, area_point, 500)`으로 최근접 지원 지점 1곳을 찾고 없으면 `None`을 반환하는 것을 `api/tests/unit/test_congestion_areas.py`에서 fixture 좌표로 확인. 목록 자체는 G001에서 확정하므로 초기값은 검증용 소수 지점 + `version` 표기
-- [ ] T004 [P] 감지 정책 모듈 in api/app/services/detection/policy.py
+- [x] T004 [P] 감지 정책 모듈 in api/app/services/detection/policy.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
