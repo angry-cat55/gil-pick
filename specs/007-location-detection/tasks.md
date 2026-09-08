@@ -96,12 +96,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 > **NOTE: 구현 전에 작성해 실패를 확인한다.**
 
-- [ ] T010 [P] [US1] 도착 후보 contract·integration test in api/tests/contract/test_detection_contract.py, api/tests/integration/test_detection_flow.py
+- [x] T010 [P] [US1] 도착 후보 contract·integration test in api/tests/contract/test_detection_contract.py, api/tests/integration/test_detection_flow.py
   - 영역: BE
   - 담당: ts
   - 선행: T007
   - 검증: quickstart BE 1(후보 생성·`CONFIRM`·`undoDeadline` null)·BE 2(거절·`nextPromptAt`·상한)·BE 6(복합 전환)·BE 8(후보 무효화)·BE 9(감지 대상 목록) 시나리오
-- [ ] T011 [P] [US1] 감지 판정 service unit test in api/tests/unit/test_detection_service.py
+- [x] T011 [P] [US1] 감지 판정 service unit test in api/tests/unit/test_detection_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T007
@@ -119,26 +119,26 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] 도착 후보 생성·거절·상한 규칙 in api/app/services/detection.py
+- [x] T014 [US1] 도착 후보 생성·거절·상한 규칙 in api/app/services/detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T010, T011
   - 검증: T010·T011 통과. `DWELL` → `ARRIVAL` 후보(`PENDING_CONFIRMATION`, `source=GEOFENCE_DWELL`, `auto_finalize_at` 설정), `NOT_ARRIVED` → `CANCELLED`와 `nextPromptAt`, 상한 도달 시 `PROMPT_LIMIT_REACHED`. 후보 생성은 `progress_version`을 올리지 않음
-- [ ] T015 [US1] 확정 시 F006 전환 재사용과 복합 전환 in api/app/services/detection.py, api/app/services/progress.py
+- [x] T015 [US1] 확정 시 F006 전환 재사용과 복합 전환 in api/app/services/detection.py, api/app/services/progress.py
   - 영역: BE
   - 담당: ts
   - 선행: T014
   - 검증: `CONFIRM` 시 F006 전환 함수를 호출해 상태·ETA·당일 완료를 처리하고 규칙을 다시 구현하지 않음. 이전 EXIT 없이 다음 DWELL이면 `transition_type=COMPOSITE`로 이전 완료와 다음 도착을 한 transaction에 기록(FR-009, quickstart BE 6). 후보가 살아 있는 동안 대상이 수동 처리·삭제되면 `CANCELLED`(FR-010). F006 파일 수정이므로 `jy` review
-- [ ] T016 [US1] 감지 대상 산출과 PROG-001 응답 확장 in api/app/services/detection.py, api/app/api/v1/progress.py, api/app/schemas/progress.py
+- [x] T016 [US1] 감지 대상 산출과 PROG-001 응답 확장 in api/app/services/detection.py, api/app/api/v1/progress.py, api/app/schemas/progress.py
   - 영역: BE
   - 담당: ts
   - 선행: T014
   - 검증: quickstart BE 9. `detectionTargets`에 `EN_ROUTE`의 `ARRIVAL`과 `ARRIVED`의 `DEPARTURE`만, 상한·쉬는 시간 대상은 제외. 당일 완료 시 빈 배열이고, 상태 수정으로 그 날짜가 다시 `IN_PROGRESS`가 되면 목록이 다시 채워짐(FR-022 양방향). F004에서 장소 추가·삭제·순서 변경이 일어난 뒤 조회하면 최신 일정 기준으로 대상이 바뀜(FR-023). `pendingCandidate`가 함께 내려감. F006 응답 확장이므로 `jy` review
-- [ ] T017 [US1] PROG-003 이벤트 등록과 PROG-004 확인 응답 endpoint in api/app/api/v1/progress.py
+- [x] T017 [US1] PROG-003 이벤트 등록과 PROG-004 확인 응답 endpoint in api/app/api/v1/progress.py
   - 영역: BE
   - 담당: ts
   - 선행: T015, T016
-  - 검증: T010 통과. 기준 미충족 이벤트도 `200`, `Idempotency-Key` 필수, 이미 처리된 후보는 `409 TRANSITION_NOT_PENDING`, 후보 종류에 없는 응답은 `409 INVALID_DECISION`. 소유권 검증 재사용
+  - 검증: T010 통과. 기준 미충족 이벤트도 `200`. PROG-003은 요청 본문의 `eventId`로 멱등 처리하고, PROG-004는 `Idempotency-Key`를 필수로 사용. 이미 처리된 후보는 `409 TRANSITION_NOT_PENDING`, 후보 종류에 없는 응답은 `409 INVALID_DECISION`. 소유권 검증 재사용
 - [x] T018 [US1] `GeofenceManager`·`GeofenceReceiver` 구현 in android/app/src/main/java/com/gilpick/progress/GeofenceManager.kt, android/app/src/main/java/com/gilpick/progress/GeofenceReceiver.kt
   - 영역: FE
   - 담당: hs
