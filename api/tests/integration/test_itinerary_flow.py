@@ -5,7 +5,7 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select, update
@@ -450,6 +450,14 @@ async def test_stay_only_change_carries_active_route_to_new_schedule_version(
     )
     await route_service.calculate_current(trip_id=trip_id, visit_date=visit_date)
 
+    started = datetime(2026, 9, 1, 1, tzinfo=UTC)
+    async with transaction_session(session_factory) as session:
+        day = await session.scalar(select(TripDay).where(TripDay.trip_id == trip_id))
+        day.status = "IN_PROGRESS"
+        day.actual_started_at = started
+        item = await session.scalar(select(ItineraryItem).where(ItineraryItem.trip_day_id == day.trip_day_id))
+        item.status = "EN_ROUTE"
+
     changed = _create_payload(version=saved.version)
     changed.items[0].item_id = saved.items[0].item_id
     changed.items[0].place = None
@@ -476,6 +484,9 @@ async def test_stay_only_change_carries_active_route_to_new_schedule_version(
         assert active is not None
         assert active.schedule_version == updated.version
         assert active.status == "READY"
+        item = await session.scalar(select(ItineraryItem).where(ItineraryItem.trip_day_id == active.trip_day_id))
+        assert item.estimated_arrival_at == started
+        assert item.estimated_departure_at == started + timedelta(minutes=120)
 
 
 @pytest.mark.asyncio
