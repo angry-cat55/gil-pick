@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 import logging
+import asyncio
 from datetime import UTC, date, datetime, timedelta, timezone
 
 from geoalchemy2 import Geometry, WKTElement
@@ -16,6 +17,7 @@ from app.api.errors import AppError
 from app.core.logging import request_id_context
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.progress import ProgressSegment, ProgressTransition
+from app.models.trip import Trip
 from app.clients.route_provider import Coordinate, RouteProviderError, TransportMode as ClientTransportMode
 from app.schemas.progress import (
     DayStatus,
@@ -34,6 +36,107 @@ from app.db import transaction_session
 logger = logging.getLogger("gilpick.progress")
 
 
+def apply_manual_transition(
+    day: TripDay,
+    target: ItineraryItem,
+    target_status: str,
+    now: datetime,
+) -> tuple[list[dict[str, str]], str]:
+    """US2 수동 전환과 파생 상태를 메모리의 동일 aggregate에 적용한다.
+
+    Args:
+        day: 변경할 날짜와 전체 일정 항목 aggregate.
+        target: 사용자가 지정한 일정 항목.
+        target_status: PROG-006으로 요청한 목표 상태.
+        now: 실제 시각 필드에 기록할 서버 수신 시각.
+
+    Returns:
+        감사 기록에 저장할 변경 전후 목록과 transition type.
+
+    Raises:
+        AppError: US2에서 허용하지 않는 상태 조합인 경우.
+
+    Notes:
+        호출자는 같은 transaction에서 version과 transition 기록을 저장해야 한다.
+    """
+    if day.status == "COMPLETED":
+        raise AppError(
+            422,
+            "INVALID_STATUS_TRANSITION",
+            "완료된 날짜의 진행 상태는 일반 전환으로 변경할 수 없습니다.",
+        )
+
+    allowed = {
+        ("EN_ROUTE", "ARRIVED"): "ARRIVE",
+        ("ARRIVED", "COMPLETED"): "DEPART",
+        ("PLANNED", "SKIPPED"): "SKIP",
+        ("EN_ROUTE", "SKIPPED"): "SKIP",
+    }
+    transition_type = allowed.get((target.status, target_status))
+    if transition_type is None:
+        raise AppError(
+            422,
+            "INVALID_STATUS_TRANSITION",
+            "현재 상태에서는 요청한 진행 상태로 변경할 수 없습니다.",
+        )
+
+    ordered = sorted(day.items, key=lambda item: item.sequence)
+    affected: list[dict[str, str]] = []
+
+    def change(item: ItineraryItem, status: str) -> None:
+        before = item.status
+        if before == status:
+            return
+        item.status = status
+        affected.append({
+            "itemId": str(item.item_id),
+            "beforeStatus": before,
+            "afterStatus": status,
+        })
+
+    original_status = target.status
+    change(target, target_status)
+    if target_status == "ARRIVED":
+        target.actual_arrived_at = now
+    elif target_status == "COMPLETED":
+        target.actual_departed_at = now
+        target.completed_at = now
+        next_item = next(
+            (item for item in ordered if item.sequence > target.sequence and item.status == "PLANNED"),
+            None,
+        )
+        if next_item is not None:
+            change(next_item, "EN_ROUTE")
+    elif target_status == "SKIPPED" and original_status == "EN_ROUTE":
+        next_item = next(
+            (item for item in ordered if item.sequence > target.sequence and item.status == "PLANNED"),
+            None,
+        )
+        if next_item is not None:
+            change(next_item, "EN_ROUTE")
+
+    if not any(item.status in {"PLANNED", "EN_ROUTE"} for item in ordered):
+        before = day.status
+        day.status = "COMPLETED"
+        day.completed_at = now
+        day.detection_active = False
+        if before != day.status:
+            affected.append({
+                "dayStatusBefore": before,
+                "dayStatusAfter": day.status,
+            })
+
+    if sum(item.status == "EN_ROUTE" for item in ordered) > 1 or sum(
+        item.status == "ARRIVED" for item in ordered
+    ) > 1:
+        raise AppError(
+            422,
+            "INVALID_STATUS_TRANSITION",
+            "진행 상태 불변식을 만족하지 않습니다.",
+        )
+    return affected, transition_type
+
+
 class ProgressService:
     """진행 API의 원자적 상태 변경과 응답 파생을 담당한다."""
 
@@ -50,6 +153,228 @@ class ProgressService:
     async def get_day(self, *, trip_id: uuid.UUID, visit_date: date) -> ProgressData:
         day = await self._load_day(trip_id, visit_date)
         return self._to_data(day)
+
+    async def update_item_status(
+        self,
+        *,
+        user_id: uuid.UUID,
+        item_id: uuid.UUID,
+        target_status: str,
+        progress_version: int,
+        idempotency_key: uuid.UUID,
+    ) -> ProgressData:
+        """사용자 소유 항목의 수동 진행 상태와 파생 변경을 원자적으로 저장한다."""
+        day = await self.session.scalar(
+            select(TripDay)
+            .join(ItineraryItem, ItineraryItem.trip_day_id == TripDay.trip_day_id)
+            .join(Trip, Trip.trip_id == TripDay.trip_id)
+            .options(
+                selectinload(TripDay.items),
+                selectinload(TripDay.routes),
+                selectinload(TripDay.progress_segments),
+            )
+            .where(ItineraryItem.item_id == item_id, Trip.user_id == user_id)
+            .with_for_update()
+        )
+        if day is None:
+            exists = await self.session.scalar(
+                select(ItineraryItem.item_id).where(ItineraryItem.item_id == item_id)
+            )
+            if exists is not None:
+                raise AppError(403, "TRIP_FORBIDDEN", "다른 사용자의 일정에는 접근할 수 없습니다.")
+            raise AppError(404, "ITINERARY_ITEM_NOT_FOUND", "일정 항목을 찾을 수 없습니다.")
+        if day.status == "NOT_STARTED":
+            raise AppError(409, "DAY_NOT_STARTED", "시작되지 않은 날짜의 상태는 변경할 수 없습니다.")
+        existing = await self.session.scalar(
+            select(ProgressTransition).where(
+                ProgressTransition.trip_day_id == day.trip_day_id,
+                ProgressTransition.idempotency_key == idempotency_key,
+            )
+        )
+        if existing is not None:
+            if (
+                existing.primary_item_id != item_id
+                or existing.request_target_status != target_status
+            ):
+                raise AppError(
+                    409,
+                    "IDEMPOTENCY_KEY_CONFLICT",
+                    "같은 Idempotency-Key를 다른 상태 전환 요청에 사용할 수 없습니다.",
+                )
+            if existing.response_snapshot is not None:
+                return ProgressData.model_validate(existing.response_snapshot)
+            transition_id = existing.transition_id
+            trip_id = day.trip_id
+            visit_date = day.visit_date
+            # 최초 요청의 외부 계산이 day 잠금을 다시 사용할 수 있도록 해제한다.
+            await self.session.rollback()
+            for _ in range(200):
+                await asyncio.sleep(0.05)
+                snapshot = await self.session.scalar(
+                    select(ProgressTransition.response_snapshot).where(
+                        ProgressTransition.transition_id == transition_id
+                    )
+                )
+                if snapshot is not None:
+                    return ProgressData.model_validate(snapshot)
+            # 외부 계산 제한 시간 이후에도 미완료라면 현재 상태로 복구한다.
+            recovered = await self.get_day(trip_id=trip_id, visit_date=visit_date)
+            stored_transition = await self.session.get(
+                ProgressTransition, transition_id
+            )
+            if stored_transition is not None:
+                stored_transition.response_snapshot = recovered.model_dump(
+                    mode="json", by_alias=True
+                )
+            await self.session.commit()
+            return recovered
+        if day.progress_version != progress_version:
+            raise AppError(409, "VERSION_CONFLICT", "진행 버전이 일치하지 않습니다.")
+
+        target = next(item for item in day.items if item.item_id == item_id)
+        skip_segment = None
+        if target_status == "SKIPPED" and self.calculator is not None:
+            ordered = sorted(day.items, key=lambda item: item.sequence)
+            previous = next(
+                (
+                    item for item in reversed(ordered)
+                    if item.sequence < target.sequence
+                    and item.status != "SKIPPED"
+                ),
+                None,
+            )
+            following = next(
+                (
+                    item for item in ordered
+                    if item.sequence > target.sequence
+                    and item.status in {"PLANNED", "EN_ROUTE", "ARRIVED"}
+                ),
+                None,
+            )
+            if previous is not None and following is not None and previous.transport_mode_to_next:
+                key = (previous.item_id, following.item_id)
+                known = key in _route_durations(day) or key in _progress_segments(day)
+                if not known:
+                    point = cast(Place.location, Geometry(geometry_type="POINT", srid=4326))
+                    rows = (
+                        await self.session.execute(
+                            select(ItineraryItem.item_id, func.ST_X(point), func.ST_Y(point))
+                            .join(Place, Place.place_id == ItineraryItem.place_id)
+                            .where(ItineraryItem.item_id.in_([previous.item_id, following.item_id]))
+                        )
+                    ).all()
+                    coordinates = {
+                        row[0]: Coordinate(longitude=row[1], latitude=row[2])
+                        for row in rows
+                    }
+                    skip_segment = (
+                        previous,
+                        following,
+                        ClientTransportMode(previous.transport_mode_to_next),
+                        coordinates[previous.item_id],
+                        coordinates[following.item_id],
+                    )
+        now = datetime.now(UTC)
+        affected, transition_type = apply_manual_transition(
+            day, target, target_status, now
+        )
+        day.progress_version += 1
+        transition = ProgressTransition(
+            trip_day_id=day.trip_day_id,
+            primary_item_id=target.item_id,
+            transition_type=transition_type,
+            status="CONFIRMED",
+            source="MANUAL",
+            affected_items=affected,
+            detected_at=now,
+            confirmed_at=now,
+            schedule_version_before=day.schedule_version,
+            schedule_version_after=day.schedule_version,
+            progress_version_after=day.progress_version,
+            idempotency_key=idempotency_key,
+            request_target_status=target_status,
+        )
+        self.session.add(transition)
+        await recalculate_day_eta(self.session, day.trip_day_id)
+        await self._attach_start_location(day)
+        response = self._to_data(day)
+        if skip_segment is None:
+            transition.response_snapshot = response.model_dump(mode="json", by_alias=True)
+        await self.session.commit()
+        logger.info({
+            "operation": "UPDATE_ITEM_PROGRESS_STATUS",
+            "request_id": request_id_context.get(),
+            "trip_id": str(day.trip_id),
+            "visit_date": day.visit_date.isoformat(),
+            "transition_type": transition_type,
+            "result": "SUCCESS",
+        })
+        if skip_segment is not None and self.session_factory is not None:
+            previous, following, mode, origin, destination = skip_segment
+            try:
+                calculated = await self.calculator.calculate_single_segment(
+                    origin=origin,
+                    destination=destination,
+                    transport_mode=mode,
+                    overall_deadline_seconds=8.0,
+                )
+            except RouteProviderError as error:
+                logger.info({
+                    "operation": "CALCULATE_PROGRESS_SEGMENT",
+                    "request_id": request_id_context.get(),
+                    "trip_id": str(day.trip_id),
+                    "visit_date": day.visit_date.isoformat(),
+                    "result_code": error.code,
+                })
+                async with transaction_session(self.session_factory) as result_session:
+                    stored_transition = await result_session.get(
+                        ProgressTransition, transition.transition_id
+                    )
+                    if stored_transition is not None:
+                        stored_transition.response_snapshot = response.model_dump(
+                            mode="json", by_alias=True
+                        )
+            else:
+                async with transaction_session(self.session_factory) as segment_session:
+                    statement = pg_insert(ProgressSegment).values(
+                        trip_day_id=day.trip_day_id,
+                        from_item_id=previous.item_id,
+                        to_item_id=following.item_id,
+                        transport_mode=mode.value,
+                        provider=calculated.provider.value,
+                        duration_seconds=calculated.duration_seconds,
+                        distance_meters=calculated.distance_meters,
+                        computed_at=datetime.now(UTC),
+                    ).on_conflict_do_update(
+                        index_elements=[
+                            ProgressSegment.trip_day_id,
+                            ProgressSegment.from_item_id,
+                            ProgressSegment.to_item_id,
+                        ],
+                        index_where=ProgressSegment.from_item_id.is_not(None),
+                        set_={
+                            "transport_mode": mode.value,
+                            "provider": calculated.provider.value,
+                            "duration_seconds": calculated.duration_seconds,
+                            "distance_meters": calculated.distance_meters,
+                            "computed_at": datetime.now(UTC),
+                        },
+                    )
+                    await segment_session.execute(statement)
+                    await recalculate_day_eta(segment_session, day.trip_day_id)
+                    result = await ProgressService(segment_session).get_day(
+                        trip_id=day.trip_id,
+                        visit_date=day.visit_date,
+                    )
+                    stored_transition = await segment_session.get(
+                        ProgressTransition, transition.transition_id
+                    )
+                    if stored_transition is not None:
+                        stored_transition.response_snapshot = result.model_dump(
+                            mode="json", by_alias=True
+                        )
+                    return result
+        return response
 
     async def start_day(
         self,
@@ -298,4 +623,4 @@ def _remaining_inbound_keys(
     return result
 
 
-__all__ = ["ProgressService"]
+__all__ = ["ProgressService", "apply_manual_transition"]

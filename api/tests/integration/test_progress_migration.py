@@ -26,6 +26,10 @@ async def _inspect_schema(database_url: str) -> dict[str, object]:
                 "SELECT conname, contype::text FROM pg_constraint "
                 "WHERE conrelid = 'progress_transitions'::regclass"
             ))).all()) if "progress_transitions" in tables else {}
+            transition_columns = set((await connection.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'progress_transitions'"
+            ))).scalars()) if "progress_transitions" in tables else set()
             segment_checks = set((await connection.execute(text(
                 "SELECT conname FROM pg_constraint "
                 "WHERE conrelid = 'progress_segments'::regclass"
@@ -43,6 +47,7 @@ async def _inspect_schema(database_url: str) -> dict[str, object]:
             "tables": tables,
             "progress_default": progress_default,
             "transitions": transitions,
+            "transition_columns": transition_columns,
             "segment_checks": segment_checks,
             "foreign_keys": foreign_keys,
             "indexes": indexes,
@@ -59,12 +64,13 @@ def test_progress_migration_round_trip_and_database_contract() -> None:
     config.set_main_option("path_separator", "os")
 
     try:
-        command.upgrade(config, "005_create_progress_tables")
+        command.upgrade(config, "006_progress_response_snapshot")
         schema = asyncio.run(_inspect_schema(database_url))
 
         assert {"progress_transitions", "progress_segments"} <= schema["tables"]
         assert schema["progress_default"] == "0"
         assert schema["transitions"]["uq_progress_transitions_day_idempotency"] == "u"
+        assert {"request_target_status", "response_snapshot"} <= schema["transition_columns"]
         assert {"ck_progress_segments_duration", "ck_progress_segments_distance"} <= schema["segment_checks"]
         for name in (
             "progress_transitions_trip_day_id_fkey",
@@ -83,10 +89,15 @@ def test_progress_migration_round_trip_and_database_contract() -> None:
         assert "(trip_day_id, to_item_id)" in start_index
         assert "WHERE (from_item_id IS NULL)" in start_index
 
+        command.downgrade(config, "005_create_progress_tables")
+        without_snapshot = asyncio.run(_inspect_schema(database_url))
+        assert "request_target_status" not in without_snapshot["transition_columns"]
+        assert "response_snapshot" not in without_snapshot["transition_columns"]
+
         command.downgrade(config, "004_create_route_table")
         downgraded = asyncio.run(_inspect_schema(database_url))
         assert "progress_transitions" not in downgraded["tables"]
         assert "progress_segments" not in downgraded["tables"]
         assert downgraded["progress_default"] is None
     finally:
-        command.upgrade(config, "005_create_progress_tables")
+        command.upgrade(config, "006_progress_response_snapshot")

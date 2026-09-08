@@ -46,6 +46,10 @@ class ProgressTransition(Base):
     affected_items: Mapped[list[dict[str, object]]] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"), nullable=False
     )
+    request_target_status: Mapped[str | None] = mapped_column(String(20))
+    response_snapshot: Mapped[dict[str, object] | None] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql")
+    )
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     auto_finalize_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

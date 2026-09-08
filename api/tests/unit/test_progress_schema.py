@@ -120,6 +120,7 @@ def test_progress_error_codes_match_contract() -> None:
     assert {code.value for code in ProgressErrorCode} == {
         "INVALID_REQUEST", "INVALID_ACCESS_TOKEN", "TRIP_FORBIDDEN",
         "TRIP_NOT_FOUND", "ITINERARY_ITEM_NOT_FOUND", "VERSION_CONFLICT",
+        "IDEMPOTENCY_KEY_CONFLICT",
         "DAY_NOT_TODAY", "DAY_EMPTY", "DAY_NOT_STARTED",
         "INVALID_STATUS_TRANSITION",
     }

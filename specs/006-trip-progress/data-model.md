@@ -37,6 +37,8 @@ migration `005_create_progress_tables`가 아래 변경을 담는다. F004 migra
 | `source` | varchar(30) | F006은 항상 `MANUAL` |
 | `decision`, `auto_finalize_at`, `undo_deadline`, `cancelled_at`, `undone_at` | nullable | F006 미사용 (F007) |
 | `affected_items` | jsonb | `[{itemId, beforeStatus, afterStatus}]` 파생 변경 전부 포함. 당일 상태가 바뀌면 `{dayStatusBefore, dayStatusAfter}` 포함 |
+| `request_target_status` | varchar(20) nullable | 상태 전환 요청의 목표 상태. `START`는 null이며 같은 멱등 키의 다른 요청 재사용을 검증한다. |
+| `response_snapshot` | jsonb nullable | 최초 상태 전환 `ProgressData` 응답. 같은 요청의 재전송에는 이후 현재 상태가 아닌 이 값을 반환한다. `START`는 null일 수 있다. |
 | `detected_at`, `confirmed_at` | timestamptz | 수동 처리 서버 시각 (둘 다 같은 값) |
 | `schedule_version_before`, `schedule_version_after` | integer | 전환 당시 일정 version 스냅샷 (F006은 같은 값) |
 | `progress_version_after` | integer **ERD 추가** | 전환 후 `progress_version` |

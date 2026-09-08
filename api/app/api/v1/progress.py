@@ -12,16 +12,23 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import success_response
+from app.api.dependencies import get_current_principal
 from app.api.v1.itinerary import _owned_trip_date
 from app.db import create_session_factory, get_session
 from app.core.config import Settings, get_settings
 from app.schemas.auth import ErrorEnvelope
-from app.schemas.progress import ProgressEnvelope, StartDayProgressRequest
+from app.schemas.progress import (
+    ProgressEnvelope,
+    StartDayProgressRequest,
+    UpdateItemProgressStatusRequest,
+)
 from app.schemas.trip import Trip
+from app.core.security import AuthPrincipal
 from app.services.progress import ProgressService
 from app.services.route import build_route_service
 
 router = APIRouter(prefix="/trips/{tripId}", tags=["progress"])
+item_router = APIRouter(prefix="/itinerary-items", tags=["progress"])
 
 
 async def _service(
@@ -77,4 +84,33 @@ async def start_day_progress(
     return success_response(request, data)
 
 
-__all__ = ["router"]
+@item_router.patch(
+    "/{itemId}/status",
+    response_model=ProgressEnvelope,
+    responses={
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
+        422: {"model": ErrorEnvelope},
+    },
+)
+async def update_item_progress_status(
+    payload: UpdateItemProgressStatusRequest,
+    item_id: Annotated[uuid.UUID, Path(alias="itemId")],
+    request: Request,
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
+    service: Annotated[ProgressService, Depends(_service)],
+) -> JSONResponse:
+    data = await service.update_item_status(
+        user_id=principal.user_id,
+        item_id=item_id,
+        target_status=payload.status.value,
+        progress_version=payload.progress_version,
+        idempotency_key=idempotency_key,
+    )
+    return success_response(request, data)
+
+
+__all__ = ["item_router", "router"]

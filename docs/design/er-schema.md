@@ -335,6 +335,8 @@ erDiagram
 | `source` | varchar(30) | N | F006 `MANUAL`; F007 자동 감지 source도 사용 |
 | `decision` | varchar(30) | Y | 확인 응답 |
 | `affected_items` | jsonb | N | 각 item의 변경 전·후·복원 상태와 시각 |
+| `request_target_status` | varchar(20) | Y | 상태 전환 요청의 목표 상태. `START`는 null |
+| `response_snapshot` | jsonb | Y | 같은 멱등 요청에 반환할 최초 `ProgressData` 응답 |
 | `detected_at` | timestamptz | N | 후보 또는 수동 처리 생성 시각 |
 | `auto_finalize_at` | timestamptz | Y | 후보 생성 후 자동 확정 예정시각 |
 | `confirmed_at` | timestamptz | Y | 확정 시각 |

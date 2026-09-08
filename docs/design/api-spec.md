@@ -1278,7 +1278,7 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 - 해당 장소를 `ARRIVED`로 변경하면 이후 일정 상태를 `PLANNED`로 초기화하고 ETA를 재계산
 - 건너뛰기로 계획 경로에 없는 인접 구간이 생기면 이동시간을 계산해 ETA에 반영
 
-주요 오류: `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 DAY_NOT_STARTED`, `422 INVALID_STATUS_TRANSITION`
+주요 오류: `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 IDEMPOTENCY_KEY_CONFLICT`, `409 DAY_NOT_STARTED`, `422 INVALID_STATUS_TRANSITION`
 
 ## 7. 변수 감지·대체 장소 추천
 

@@ -14,7 +14,7 @@ from app.api.v1.progress import _service
 from app.api.errors import AppError
 from app.core.security import AuthPrincipal
 from app.main import app
-from app.schemas.progress import ProgressData
+from app.schemas.progress import ProgressData, ProgressErrorCode
 from app.schemas.trip import Trip, TripStatus
 
 
@@ -34,6 +34,9 @@ class _Progress:
 
     async def start_day(self, **kwargs):
         return ProgressData(tripId=kwargs["trip_id"], date=kwargs["visit_date"], dayStatus="IN_PROGRESS", progressVersion=1, scheduleVersion=1, actualStartedAt=datetime.now(UTC), completedAt=None, startLocation=None, currentItemId=None, nextItemId=None, items=[])
+
+    async def update_item_status(self, **kwargs):
+        return ProgressData(tripId=uuid.uuid4(), date=date(2026, 9, 1), dayStatus="IN_PROGRESS", progressVersion=2, scheduleVersion=1, actualStartedAt=datetime.now(UTC), completedAt=None, startLocation=None, currentItemId=kwargs["item_id"], nextItemId=None, items=[])
 
 
 def test_progress_paths_and_start_contract() -> None:
@@ -87,3 +90,30 @@ def test_progress_reuses_trip_ownership_errors(error, expected_status, expected_
         app.dependency_overrides.clear()
     assert response.status_code == expected_status
     assert response.json()["error"]["code"] == expected_code
+
+
+def test_update_status_contract_requires_idempotency_key_and_returns_progress() -> None:
+    principal = AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_service] = lambda: _Progress()
+    item_id = uuid.uuid4()
+    try:
+        client = TestClient(app)
+        missing = client.patch(
+            f"/api/v1/itinerary-items/{item_id}/status",
+            json={"status": "ARRIVED", "progressVersion": 1},
+        )
+        response = client.patch(
+            f"/api/v1/itinerary-items/{item_id}/status",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"status": "ARRIVED", "progressVersion": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert missing.status_code == 400
+    assert response.status_code == 200
+    assert response.json()["data"]["progressVersion"] == 2
+    operation = app.openapi()["paths"]["/api/v1/itinerary-items/{itemId}/status"]["patch"]
+    assert {"200", "401", "403", "404", "409", "422"} <= set(operation["responses"])
+    assert ProgressErrorCode.IDEMPOTENCY_KEY_CONFLICT == "IDEMPOTENCY_KEY_CONFLICT"
