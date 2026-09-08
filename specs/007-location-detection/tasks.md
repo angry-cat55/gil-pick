@@ -167,7 +167,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T017
   - 검증: quickstart BE 3(자동 확정·되돌리기·만료 `409`)·BE 4(되돌린 뒤 재개). 서버 시각을 고정해 만료를 재현하고 기기 시각과 무관함을 확인(FR-018, SC-007)
-- [ ] T021 [P] [US2] 되돌리기 토스트·자동 처리 표시 UI test in android/app/src/androidTest/java/com/gilpick/progress/UndoToastTest.kt
+- [x] T021 [P] [US2] 되돌리기 토스트·자동 처리 표시 UI test in android/app/src/androidTest/java/com/gilpick/progress/UndoToastTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T019
@@ -190,7 +190,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T023
   - 검증: quickstart BE 4. 재개 시각은 `max(undone_at) + 재질문 간격`으로 파생 계산하고 새 컬럼을 만들지 않음(FR-017a, research 3절). 쉬는 시간 중 이벤트는 `DETECTION_PAUSED`. 재개 후 질문도 상한에 포함. PROG-001 응답에 `undoable`이 내려감
-- [ ] T025 [US2] 되돌리기 토스트와 만료 시각 재조회 in android/app/src/main/java/com/gilpick/progress/UndoToast.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [x] T025 [US2] 되돌리기 토스트와 만료 시각 재조회 in android/app/src/main/java/com/gilpick/progress/UndoToast.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T021, T024

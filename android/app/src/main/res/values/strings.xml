@@ -415,4 +415,13 @@
     <string name="detection_error_session">다시 로그인한 뒤 이용할 수 있습니다.</string>
     <string name="detection_error_not_found">이미 삭제되었거나 볼 수 없는 일정입니다.</string>
     <string name="detection_error_unexpected">지금은 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <!-- F007 자동 확정 되돌리기 토스트. %1$s는 대상 장소명. -->
+    <string name="detection_auto_arrived_toast">%1$s 도착으로 자동 처리했어요</string>
+    <string name="detection_auto_departed_toast">%1$s 출발로 자동 처리했어요</string>
+    <string name="detection_auto_moved_toast">%1$s 도착과 이전 장소 완료를 자동 처리했어요</string>
+    <!-- %1$d는 되돌릴 수 있는 남은 시간(초). 표시 전용이며 만료 판정은 서버가 한다. -->
+    <string name="detection_undo_remaining">%1$d초</string>
+    <string name="detection_undo">되돌리기</string>
+    <!-- 목록 행에서 자동으로 처리된 장소를 색이 아닌 문구로 구분한다(UI-004). -->
+    <string name="detection_auto_processed">자동 처리</string>
 </resources>

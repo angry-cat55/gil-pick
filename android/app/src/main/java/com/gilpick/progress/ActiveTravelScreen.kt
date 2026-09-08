@@ -115,6 +115,7 @@ fun ActiveTravelScreen(
     onDecide: (TransitionDecision) -> Unit = {},
     onRetryDecision: () -> Unit = {},
     onDismissCandidate: () -> Unit = {},
+    onUndo: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -144,6 +145,7 @@ fun ActiveTravelScreen(
                     onDecide = onDecide,
                     onRetryDecision = onRetryDecision,
                     onDismissCandidate = onDismissCandidate,
+                    onUndo = onUndo,
                     map = map,
                 )
             }
@@ -451,6 +453,7 @@ private fun Content(
     onDecide: (TransitionDecision) -> Unit,
     onRetryDecision: () -> Unit,
     onDismissCandidate: () -> Unit,
+    onUndo: () -> Unit,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -471,6 +474,18 @@ private fun Content(
         }
         content.actionError?.let { failure ->
             ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
+        }
+        // 자동 확정 직후의 되돌리기(UI-003). 되돌릴 수 있는 동안만 보인다.
+        content.visibleUndoable?.let { undoable ->
+            UndoToast(
+                undoable = undoable,
+                placeName = content.undoablePlaceName,
+                now = content.now,
+                submitting = content.undoPending,
+                error = content.undoError,
+                onUndo = onUndo,
+                modifier = Modifier.padding(top = spacing.space2),
+            )
         }
         if (itinerary != null) {
             MapSlot(
@@ -988,6 +1003,7 @@ private fun ItemList(
                     last = index == rows.lastIndex,
                     started = content.viewingStarted,
                     showTime = content.isToday,
+                    autoProcessed = content.isToday && row.item.itemId == content.autoProcessedItemId,
                     onClick = onRowClick?.let { click -> { click(row) } },
                 )
             }
@@ -1003,7 +1019,7 @@ private fun ItemList(
  * @param showTime 오늘이면 실제 시각·ETA를 보인다. 다른 날짜는 개요에 시각이 없어 상태만 보인다.
  */
 @Composable
-private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started: Boolean, showTime: Boolean, onClick: (() -> Unit)?) {
+private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started: Boolean, showTime: Boolean, autoProcessed: Boolean, onClick: (() -> Unit)?) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val status = row.progress.status
@@ -1047,6 +1063,8 @@ private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (started) StatusChip(status = status, label = statusLabel)
+                // 자동으로 바뀐 상태는 색이 아닌 문구로 알린다(UI-004).
+                if (autoProcessed) AutoProcessedChip()
             }
             if (showTime) {
                 Text(
@@ -1127,6 +1145,28 @@ private fun StatusCircle(status: ItemStatus, sequence: Int) {
             )
         }
     }
+}
+
+/**
+ * 자동으로 처리된 장소 표시(UI-004, Figma `자동 처리` 칩).
+ *
+ * 사용자가 확인 질문을 보지 못한 채 상태가 바뀔 수 있으므로(FR-015a) 무엇이 자동으로
+ * 처리됐는지 알 수 있어야 한다. 색이 아니라 문구로 알린다(가이드라인 10절).
+ */
+@Composable
+private fun AutoProcessedChip() {
+    val colors = LocalGilpickColors.current
+    val radius = LocalGilpickRadius.current
+    val spacing = LocalGilpickSpacing.current
+
+    Text(
+        text = stringResource(R.string.detection_auto_processed),
+        style = MaterialTheme.typography.labelSmall,
+        color = colors.muted,
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(radius.sm))
+            .padding(horizontal = spacing.space2, vertical = 2.dp),
+    )
 }
 
 /** Figma `STATUS_CHIP`: 예정·이동 중 파랑, 도착·완료 초록, 건너뜀 회색. 문구가 뜻을 전달한다. 상태 수정 시트도 쓴다. */
