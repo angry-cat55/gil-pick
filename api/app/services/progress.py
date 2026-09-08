@@ -223,7 +223,15 @@ class ProgressService:
                 pending_candidate=None,
                 undoable=None,
             )
-        return self._to_data(day)
+        data = self._to_data(day)
+        # 순환 import를 피하면서 F007의 파생 감지 상태를 조회 응답에 합친다.
+        from app.services.detection import DetectionService
+
+        targets, pending = await DetectionService(self.session).build_state(day)
+        return data.model_copy(update={
+            "detection_targets": targets,
+            "pending_candidate": pending,
+        })
 
     async def update_item_status(
         self,
