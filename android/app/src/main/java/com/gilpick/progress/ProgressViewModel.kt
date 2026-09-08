@@ -91,7 +91,7 @@ class ProgressViewModel(
                         actionError = kept.actionError,
                         viewingDate = kept.viewingDate,
                         decisionPending = kept.decisionPending,
-                        decisionError = kept.decisionError,
+                        decisionFailure = kept.decisionFailure,
                         undoPending = kept.undoPending,
                         // 되돌릴 대상이 바뀌면 지난 실패 안내를 지운다.
                         undoError = kept.undoError.takeIf {
@@ -171,12 +171,12 @@ class ProgressViewModel(
         val repository = detectionRepository ?: return
         if (content.decisionPending != null) return
 
-        _state.value = content.copy(decisionPending = decision, decisionError = null)
+        _state.value = content.copy(decisionPending = decision, decisionFailure = null)
         viewModelScope.launch {
             when (val result = repository.decide(candidate.transitionId, decision)) {
                 is AuthResult.Success -> {
                     _state.update { current ->
-                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = null) ?: current
+                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionFailure = null) ?: current
                     }
                     // 응답은 전환 결과만 준다. 후보·상태·감지 대상은 진행 조회로 한 번에 맞춘다.
                     load()
@@ -185,7 +185,8 @@ class ProgressViewModel(
                 is AuthResult.Failure -> {
                     val error = result.error.toDetectionError()
                     _state.update { current ->
-                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = error) ?: current
+                        (current as? ProgressUiState.Content)
+                            ?.copy(decisionPending = null, decisionFailure = DecisionFailure(decision, error)) ?: current
                     }
                     // 이미 처리된 후보는 최신 상태를 다시 받아야 화면이 맞는다.
                     if (error == DetectionError.TransitionNotPending || error == DetectionError.InvalidDecision) load()
@@ -194,11 +195,16 @@ class ProgressViewModel(
         }
     }
 
-    /** 실패한 확인 응답을 같은 내용으로 다시 보낸다. */
+    /**
+     * 실패한 확인 응답을 **같은 답으로** 다시 보낸다.
+     *
+     * 보낼 답은 [ProgressUiState.Content.decisionFailure]에 기억해 둔 것을 쓴다. 후보가 허용하는
+     * 답 목록에서 고르면 사용자가 거절한 전환을 확정해 버릴 수 있다.
+     */
     fun retryDecision() {
         val pending = (_state.value as? ProgressUiState.Content) ?: return
-        val decision = pending.decisionError?.let { pending.progress.pendingCandidate?.allowedDecisions?.firstOrNull() } ?: return
-        _state.value = pending.copy(decisionError = null)
+        val decision = pending.decisionFailure?.decision ?: return
+        _state.value = pending.copy(decisionFailure = null)
         decide(decision)
     }
 
@@ -240,7 +246,7 @@ class ProgressViewModel(
     /** 확인 시트를 닫는다. 후보는 살아 있고 수동 진행을 계속할 수 있다(UI-007). */
     fun dismissCandidate() {
         _state.update { state ->
-            if (state is ProgressUiState.Content) state.copy(candidateDismissed = true, decisionError = null) else state
+            if (state is ProgressUiState.Content) state.copy(candidateDismissed = true, decisionFailure = null) else state
         }
     }
 
