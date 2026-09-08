@@ -42,7 +42,7 @@ def apply_manual_transition(
     target_status: str,
     now: datetime,
 ) -> tuple[list[dict[str, str]], str]:
-    """US2 수동 전환과 파생 상태를 메모리의 동일 aggregate에 적용한다.
+    """US2·US3 수동 전환과 파생 상태를 메모리의 동일 aggregate에 적용한다.
 
     Args:
         day: 변경할 날짜와 전체 일정 항목 aggregate.
@@ -54,23 +54,19 @@ def apply_manual_transition(
         감사 기록에 저장할 변경 전후 목록과 transition type.
 
     Raises:
-        AppError: US2에서 허용하지 않는 상태 조합인 경우.
+        AppError: US2·US3에서 허용하지 않는 상태 조합인 경우.
 
     Notes:
         호출자는 같은 transaction에서 version과 transition 기록을 저장해야 한다.
     """
-    if day.status == "COMPLETED":
-        raise AppError(
-            422,
-            "INVALID_STATUS_TRANSITION",
-            "완료된 날짜의 진행 상태는 일반 전환으로 변경할 수 없습니다.",
-        )
-
     allowed = {
         ("EN_ROUTE", "ARRIVED"): "ARRIVE",
+        ("PLANNED", "ARRIVED"): "ARRIVE",
         ("ARRIVED", "COMPLETED"): "DEPART",
         ("PLANNED", "SKIPPED"): "SKIP",
         ("EN_ROUTE", "SKIPPED"): "SKIP",
+        ("COMPLETED", "ARRIVED"): "UNDO_COMPLETE",
+        ("SKIPPED", "PLANNED"): "UNDO_SKIP",
     }
     transition_type = allowed.get((target.status, target_status))
     if transition_type is None:
@@ -78,6 +74,15 @@ def apply_manual_transition(
             422,
             "INVALID_STATUS_TRANSITION",
             "현재 상태에서는 요청한 진행 상태로 변경할 수 없습니다.",
+        )
+    if day.status == "COMPLETED" and transition_type not in {
+        "UNDO_COMPLETE",
+        "UNDO_SKIP",
+    }:
+        raise AppError(
+            422,
+            "INVALID_STATUS_TRANSITION",
+            "완료된 날짜에서는 완료 또는 건너뛰기 취소만 할 수 있습니다.",
         )
 
     ordered = sorted(day.items, key=lambda item: item.sequence)
@@ -94,20 +99,59 @@ def apply_manual_transition(
             "afterStatus": status,
         })
 
+    def reset_to_planned(item: ItineraryItem) -> None:
+        change(item, "PLANNED")
+        item.actual_arrived_at = None
+        item.actual_departed_at = None
+        item.completed_at = None
+
+    def complete(item: ItineraryItem) -> None:
+        change(item, "COMPLETED")
+        item.actual_departed_at = now
+        item.completed_at = now
+
     original_status = target.status
-    change(target, target_status)
-    if target_status == "ARRIVED":
+    if transition_type == "UNDO_COMPLETE":
+        change(target, "ARRIVED")
+        target.actual_departed_at = None
+        target.completed_at = None
+        for item in ordered:
+            if item.sequence > target.sequence:
+                reset_to_planned(item)
+    elif transition_type == "UNDO_SKIP":
+        reset_to_planned(target)
+        if not any(item.status in {"EN_ROUTE", "ARRIVED"} for item in ordered):
+            first_planned = next(
+                (item for item in ordered if item.status == "PLANNED"),
+                None,
+            )
+            if first_planned is not None:
+                change(first_planned, "EN_ROUTE")
+    elif target_status == "ARRIVED":
+        for item in ordered:
+            if item.item_id == target.item_id:
+                continue
+            if item.sequence < target.sequence and item.status == "ARRIVED":
+                complete(item)
+            elif item.sequence < target.sequence and item.status == "EN_ROUTE":
+                reset_to_planned(item)
+            elif item.sequence > target.sequence:
+                reset_to_planned(item)
+        change(target, "ARRIVED")
         target.actual_arrived_at = now
+        target.actual_departed_at = None
+        target.completed_at = None
     elif target_status == "COMPLETED":
-        target.actual_departed_at = now
-        target.completed_at = now
+        complete(target)
         next_item = next(
             (item for item in ordered if item.sequence > target.sequence and item.status == "PLANNED"),
             None,
         )
         if next_item is not None:
             change(next_item, "EN_ROUTE")
-    elif target_status == "SKIPPED" and original_status == "EN_ROUTE":
+    elif target_status == "SKIPPED":
+        change(target, "SKIPPED")
+    if target_status == "SKIPPED" and original_status == "EN_ROUTE":
         next_item = next(
             (item for item in ordered if item.sequence > target.sequence and item.status == "PLANNED"),
             None,
@@ -115,7 +159,17 @@ def apply_manual_transition(
         if next_item is not None:
             change(next_item, "EN_ROUTE")
 
-    if not any(item.status in {"PLANNED", "EN_ROUTE"} for item in ordered):
+    if transition_type in {"UNDO_COMPLETE", "UNDO_SKIP"}:
+        before = day.status
+        day.status = "IN_PROGRESS"
+        day.completed_at = None
+        day.detection_active = True
+        if before != day.status:
+            affected.append({
+                "dayStatusBefore": before,
+                "dayStatusAfter": day.status,
+            })
+    elif not any(item.status in {"PLANNED", "EN_ROUTE"} for item in ordered):
         before = day.status
         day.status = "COMPLETED"
         day.completed_at = now

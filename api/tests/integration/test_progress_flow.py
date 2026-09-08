@@ -698,3 +698,185 @@ async def test_transition_rejects_not_started_and_stale_version_and_is_idempoten
     assert historical_retry == first
     assert historical_retry.progress_version == 2
     assert reused.value.code == "IDEMPOTENCY_KEY_CONFLICT"
+
+
+@pytest.mark.asyncio
+async def test_undo_complete_restores_completed_day_and_recalculates_eta(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, user_id = await _seed_three(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+    async with session_factory() as session:
+        started = await ProgressService(session).start_day(
+            trip_id=trip_id, visit_date=today,
+            payload=StartDayProgressRequest.model_validate({"progressVersion": 0}),
+            idempotency_key=uuid.uuid4(),
+        )
+    first, second, third = [item.item_id for item in started.items]
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
+    async with transaction_session(session_factory) as session:
+        items = (await session.scalars(
+            select(ItineraryItem).where(ItineraryItem.trip_day_id == day_id)
+        )).all()
+        for item, status in zip(items, ("COMPLETED", "SKIPPED", "ARRIVED"), strict=True):
+            item.status = status
+            item.actual_arrived_at = old_time
+            item.actual_departed_at = old_time
+            item.completed_at = old_time
+        day = await session.get(TripDay, day_id)
+        day.status = "COMPLETED"
+        day.completed_at = old_time
+        day.detection_active = False
+        day.progress_version = 4
+        session.add_all([
+            ProgressSegment(
+                trip_day_id=day_id, from_item_id=first, to_item_id=second,
+                transport_mode="WALK", provider="TMAP", duration_seconds=300,
+                distance_meters=400, computed_at=old_time,
+            ),
+            ProgressSegment(
+                trip_day_id=day_id, from_item_id=second, to_item_id=third,
+                transport_mode="WALK", provider="TMAP", duration_seconds=300,
+                distance_meters=400, computed_at=old_time,
+            ),
+        ])
+
+    async with session_factory() as session:
+        result = await ProgressService(session).update_item_status(
+            user_id=user_id, item_id=first, target_status="ARRIVED",
+            progress_version=4, idempotency_key=uuid.uuid4(),
+        )
+    async with session_factory() as session:
+        day = await session.get(TripDay, day_id)
+        rows = (await session.scalars(
+            select(ItineraryItem)
+            .where(ItineraryItem.trip_day_id == day_id)
+            .order_by(ItineraryItem.sequence)
+        )).all()
+        transition = await session.scalar(
+            select(ProgressTransition)
+            .where(ProgressTransition.trip_day_id == day_id)
+            .order_by(ProgressTransition.progress_version_after.desc())
+        )
+
+    assert result.day_status == "IN_PROGRESS"
+    assert result.progress_version == 5
+    assert [item.status for item in result.items] == ["ARRIVED", "PLANNED", "PLANNED"]
+    assert result.items[1].estimated_arrival_at is not None
+    assert day.completed_at is None
+    assert day.detection_active is True
+    assert rows[0].actual_departed_at is None and rows[0].completed_at is None
+    assert all(item.actual_arrived_at is None for item in rows[1:])
+    assert transition.transition_type == "UNDO_COMPLETE"
+    assert len(transition.affected_items) == 4
+
+
+@pytest.mark.asyncio
+async def test_undo_skip_starts_first_planned_item_and_restores_day(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, user_id = await _seed_three(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+    async with session_factory() as session:
+        started = await ProgressService(session).start_day(
+            trip_id=trip_id, visit_date=today,
+            payload=StartDayProgressRequest.model_validate({"progressVersion": 0}),
+            idempotency_key=uuid.uuid4(),
+        )
+    _, second, _ = [item.item_id for item in started.items]
+    async with transaction_session(session_factory) as session:
+        await session.execute(
+            update(ItineraryItem)
+            .where(ItineraryItem.trip_day_id == day_id)
+            .values(status="SKIPPED")
+        )
+        await session.execute(
+            update(TripDay).where(TripDay.trip_day_id == day_id).values(
+                status="COMPLETED", completed_at=datetime.now(UTC),
+                detection_active=False, progress_version=4,
+            )
+        )
+
+    async with session_factory() as session:
+        result = await ProgressService(session).update_item_status(
+            user_id=user_id, item_id=second, target_status="PLANNED",
+            progress_version=4, idempotency_key=uuid.uuid4(),
+        )
+
+    assert result.day_status == "IN_PROGRESS"
+    assert result.completed_at is None
+    assert [item.status for item in result.items] == ["SKIPPED", "EN_ROUTE", "SKIPPED"]
+
+
+@pytest.mark.asyncio
+async def test_change_planned_to_arrived_resets_en_route_and_recalculates_eta(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, user_id = await _seed_three(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+    async with session_factory() as session:
+        started = await ProgressService(session).start_day(
+            trip_id=trip_id, visit_date=today,
+            payload=StartDayProgressRequest.model_validate({"progressVersion": 0}),
+            idempotency_key=uuid.uuid4(),
+        )
+    first, second, third = [item.item_id for item in started.items]
+    async with transaction_session(session_factory) as session:
+        session.add(ProgressSegment(
+            trip_day_id=day_id, from_item_id=second, to_item_id=third,
+            transport_mode="WALK", provider="TMAP", duration_seconds=300,
+            distance_meters=400, computed_at=datetime.now(UTC),
+        ))
+
+    async with session_factory() as session:
+        result = await ProgressService(session).update_item_status(
+            user_id=user_id, item_id=second, target_status="ARRIVED",
+            progress_version=1, idempotency_key=uuid.uuid4(),
+        )
+
+    assert [item.status for item in result.items] == ["PLANNED", "ARRIVED", "PLANNED"]
+    assert result.current_item_id == second
+    assert result.items[0].actual_arrived_at is None
+    assert result.items[2].estimated_arrival_at is not None
+    assert result.items[2].estimated_arrival_at > result.items[1].actual_arrived_at
+    assert result.next_item_id == first
+
+
+@pytest.mark.asyncio
+async def test_change_later_planned_to_arrived_completes_previous_arrived(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, user_id = await _seed_three(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+    async with session_factory() as session:
+        started = await ProgressService(session).start_day(
+            trip_id=trip_id, visit_date=today,
+            payload=StartDayProgressRequest.model_validate({"progressVersion": 0}),
+            idempotency_key=uuid.uuid4(),
+        )
+    first, second, third = [item.item_id for item in started.items]
+    async with session_factory() as session:
+        await ProgressService(session).update_item_status(
+            user_id=user_id, item_id=first, target_status="ARRIVED",
+            progress_version=1, idempotency_key=uuid.uuid4(),
+        )
+    async with session_factory() as session:
+        result = await ProgressService(session).update_item_status(
+            user_id=user_id, item_id=third, target_status="ARRIVED",
+            progress_version=2, idempotency_key=uuid.uuid4(),
+        )
+    async with session_factory() as session:
+        previous = await session.get(ItineraryItem, first)
+        transition = await session.scalar(
+            select(ProgressTransition)
+            .where(ProgressTransition.trip_day_id == day_id)
+            .order_by(ProgressTransition.progress_version_after.desc())
+        )
+
+    assert [item.status for item in result.items] == ["COMPLETED", "PLANNED", "ARRIVED"]
+    assert previous.actual_departed_at is not None
+    assert previous.completed_at == previous.actual_departed_at
+    assert transition.transition_type == "ARRIVE"
+    assert {entry.get("itemId") for entry in transition.affected_items} == {
+        str(first), str(third)
+    }
