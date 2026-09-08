@@ -219,6 +219,9 @@ class ProgressService:
                 current_item_id=None,
                 next_item_id=None,
                 items=[],
+                detection_targets=[],
+                pending_candidate=None,
+                undoable=None,
             )
         return self._to_data(day)
 
@@ -651,6 +654,7 @@ class ProgressService:
             start_location=(StartLocation(latitude=day._progress_start_location[0], longitude=day._progress_start_location[1])
                             if hasattr(day, "_progress_start_location") else None),
             current_item_id=arrived, next_item_id=next_item, items=progress_items,
+            detection_targets=[], pending_candidate=None, undoable=None,
         )
 
 

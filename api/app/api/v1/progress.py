@@ -49,7 +49,12 @@ async def _service(
 @router.get(
     "/days/{date}/progress",
     response_model=ProgressEnvelope,
-    responses={401: {"model": ErrorEnvelope}, 403: {"model": ErrorEnvelope}, 404: {"model": ErrorEnvelope}},
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+    },
 )
 async def get_day_progress(
     visit_date: Annotated[date, Path(alias="date")],
@@ -65,8 +70,12 @@ async def get_day_progress(
     "/days/{date}/progress/start",
     response_model=ProgressEnvelope,
     responses={
-        401: {"model": ErrorEnvelope}, 403: {"model": ErrorEnvelope}, 404: {"model": ErrorEnvelope},
-        409: {"model": ErrorEnvelope}, 422: {"model": ErrorEnvelope},
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
+        422: {"model": ErrorEnvelope},
     },
 )
 async def start_day_progress(
@@ -88,6 +97,7 @@ async def start_day_progress(
     "/{itemId}/status",
     response_model=ProgressEnvelope,
     responses={
+        400: {"model": ErrorEnvelope},
         401: {"model": ErrorEnvelope},
         403: {"model": ErrorEnvelope},
         404: {"model": ErrorEnvelope},

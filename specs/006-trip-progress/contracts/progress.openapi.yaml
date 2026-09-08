@@ -24,6 +24,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProgressEnvelope' }
+        '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -64,6 +65,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProgressEnvelope' }
+        '400':
+          description: INVALID_REQUEST(경로·header·body 형식 오류)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -73,7 +79,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
         '422':
-          description: DAY_EMPTY(장소 없음) 또는 INVALID_REQUEST
+          description: DAY_EMPTY(장소 없음)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
@@ -110,6 +116,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProgressEnvelope' }
+        '400':
+          description: INVALID_REQUEST(경로·header·body 형식 오류)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -246,12 +257,13 @@ components:
         success: { type: boolean, enum: [false] }
         error:
           type: object
-          required: [code, message, retryable]
+          required: [code, message, details, retryable]
           properties:
             code:
               type: string
               enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, ITINERARY_ITEM_NOT_FOUND, VERSION_CONFLICT, IDEMPOTENCY_KEY_CONFLICT, DAY_NOT_TODAY, DAY_EMPTY, DAY_NOT_STARTED, INVALID_STATUS_TRANSITION]
             message: { type: string }
+            details: { type: object }
             retryable: { type: boolean }
         meta: { $ref: '#/components/schemas/Meta' }
   responses:

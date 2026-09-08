@@ -49,6 +49,46 @@ cd ..\android
 - `docs/design/er-schema.md`·`docs/design/api-spec.md`가 `contracts/progress.openapi.yaml`·`data-model.md`와 일치하는지 diff로 확인한다.
 - Figma `ActiveTravelScreen`에 도착 상태 카드·당일 완료·상태 수정 시트가 추가되었는지 확인하고 저장소 사본을 갱신한다.
 
+## Backend 최종 검증 기록 (#240, 2026-09-08, jh)
+
+Windows 로컬 PostgreSQL에 `api/.env`를 프로세스 환경으로만 주입하고 아래 명령을 실행했다. 로컬 환경에는 `uv` 실행 파일과 Docker CLI가 없어 Issue에 적힌 `uv run pytest ...`는 시작하지 못했으며, 저장소의 Python 3.13 가상환경으로 같은 pytest 대상을 실행했다.
+
+```powershell
+cd api
+$envFile = '.env'
+Get-Content -Encoding utf8 $envFile | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
+        $name, $value = $line -split '=', 2
+        [Environment]::SetEnvironmentVariable(
+            $name.Trim(), $value.Trim().Trim('"').Trim("'"), 'Process'
+        )
+    }
+}
+.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider tests/unit tests/contract tests/integration
+```
+
+- 결과: `414 passed in 11.72s`
+- migration 검증을 포함한 unit·contract·integration 전체가 통과했다.
+- `uv run pytest tests/unit tests/contract tests/integration`: 미실행(`uv`가 PATH에 없음).
+- Docker 기반 신규 DB에서의 별도 재검증: 미실행(Docker CLI가 설치되어 있지 않음). 연결된 로컬 PostgreSQL에서는 migration test가 통과했다.
+
+SC-001의 Backend 처리 구간은 PostgreSQL integration test의 call 시간을 `pytest --durations=0`으로 측정했다. 아래 값은 service 호출과 test call의 나머지 검증을 포함하지만 HTTP 직렬화·네트워크·Android 상태 갱신·화면 렌더링은 포함하지 않는다. 외부 경로 provider는 `_Calculator` fixture로 대체했으며 실제 TMAP·ODsay 네트워크 지연도 측정하지 않았다. 따라서 Backend 기준 충족 근거로만 사용하고, 사용자 조작부터 화면 표시까지의 SC-001 최종 판정은 T040 실기기 E2E에서 별도로 확인한다.
+
+| 기준 | 측정 시나리오 | call 시간 | 결과 |
+|---|---|---:|---|
+| 위치 없는 시작 2초 이내 | `test_start_commits_once_and_same_key_returns_stored_result`(최초 시작+멱등 재시도) | 0.13초 | Backend 통과, 사용자 가시 E2E는 T040 |
+| 구간 계산 포함 시작 10초 이내 | `test_valid_start_location_persists_computed_segment_and_eta`(계산+멱등 재조회) | 0.09초 | Backend 통과, 실제 provider·사용자 가시 E2E는 미측정 |
+| 구간 계산 없는 전환 2초 이내 | `test_arrive_depart_and_skip_update_versions_and_complete_day`(전환 4회) | 0.11초 | Backend 통과, 사용자 가시 E2E는 T040 |
+
+계약·ERD·설정·log 대조 결과:
+
+- 공통 오류 정책과 runtime에 맞춰 path·header·body 형식 오류를 `400 INVALID_REQUEST`, 장소 없음 도메인 오류를 `422 DAY_EMPTY`로 F006 OpenAPI·router·`api-spec.md`에서 일치시켰다. 오류 envelope의 `details`도 source OpenAPI에 명시했다.
+- `trip_days.progress_version`, `progress_transitions`, `progress_segments`의 F006 컬럼·제약·FK는 migration 005·006, ORM, `data-model.md`, `er-schema.md`와 일치한다.
+- `api/.env.example`의 DB 비밀번호와 provider key는 모두 placeholder이며 실제 credential은 없다.
+- `gilpick.progress`·`gilpick.route`·`gilpick.api` log는 request ID와 식별자·결과 code만 기록한다. integration test가 시작·PATCH `Idempotency-Key`와 provider 실패 위치의 위도·경도를 log에 남기지 않음을 검증하고, API key는 공통 `SensitiveDataFilter` unit test가 마스킹을 검증한다.
+- F007이 먼저 필수 응답으로 확장한 `detectionTargets`·`pendingCandidate`·`undoable`은 F007 완료 전에도 계약 형태를 지키도록 각각 `[]`·`null`·`null`을 반환한다. 이는 자동 감지가 아직 비활성인 상태를 나타내는 호환 placeholder다. generated OpenAPI의 타입 안정성을 위해 네 응답 DTO(`DetectionTarget`·`CandidateEvidence`·`PendingCandidate`·`UndoableTransition`)만 #240에서 먼저 제공했으며, F007 #259(T006)은 이를 재사용하고 나머지 감지 요청·결과 enum/schema를 구현한다. 실제 대상·후보 산출은 #261(T016), 되돌리기 산출은 #263(T024)이 구현한다. `progress_events` FK와 감지 조회 인덱스도 #259(T004) 소유이므로 #240에서 선행 구현하지 않는다.
+
 ## Android 실서버 검증 기록 (#242·#244, 2026-09-08, jy)
 
 로컬 API(`main` 2c31a1b, BE #237·#238 병합 후) + `gilpick_api36_play`(headless, `adb emu geo fix 126.9770 37.5796` = 경복궁)로 실제 앱을 구동했다. 임시 instrumented 스크립트(`ProgressLiveE2E`, 커밋하지 않음)로 화면을 조작하고 uvicorn 로그·PROG-001 응답으로 서버 상태를 대조했다. 오늘 날짜 여행 `F006 검증`(9/8~9/9, 하루 3곳 도보)을 API로 만들었다.
