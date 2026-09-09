@@ -47,8 +47,9 @@ def _risk_providers(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_status", ["ARRIVED", "SKIPPED"])
 async def test_detection_is_updated_then_invalidated_and_recreated(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, terminal_status: str
 ) -> None:
     engine, session_factory = await factory()
     try:
@@ -62,6 +63,12 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
             evaluator.reevaluate_day(session_factory, day_id),
             evaluator.reevaluate_day(session_factory, day_id),
         ) == [1, 1]
+        async with session_factory() as session:
+            first_evaluated_at = await session.scalar(
+                select(Detection.last_evaluated_at).where(
+                    Detection.item_id == item_id, Detection.status == "ACTIVE"
+                )
+            )
         assert await evaluator.reevaluate_day(session_factory, day_id) == 1
         async with session_factory() as session:
             active_count = await session.scalar(
@@ -69,11 +76,19 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
                     Detection.item_id == item_id, Detection.status == "ACTIVE"
                 )
             )
+            last_evaluated_at = await session.scalar(
+                select(Detection.last_evaluated_at).where(
+                    Detection.item_id == item_id, Detection.status == "ACTIVE"
+                )
+            )
         assert active_count == 1
+        assert last_evaluated_at > first_evaluated_at
 
         async with transaction_session(session_factory) as session:
             await session.execute(
-                update(ItineraryItem).where(ItineraryItem.item_id == item_id).values(status="ARRIVED")
+                update(ItineraryItem)
+                .where(ItineraryItem.item_id == item_id)
+                .values(status=terminal_status)
             )
         assert await evaluator.reevaluate_day(session_factory, day_id) == 0
         async with session_factory() as session:

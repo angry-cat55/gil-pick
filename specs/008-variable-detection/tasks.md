@@ -108,7 +108,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T006, T007
-  - 검증: quickstart BE 1(폐점 이후 ETA → `ACTIVE`·`OPERATING_HOURS`·`visitBlocked=true`가 목록·상세에 노출, 위험 없는 다른 장소는 미생성), quickstart BE 6(시작 전·완료 날짜·타 사용자·ETA null 제외), SC-002·SC-006
+  - 검증: quickstart BE 1(폐점 이후 ETA → `ACTIVE`·`OPERATING_HOURS`·`visitBlocked=true`가 목록·상세에 노출, 위험 없는 다른 장소는 미생성), quickstart BE 6(시작 전·완료 날짜·ETA null 제외, 모든 사용자의 적격 활성 여행 평가), SC-002·SC-006
 - [x] T013 [P] [US1] 날씨·혼잡 변수 판정 integration test in api/tests/integration/test_detection_weather_congestion.py
   - 영역: BE
   - 담당: jh
@@ -264,12 +264,12 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 담당: jh
   - 선행: T004, T017
   - 검증: 혼잡 위험 경계·종합 점수 가중치·변수 심각도·실내외 매핑을 `functional-spec.md` §4와 `requirements.md` DET 항목에 반영(값 출처 = `policy.py`). F003 장소 상세에 `regularOpeningHours.periods`·`businessStatus` 구조화 노출 요청, F007 자동 확정 후 `reevaluate_day` 연결 요청을 팀 공유사항으로 명시
-- [ ] T032 [P] 파생 로직 단위 test 보강 in api/tests/unit/test_kma_grid.py, api/tests/unit/test_operating_hours_parse.py
+- [x] T032 [P] 파생 로직 단위 test 보강 in api/tests/unit/test_kma_grid.py, api/tests/unit/test_operating_hours_parse.py
   - 영역: BE
   - 담당: jh
   - 선행: T008, T016, T017
   - 검증: 기상청 격자 변환 known-value, `PCP` 범주 문자열 파싱("강수없음"·"1.0mm"·"30.0~50.0mm"), 폐점 시각 요일 매칭·자정 넘김, 점수 비례 재정규화 경계
-- [ ] T033 quickstart 검증 실행 in specs/008-variable-detection/quickstart.md
+- [x] T033 quickstart 검증 실행 in specs/008-variable-detection/quickstart.md
   - 영역: 통합
   - 담당: jh
   - 선행: T021, T024, T027, T029

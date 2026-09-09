@@ -44,21 +44,75 @@ async def test_visit_blocked_creates_one_active_detection(monkeypatch: pytest.Mo
             listed = await list_detections(request, trip_id, principal, session)
             detail = await get_detection(request, rows[0].detection_id, principal, session)
             read = await mark_detection_read(request, rows[0].detection_id, principal, session)
-            with pytest.raises(AppError) as forbidden:
-                await get_detection(
-                    request,
-                    rows[0].detection_id,
-                    AuthPrincipal(uuid.uuid4(), uuid.uuid4(), uuid.uuid4()),
-                    session,
-                )
+            stored = await session.get(Detection, rows[0].detection_id)
+            first_read_at = stored.read_at
+            repeated_read = await mark_detection_read(
+                request, rows[0].detection_id, principal, session
+            )
+            await session.refresh(stored)
+            listed_after_read = await list_detections(
+                request, trip_id, principal, session
+            )
+            detail_after_read = await get_detection(
+                request, rows[0].detection_id, principal, session
+            )
+            other = AuthPrincipal(uuid.uuid4(), uuid.uuid4(), uuid.uuid4())
+            forbidden_calls = (
+                lambda: list_detections(request, trip_id, other, session),
+                lambda: get_detection(request, rows[0].detection_id, other, session),
+                lambda: mark_detection_read(request, rows[0].detection_id, other, session),
+            )
+            for call in forbidden_calls:
+                with pytest.raises(AppError) as forbidden:
+                    await call()
+                assert forbidden.value.status_code == 403
         assert json.loads(listed.body)["data"]["items"][0]["primaryType"] == "OPERATING_HOURS"
         assert json.loads(detail.body)["data"]["variables"]["operatingHours"]["visitBlocked"] is True
         assert json.loads(read.body)["data"]["read"] is True
-        assert forbidden.value.status_code == 403
+        assert json.loads(repeated_read.body)["data"]["read"] is True
+        assert json.loads(listed_after_read.body)["data"]["items"][0]["read"] is True
+        assert json.loads(detail_after_read.body)["data"]["read"] is True
+        assert first_read_at is not None
+        assert stored.read_at == first_read_at
     finally:
         if "user_id" in locals():
             async with transaction_session(session_factory) as session:
                 await session.execute(delete(User).where(User.user_id == user_id))
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_global_evaluation_includes_each_users_active_trip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine, session_factory = await factory()
+    user_ids: list[uuid.UUID] = []
+    try:
+        for _ in range(2):
+            _, _, user_id = await seed(session_factory)
+            user_ids.append(user_id)
+        providers(monkeypatch, evaluator)
+        monkeypatch.setattr(
+            evaluator,
+            "evaluate_operating_hours",
+            lambda *a, **k: _value(
+                OperatingHoursVerdict(
+                    available=True,
+                    closing_soon=False,
+                    visit_blocked=True,
+                    temp_closed=False,
+                )
+            ),
+        )
+
+        async with transaction_session(session_factory) as session:
+            assert await evaluator.evaluate_all_active(session) == 2
+        async with session_factory() as session:
+            assert len((await session.scalars(select(Detection))).all()) == 2
+    finally:
+        if user_ids:
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id.in_(user_ids)))
         await engine.dispose()
 
 

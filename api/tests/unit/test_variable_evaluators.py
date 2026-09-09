@@ -102,3 +102,27 @@ def test_scoring_renormalizes_available_weights_and_breaks_tie_by_priority() -> 
     assert result.score == pytest.approx(2 / 3)
     assert result.total_risk_score == 67
     assert result.primary_type == "OPERATING_HOURS"
+
+
+@pytest.mark.parametrize(
+    ("hours", "expected_score", "expected_primary"),
+    [(False, 0.0, None), (True, 1.0, "OPERATING_HOURS")],
+)
+def test_scoring_handles_zero_and_single_available_variable_boundaries(
+    hours: bool, expected_score: float, expected_primary: str | None
+) -> None:
+    result = score_variables(
+        congestion=CongestionVerdict(available=False, unavailable_reason="TIMEOUT"),
+        weather=WeatherVerdict(available=False, unavailable_reason="TIMEOUT"),
+        operating_hours=OperatingHoursVerdict(
+            available=hours,
+            unavailable_reason=None if hours else "TIMEOUT",
+            closing_soon=False if hours else None,
+            visit_blocked=hours or None,
+            temp_closed=False if hours else None,
+        ),
+    )
+
+    assert result.score == expected_score
+    assert result.total_risk_score == round(expected_score * 100)
+    assert result.primary_type == expected_primary
