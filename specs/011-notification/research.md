@@ -86,7 +86,7 @@ spec의 Assumptions에서 plan으로 미룬 항목과 Technical Context의 미�
 
 ## R10. Migration
 
-- **Decision**: 새 파일 `api/migrations/versions/009_create_notifications.py`(`down_revision = "008_create_detections"`).
+- **Decision**: F010 승인 migration 병합 후 새 파일 `api/migrations/versions/011_create_notifications.py`(`down_revision = "010_replacement_approval"`).
   - `notifications` 테이블: `er-schema.md` 9.1 컬럼 그대로 + `type`에 `CHECK (type IN (...5개...))`, FK는 `users`(`ON DELETE CASCADE`), `trips`·`trip_days`·`itinerary_items`·`detections`·`progress_transitions`(`ON DELETE SET NULL`, 전부 nullable).
   - 인덱스: `ix_notifications_user_unread (user_id, read_at, created_at DESC)`, `ix_notifications_retention (created_at)`, partial unique `uq_notifications_dedup (user_id, dedup_key) WHERE dedup_key IS NOT NULL`.
   - `device_sessions`: `er-schema.md` 12절이 요구하지만 아직 없는 partial unique `uq_device_sessions_fcm_token (fcm_token) WHERE fcm_token IS NOT NULL AND revoked_at IS NULL` 추가.
@@ -142,7 +142,7 @@ spec의 Assumptions에서 plan으로 미룬 항목과 Technical Context의 미�
 - **BE**:
   - unit: `tests/unit/test_notification_service.py`(유형별 행 생성·`dedup_key`·설정 off 억제·본문 문구·되돌리기 시간 계산), `test_fcm_client.py`(HTTP v1 요청 형태·OAuth2 JWT·결과 분류, `httpx2` fake + `tests/fixtures/fcm/*.json`), `test_notification_dispatch.py`(미발송 큐 처리·재시도 2회·무효 토큰 null·0기기 처리·`finalize_due_candidates` 연동).
   - contract: `tests/contract/test_notification_contract.py`(`specs/011-notification/contracts/notifications.openapi.yaml` vs `create_app().openapi()`, NOTI-001/002/003·DEV-001/002, 401/403/404).
-  - integration: `tests/integration/test_notification_cleanup.py`(`test_auth_cleanup.py` 패턴, 90일·논리 삭제 여행), `test_notification_migration.py`(009 up/down, 인덱스·CHECK).
+  - integration: `tests/integration/test_notification_cleanup.py`(`test_auth_cleanup.py` 패턴, 90일·논리 삭제 여행), `test_notification_migration.py`(011 up/down, 인덱스·CHECK).
   - 회귀: `tests/contract/test_detections_contract.py`·진행 관련 기존 테스트가 hook 추가 후에도 통과.
 - **Android**:
   - unit: `NotificationListViewModelTest`(그룹핑·읽음·모두 읽음·오류·새로고침 유지), `NotificationRepositoryTest`(NOTI/DEV 매핑, 401 재시도), `VariableMonitorViewModelTest`(정렬·빈 상태·이동값), `FcmTokenSyncWorkerTest`.
