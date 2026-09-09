@@ -491,4 +491,8 @@
     <string name="alternative_to_progress">진행 화면으로</string>
     <string name="alternative_dismiss_retry">다시 시도</string>
     <string name="alternative_dismiss_close">닫기</string>
+    <string name="alternative_search_idle_hint">기존 장소 대신 갈 곳의 이름을 검색해 보세요</string>
+    <string name="alternative_search_empty_hint">띄어쓰기나 철자를 확인해 주세요</string>
+    <string name="alternative_search_from_origin">기존 장소에서 %1$s</string>
+    <string name="alternative_in_schedule">이미 일정에 있음</string>
 </resources>
