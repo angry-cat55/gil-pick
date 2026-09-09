@@ -28,6 +28,7 @@ from app.schemas.progress import (
     UndoResult,
 )
 from app.services.eta import recalculate_day_eta
+from app.services.notification import NotificationService
 from app.services.progress import apply_manual_transition
 
 MAX_ACCURACY_METERS = 100
@@ -168,6 +169,10 @@ class DetectionService:
             self.session.add(transition)
             await self.session.flush()
             candidate = self._candidate(transition, event)
+            # F011: 확인 후보 생성 직후 도착·출발 확인 알림을 같은 transaction에서 만든다.
+            await NotificationService(self.session, now=lambda: now).create_transition_check(
+                transition, prompt_seq=1
+            )
         elif event_type == "REENTER":
             cancelled_id = await self._cancel_pending_departure(day, item, now)
         logger.info(
@@ -403,12 +408,13 @@ class DetectionService:
             ).all()
         )
         for transition in due:
-            await self._auto_confirm(day, transition)
+            await self._auto_confirm(day, transition, now=now)
 
     async def _auto_confirm(
-        self, day: TripDay, transition: ProgressTransition
+        self, day: TripDay, transition: ProgressTransition, *, now: datetime | None = None
     ) -> None:
         """무응답 후보 하나를 F006 전환 규칙으로 확정하거나, 대상이 바뀌었으면 취소한다."""
+        now = now or datetime.now(UTC)
         finalized_at = transition.auto_finalize_at
         item = next(
             (x for x in day.items if x.item_id == transition.primary_item_id), None
@@ -448,6 +454,10 @@ class DetectionService:
         transition.progress_version_after = day.progress_version
         await recalculate_day_eta(self.session, day.trip_day_id)
         await self.session.flush()
+        # F011: 자동 확정 직후 되돌리기 안내 알림을 같은 transaction에서 만든다.
+        await NotificationService(
+            self.session, now=lambda: now
+        ).create_transition_auto_confirmed(transition)
         logger.info(
             {
                 "operation": "AUTO_CONFIRM_PROGRESS_TRANSITION",
