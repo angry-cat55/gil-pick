@@ -70,6 +70,47 @@ async def test_empty_response_is_returned_without_fabricating_items() -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_by_location_passes_params_and_preserves_dist() -> None:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path.endswith("/locationBasedList2")
+        for name, value in {
+            "mapX": "126.978",
+            "mapY": "37.5665",
+            "radius": "2000",
+            "lclsSystm1": "FD",
+            "lclsSystm2": "FD05",
+            "lclsSystm3": "FD0501",
+            "numOfRows": "100",
+        }.items():
+            assert request.url.params[name] == value
+        return httpx2.Response(
+            200,
+            json={
+                "response": {
+                    "header": {"resultCode": "0000"},
+                    "body": {"items": {"item": [{"dist": "321.4"}]}},
+                }
+            },
+        )
+
+    client = TourApiClient(
+        settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+    result = await client.search_by_location(
+        mapX=126.9780,
+        mapY=37.5665,
+        radius=2000,
+        lclsSystm1="FD",
+        lclsSystm2="FD05",
+        lclsSystm3="FD0501",
+        numOfRows=100,
+    )
+
+    assert result["response"]["body"]["items"]["item"][0]["dist"] == "321.4"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("status", "code", "retryable"),
     [

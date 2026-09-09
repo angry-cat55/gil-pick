@@ -31,6 +31,7 @@ from app.schemas.detection import (
     DetectionListItem,
     DetectionReadData,
     DetectionReadEnvelope,
+    DetectionStatus,
     ErrorEnvelope,
     PaginatedMeta,
     Pagination,
@@ -70,6 +71,7 @@ async def list_detections(
     session: Annotated[AsyncSession, Depends(get_session)],
     cursor: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    status: Annotated[DetectionStatus | None, Query()] = None,
 ) -> JSONResponse:
     """사용자 소유 여행의 감지 결과를 최신순 cursor로 조회한다."""
     trip = await session.get(Trip, trip_id)
@@ -86,6 +88,8 @@ async def list_detections(
         .order_by(Detection.detected_at.desc(), Detection.detection_id.desc())
         .limit(limit + 1)
     )
+    if status is not None:
+        query = query.where(Detection.status == status.value)
     if cursor:
         timestamp, detection_id = _decode_cursor(cursor)
         query = query.where(or_(Detection.detected_at < timestamp, and_(Detection.detected_at == timestamp, Detection.detection_id < detection_id)))
@@ -100,6 +104,8 @@ async def list_detections(
             primary_type=detection.primary_type,
             status=detection.status,
             total_risk_score=round(float(detection.score or Decimal(0)) * 100),
+            eta=detection.eta,
+            reason=detection.reason,
             created_at=detection.detected_at,
             read=detection.read_at is not None,
         )
@@ -117,9 +123,22 @@ async def list_detections(
     return JSONResponse(content=envelope.model_dump(mode="json", by_alias=True))
 
 
-async def _owned_detection(
+async def owned_detection(
     detection_id: uuid.UUID, user_id: uuid.UUID, session: AsyncSession
 ) -> tuple[Detection, uuid.UUID, str]:
+    """감지 결과와 연결 여행이 요청 사용자 소유인지 검증한다.
+
+    Args:
+        detection_id: 조회할 감지 ID.
+        user_id: 인증된 사용자 ID.
+        session: 현재 DB session.
+
+    Returns:
+        감지 entity, 여행 ID, 장소명.
+
+    Raises:
+        AppError: 감지가 없거나 사용자가 소유자가 아닌 경우.
+    """
     row = (
         await session.execute(
             select(Detection, Trip.user_id, Trip.trip_id, Place.name)
@@ -150,7 +169,7 @@ async def get_detection(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> JSONResponse:
     """사용자 소유 감지 결과의 마지막 평가 snapshot을 반환한다."""
-    detection, trip_id, place_name = await _owned_detection(detection_id, principal.user_id, session)
+    detection, trip_id, place_name = await owned_detection(detection_id, principal.user_id, session)
     data = DetectionDetail(
         detection_id=detection.detection_id,
         trip_id=trip_id,
@@ -181,7 +200,7 @@ async def mark_detection_read(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> JSONResponse:
     """감지 결과를 최초 한 번만 읽음 처리한다."""
-    detection, _, _ = await _owned_detection(detection_id, principal.user_id, session)
+    detection, _, _ = await owned_detection(detection_id, principal.user_id, session)
     if detection.read_at is None:
         detection.read_at = datetime.now(UTC)
         await session.flush()
