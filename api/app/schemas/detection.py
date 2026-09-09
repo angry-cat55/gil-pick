@@ -115,6 +115,17 @@ class DetectionReadEnvelope(ApiModel):
     success: Literal[True]; data: DetectionReadData; meta: ResponseMeta
 
 
+class DetectionDismissData(ApiModel):
+    detection_id: uuid.UUID
+    status: DetectionStatus
+    # 거절·처리 시각. INVALIDATED처럼 사용자 결정이 없으면 null.
+    decided_at: datetime | None
+
+
+class DetectionDismissEnvelope(ApiModel):
+    success: Literal[True]; data: DetectionDismissData; meta: ResponseMeta
+
+
 class DetectionErrorBody(ErrorBody):
     code: DetectionErrorCode
 

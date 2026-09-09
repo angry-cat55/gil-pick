@@ -151,7 +151,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] DETECT-004 계약 test in api/tests/contract/test_detections_contract.py
+- [x] T018 [P] [US2] DETECT-004 계약 test in api/tests/contract/test_detections_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T009
@@ -169,7 +169,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] DETECT-004 감지 거절 endpoint in api/app/api/v1/detections.py, api/app/services/alternatives/__init__.py
+- [x] T021 [US2] DETECT-004 감지 거절 endpoint in api/app/api/v1/detections.py, api/app/services/alternatives/__init__.py
   - 영역: BE
   - 담당: ts
   - 교차 확인: jh
