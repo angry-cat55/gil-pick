@@ -22,7 +22,7 @@ async def test_periodic_evaluation_invalidates_before_loading(monkeypatch) -> No
 
     monkeypatch.setattr(evaluator, "_invalidate_ineligible", invalidate)
     monkeypatch.setattr(evaluator, "_load_eligible_rows", load)
-    monkeypatch.setattr(evaluator, "_evaluate_rows", AsyncMock(return_value=0))
+    monkeypatch.setattr(evaluator, "_evaluate_rows", AsyncMock(return_value=(0, [])))
 
     await evaluator.evaluate_all_active(session)
 
@@ -41,7 +41,7 @@ async def test_day_reevaluation_invalidates_requested_day(monkeypatch) -> None:
     invalidate = AsyncMock()
     monkeypatch.setattr(evaluator, "_invalidate_ineligible", invalidate)
     monkeypatch.setattr(evaluator, "_load_eligible_rows", AsyncMock(return_value=[]))
-    monkeypatch.setattr(evaluator, "_evaluate_rows", AsyncMock(return_value=0))
+    monkeypatch.setattr(evaluator, "_evaluate_rows", AsyncMock(return_value=(0, [])))
 
     await evaluator.reevaluate_day(lambda: Context(), day_id)
 

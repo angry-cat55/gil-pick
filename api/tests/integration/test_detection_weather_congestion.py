@@ -60,7 +60,7 @@ async def test_indoor_weather_alone_does_not_create_detection(
             ),
         )
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 0
+            assert (await evaluator.evaluate_all_active(session))[0] == 0
         async with session_factory() as session:
             assert await session.scalar(
                 select(Detection).where(Detection.item_id == item_id)

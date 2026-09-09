@@ -51,12 +51,12 @@ async def test_eta_reevaluation_updates_active_detection_without_resolving(
         )
 
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 1
+            assert (await evaluator.evaluate_all_active(session))[0] == 1
             item = await session.get(ItineraryItem, item_id)
             day_id = item.trip_day_id
 
         crowded = False
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 1
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 1
 
         async with session_factory() as session:
             detection = await session.scalar(

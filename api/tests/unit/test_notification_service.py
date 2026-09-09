@@ -96,6 +96,55 @@ async def test_transition_check_has_type_item_and_prompt_specific_dedup_key(
 
 
 @pytest.mark.asyncio
+async def test_transition_check_ignores_replacement_setting() -> None:
+    """진행 알림은 장소 변경 제안 설정과 무관하게 만든다(FR-004, SC-003)."""
+    service, insert = _service_with_context(replacement_suggestion_enabled=False)
+    transition = SimpleNamespace(
+        transition_id=uuid4(),
+        trip_day_id=uuid4(),
+        primary_item_id=uuid4(),
+        transition_type="ARRIVAL",
+        status="PENDING_CONFIRMATION",
+    )
+
+    await service.create_transition_check(transition)
+
+    insert.assert_awaited_once()
+    assert insert.await_args.kwargs["type"] == "ARRIVAL_CHECK"
+
+
+@pytest.mark.asyncio
+async def test_place_change_suggestion_resumes_after_reenable_without_backfill() -> None:
+    """설정을 끈 동안은 만들지 않고, 다시 켠 뒤 새 감지부터 재개한다(FR-022)."""
+    service, insert = _service_with_context(replacement_suggestion_enabled=False)
+    skipped = SimpleNamespace(
+        detection_id=uuid4(), trip_day_id=uuid4(), item_id=uuid4(), status="ACTIVE"
+    )
+    assert await service.create_place_change_suggestion(skipped) is None
+    insert.assert_not_awaited()
+
+    # 설정을 다시 켜도 건너뛴 감지는 소급 전송하지 않고, 이후 새 감지만 만든다.
+    resumed_context = SimpleNamespace(
+        one_or_none=lambda: SimpleNamespace(
+            user_id=uuid4(), trip_id=uuid4(), name="광화문", replacement_suggestion_enabled=True
+        )
+    )
+    service.session.execute = AsyncMock(return_value=resumed_context)
+    fresh = SimpleNamespace(
+        detection_id=uuid4(),
+        trip_day_id=uuid4(),
+        item_id=uuid4(),
+        status="ACTIVE",
+        reason="도착 시각에 영업이 어려워요",
+    )
+
+    await service.create_place_change_suggestion(fresh)
+
+    insert.assert_awaited_once()
+    assert insert.await_args.kwargs["detection_id"] == fresh.detection_id
+
+
+@pytest.mark.asyncio
 async def test_transition_check_skips_completed_day() -> None:
     service, insert = _service_with_context(day_status="COMPLETED")
     transition = SimpleNamespace(
