@@ -1,0 +1,32 @@
+"""대체 장소 추천의 조정 가능한 정책값."""
+
+SEARCH_RADII_METERS = (500, 1000, 2000)
+SCORE_WEIGHTS = {
+    "distance": 0.35,
+    "rating": 0.30,
+    "congestion": 0.20,
+    "weather": 0.15,
+}
+CONGESTION_SCORES = {
+    "RELAXED": 1.0,
+    "NORMAL": 0.75,
+    "SLIGHTLY_CROWDED": 0.5,
+    "CROWDED": 0.0,
+}
+BAYESIAN_MIN_REVIEWS = 20
+MAX_CANDIDATES = 10
+OPERATING_CHECK_LIMIT = 20
+CANDIDATE_TTL_MINUTES = 15
+TOUR_API_NUM_OF_ROWS = 100
+
+__all__ = [
+    "BAYESIAN_MIN_REVIEWS",
+    "CANDIDATE_TTL_MINUTES",
+    "CONGESTION_SCORES",
+    "MAX_CANDIDATES",
+    "OPERATING_CHECK_LIMIT",
+    "SCORE_WEIGHTS",
+    "SEARCH_RADII_METERS",
+    "TOUR_API_NUM_OF_ROWS",
+]
+

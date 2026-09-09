@@ -67,6 +67,10 @@ class TourApiClient:
         """
         return await self._get("areaBasedList2", params)
 
+    async def search_by_location(self, **params: Any) -> dict[str, Any]:
+        """위치와 반경 조건으로 장소를 검색한다."""
+        return await self._get("locationBasedList2", params)
+
     async def get_common_detail(self, content_id: str) -> dict[str, Any]:
         """장소의 공통 상세정보를 조회한다.
 

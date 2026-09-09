@@ -33,7 +33,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 교차 확인: jy
   - 선행: 없음
   - 검증: `alternatives.openapi.yaml`의 ALT-001·ALT-002 경로가 `api-spec.md` §7.2와 일치하고 응답 구조 차이(`place` 중첩, `candidateId`, `operatingStatus`, `closesAt`, `categoryMatchLevel`, `reasons`, `inSchedule`)와 DETECT-004 신설, DETECT-001 확장(`status` 필터, `eta`·`reason`)을 목록화. `er-schema.md` §8.1(`resolved_at` 거절 시각 재사용, 테이블 추가 없음)과 §13 매핑 추가 대상을 대조해 PR에 기록. 실제 문서 반영은 T035
-- [ ] T002 [P] 추천 정책 모듈 in api/app/services/alternatives/policy.py, api/app/services/alternatives/__init__.py
+- [x] T002 [P] 추천 정책 모듈 in api/app/services/alternatives/policy.py, api/app/services/alternatives/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -52,33 +52,33 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 **⚠️ CRITICAL**: 이 단계 완료 전에는 User Story 구현을 시작하지 않는다.
 
-- [ ] T004 [P] TourAPI 위치 기반 목록 client 메서드 in api/app/clients/tour_api.py, api/tests/unit/test_tour_api_client.py
+- [x] T004 [P] TourAPI 위치 기반 목록 client 메서드 in api/app/clients/tour_api.py, api/tests/unit/test_tour_api_client.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `search_by_location(**params)`가 `locationBasedList2`를 호출하고 기존 `_get`의 5초·1회 재시도·오류 변환을 그대로 쓴다. mock transport로 `mapX`·`mapY`·`radius`·`lclsSystm1~3`·`numOfRows` 전달과 `dist` 필드 보존을 확인
-- [ ] T005 [P] F003 PlaceService helper 공개 승격 in api/app/services/place.py, api/tests/unit/test_place_service.py
+- [x] T005 [P] F003 PlaceService helper 공개 승격 in api/app/services/place.py, api/tests/unit/test_place_service.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `_tour_place`·`_google_place`·`_find_match`·`_merge_google`·`_distance`·`_category`를 모듈 수준 공개 함수(`tour_place`, `google_place`, `find_match`, `merge_google`, `distance_meters`, `category_of`)로 옮기고 `PlaceService`는 그 함수를 호출한다. 기존 `test_place_service.py`·`test_place_router.py`가 변경 없이 통과(외부 동작 불변)
-- [ ] T006 [P] F008 OperatingHoursSource parse 분리 in api/app/services/detection/operating_hours_source.py, api/tests/unit/test_operating_hours_source.py
+- [x] T006 [P] F008 OperatingHoursSource parse 분리 in api/app/services/detection/operating_hours_source.py, api/tests/unit/test_operating_hours_source.py
   - 영역: BE
   - 담당: ts
   - 교차 확인: jh
   - 선행: 없음
   - 검증: `parse(payload, eta) -> OperatingHours`를 분리하고 `get`은 `parse(await client.get_place(place_id), eta)`로 유지. 기존 `test_operating_hours_source.py`가 변경 없이 통과하고, Text Search 항목 payload(`regularOpeningHours`·`businessStatus`·`utcOffsetMinutes`)에도 같은 결과를 내는 test 1건 추가
-- [ ] T007 [P] ALT 공개 스키마·오류 코드 in api/app/schemas/alternatives.py, api/tests/unit/test_alternatives_schema.py
+- [x] T007 [P] ALT 공개 스키마·오류 코드 in api/app/schemas/alternatives.py, api/tests/unit/test_alternatives_schema.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `AlternativeCandidate`·`AlternativeListData`·`AlternativeSearchItem`·`ScoreBreakdown`·`OperatingStatus`·`DetectionDismissData`와 봉투, 오류 코드 `DETECTION_NOT_ACTIVE`·`INVALID_CANDIDATE`가 `contracts/alternatives.openapi.yaml`과 필드·enum이 일치(camelCase alias, `place`는 F003 `PlaceSummary` 재사용)
-- [ ] T008 [P] 후보 식별자 토큰 in api/app/services/alternatives/candidate_token.py, api/tests/unit/test_candidate_token.py
+- [x] T008 [P] 후보 식별자 토큰 in api/app/services/alternatives/candidate_token.py, api/tests/unit/test_candidate_token.py
   - 영역: BE
   - 담당: ts
   - 선행: T002
   - 검증: `issue_candidate_token(detection_id, place_id, evaluated_at, secret)`·`verify_candidate_token(token, secret, now) -> CandidateClaims | None`. 서명 변조·만료(15분 초과)·형식 오류는 `None`, 정상은 claims 일치(quickstart BE 8)
-- [ ] T009 DETECT-001 확장과 소유권 helper 공용화 in api/app/api/v1/detections.py, api/app/schemas/detection.py, api/tests/contract/test_detections_contract.py
+- [x] T009 DETECT-001 확장과 소유권 helper 공용화 in api/app/api/v1/detections.py, api/app/schemas/detection.py, api/tests/contract/test_detections_contract.py
   - 영역: BE
   - 담당: ts
   - 교차 확인: jh

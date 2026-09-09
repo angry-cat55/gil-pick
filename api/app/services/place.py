@@ -61,6 +61,109 @@ class _PlainTextParser(HTMLParser):
         self.parts.append(data)
 
 
+def category_of(large: str | None, middle: str | None) -> PlaceCategory:
+    """TourAPI 대분류와 중분류를 길픽 카테고리로 변환한다."""
+    if large == "NA":
+        return PlaceCategory.NATURE
+    if large == "HS":
+        return PlaceCategory.HISTORY_CULTURE
+    if large == "FD" and middle == "FD05":
+        return PlaceCategory.CAFE
+    if large == "FD":
+        return PlaceCategory.FOOD
+    if large == "SH":
+        return PlaceCategory.SHOPPING
+    return PlaceCategory.OTHER
+
+
+def tour_place(raw: dict[str, Any]) -> PlaceSummary | None:
+    """TourAPI 장소를 공용 장소 요약으로 변환한다."""
+    source_id = str(raw.get("contentid") or "").strip()
+    name = str(raw.get("title") or "").strip()
+    if not source_id or not name:
+        return None
+    large = raw.get("lclsSystm1") or None
+    middle = raw.get("lclsSystm2") or None
+    category = category_of(large, middle)
+    latitude, longitude = PlaceService._coordinates(raw.get("mapy"), raw.get("mapx"))
+    return PlaceSummary(
+        place_id=f"tourapi:{source_id}", source=PlaceSource.TOUR_API,
+        source_place_id=source_id, name=name, category=category,
+        tour_api_category=TourApiCategory(
+            large=large, middle=middle, small=raw.get("lclsSystm3") or None
+        ),
+        address=raw.get("addr1") or None, latitude=latitude, longitude=longitude,
+        image_url=PlaceService._https_url(raw.get("firstimage")),
+        recommended_stay_minutes=_STAY_MINUTES[category], rating=None,
+        user_rating_count=None, business_status=None,
+        regular_opening_hours=None, current_opening_hours=None,
+        google_attributions=None,
+    )
+
+
+def google_place(raw: dict[str, Any], category: PlaceCategory) -> PlaceSummary | None:
+    """Google Places 장소를 공용 장소 요약으로 변환한다."""
+    source_id = str(raw.get("id") or "").strip()
+    name = str(raw.get("displayName", {}).get("text") or "").strip()
+    if not source_id or not name:
+        return None
+    location = raw.get("location", {})
+    latitude, longitude = PlaceService._coordinates(
+        location.get("latitude"), location.get("longitude")
+    )
+    status = raw.get("businessStatus")
+    return PlaceSummary(
+        place_id=f"google:{source_id}", source=PlaceSource.GOOGLE_PLACES,
+        source_place_id=source_id, name=name, category=category,
+        tour_api_category=None, address=raw.get("formattedAddress") or None,
+        latitude=latitude, longitude=longitude, image_url=None,
+        recommended_stay_minutes=_STAY_MINUTES[category], rating=raw.get("rating"),
+        user_rating_count=raw.get("userRatingCount"),
+        business_status=BusinessStatus(status) if status in BusinessStatus else None,
+        regular_opening_hours=raw.get("regularOpeningHours", {}).get("weekdayDescriptions"),
+        current_opening_hours=raw.get("currentOpeningHours", {}).get("weekdayDescriptions"),
+        google_attributions=PlaceService._attributions(raw.get("attributions")),
+    )
+
+
+def distance_meters(left: PlaceSummary, right: PlaceSummary) -> float:
+    """두 장소 좌표의 haversine 거리를 미터로 계산한다."""
+    if None in (left.latitude, left.longitude, right.latitude, right.longitude):
+        return math.inf
+    lat1, lat2 = math.radians(left.latitude), math.radians(right.latitude)
+    dlat = lat2 - lat1
+    dlon = math.radians(right.longitude - left.longitude)
+    value = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 6_371_000 * 2 * math.asin(math.sqrt(value))
+
+
+def find_match(
+    items: list[PlaceSummary], candidate: PlaceSummary
+) -> tuple[PlaceSummary | None, bool]:
+    """장소 목록에서 확정 또는 모호한 Google 매칭 결과를 찾는다."""
+    ambiguous = False
+    for item in items:
+        same_name = PlaceService._normalize(item.name) == PlaceService._normalize(candidate.name)
+        same_address = bool(
+            item.address and candidate.address
+            and PlaceService._normalize(item.address) == PlaceService._normalize(candidate.address)
+        )
+        close = distance_meters(item, candidate) <= 50
+        if same_name and same_address and close:
+            return item, False
+        ambiguous |= sum((same_name, same_address, close)) >= 2
+    return None, ambiguous
+
+
+def merge_google(target: PlaceSummary, source: PlaceSummary) -> None:
+    """허용된 Google Places 보완 필드만 TourAPI 장소에 병합한다."""
+    for field in (
+        "rating", "user_rating_count", "business_status",
+        "regular_opening_hours", "current_opening_hours", "google_attributions",
+    ):
+        setattr(target, field, getattr(source, field))
+
+
 class PlaceService:
     """외부 provider 결과를 길픽 장소 계약으로 정규화한다."""
 
@@ -126,7 +229,7 @@ class PlaceService:
             raw_items = [raw_items]
         items: list[PlaceSummary] = []
         for raw in raw_items if isinstance(raw_items, list) else []:
-            item = self._tour_place(raw)
+            item = tour_place(raw)
             if item is None or item.place_id in seen:
                 continue
             if category is not None and item.category is not category:
@@ -149,12 +252,12 @@ class PlaceService:
             else:
                 google_token = google.get("nextPageToken")
                 for raw in google.get("places", []):
-                    candidate = self._google_place(raw, category)
+                    candidate = google_place(raw, category)
                     if candidate is None or candidate.place_id in seen:
                         continue
-                    match, ambiguous = self._find_match(items, candidate)
+                    match, ambiguous = find_match(items, candidate)
                     if match:
-                        self._merge_google(match, candidate)
+                        merge_google(match, candidate)
                     elif not ambiguous and len(items) < limit:
                         items.append(candidate)
 
@@ -196,7 +299,7 @@ class PlaceService:
             except GooglePlacesClientError as exc:
                 raise self._provider_error(exc) from exc
             category = self._google_category(raw.get("types", []))
-            item = self._google_place(raw, category)
+            item = google_place(raw, category)
             if item is None:
                 raise AppError(404, "PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.")
             return self._detail(item, phone=raw.get("nationalPhoneNumber"))
@@ -206,7 +309,7 @@ class PlaceService:
         except TourApiClientError as exc:
             raise self._provider_error(exc) from exc
         common = self._first_item(common_payload)
-        item = self._tour_place(common) if common else None
+        item = tour_place(common) if common else None
         if item is None:
             raise AppError(404, "PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.")
         intro = {}
@@ -227,9 +330,9 @@ class PlaceService:
                 self._log_google_degradation("DETAIL_ENRICHMENT", exc)
             else:
                 for raw in google.get("places", []):
-                    candidate = self._google_place(raw, item.category)
-                    if candidate is not None and self._find_match([item], candidate)[0]:
-                        self._merge_google(item, candidate)
+                    candidate = google_place(raw, item.category)
+                    if candidate is not None and find_match([item], candidate)[0]:
+                        merge_google(item, candidate)
                         break
         guide = [intro.get(key) for key in ("opentime", "usetime", "restdate", "restdateshopping")]
         return self._detail(
@@ -289,70 +392,6 @@ class PlaceService:
         return PlaceCategory.OTHER
 
     @staticmethod
-    def _category(large: str | None, middle: str | None) -> PlaceCategory:
-        if large == "NA":
-            return PlaceCategory.NATURE
-        if large == "HS":
-            return PlaceCategory.HISTORY_CULTURE
-        if large == "FD" and middle == "FD05":
-            return PlaceCategory.CAFE
-        if large == "FD":
-            return PlaceCategory.FOOD
-        if large == "SH":
-            return PlaceCategory.SHOPPING
-        return PlaceCategory.OTHER
-
-    @classmethod
-    def _tour_place(cls, raw: dict[str, Any]) -> PlaceSummary | None:
-        source_id = str(raw.get("contentid") or "").strip()
-        name = str(raw.get("title") or "").strip()
-        if not source_id or not name:
-            return None
-        large = raw.get("lclsSystm1") or None
-        middle = raw.get("lclsSystm2") or None
-        category = cls._category(large, middle)
-        latitude, longitude = cls._coordinates(raw.get("mapy"), raw.get("mapx"))
-        return PlaceSummary(
-            place_id=f"tourapi:{source_id}", source=PlaceSource.TOUR_API,
-            source_place_id=source_id, name=name, category=category,
-            tour_api_category=TourApiCategory(
-                large=large, middle=middle, small=raw.get("lclsSystm3") or None
-            ),
-            address=raw.get("addr1") or None, latitude=latitude, longitude=longitude,
-            image_url=cls._https_url(raw.get("firstimage")),
-            recommended_stay_minutes=_STAY_MINUTES[category], rating=None,
-            user_rating_count=None, business_status=None,
-            regular_opening_hours=None, current_opening_hours=None,
-            google_attributions=None,
-        )
-
-    @classmethod
-    def _google_place(
-        cls, raw: dict[str, Any], category: PlaceCategory
-    ) -> PlaceSummary | None:
-        source_id = str(raw.get("id") or "").strip()
-        name = str(raw.get("displayName", {}).get("text") or "").strip()
-        if not source_id or not name:
-            return None
-        location = raw.get("location", {})
-        latitude, longitude = cls._coordinates(
-            location.get("latitude"), location.get("longitude")
-        )
-        status = raw.get("businessStatus")
-        return PlaceSummary(
-            place_id=f"google:{source_id}", source=PlaceSource.GOOGLE_PLACES,
-            source_place_id=source_id, name=name, category=category,
-            tour_api_category=None, address=raw.get("formattedAddress") or None,
-            latitude=latitude, longitude=longitude, image_url=None,
-            recommended_stay_minutes=_STAY_MINUTES[category], rating=raw.get("rating"),
-            user_rating_count=raw.get("userRatingCount"),
-            business_status=BusinessStatus(status) if status in BusinessStatus else None,
-            regular_opening_hours=raw.get("regularOpeningHours", {}).get("weekdayDescriptions"),
-            current_opening_hours=raw.get("currentOpeningHours", {}).get("weekdayDescriptions"),
-            google_attributions=cls._attributions(raw.get("attributions")),
-        )
-
-    @staticmethod
     def _attributions(values: Any) -> list[str] | None:
         if not isinstance(values, list):
             return None
@@ -387,44 +426,9 @@ class PlaceService:
         except ValueError:
             return None
 
-    @classmethod
-    def _find_match(
-        cls, items: list[PlaceSummary], candidate: PlaceSummary
-    ) -> tuple[PlaceSummary | None, bool]:
-        ambiguous = False
-        for item in items:
-            same_name = cls._normalize(item.name) == cls._normalize(candidate.name)
-            same_address = bool(
-                item.address and candidate.address
-                and cls._normalize(item.address) == cls._normalize(candidate.address)
-            )
-            close = cls._distance(item, candidate) <= 50
-            if same_name and same_address and close:
-                return item, False
-            ambiguous |= sum((same_name, same_address, close)) >= 2
-        return None, ambiguous
-
-    @staticmethod
-    def _merge_google(target: PlaceSummary, source: PlaceSummary) -> None:
-        for field in (
-            "rating", "user_rating_count", "business_status",
-            "regular_opening_hours", "current_opening_hours", "google_attributions",
-        ):
-            setattr(target, field, getattr(source, field))
-
     @staticmethod
     def _normalize(value: str) -> str:
         return "".join(char.lower() for char in value if char.isalnum())
-
-    @staticmethod
-    def _distance(left: PlaceSummary, right: PlaceSummary) -> float:
-        if None in (left.latitude, left.longitude, right.latitude, right.longitude):
-            return math.inf
-        lat1, lat2 = math.radians(left.latitude), math.radians(right.latitude)
-        dlat = lat2 - lat1
-        dlon = math.radians(right.longitude - left.longitude)
-        value = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        return 6_371_000 * 2 * math.asin(math.sqrt(value))
 
     @staticmethod
     def _criteria_hash(
@@ -468,4 +472,12 @@ class PlaceService:
         return decoded
 
 
-__all__ = ["PlaceService"]
+__all__ = [
+    "PlaceService",
+    "category_of",
+    "distance_meters",
+    "find_match",
+    "google_place",
+    "merge_google",
+    "tour_place",
+]

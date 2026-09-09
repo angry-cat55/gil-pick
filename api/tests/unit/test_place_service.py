@@ -10,7 +10,15 @@ import pytest
 from app.api.errors import AppError
 from app.clients.google_places import GooglePlacesClientError
 from app.schemas.place import PlaceCategory
-from app.services.place import PlaceService
+from app.services.place import (
+    PlaceService,
+    category_of,
+    distance_meters,
+    find_match,
+    google_place as map_google_place,
+    merge_google,
+    tour_place as map_tour_place,
+)
 
 
 def tour_item(
@@ -120,6 +128,29 @@ def service(
 ) -> PlaceService:
     """고정 cursor secret을 사용하는 service를 만든다."""
     return PlaceService(tour, google or StubGoogleClient(), cursor_secret="test-secret")
+
+
+def test_public_place_helpers_preserve_mapping_and_matching() -> None:
+    """공개 helper가 기존 장소 변환·매칭·병합 동작을 유지한다."""
+    tour = map_tour_place(tour_item("1", name="테스트 카페", large="FD", middle="FD05"))
+    google = map_google_place(
+        google_place(
+            "g1", name="테스트 카페", address="서울특별시 중구 세종대로 110",
+            latitude=37.5667, longitude=126.9784,
+        ),
+        PlaceCategory.CAFE,
+    )
+
+    assert tour is not None
+    assert google is not None
+    assert category_of("FD", "FD05") is PlaceCategory.CAFE
+    assert distance_meters(tour, google) <= 50
+    assert find_match([tour], google) == (tour, False)
+
+    merge_google(tour, google)
+
+    assert tour.rating == google.rating
+    assert tour.google_attributions == google.google_attributions
 
 
 @pytest.mark.asyncio

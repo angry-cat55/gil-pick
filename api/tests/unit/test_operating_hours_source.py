@@ -25,6 +25,16 @@ async def test_operating_hours_extracts_matching_weekday_close() -> None:
     assert result.utc_offset_minutes == 540
 
 
+def test_operating_hours_parses_text_search_place_payload() -> None:
+    payload = {"businessStatus":"OPERATIONAL","utcOffsetMinutes":540,
+        "regularOpeningHours":{"periods":[{"open":{"day":2,"hour":9},"close":{"day":2,"hour":18,"minute":30}}]}}
+    eta = datetime(2026, 9, 8, 17, 0, tzinfo=timezone(timedelta(hours=9)))
+    result = OperatingHoursSource(_settings(), StubPlaces()).parse(payload, eta)
+    assert result.status is BusinessStatus.OPERATIONAL
+    assert result.closes_at == datetime(2026, 9, 8, 18, 30, tzinfo=timezone(timedelta(hours=9)))
+    assert result.utc_offset_minutes == 540
+
+
 @pytest.mark.asyncio
 async def test_operating_hours_missing_key_or_periods_is_unknown() -> None:
     source = OperatingHoursSource(_settings(), StubPlaces({"businessStatus":"OPERATIONAL"}))

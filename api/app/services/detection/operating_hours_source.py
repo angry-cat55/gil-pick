@@ -40,7 +40,9 @@ class OperatingHoursSource:
     async def get(self, place_id: str, eta: datetime) -> OperatingHours:
         """ETA가 속한 영업 구간의 폐점 시각과 영업 상태를 반환한다."""
         if not self.settings.google_places_api_key.get_secret_value(): return OperatingHours()
-        payload = await self.client.get_place(place_id)
+        return self.parse(await self.client.get_place(place_id), eta)
+
+    def parse(self, payload: dict, eta: datetime) -> OperatingHours:
         try:
             status = BusinessStatus(payload.get("businessStatus", "UNKNOWN"))
             offset = int(payload.get("utcOffsetMinutes", 540))

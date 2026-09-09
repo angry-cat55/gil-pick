@@ -76,7 +76,8 @@ class VariableVerdicts(ApiModel):
 
 class DetectionListItem(ApiModel):
     detection_id: uuid.UUID; item_id: uuid.UUID; place_name: str; primary_type: DetectionType
-    status: DetectionStatus; total_risk_score: int = Field(ge=0, le=100); created_at: datetime; read: bool
+    status: DetectionStatus; total_risk_score: int = Field(ge=0, le=100); eta: datetime; reason: str
+    created_at: datetime; read: bool
 
 
 class DetectionListData(ApiModel):

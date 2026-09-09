@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from app.api.errors import AppError
-from app.api.v1.detections import _decode_cursor
+from app.api.v1.detections import _decode_cursor, owned_detection
 from app.main import create_app
 
 
@@ -40,7 +40,7 @@ def test_detection_routes_match_documented_methods_and_models() -> None:
     read = paths["/api/v1/detections/{detectionId}/read"]["patch"]
 
     assert listing["operationId"].startswith("list_detections")
-    assert {item["name"] for item in listing["parameters"]} == {"tripId", "cursor", "limit"}
+    assert {item["name"] for item in listing["parameters"]} == {"tripId", "cursor", "limit", "status"}
     assert listing["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("DetectionListEnvelope")
     assert detail["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("DetectionDetailEnvelope")
     assert read["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("DetectionReadEnvelope")
@@ -50,7 +50,7 @@ def test_detection_routes_match_documented_methods_and_models() -> None:
     schemas = runtime["components"]["schemas"]
     assert set(schemas["DetectionListItem"]["required"]) == {
         "detectionId", "itemId", "placeName", "primaryType", "status",
-        "totalRiskScore", "createdAt", "read",
+        "totalRiskScore", "eta", "reason", "createdAt", "read",
     }
     assert set(schemas["DetectionStatus"]["enum"]) == {
         "ACTIVE", "RESOLVED", "DISMISSED", "INVALIDATED",
@@ -67,7 +67,6 @@ def test_detection_routes_match_documented_methods_and_models() -> None:
         .read_text(encoding="utf-8")
     )["components"]["schemas"]
     for name in (
-        "DetectionListItem",
         "DetectionDetail",
         "VariableVerdicts",
         "CongestionVerdict",
@@ -78,3 +77,15 @@ def test_detection_routes_match_documented_methods_and_models() -> None:
         assert set(schemas[name]["properties"]) == set(source[name]["properties"])
     assert set(schemas["DetectionType"]["enum"]) == set(source["DetectionType"]["enum"])
     assert set(schemas["DetectionReadData"]["required"]) == {"detectionId", "read"}
+
+
+def test_f009_detection_list_extension_matches_contract() -> None:
+    source = yaml.safe_load(
+        (Path(__file__).parents[3] / "specs/009-alternative-places/contracts/alternatives.openapi.yaml")
+        .read_text(encoding="utf-8")
+    )["components"]["schemas"]["DetectionListItem"]
+    runtime = create_app().openapi()["components"]["schemas"]["DetectionListItem"]
+
+    assert set(runtime["required"]) == set(source["required"])
+    assert set(runtime["properties"]) == set(source["properties"])
+    assert callable(owned_detection)
