@@ -289,7 +289,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: hs
   - 선행: T034
   - 검증: quickstart Android 항목 전체. `testDebugUnitTest`·`connectedDebugAndroidTest` 통과, `Pixel_9_Pro`(API 36)에서 도착 확인·출발 확인·되돌리기·만료·감지 꺼짐 5개 상태를 360dp와 최대 글자 배율로 screenshot(UI-010), `adb emu geo fix`로 앱 종료 상태의 지오펜스 발화 확인
-- [ ] T037 F007 종단간 검증과 Feature 상태 갱신 in docs/planning/mvp-features.md, specs/007-location-detection/quickstart.md
+- [x] T037 F007 종단간 검증과 Feature 상태 갱신 in docs/planning/mvp-features.md, specs/007-location-detection/quickstart.md
   - 영역: 통합
   - 담당: hs
   - 교차 확인: ts
