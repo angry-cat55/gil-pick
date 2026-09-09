@@ -16,7 +16,9 @@ async def test_job_runs_one_tick_and_sleeps(monkeypatch: pytest.MonkeyPatch) -> 
         async def __aexit__(self, *args): return None
         def begin(self): return self
 
-    async def evaluate(session): calls.append(session)
+    async def evaluate(session):
+        calls.append(session)
+        return 0, []
     async def stop(_): raise asyncio.CancelledError
 
     monkeypatch.setattr(variable_detection, "evaluate_all_active", evaluate)
@@ -40,7 +42,7 @@ async def test_job_subtracts_evaluation_time_from_interval(monkeypatch: pytest.M
         values = iter((100.0, 102.5))
         def time(self): return next(self.values)
 
-    async def evaluate(session): pass
+    async def evaluate(session): return 0, []
     async def stop(delay):
         sleeps.append(delay)
         raise asyncio.CancelledError
@@ -68,6 +70,7 @@ async def test_job_continues_after_failed_tick(monkeypatch: pytest.MonkeyPatch) 
         calls += 1
         if calls == 1:
             raise RuntimeError("tick failed")
+        return 0, []
 
     async def sleep(_):
         if calls == 2:

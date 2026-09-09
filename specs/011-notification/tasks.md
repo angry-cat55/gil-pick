@@ -163,18 +163,18 @@ description: "Task list for F011 알림"
 
 **Independent Test**: quickstart BE 1 + BE 3 + AND 3 — 감지 최초 INSERT → `notifications` 1행 → 등록 기기 전달(payload에 식별자만) → 탭 시 `AlternativePlacesRoute(detectionId, tripId)`, 재평가 갱신 시 재발송 없음.
 
-- [ ] T022 [US2] 감지 최초 생성 hook in api/app/services/detection/evaluator.py
+- [x] T022 [US2] 감지 최초 생성 hook in api/app/services/detection/evaluator.py
   - 영역: BE
   - 담당: ts
   - 선행: T009
   - 검증: `_store_detection`의 upsert에 `RETURNING (xmax = 0) AS inserted` 추가, 최초 INSERT일 때만 `NotificationService.create_place_change_suggestion(session, detection)` 호출(같은 transaction). `evaluate_all_active`가 새로 만든 `detection_id` 목록을 반환하도록 시그니처 확장. `reevaluate_day` 경로도 동일. 교차 계약 review: F008 담당. 감지 결과·DETECT API 응답 불변 — `tests/contract/test_detections_contract.py` 회귀
-- [ ] T023 [US2] 감지 cycle 후 즉시 발송 in api/app/jobs/variable_detection.py
+- [x] T023 [US2] 감지 cycle 후 즉시 발송 in api/app/jobs/variable_detection.py
   - 영역: BE
   - 담당: ts
   - 선행: T010, T022
   - 검증: `run_variable_detection` cycle의 `session.begin()` 커밋 직후, 새 `detection_id`에 대응하는 미발송 알림에 `NotificationDispatchService.send_one`을 1회 시도(실패해도 다음 dispatch tick이 재시도). 감지 루프 예외 격리 유지
   - 교차 계약 review: F008 담당 (`api/app/jobs/variable_detection.py` 수정)
-- [ ] T024 [US2] 장소 변경 제안 생성·발송 검증 in api/tests/unit/test_notification_service.py, api/tests/unit/test_notification_dispatch.py
+- [x] T024 [US2] 장소 변경 제안 생성·발송 검증 in api/tests/unit/test_notification_service.py, api/tests/unit/test_notification_dispatch.py
   - 영역: BE
   - 담당: ts
   - 선행: T022, T023
@@ -278,7 +278,7 @@ description: "Task list for F011 알림"
 
 **Independent Test**: quickstart BE 1.3 + BE 2.5 + 실서버 5 — 설정 off 시 감지는 생기되 `PLACE_CHANGE_SUGGESTION` 무생성, 같은 사용자 도착 확인 알림은 정상.
 
-- [ ] T037 [US5] 발송 시 설정 존중 검증 in api/tests/unit/test_notification_service.py
+- [x] T037 [US5] 발송 시 설정 존중 검증 in api/tests/unit/test_notification_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T009, T022

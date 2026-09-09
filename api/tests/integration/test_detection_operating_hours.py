@@ -28,9 +28,9 @@ async def test_visit_blocked_creates_one_active_detection(monkeypatch: pytest.Mo
         monkeypatch.setattr(evaluator, "evaluate_congestion", lambda *a, **k: _value(CongestionVerdict(available=False, unavailable_reason="NOT_IN_SUPPORT_AREA")))
         monkeypatch.setattr(evaluator, "evaluate_operating_hours", lambda *a, **k: _value(OperatingHoursVerdict(available=True, closing_soon=False, visit_blocked=True, temp_closed=False)))
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 1
+            assert (await evaluator.evaluate_all_active(session))[0] == 1
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 1
+            assert (await evaluator.evaluate_all_active(session))[0] == 1
         async with session_factory() as session:
             rows = list((await session.scalars(select(Detection).where(Detection.item_id == item_id))).all())
         assert len(rows) == 1
@@ -106,7 +106,7 @@ async def test_global_evaluation_includes_each_users_active_trip(
         )
 
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 2
+            assert (await evaluator.evaluate_all_active(session))[0] == 2
         async with session_factory() as session:
             assert len((await session.scalars(select(Detection))).all()) == 2
     finally:
@@ -134,7 +134,7 @@ async def test_ineligible_items_are_not_evaluated(
         _, item_id, user_id = await seed(session_factory, **options)
         providers(monkeypatch, evaluator)
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 0
+            assert (await evaluator.evaluate_all_active(session))[0] == 0
         async with session_factory() as session:
             assert await session.scalar(
                 select(Detection).where(Detection.item_id == item_id)

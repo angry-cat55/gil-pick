@@ -20,6 +20,7 @@
   tests/contract/test_notification_contract.py \
   tests/integration/test_notification_cleanup.py \
   tests/integration/test_notification_migration.py \
+  tests/integration/test_notification_detection_hook.py \
   tests/contract/test_detections_contract.py     # hook 추가 후 회귀
 # Android (android/)
 gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug

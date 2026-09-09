@@ -46,4 +46,4 @@ async def test_reevaluate_day_swallows_failure(monkeypatch) -> None:
 
     monkeypatch.setattr(evaluator.logger, "exception", lambda *args, **kwargs: None)
 
-    assert await evaluator.reevaluate_day(lambda: Context(), uuid.uuid4()) == 0
+    assert await evaluator.reevaluate_day(lambda: Context(), uuid.uuid4()) == (0, [])

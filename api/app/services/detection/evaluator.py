@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from geoalchemy2 import Geometry
-from sqlalchemy import cast, func, select, update
+from sqlalchemy import cast, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -39,8 +39,12 @@ _REASONS = {
 }
 
 
-async def evaluate_all_active(session: AsyncSession) -> int:
-    """현재 평가 가능한 일정 항목을 조회해 위험 결과를 원자적으로 갱신한다."""
+async def evaluate_all_active(session: AsyncSession) -> tuple[int, list[uuid.UUID]]:
+    """현재 평가 가능한 일정 항목을 조회해 위험 결과를 원자적으로 갱신한다.
+
+    반환값은 `(평가 건수, 이번에 처음 INSERT된 감지 ID 목록)`이다. 두 번째 값은
+    F011 dispatch가 커밋 직후 장소 변경 제안 알림을 즉시 발송하는 데 쓴다.
+    """
     await _invalidate_ineligible(session)
     rows = await _load_eligible_rows(session)
     return await _evaluate_rows(session, rows)
@@ -48,18 +52,18 @@ async def evaluate_all_active(session: AsyncSession) -> int:
 
 async def reevaluate_day(
     session_factory: async_sessionmaker[AsyncSession], trip_day_id: uuid.UUID
-) -> int:
+) -> tuple[int, list[uuid.UUID]]:
     """진행 변경이 저장된 뒤 한 날짜를 즉시 재평가하며 실패를 요청과 격리한다."""
     try:
         async with session_factory() as session:
             await _invalidate_ineligible(session, trip_day_id=trip_day_id)
             rows = await _load_eligible_rows(session, trip_day_id=trip_day_id)
-            count = await _evaluate_rows(session, rows)
+            outcome = await _evaluate_rows(session, rows)
             await session.commit()
-            return count
+            return outcome
     except Exception:
         logger.exception("날짜 단위 변수 재평가에 실패했습니다.", extra={"trip_day_id": str(trip_day_id)})
-        return 0
+        return 0, []
 
 
 async def _invalidate_ineligible(
@@ -110,13 +114,16 @@ async def _load_eligible_rows(
     return list((await session.execute(statement)).all())
 
 
-async def _evaluate_rows(session: AsyncSession, rows: list) -> int:
+async def _evaluate_rows(
+    session: AsyncSession, rows: list
+) -> tuple[int, list[uuid.UUID]]:
     """조회된 일정 항목을 공통 provider 정책으로 평가한다."""
     settings = get_settings()
     kma = KmaClient(settings)
     seoul = SeoulCityDataClient(settings)
     hours = OperatingHoursSource(settings)
     count = 0
+    created: list[uuid.UUID] = []
     try:
         for item, place, day, latitude, longitude in rows:
             eta = item.estimated_arrival_at
@@ -154,7 +161,7 @@ async def _evaluate_rows(session: AsyncSession, rows: list) -> int:
                 operating = OperatingHoursVerdict(available=False, unavailable_reason="TIMEOUT")
             try:
                 async with session.begin_nested():
-                    await _store_detection(
+                    new_detection_id = await _store_detection(
                         session,
                         item=item,
                         day=day,
@@ -164,6 +171,8 @@ async def _evaluate_rows(session: AsyncSession, rows: list) -> int:
                         operating=operating,
                     )
                 count += 1
+                if new_detection_id is not None:
+                    created.append(new_detection_id)
             except _NoRisk:
                 continue
             except Exception:
@@ -172,7 +181,7 @@ async def _evaluate_rows(session: AsyncSession, rows: list) -> int:
         await kma.aclose()
         await seoul.aclose()
         await hours.aclose()
-    return count
+    return count, created
 
 
 class _NoRisk(Exception):
@@ -188,8 +197,13 @@ async def _store_detection(
     congestion: CongestionVerdict,
     weather: WeatherVerdict,
     operating: OperatingHoursVerdict,
-) -> None:
-    """한 장소의 평가 결과를 ACTIVE upsert로 저장한다."""
+) -> uuid.UUID | None:
+    """한 장소의 평가 결과를 ACTIVE upsert로 저장한다.
+
+    감지가 **처음 INSERT**될 때만 그 `detection_id`를 반환하고 같은 transaction
+    안에서 장소 변경 제안 알림(F011)을 만든다. 갱신(`on_conflict_do_update`)이나
+    위험 없음 경로는 `None`을 반환한다.
+    """
     eligibility = (
         await session.execute(
             select(
@@ -267,7 +281,7 @@ async def _store_detection(
         )
         if result.rowcount == 0:
             raise _NoRisk
-        return
+        return None
     if any(status in ("RESOLVED", "DISMISSED") for status in detection_statuses):
         raise _NoRisk
     values = {
@@ -298,5 +312,21 @@ async def _store_detection(
                 "last_evaluated_at",
             )
         },
+    ).returning(Detection.detection_id, text("(xmax = 0) AS inserted"))
+    detection_id, inserted = (await session.execute(statement)).one()
+    if not inserted:
+        return None
+    # F011: 감지 최초 생성에만 장소 변경 제안 알림을 같은 transaction 안에서 만든다.
+    # (설정 off·비활성 감지면 서비스가 no-op, dedup_key로 재실행에 멱등)
+    from app.services.notification import NotificationService
+
+    await NotificationService(session).create_place_change_suggestion(
+        Detection(
+            detection_id=detection_id,
+            trip_day_id=values["trip_day_id"],
+            item_id=values["item_id"],
+            status="ACTIVE",
+            reason=values["reason"],
+        )
     )
-    await session.execute(statement)
+    return detection_id

@@ -41,7 +41,7 @@ async def test_partial_failure_is_recorded_and_all_failure_creates_nothing(
 
         monkeypatch.setattr(evaluator, "evaluate_weather", risky_weather)
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 1
+            assert (await evaluator.evaluate_all_active(session))[0] == 1
         async with session_factory() as session:
             detection = await session.scalar(
                 select(Detection).where(Detection.item_id == item_id)
@@ -54,7 +54,7 @@ async def test_partial_failure_is_recorded_and_all_failure_creates_nothing(
             await session.execute(delete(Detection).where(Detection.item_id == item_id))
         monkeypatch.setattr(evaluator, "evaluate_weather", lambda *a, **k: _raise())
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 0
+            assert (await evaluator.evaluate_all_active(session))[0] == 0
         async with session_factory() as session:
             assert await session.scalar(
                 select(func.count()).select_from(Detection).where(Detection.item_id == item_id)
@@ -112,7 +112,7 @@ async def test_one_place_failure_does_not_stop_another_place(
 
         monkeypatch.setattr(evaluator, "evaluate_weather", weather)
         async with transaction_session(session_factory) as session:
-            assert await evaluator.evaluate_all_active(session) == 1
+            assert (await evaluator.evaluate_all_active(session))[0] == 1
         async with session_factory() as session:
             ids = set(
                 (await session.execute(select(Detection.item_id))).scalars().all()

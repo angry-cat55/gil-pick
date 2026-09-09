@@ -59,17 +59,18 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
             item = await session.get(ItineraryItem, item_id)
             day_id = item.trip_day_id
 
-        assert await asyncio.gather(
+        concurrent = await asyncio.gather(
             evaluator.reevaluate_day(session_factory, day_id),
             evaluator.reevaluate_day(session_factory, day_id),
-        ) == [1, 1]
+        )
+        assert [count for count, _ in concurrent] == [1, 1]
         async with session_factory() as session:
             first_evaluated_at = await session.scalar(
                 select(Detection.last_evaluated_at).where(
                     Detection.item_id == item_id, Detection.status == "ACTIVE"
                 )
             )
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 1
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 1
         async with session_factory() as session:
             active_count = await session.scalar(
                 select(func.count()).select_from(Detection).where(
@@ -90,7 +91,7 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
                 .where(ItineraryItem.item_id == item_id)
                 .values(status=terminal_status)
             )
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 0
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 0
         async with session_factory() as session:
             invalidated = await session.scalar(
                 select(Detection).where(
@@ -106,7 +107,7 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
             await session.execute(
                 update(TripDay).where(TripDay.trip_day_id == day_id).values(status="IN_PROGRESS", detection_active=True)
             )
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 1
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 1
         async with session_factory() as session:
             assert await session.scalar(
                 select(func.count()).select_from(Detection).where(
@@ -120,7 +121,7 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
                 .where(TripDay.trip_day_id == day_id)
                 .values(status="COMPLETED", detection_active=False)
             )
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 0
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 0
         async with session_factory() as session:
             assert await session.scalar(
                 select(func.count()).select_from(Detection).where(
@@ -134,7 +135,7 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
                 .where(TripDay.trip_day_id == day_id)
                 .values(status="IN_PROGRESS", detection_active=True)
             )
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 1
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 1
 
         async with transaction_session(session_factory) as session:
             await session.execute(
@@ -142,7 +143,7 @@ async def test_detection_is_updated_then_invalidated_and_recreated(
                 .where(Detection.item_id == item_id, Detection.status == "ACTIVE")
                 .values(status="RESOLVED", resolved_at=datetime.now(evaluator.KST))
             )
-        assert await evaluator.reevaluate_day(session_factory, day_id) == 0
+        assert (await evaluator.reevaluate_day(session_factory, day_id))[0] == 0
         async with session_factory() as session:
             assert await session.scalar(
                 select(func.count()).select_from(Detection).where(
