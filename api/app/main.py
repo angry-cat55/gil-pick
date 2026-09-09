@@ -41,17 +41,17 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Raises:
         pydantic.ValidationError: If a required environment value is missing or invalid.
     """
-    get_settings()
+    settings = get_settings()
     session_factory = create_session_factory()
     cleanup_task = asyncio.create_task(run_auth_cleanup(session_factory))
     # background job은 worker마다 생성되므로 운영 배포는 uvicorn 단일 worker를 권장한다.
     detection_task = asyncio.create_task(
         run_variable_detection(
             session_factory,
-            interval_seconds=get_settings().detection_cycle_seconds,
+            settings=settings,
+            interval_seconds=settings.detection_cycle_seconds,
         )
     )
-    settings = get_settings()
     notification_dispatch_task = asyncio.create_task(
         run_notification_dispatch(
             session_factory,
