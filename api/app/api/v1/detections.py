@@ -23,10 +23,10 @@ from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.trip import Trip
 from app.schemas.auth import ResponseMeta
+from app.schemas.alternatives import DetectionDismissEnvelope
 from app.schemas.detection import (
     DetectionDetail,
     DetectionDetailEnvelope,
-    DetectionDismissEnvelope,
     DetectionListData,
     DetectionListEnvelope,
     DetectionListItem,

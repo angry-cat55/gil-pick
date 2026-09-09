@@ -15,8 +15,8 @@ from app.api.v1.detections import owned_detection
 from app.clients.tour_api import TourApiClientError
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place
-from app.schemas.alternatives import AlternativeListData
-from app.schemas.detection import DetectionDismissData, DetectionStatus
+from app.schemas.alternatives import AlternativeListData, DetectionDismissData
+from app.schemas.detection import DetectionStatus
 from app.schemas.place import PlaceCategory, PlaceSource, PlaceSummary, TourApiCategory
 from app.services.alternatives.candidates import build_candidates
 
