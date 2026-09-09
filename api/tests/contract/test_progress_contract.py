@@ -237,6 +237,7 @@ def test_unstored_day_progress_contract_returns_empty_and_rejects_start() -> Non
         "detectionTargets": [],
         "pendingCandidate": None,
         "undoable": None,
+        "undoableReplacement": None,
     }
     assert start.status_code == 422
     assert start.json()["error"]["code"] == "DAY_EMPTY"

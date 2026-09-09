@@ -15,8 +15,10 @@ from app.schemas.progress import (
     ProgressProcessingSource,
     ProgressTargetStatus,
     StartDayProgressRequest,
+    UndoableTransition,
     UpdateItemProgressStatusRequest,
 )
+from app.schemas.replacement import UndoableReplacement
 
 
 def test_progress_data_serializes_nullable_inbound_travel_with_camel_case() -> None:
@@ -55,6 +57,42 @@ def test_progress_data_serializes_nullable_inbound_travel_with_camel_case() -> N
     assert payload["items"][0]["inboundTravel"] is None
     assert payload["items"][0]["processingSource"] is None
     assert payload["items"][0]["eventRejectionReason"] is None
+
+
+def test_progress_data_accepts_snapshot_without_undoable_replacement() -> None:
+    payload = ProgressData(
+        trip_id=uuid.uuid4(), date=date(2026, 9, 7), day_status="IN_PROGRESS",
+        progress_version=1, schedule_version=2, actual_started_at=None,
+        completed_at=None, start_location=None, current_item_id=None, next_item_id=None,
+        items=[], detection_targets=[], pending_candidate=None, undoable=None,
+    ).model_dump(mode="json", by_alias=True)
+    payload.pop("undoableReplacement")
+
+    restored = ProgressData.model_validate(payload)
+
+    assert restored.undoable_replacement is None
+
+
+def test_progress_data_can_include_both_undo_types() -> None:
+    now = datetime(2026, 9, 7, tzinfo=UTC)
+    data = ProgressData(
+        trip_id=uuid.uuid4(), date=now.date(), day_status="IN_PROGRESS",
+        progress_version=1, schedule_version=2, actual_started_at=now,
+        completed_at=None, start_location=None, current_item_id=None, next_item_id=None,
+        items=[], detection_targets=[], pending_candidate=None,
+        undoable=UndoableTransition(
+            transition_id=uuid.uuid4(), item_id=uuid.uuid4(), type="ARRIVAL",
+            confirmed_at=now, undo_deadline=now,
+        ),
+        undoable_replacement=UndoableReplacement(
+            replacement_id=uuid.uuid4(), item_id=uuid.uuid4(),
+            original_place_name="기존", new_place_name="대체", undo_expires_at=now,
+        ),
+    )
+
+    payload = data.model_dump(mode="json", by_alias=True)
+    assert payload["undoable"] is not None
+    assert payload["undoableReplacement"] is not None
 
 
 def test_progress_item_serializes_processing_metadata_and_accepts_old_snapshot() -> None:

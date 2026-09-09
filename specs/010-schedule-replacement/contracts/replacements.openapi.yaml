@@ -318,7 +318,7 @@ components:
           format: date-time
           description: 되돌릴 수 있는 시각. 승인 시각 + 30초. 만료 판정은 서버 시각으로 한다
 
-    UndoResult:
+    ReplacementUndoResult:
       type: object
       required: [replacementId, restored, scheduleVersion, routeStatus, detectionRestored]
       properties:
@@ -385,7 +385,7 @@ components:
       required: [success, data, meta]
       properties:
         success: { const: true }
-        data: { $ref: '#/components/schemas/UndoResult' }
+        data: { $ref: '#/components/schemas/ReplacementUndoResult' }
         meta: { $ref: '#/components/schemas/ResponseMeta' }
 
     Error:

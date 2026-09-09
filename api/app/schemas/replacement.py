@@ -69,7 +69,7 @@ class Replacement(ApiModel):
     undo_expires_at: datetime
 
 
-class UndoResult(ApiModel):
+class ReplacementUndoResult(ApiModel):
     replacement_id: uuid.UUID
     restored: bool
     schedule_version: int
@@ -99,7 +99,7 @@ class ReplacementEnvelope(ApiModel):
 
 class UndoEnvelope(ApiModel):
     success: Literal[True]
-    data: UndoResult
+    data: ReplacementUndoResult
     meta: ResponseMeta
 
 
@@ -114,5 +114,5 @@ __all__ = [
     "RoutePreviewEnvelope",
     "UndoableReplacement",
     "UndoEnvelope",
-    "UndoResult",
+    "ReplacementUndoResult",
 ]

@@ -64,7 +64,7 @@ PENDING ──승인(REPL-002)──> APPROVED
 | `approved_at` | timestamptz | 서버 시각 |
 | `undo_expires_at` | timestamptz | `approved_at + 30초` |
 | `idempotency_key` | varchar(255) | REPL-002 승인 요청을 식별하는 client key |
-| `response_snapshot` | jsonb | 동일 key 재요청에 반환할 첫 승인 응답 |
+| `response_snapshot` | jsonb | 동일 key 재요청에 반환할 첫 승인 응답. 되돌린 뒤에는 최초 REPL-004 결과를 `_undoResult`에 함께 보존 |
 | `undone_at` | timestamptz \| null | 되돌린 시각 |
 | `undo_schedule_version` | int \| null | 되돌리기로 오른 version |
 
