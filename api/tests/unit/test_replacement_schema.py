@@ -76,6 +76,8 @@ def test_replacement_response_models_match_contract_fields() -> None:
         item_id=item_id,
         original_place_id="tourapi:1",
         new_place_id="tourapi:2",
+        original_place_name="기존 장소",
+        new_place_name="대체 장소",
         schedule_version=9,
         route_status="READY",
         undo_expires_at=NOW,

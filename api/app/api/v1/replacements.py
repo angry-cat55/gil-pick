@@ -21,7 +21,7 @@ from app.core.config import Settings, get_settings
 from app.core.security import AuthPrincipal
 from app.db import get_session
 from app.schemas.auth import ErrorEnvelope
-from app.schemas.replacement import CreatePreviewRequest, RoutePreviewEnvelope
+from app.schemas.replacement import CreatePreviewRequest, ReplacementEnvelope, RoutePreviewEnvelope
 from app.services.detection.operating_hours_source import OperatingHoursSource
 from app.services.place import PlaceService
 from app.services.replacement import ReplacementService
@@ -82,6 +82,41 @@ async def create_route_preview(
         if exc.status_code == 403 and exc.code == "DETECTION_FORBIDDEN":
             raise AppError(403, "TRIP_FORBIDDEN", exc.message) from exc
         raise
+    return success_response(request, data)
+
+
+@router.post(
+    "/route-previews/{previewId}/approve",
+    operation_id="approveRoutePreview",
+    response_model=ReplacementEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope, "description": "`INVALID_REQUEST`"},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope, "description": "`TRIP_FORBIDDEN`"},
+        404: {"model": ErrorEnvelope, "description": "`PREVIEW_NOT_FOUND`"},
+        409: {
+            "model": ErrorEnvelope,
+            "description": (
+                "`PREVIEW_EXPIRED`, `PREVIEW_SUPERSEDED`, `PREVIEW_REJECTED`, "
+                "`ALREADY_APPROVED`, `VERSION_CONFLICT`, `ITEM_ALREADY_VISITED`, "
+                "`ALTERNATIVE_UNAVAILABLE`, `DETECTION_NOT_ACTIVE`"
+            ),
+        },
+    },
+)
+async def approve_route_preview(
+    request: Request,
+    preview_id: Annotated[uuid.UUID, Path(alias="previewId")],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=255)],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[ReplacementService, Depends(get_replacement_service)],
+) -> JSONResponse:
+    """소유한 미리보기의 장소·경로·감지 상태를 원자적으로 확정한다."""
+    data = await service.approve_preview(
+        preview_id=preview_id,
+        user_id=principal.user_id,
+        idempotency_key=idempotency_key,
+    )
     return success_response(request, data)
 
 

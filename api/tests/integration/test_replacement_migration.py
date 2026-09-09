@@ -29,6 +29,9 @@ async def _schema(database_url: str) -> dict[str, object]:
                         for item in inspector.get_unique_constraints("place_replacements")
                     },
                     "replacement_indexes": {item["name"] for item in inspector.get_indexes("place_replacements")},
+                    "replacement_columns": {
+                        item["name"] for item in inspector.get_columns("place_replacements")
+                    },
                 }
 
             return await connection.run_sync(inspect_schema)
@@ -79,6 +82,7 @@ def test_replacement_migration_round_trip() -> None:
     assert "ix_route_previews_detection" in schema["preview_indexes"]
     assert "uq_place_replacements_preview" in schema["replacement_uniques"]
     assert "ix_place_replacements_day" in schema["replacement_indexes"]
+    assert {"idempotency_key", "response_snapshot"} <= schema["replacement_columns"]
     migrated_columns = asyncio.run(_existing_columns(database_url))
     assert {table: migrated_columns[table] for table in existing_columns} == existing_columns
 

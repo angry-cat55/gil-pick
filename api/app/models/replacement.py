@@ -89,6 +89,10 @@ class PlaceReplacement(Base):
     approved_schedule_version: Mapped[int] = mapped_column(Integer, nullable=False)
     approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     undo_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    response_snapshot: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
     undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     undo_schedule_version: Mapped[int | None] = mapped_column(Integer)
 

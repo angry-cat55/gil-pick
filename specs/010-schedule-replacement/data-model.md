@@ -63,6 +63,8 @@ PENDING ──승인(REPL-002)──> APPROVED
 | `approved_schedule_version` | int | 승인으로 오른 version |
 | `approved_at` | timestamptz | 서버 시각 |
 | `undo_expires_at` | timestamptz | `approved_at + 30초` |
+| `idempotency_key` | varchar(255) | REPL-002 승인 요청을 식별하는 client key |
+| `response_snapshot` | jsonb | 동일 key 재요청에 반환할 첫 승인 응답 |
 | `undone_at` | timestamptz \| null | 되돌린 시각 |
 | `undo_schedule_version` | int \| null | 되돌리기로 오른 version |
 
@@ -103,7 +105,8 @@ PENDING ──승인(REPL-002)──> APPROVED
 ### 3.1 승인 (하나의 transaction)
 
 ```
-FOR UPDATE로 trip_days 잠금
+  transaction 전 Google 운영 상태 재확인(해당 시)
+  FOR UPDATE로 trip_days·미리보기·대상 항목·감지 결과 잠금
   ├ 재검증: 미리보기 PENDING·미만료, schedule_version 일치,
   │         item이 아직 미방문(PLANNED|EN_ROUTE, actual_arrived_at·completed_at null),
   │         detection이 ACTIVE, 대체 장소가 그 날짜에 중복 아님, 대체 장소 방문 가능

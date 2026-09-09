@@ -159,12 +159,12 @@ description: "F010 일정 변경 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] REPL-002 계약 test in api/tests/contract/test_replacement_contract.py
+- [x] T018 [P] [US2] REPL-002 계약 test in api/tests/contract/test_replacement_contract.py
   - 영역: BE
   - 담당: jh
   - 선행: T006
   - 검증: 응답 필드와 오류 코드 집합(`PREVIEW_EXPIRED`·`PREVIEW_SUPERSEDED`·`PREVIEW_REJECTED`·`ALREADY_APPROVED`·`VERSION_CONFLICT`·`ITEM_ALREADY_VISITED`·`ALTERNATIVE_UNAVAILABLE`·`DETECTION_NOT_ACTIVE`)이 계약과 같다. `routeStatus`가 `READY`만 갖는 이유(미리보기에서 계산 완료)를 test 주석에 남긴다
-- [ ] T019 [P] [US2] 승인 원자성·재검증·멱등 integration test in api/tests/integration/test_replacement_flow.py
+- [x] T019 [P] [US2] 승인 원자성·재검증·멱등 integration test in api/tests/integration/test_replacement_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
@@ -177,12 +177,12 @@ description: "F010 일정 변경 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] 승인 서비스와 재검증 in api/app/services/replacement.py, api/tests/unit/test_replacement_rules.py
+- [x] T021 [US2] 승인 서비스와 재검증 in api/app/services/replacement.py, api/tests/unit/test_replacement_rules.py
   - 영역: BE
   - 담당: jh
   - 선행: T012, T018, T019
   - 검증: T018·T019 통과. data-model 3.1의 순서를 **하나의 transaction**으로 수행하고 `trip_days`를 `FOR UPDATE`로 잠근다. **transaction 안에서 외부 provider를 호출하지 않는다**(research 2절). 재검증 5가지를 원인별 오류로 구분하고(FR-010) 하나라도 어긋나면 전체를 되돌린다. `undo_expires_at = approved_at + UNDO_WINDOW_SECONDS`
-- [ ] T022 [US2] REPL-002 라우터 in api/app/api/v1/replacements.py
+- [x] T022 [US2] REPL-002 라우터 in api/app/api/v1/replacements.py
   - 영역: BE
   - 담당: jh
   - 선행: T021
