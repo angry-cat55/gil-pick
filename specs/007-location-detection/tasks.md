@@ -249,7 +249,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Tests for User Story 4
 
-- [ ] T031 [P] [US4] 권한 축소 동작 UI test in android/app/src/androidTest/java/com/gilpick/progress/DetectionPermissionTest.kt
+- [X] T031 [P] [US4] 권한 축소 동작 UI test in android/app/src/androidTest/java/com/gilpick/progress/DetectionPermissionTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T030
@@ -262,12 +262,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] 백그라운드 위치 권한 2단계 요청 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [X] T033 [US4] 백그라운드 위치 권한 2단계 요청 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T031
   - 검증: T031 통과. 진행 시작 후 자동 감지를 켤 때만 백그라운드 권한을 별도 요청하고, 거부해도 시작·수동 진행을 막지 않음(research 8절, FR-024). F006이 받는 앱 사용 중 권한과 이어짐
-- [ ] T034 [US4] 자동 감지 꺼짐 안내 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [X] T034 [US4] 자동 감지 꺼짐 안내 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T033, T003

@@ -424,4 +424,10 @@
     <string name="detection_undo">되돌리기</string>
     <!-- 목록 행에서 자동으로 처리된 장소를 색이 아닌 문구로 구분한다(UI-004). -->
     <string name="detection_auto_processed">자동 처리</string>
+
+    <!-- 자동 감지 꺼짐 안내(UI-005) -->
+    <string name="detection_off_permission">위치 권한이 없어 자동 감지가 꺼져 있어요</string>
+    <string name="detection_off_permission_how">항상 허용으로 바꾸면 도착·출발을 자동으로 확인해 드려요. 지금처럼 직접 처리하셔도 됩니다.</string>
+    <string name="detection_off_enable">권한 허용</string>
+    <string name="detection_off_dismiss">닫기</string>
 </resources>

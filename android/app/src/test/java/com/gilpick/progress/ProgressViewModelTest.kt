@@ -68,6 +68,11 @@ class ProgressViewModelTest {
     private val progressService = FakeProgressService()
     private val itineraryService = FakeItineraryService()
     private val detectionService = FakeDetectionService()
+    private val geofenceClient = RecordingGeofenceClient()
+    private val geofenceSession = FakeDetectionSessionStore()
+
+    /** 백그라운드 위치 권한 보유 여부. test가 기기 상태 대신 바꾼다. */
+    private var backgroundPermission = true
 
     /** 2026-09-08 11:10:30 KST. [inProgress]의 B ETA(02:20Z = 11:20 KST)까지 9분 30초 남았다. */
     private var now: Instant = Instant.parse("2026-09-08T02:10:30Z")
@@ -335,6 +340,86 @@ class ProgressViewModelTest {
         assertEquals(progressService.updateCalls[0].first, progressService.updateCalls[1].first)
     }
 
+    // --- T033: 백그라운드 권한과 자동 감지 ---
+
+    @Test
+    fun `권한이 없으면 감지를 걸지 않고 원인을 남긴다`() = viewModelTest { viewModel ->
+        backgroundPermission = false
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DetectionOffReason.PermissionMissing, content.detectionOff)
+        assertEquals(emptyList<List<String>>(), geofenceClient.added)
+        // 수동 진행은 그대로다(FR-024). 다음 장소와 행동이 남아 있다.
+        assertEquals(P_ITEM_B, content.progress.nextItemId)
+    }
+
+    @Test
+    fun `권한이 있으면 받은 대상을 걸고 안내를 지운다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertNull(content.detectionOff)
+        assertEquals(listOf(listOf(detectionTarget().geofenceId)), geofenceClient.added)
+    }
+
+    @Test
+    fun `진행 중 권한을 회수하면 걸어 둔 것을 풀고 안내한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+        viewModel.load()
+        runCurrent()
+        val before = viewModel.state.value as ProgressUiState.Content
+        geofenceClient.clearLog()
+
+        backgroundPermission = false
+        viewModel.load()
+        runCurrent()
+
+        val after = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DetectionOffReason.PermissionMissing, after.detectionOff)
+        assertEquals(listOf(listOf(detectionTarget().geofenceId)), geofenceClient.removed)
+        // 이미 확정된 상태는 그대로다. 자동 감지만 멈춘다.
+        assertEquals(before.progress.items, after.progress.items)
+    }
+
+    @Test
+    fun `안내를 닫으면 다시 조회해도 뜨지 않는다`() = viewModelTest { viewModel ->
+        backgroundPermission = false
+        viewModel.load()
+        runCurrent()
+
+        viewModel.dismissDetectionNotice()
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        // 원인은 그대로 남지만 안내는 보이지 않는다(FR-025).
+        assertEquals(DetectionOffReason.PermissionMissing, content.detectionOff)
+        assertNull(content.visibleDetectionNotice)
+    }
+
+    @Test
+    fun `권한을 허용하고 돌아오면 그 자리에서 감지를 건다`() = viewModelTest { viewModel ->
+        backgroundPermission = false
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+        viewModel.load()
+        runCurrent()
+
+        backgroundPermission = true
+        viewModel.onBackgroundPermissionResult()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertNull(content.detectionOff)
+        assertEquals(listOf(listOf(detectionTarget().geofenceId)), geofenceClient.added)
+    }
+
     @Test
     fun `확인 응답이 실패하면 보낸 답과 원인을 함께 남긴다`() = viewModelTest { viewModel ->
         progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
@@ -493,6 +578,17 @@ class ProgressViewModelTest {
         ),
     )
 
+    /** 서버가 준 감지 대상 하나. 앱은 목록을 그대로 등록만 한다(research 4절). */
+    private fun detectionTarget() = DetectionTargetDto(
+        itemId = P_ITEM_B,
+        kind = DetectionKind.ARRIVAL,
+        geofenceId = "$P_ITEM_B:ARRIVAL",
+        latitude = 37.5825,
+        longitude = 126.9830,
+        radiusMeters = 300,
+        dwellMinutes = 5,
+    )
+
     /**
      * 출발 확인을 기다리는 후보. `아직 머무는 중`과 `출발 확정`을 함께 받는다.
      *
@@ -551,6 +647,8 @@ class ProgressViewModelTest {
             tripId = PROGRESS_TRIP_ID,
             clock = clock,
             detectionRepository = DetectionRepository(api = detectionService, auth = auth),
+            geofenceManager = GeofenceManager(client = geofenceClient, session = geofenceSession),
+            hasBackgroundPermission = { backgroundPermission },
         )
     }
 }

@@ -39,6 +39,8 @@ sealed interface ProgressUiState {
      * @property candidateDismissed 사용자가 시트를 닫았다. 후보는 살아 있지만 시트를 다시 띄우지 않는다(UI-007).
      * @property undoPending 되돌리기를 보낸 뒤 응답을 기다리는 중. 버튼을 잠근다.
      * @property undoError 마지막 되돌리기 실패. 토스트에 원인을 보인다.
+     * @property detectionOff 자동 감지가 꺼진 원인. `null`이면 켜져 있다(UI-005).
+     * @property detectionNoticeDismissed 사용자가 꺼짐 안내를 닫았다. 안내를 따르지 않아도 진행은 계속된다(FR-025).
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -52,7 +54,17 @@ sealed interface ProgressUiState {
         val candidateDismissed: Boolean = false,
         val undoPending: Boolean = false,
         val undoError: DetectionError? = null,
+        val detectionOff: DetectionOffReason? = null,
+        val detectionNoticeDismissed: Boolean = false,
     ) : ProgressUiState {
+
+        /**
+         * 지금 띄울 자동 감지 꺼짐 안내. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다.
+         *
+         * 지난 날짜에는 감지 자체가 없으므로 안내도 뜻이 없다.
+         */
+        val visibleDetectionNotice: DetectionOffReason?
+            get() = detectionOff?.takeIf { isToday && !detectionNoticeDismissed }
 
         /**
          * 지금 확인 시트를 띄울 후보. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다(UI-007).
@@ -172,6 +184,17 @@ data class ProgressActionFailure(val action: ProgressAction, val error: Progress
  * 실패 후 `출발 확정`을 보내면 사용자가 거절한 전환을 확정하게 된다.
  */
 data class DecisionFailure(val decision: TransitionDecision, val error: DetectionError)
+
+/**
+ * 자동 감지가 꺼진 원인(UI-005·FR-025).
+ *
+ * 앱이 스스로 알 수 있는 원인만 담는다. 정확도 부족은 서버가 이벤트를 거절하며 판정하는데
+ * PROG-001 응답에 그 사실이 실려 오지 않아 지금 계약으로는 화면에서 구분할 수 없다.
+ */
+enum class DetectionOffReason {
+    /** 백그라운드 위치 권한이 없다. 앱이 지오펜스를 걸 수 없다. */
+    PermissionMissing,
+}
 
 /**
  * 일정 목록 한 행. F004 저장 항목(장소명·체류·이동수단)과 F006 진행 항목(상태·시각)을 잇는다.
