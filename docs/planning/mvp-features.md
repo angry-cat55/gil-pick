@@ -21,13 +21,13 @@
 | F008 | 여행 변수 감지 | 남은 일정의 혼잡도·날씨·운영시간 평가 | F006 | DONE | ts |
 | F009 | 대체 장소 추천 | F003의 장소·Google 보강 계약을 재사용해 변동 조건에 맞는 대체 후보 추천 | F003, F008 | DONE | jy |
 | F010 | 일정 변경 | 대체 장소 미리보기·승인 후 일정과 경로 변경·되돌리기 | F004, F005, F009 | READY | hs |
-| F011 | 알림 | 도착·출발 확인과 장소 변경 제안 알림 | F006, F007, F008 | SPEC | ts |
+| F011 | 알림 | 도착·출발 확인과 장소 변경 제안 알림 | F006, F007, F008 | READY | ts |
 | F012 | 사용자 설정 | 장소 변경 제안 알림 설정과 정책 문서·로그아웃 진입 | F001 | TODO | - |
 
 ### F011 상태 전이 기록
 
 - `SPEC`: 2026-09-10 spec 작성 시작. Owner `ts`. 상위 산출물 충돌 3건(감지 결과 목록 화면 소유, 알림 설정 F011·F012 경계, Figma 추가 알림 2종 범위)을 Owner 결정으로 확정해 `specs/011-notification/spec.md` Clarifications에 반영.
-- `READY`: 검증된 tasks 문서 PR에서 반영한다.
+- `READY`: 2026-09-10 spec·clarify·plan·tasks·analyze를 마친 검증된 tasks 문서 PR에서 반영. Backend `ts`, Frontend `jy` 합의 완료. `speckit-analyze` CRITICAL 0건, MEDIUM 4건(I1·C1·X1·X2) 반영.
 - `IN_PROGRESS`: 첫 구현 Issue PR에서 반영한다.
 - `VERIFY`: 전체 구현 완료 후 검증 PR에서 반영한다.
 - `DONE`: F011 관련 PR이 모두 `main`에 병합된 뒤 반영한다.
