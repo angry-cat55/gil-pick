@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 
 import httpx2
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,8 +19,14 @@ from app.clients.seoul_citydata import SeoulCityDataClient
 from app.clients.tour_api import TourApiClient
 from app.core.config import Settings, get_settings
 from app.db import get_session
-from app.schemas.alternatives import AlternativeListEnvelope, ErrorEnvelope
+from app.schemas.alternatives import (
+    AlternativeListEnvelope,
+    AlternativeSearchData,
+    AlternativeSearchEnvelope,
+    ErrorEnvelope,
+)
 from app.schemas.auth import ResponseMeta
+from app.schemas.detection import PaginatedMeta, Pagination
 from app.services.alternatives import AlternativeService
 from app.services.detection.operating_hours_source import OperatingHoursSource
 
@@ -76,6 +82,56 @@ async def list_alternatives(
         success=True,
         data=data,
         meta=ResponseMeta(request_id=get_request_id(request)),
+    )
+    return JSONResponse(content=envelope.model_dump(mode="json", by_alias=True))
+
+
+@router.get(
+    "/{detectionId}/alternatives/search",
+    response_model=AlternativeSearchEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
+        429: {"model": ErrorEnvelope},
+        502: {"model": ErrorEnvelope},
+        504: {"model": ErrorEnvelope},
+    },
+)
+async def search_alternatives(
+    request: Request,
+    detection_id: Annotated[uuid.UUID, Path(alias="detectionId")],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[AlternativeService, Depends(get_alternative_service)],
+    query: Annotated[str, Query(min_length=1)],
+    cursor: Annotated[str | None, Query(min_length=1)] = None,
+    limit: Annotated[int, Query(ge=1, le=20)] = 20,
+) -> JSONResponse:
+    """ACTIVE 감지 기준으로 장소를 직접 검색하고 거리·방문 가능 정보를 덧붙여 반환한다."""
+    normalized_query = query.strip()
+    if len(normalized_query) < 2:
+        raise AppError(400, "INVALID_REQUEST", "검색어는 2글자 이상이어야 합니다.")
+    try:
+        items, next_cursor, has_next = await service.search(
+            detection_id,
+            principal.user_id,
+            query=normalized_query,
+            cursor=cursor,
+            limit=limit,
+        )
+    except AppError as exc:
+        if exc.status_code == 403 and exc.code == "DETECTION_FORBIDDEN":
+            raise AppError(403, "TRIP_FORBIDDEN", exc.message) from exc
+        raise
+    envelope = AlternativeSearchEnvelope(
+        success=True,
+        data=AlternativeSearchData(items=items),
+        meta=PaginatedMeta(
+            request_id=get_request_id(request),
+            pagination=Pagination(next_cursor=next_cursor, has_next=has_next),
+        ),
     )
     return JSONResponse(content=envelope.model_dump(mode="json", by_alias=True))
 

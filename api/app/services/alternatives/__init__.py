@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -15,10 +16,22 @@ from app.api.v1.detections import owned_detection
 from app.clients.tour_api import TourApiClientError
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place
-from app.schemas.alternatives import AlternativeListData, DetectionDismissData
+from app.schemas.alternatives import (
+    AlternativeListData,
+    AlternativeSearchItem,
+    DetectionDismissData,
+    OperatingStatus,
+)
 from app.schemas.detection import DetectionStatus
-from app.schemas.place import PlaceCategory, PlaceSource, PlaceSummary, TourApiCategory
+from app.schemas.place import (
+    BusinessStatus,
+    PlaceCategory,
+    PlaceSource,
+    PlaceSummary,
+    TourApiCategory,
+)
 from app.services.alternatives.candidates import build_candidates
+from app.services.place import PlaceService, distance_meters
 
 _STAY_MINUTES = {
     PlaceCategory.NATURE: 120,
@@ -111,6 +124,59 @@ class AlternativeService:
             ) from exc
         return result
 
+    async def search(
+        self,
+        detection_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        query: str,
+        cursor: str | None,
+        limit: int,
+    ) -> tuple[list[AlternativeSearchItem], str | None, bool]:
+        """ACTIVE 감지 기준으로 F003 장소 검색을 실행하고 거리·방문 가능 정보를 덧붙인다.
+
+        추가 Google 호출 없이 F003이 이미 병합한 필드만 쓴다(research R8). 일정·경로·감지
+        상태는 바꾸지 않는다.
+        """
+        detection, _, _ = await owned_detection(detection_id, user_id, self.session)
+        if detection.status != "ACTIVE":
+            raise AppError(
+                409,
+                "DETECTION_NOT_ACTIVE",
+                "이미 처리된 감지 결과입니다.",
+                details={"status": detection.status},
+            )
+
+        point = cast(Place.location, Geometry(geometry_type="POINT", srid=4326))
+        place, latitude, longitude = (
+            await self.session.execute(
+                select(Place, func.ST_Y(point), func.ST_X(point))
+                .join(ItineraryItem, ItineraryItem.place_id == Place.place_id)
+                .where(ItineraryItem.item_id == detection.item_id)
+            )
+        ).one()
+        origin = self._place_summary(place, float(latitude), float(longitude))
+        scheduled = {
+            provider_id
+            for scheduled_place in (
+                await self.session.execute(
+                    select(Place)
+                    .join(ItineraryItem, ItineraryItem.place_id == Place.place_id)
+                    .where(ItineraryItem.trip_day_id == detection.trip_day_id)
+                )
+            ).scalars()
+            if (provider_id := self._provider_place_id(scheduled_place)) is not None
+        }
+
+        place_service = PlaceService(
+            self.tour_client, self.google_client, cursor_secret=self.candidate_secret
+        )
+        places, next_cursor, has_next = await place_service.search_places(
+            query=query, category=None, area_code=None, cursor=cursor, limit=limit
+        )
+        items = [_to_search_item(found, origin, scheduled) for found in places]
+        return items, next_cursor, has_next
+
     @staticmethod
     def _provider_place_id(place: Place) -> str | None:
         if place.tour_content_id:
@@ -151,6 +217,31 @@ class AlternativeService:
             current_opening_hours=None,
             google_attributions=None,
         )
+
+
+def _search_operating_status(status: BusinessStatus | None) -> OperatingStatus:
+    """직접 검색은 `businessStatus`만으로 운영 상태를 판정한다(research R8, 폐점 시각 없음)."""
+    if status in {BusinessStatus.CLOSED_TEMPORARILY, BusinessStatus.CLOSED_PERMANENTLY}:
+        return OperatingStatus.CLOSED
+    if status == BusinessStatus.OPERATIONAL:
+        return OperatingStatus.OPEN
+    return OperatingStatus.UNKNOWN
+
+
+def _to_search_item(
+    place: PlaceSummary, origin: PlaceSummary, scheduled_place_ids: set[str]
+) -> AlternativeSearchItem:
+    """F003 장소 결과에 기존 장소 기준 거리·방문 가능·일정 포함 여부를 더한다."""
+    in_schedule = place.place_id == origin.place_id or place.place_id in scheduled_place_ids
+    operating_status = _search_operating_status(place.business_status)
+    distance = distance_meters(origin, place)
+    return AlternativeSearchItem(
+        place=place,
+        distance_meters=None if math.isinf(distance) else round(distance),
+        operating_status=operating_status,
+        visitable=operating_status is not OperatingStatus.CLOSED and not in_schedule,
+        in_schedule=in_schedule,
+    )
 
 
 async def dismiss_detection(
