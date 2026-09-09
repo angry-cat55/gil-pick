@@ -444,6 +444,17 @@ async def test_logout_revokes_only_current_device_and_is_idempotent(
     second_token, _ = await active_session(
         session_factory, device_id=second_device, user_id=user_id
     )
+    async with transaction_session(session_factory) as session:
+        first = await session.get(
+            DeviceSession, parse_opaque_token(first_token).selector
+        )
+        second = await session.get(
+            DeviceSession, parse_opaque_token(second_token).selector
+        )
+        first_fcm_token = f"first-{uuid.uuid4()}"
+        second_fcm_token = f"second-{uuid.uuid4()}"
+        first.fcm_token = first_fcm_token
+        second.fcm_token = second_fcm_token
 
     for _ in range(2):
         async with transaction_session(session_factory) as session:
@@ -458,7 +469,9 @@ async def test_logout_revokes_only_current_device_and_is_idempotent(
         )
 
     assert first.revoked_at is not None
+    assert first.fcm_token is None
     assert second.revoked_at is None
+    assert second.fcm_token == second_fcm_token
 
 
 @pytest.mark.asyncio

@@ -165,10 +165,11 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | REPL-002 | 일정 변경 | 대체 장소 승인 | [ ] | [ ] | POST | `/api/v1/route-previews/{previewId}/approve` |
 | REPL-003 | 일정 변경 | 대체 장소 거절 | [ ] | [ ] | POST | `/api/v1/route-previews/{previewId}/reject` |
 | REPL-004 | 일정 변경 | 대체 장소 변경 되돌리기 | [ ] | [ ] | POST | `/api/v1/replacements/{replacementId}/undo` |
-| NOTI-001 | 알림 | 알림 목록 조회 | [ ] | [ ] | GET | `/api/v1/notifications` |
-| NOTI-002 | 알림 | 알림 읽음 처리 | [ ] | [ ] | PATCH | `/api/v1/notifications/{notificationId}/read` |
-| DEV-001 | 기기 | FCM 토큰 등록·갱신 | [ ] | [ ] | PUT | `/api/v1/devices/fcm-token` |
-| DEV-002 | 기기 | FCM 토큰 해제 | [ ] | [ ] | DELETE | `/api/v1/devices/{deviceId}/fcm-token` |
+| NOTI-001 | 알림 | 알림 목록 조회 | [ ] | [X] | GET | `/api/v1/notifications` |
+| NOTI-002 | 알림 | 알림 읽음 처리 | [ ] | [X] | PATCH | `/api/v1/notifications/{notificationId}/read` |
+| NOTI-003 | 알림 | 모든 알림 읽음 처리 | [ ] | [X] | PATCH | `/api/v1/notifications/read-all` |
+| DEV-001 | 기기 | FCM 토큰 등록·갱신 | [ ] | [X] | PUT | `/api/v1/devices/fcm-token` |
+| DEV-002 | 기기 | FCM 토큰 해제 | [ ] | [X] | DELETE | `/api/v1/devices/{deviceId}/fcm-token` |
 | PREF-001 | 사용자 설정 | 설정 조회 | [ ] | [ ] | GET | `/api/v1/users/me/preferences` |
 | PREF-002 | 사용자 설정 | 설정 수정 | [ ] | [ ] | PATCH | `/api/v1/users/me/preferences` |
 
@@ -1838,7 +1839,9 @@ Response `200`:
 
 `GET /api/v1/notifications`
 
-Query: `cursor`, `limit`, 선택 `read`
+Query: `cursor`, `limit`, 선택 `read` (`true`=읽음, `false`=안 읽음, 생략=전체)
+
+생성 후 90일 이내 알림만 `(createdAt DESC, notificationId DESC)` 최신순 cursor로 조회한다. `type`은 `PLACE_CHANGE_SUGGESTION`, `ARRIVAL_CHECK`, `DEPARTURE_CHECK`, `ARRIVAL_AUTO_CONFIRMED`, `DEPARTURE_AUTO_CONFIRMED` 중 하나다. `tripId`는 항상 반환하고 `tripDayId`, `itemId`, `detectionId`, `transitionId`는 유형에 맞는 값만 반환한다.
 
 Response `200`:
 
@@ -1894,9 +1897,33 @@ Response `200`:
 
 주요 오류: `403`, `404`
 
+### NOTI-003 모든 알림 읽음 처리
+
+`PATCH /api/v1/notifications/read-all`
+
+Request Body: 없음. 이미 모두 읽었어도 `updated=0`으로 성공하는 멱등 요청이다.
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "updated": 0
+  },
+  "meta": {
+    "requestId": "uuid"
+  }
+}
+```
+
+주요 오류: `401`
+
 ### DEV-001 FCM 토큰 등록·갱신
 
 `PUT /api/v1/devices/fcm-token`
+
+인증 사용자의 `deviceId`에 해당하는 활성 session이 있어야 한다. 같은 기기의 재등록은 기존 값을 대체하고, 같은 FCM token이 다른 활성 session에 있으면 해당 값을 비운 뒤 현재 session으로 이동한다.
 
 Request Body:
 
@@ -1923,7 +1950,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `400`, `401`, `403`
+주요 오류: `400`, `401`, `403`, `404 DEVICE_SESSION_NOT_FOUND`
 
 ### DEV-002 FCM 토큰 해제
 

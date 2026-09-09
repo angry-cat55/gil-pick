@@ -83,12 +83,12 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T007, T009
   - 검증: `send_one(notification)` — 활성 기기 토큰 조회(`revoked_at IS NULL AND fcm_token IS NOT NULL`), 0개면 `sent_at`만 찍음, `RETRYABLE`이면 0.5s→1.5s 백오프 2회 재시도, `INVALID_TOKEN`이면 그 `fcm_token`만 `NULL`, 종료 시 `sent_at=now`·최종 실패는 `notification_delivery_failed` log(토큰·본문 없이). `tick(session)` — 미발송 큐 처리 + `IN_PROGRESS` 날짜에 `finalize_due_candidates` 호출 + 재질문 due 행 생성. `tests/unit/test_notification_dispatch.py`
-- [ ] T011 NOTI/DEV DTO in api/app/schemas/notification.py, api/app/schemas/device.py
+- [x] T011 NOTI/DEV DTO in api/app/schemas/notification.py, api/app/schemas/device.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `NotificationItem`·`NotificationListData`·`MarkReadResult`·`MarkAllResult`·`FcmTokenRegisterRequest`·`FcmTokenRegisterResult`가 contracts/notifications.openapi.yaml schema와 필드·필수 일치
-- [ ] T012 NOTI·DEV router 등록 in api/app/api/v1/notifications.py, api/app/api/v1/devices.py, api/app/main.py
+- [x] T012 NOTI·DEV router 등록 in api/app/api/v1/notifications.py, api/app/api/v1/devices.py, api/app/main.py
   - 영역: BE
   - 담당: ts
   - 선행: T009, T011
@@ -127,12 +127,12 @@ description: "Task list for F011 알림"
 
 **Independent Test**: quickstart BE 6 + AND 4 — DEV-001 등록/갱신, 로그아웃 시 `fcm_token` NULL, 무효 토큰 확인 시 해당 컬럼만 NULL, 두 기기 모두 발송 대상.
 
-- [ ] T017 [US1] 로그아웃 시 FCM 토큰 정리 in api/app/services/auth.py
+- [x] T017 [US1] 로그아웃 시 FCM 토큰 정리 in api/app/services/auth.py
   - 영역: BE
   - 담당: ts
   - 선행: T006
   - 검증: `logout_device_session`의 `update(DeviceSession)...values(...)`에 `fcm_token=None` 추가. `POST /auth/logout` 후 그 세션 `fcm_token` NULL(quickstart BE 6.5). 교차 계약 review: F001 담당. 외부 동작·응답 불변
-- [ ] T018 [US1] DEV-001·DEV-002 동작 검증 in api/tests/contract/test_notification_contract.py, api/tests/unit/test_notification_service.py
+- [x] T018 [US1] DEV-001·DEV-002 동작 검증 in api/tests/contract/test_notification_contract.py, api/tests/unit/test_notification_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T012, T017
@@ -257,7 +257,7 @@ description: "Task list for F011 알림"
   - 담당: jy
   - 선행: T032
   - 검증: `content`(읽음·안 읽음·2그룹 혼재)·`empty`·`error` × 기본 배율·360dp/fontScale2 = 6장 캡처(`captureToImage`), `adb pull` 후 Figma `NotificationsScreen` 대조(SC-010)
-- [ ] T035 [US4] 알림 목록 조회·읽음 검증 in api/tests/contract/test_notification_contract.py, api/tests/unit/test_notification_service.py
+- [x] T035 [US4] 알림 목록 조회·읽음 검증 in api/tests/contract/test_notification_contract.py, api/tests/unit/test_notification_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T012
@@ -326,12 +326,12 @@ description: "Task list for F011 알림"
 
 ## Phase 9: Polish & Cross-Cutting
 
-- [ ] T042 [P] 계약 문서 동기화 in docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T042 [P] 계약 문서 동기화 in docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: BE
   - 담당: ts
   - 선행: T012, T006
   - 검증: data-model.md 5절 목록 — api-spec 2절(NOTI-001·002·DEV-001·002 `[x]`, NOTI-003 행 신설)·9절(NOTI-001 `type` 값·선택 식별자 필드·90일 문구, NOTI-003 신설, DEV-001 `404` 명시, PREF는 F012 표시 유지), er-schema 1절(알림 90일 보존)·9.1(`type` CHECK·`dedup_key`·`sent_at` 의미)·10절(`notification_type` enum 행)·12절(`ix_notifications_pending`·`fcm_token` partial unique 반영). 같은 PR에 포함. 설정 필드명(`replacement_suggestion_enabled` ↔ `placeChangeSuggestionNotificationEnabled`) 통일은 F011 범위 밖 — F012 PREF 계약 작업에서 처리하므로 이 task에서 건드리지 않는다
-- [ ] T043 [P] 요구사항·기능 명세 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
+- [x] T043 [P] 요구사항·기능 명세 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
   - 영역: BE
   - 담당: ts
   - 선행: 없음

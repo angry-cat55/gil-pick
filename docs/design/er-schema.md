@@ -18,6 +18,7 @@
 - 대체 경로 미리보기와 승인된 장소 변경은 분리한다.
 - Refresh Token 원문은 저장하지 않고 해시만 저장한다.
 - 인증 transaction은 terminal/expired 후 24시간, 만료·폐기 device session은 30일 뒤 삭제한다. 활성 사용자 profile은 계정 활성 기간에만 인증 목적으로 보관한다.
+- 알림은 생성 후 90일 보관한 뒤 삭제하며, 여행을 논리 삭제하면 해당 여행에 연결된 알림도 정리한다.
 - 사용자와 여행은 논리 삭제한다. 실제 purge를 수행할 때만 여행 하위 테이블을 `ON DELETE CASCADE`로 제거하며, 공유 장소인 `places`는 `RESTRICT`한다.
 
 ## 2. 테이블 구성
@@ -484,11 +485,11 @@ erDiagram
 | `item_id` | uuid | Y | FK → `itinerary_items.item_id` |
 | `detection_id` | uuid | Y | FK → `detections.detection_id` |
 | `transition_id` | uuid | Y | FK → `progress_transitions.transition_id` |
-| `type` | varchar(50) | N | 알림 이벤트 종류 |
+| `type` | varchar(50) | N | `PLACE_CHANGE_SUGGESTION`, `ARRIVAL_CHECK`, `DEPARTURE_CHECK`, `ARRIVAL_AUTO_CONFIRMED`, `DEPARTURE_AUTO_CONFIRMED` CHECK |
 | `title` | varchar(200) | N | 제목 |
 | `body` | text | N | 본문 |
-| `dedup_key` | varchar(255) | Y | 중복 알림 방지 키 |
-| `sent_at` | timestamptz | Y | FCM 발송 시각 |
+| `dedup_key` | varchar(255) | Y | `detection:{detection_id}`, `transition:{transition_id}:arrival_check:{prompt_seq}`, `transition:{transition_id}:departure_check`, `transition:{transition_id}:auto`; `(user_id, dedup_key)` partial unique |
+| `sent_at` | timestamptz | Y | 종단 FCM 발송 시도 완료 시각(성공·최종 실패 공통). `NULL`이면 dispatch 미처리 |
 | `read_at` | timestamptz | Y | 앱 읽음 시각 |
 | `created_at` | timestamptz | N | 생성 시각 |
 
@@ -532,6 +533,7 @@ FCM 기기별 전달 이력은 저장하지 않는다. 전송 중 무효 Token�
 | `detection_status` | `ACTIVE`, `RESOLVED`, `DISMISSED`, `INVALIDATED` |
 | `preview_status` | `OPEN`, `APPROVED`, `REJECTED`, `EXPIRED` |
 | `replacement_status` | `ACTIVE`, `UNDONE` |
+| `notification_type` | `PLACE_CHANGE_SUGGESTION`, `ARRIVAL_CHECK`, `DEPARTURE_CHECK`, `ARRIVAL_AUTO_CONFIRMED`, `DEPARTURE_AUTO_CONFIRMED` |
 
 enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부담을 줄인다.
 
@@ -569,7 +571,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | 테이블 | 인덱스 |
 |---|---|
 | `users` | unique `(social_provider, social_subject)` |
-| `device_sessions` | unique `(user_id, client_device_id)`, partial unique active `fcm_token` |
+| `device_sessions` | unique `(user_id, client_device_id)`, `uq_device_sessions_fcm_token` unique `(fcm_token)` where `fcm_token is not null and revoked_at is null` |
 | `trips` | `(user_id, deleted_at)` 및 `(user_id, lower(name))` where `deleted_at is null` |
 | `trip_days` | unique `(trip_id, visit_date)`, unique `(trip_id, day_number)` |
 | `itinerary_items` | unique `(trip_day_id, sequence)`, `(trip_day_id, status, sequence)` |
@@ -581,7 +583,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `detections` | active fingerprint partial unique, `(trip_day_id, status, detected_at)` |
 | `route_previews` | `(status, expires_at)`, `(original_item_id, created_at)` |
 | `replacements` | unique `(preview_id)`, `(item_id, approved_at)` |
-| `notifications` | `(user_id, read_at, created_at desc)`, optional unique active `dedup_key` |
+| `notifications` | `(user_id, read_at, created_at desc)`, `(created_at)`, unique `(user_id, dedup_key)` where `dedup_key is not null`, `(created_at)` where `sent_at is null` |
 | `idempotency_records` | unique `(user_id, scope, idempotency_key)`, `(expires_at)` |
 
 ## 13. API와 테이블 매핑
