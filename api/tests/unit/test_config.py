@@ -129,3 +129,15 @@ def test_detection_provider_settings_reject_non_positive_values(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **valid_settings(**{field: value}))
+
+
+def test_notification_settings_have_safe_defaults() -> None:
+    settings = Settings(_env_file=None, **valid_settings())
+
+    assert settings.fcm_enabled is False
+    assert settings.fcm_project_id == ""
+    assert settings.fcm_service_account_json.get_secret_value() == ""
+    assert settings.fcm_request_timeout_seconds == 5
+    assert settings.notification_retention_days == 90
+    assert settings.notification_dispatch_interval_seconds == 30
+    assert settings.notification_cleanup_interval_seconds == 3600
