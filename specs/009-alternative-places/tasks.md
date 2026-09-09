@@ -225,7 +225,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: ts
   - 선행: T014
   - 검증: `place` DTO+`distanceMeters`·`operatingStatus`·`visitable`·`inSchedule`, `meta.pagination`, 1글자 → 400, 기존 장소 `inSchedule=true`·`visitable=false`, `CLOSED_TEMPORARILY` → `CLOSED`·`visitable=false`(결과 유지), 409/403, PLACE-001과 같은 provider 오류 형식. 구현 전 실패 확인
-- [ ] T029 [P] [US3] 직접 검색 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeSearchScreenTest.kt
+- [x] T029 [P] [US3] 직접 검색 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeSearchScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T011
@@ -238,13 +238,13 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: ts
   - 선행: T028, T017
   - 검증: T028 통과. `PlaceService.search_places(query, category=None, area_code=None, cursor, limit)` 재사용, 거리 haversine, `inSchedule` 집합, `operatingStatus`는 `business_status`만으로(research R8), 추가 Google 호출 없음
-- [ ] T031 [P] [US3] PlaceSearchScreen 재사용 slot in android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
+- [x] T031 [P] [US3] PlaceSearchScreen 재사용 slot in android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
   - 영역: FE
   - 담당: jy
   - 교차 확인: hs
   - 선행: 없음
   - 검증: `PlaceRow`·`EmptyState`를 `internal`로 열고 `PlaceRow(trailing: @Composable () -> Unit = {}, enabled: Boolean = true)` slot 추가. F003 `PlaceSearchScreenTest`·screenshot 변경 없이 통과
-- [ ] T032 [US3] 직접 검색 화면과 route in android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt
+- [x] T032 [US3] 직접 검색 화면과 route in android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T029, T031, T026

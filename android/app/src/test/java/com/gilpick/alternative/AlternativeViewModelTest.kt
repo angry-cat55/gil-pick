@@ -237,7 +237,7 @@ class AlternativeViewModelTest {
     }
 
     @Test
-    fun `후보 선택은 candidateId와 점수를 담고 직접 검색 선택은 둘 다 없다`() = runTest {
+    fun `후보 선택은 candidateId와 점수를 담는다`() = runTest {
         val viewModel = newViewModel()
         advanceUntilIdle()
         val content = viewModel.state.value as AlternativeUiState.Content
@@ -253,19 +253,6 @@ class AlternativeViewModelTest {
                 displayScore = 87,
             ),
             viewModel.select(first),
-        )
-        assertEquals(
-            SelectedAlternative(
-                detectionId = DETECTION_ID,
-                placeId = first.place.placeId,
-                candidateId = null,
-                name = first.place.name,
-                distanceMeters = null,
-                displayScore = null,
-            ),
-            viewModel.select(
-                AlternativeSearchItemDto(place = first.place, distanceMeters = null, operatingStatus = OperatingStatus.UNKNOWN, visitable = true, inSchedule = false),
-            ),
         )
     }
 

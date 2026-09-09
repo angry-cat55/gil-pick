@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -205,7 +206,6 @@ private fun Header(
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = MaterialTheme.colorScheme
-    val keyboard = LocalSoftwareKeyboardController.current
     val title = stringResource(R.string.place_search_title)
 
     Column(
@@ -243,60 +243,13 @@ private fun Header(
                 color = colors.onSurface,
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = spacing.space3)
-                .heightIn(min = 44.dp)
-                .clip(RoundedCornerShape(radius.md))
-                .background(colors.background)
-                .padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_lucide_search),
-                contentDescription = null,
-                tint = LocalGilpickColors.current.muted,
-                modifier = Modifier.size(16.dp),
-            )
-            val hint = stringResource(R.string.place_search_hint)
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        keyboard?.hide()
-                        onSearch()
-                    },
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    // 항상 보이는 라벨을 placeholder가 대신하므로 판독기에는 이름을 붙인다.
-                    .semantics { contentDescription = hint },
-                decorationBox = { inner ->
-                    Box {
-                        if (query.isEmpty()) {
-                            Text(text = hint, style = MaterialTheme.typography.bodyLarge, color = LocalGilpickColors.current.muted)
-                        }
-                        inner()
-                    }
-                },
-            )
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClearQuery, modifier = Modifier.size(MIN_TOUCH)) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_lucide_circle_x),
-                        contentDescription = stringResource(R.string.place_search_clear),
-                        tint = LocalGilpickColors.current.faint,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-        }
+        SearchField(
+            query = query,
+            onQueryChange = onQueryChange,
+            onClearQuery = onClearQuery,
+            onSearch = onSearch,
+            modifier = Modifier.padding(bottom = spacing.space3),
+        )
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(spacing.space2),
@@ -311,6 +264,78 @@ private fun Header(
                     label = stringResource(option.labelRes),
                     selected = category == option,
                     onClick = { onCategoryChange(option) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Figma 검색창: 돋보기, 입력, 지우기. 검색은 키보드의 검색 동작으로만 실행한다(FR-003a).
+ *
+ * F009 직접 검색 화면이 같은 검색창을 쓴다(T031). 판독기 이름은 placeholder 문구다.
+ */
+@Composable
+internal fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = LocalGilpickSpacing.current
+    val colors = MaterialTheme.colorScheme
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
+            .background(colors.background)
+            .padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_search),
+            contentDescription = null,
+            tint = LocalGilpickColors.current.muted,
+            modifier = Modifier.size(16.dp),
+        )
+        val hint = stringResource(R.string.place_search_hint)
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    keyboard?.hide()
+                    onSearch()
+                },
+            ),
+            modifier = Modifier
+                .weight(1f)
+                // 항상 보이는 라벨을 placeholder가 대신하므로 판독기에는 이름을 붙인다.
+                .semantics { contentDescription = hint },
+            decorationBox = { inner ->
+                Box {
+                    if (query.isEmpty()) {
+                        Text(text = hint, style = MaterialTheme.typography.bodyLarge, color = LocalGilpickColors.current.muted)
+                    }
+                    inner()
+                }
+            },
+        )
+        if (query.isNotEmpty()) {
+            IconButton(onClick = onClearQuery, modifier = Modifier.size(MIN_TOUCH)) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_circle_x),
+                    contentDescription = stringResource(R.string.place_search_clear),
+                    tint = LocalGilpickColors.current.faint,
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
@@ -397,7 +422,7 @@ private fun Results(
         }
         itemsIndexed(results, key = { _, place -> place.placeId }) { index, place ->
             Column(modifier = Modifier.background(colors.surface)) {
-                PlaceRow(place = place, onClick = { onPlaceClick(place.placeId) }, onAdd = { onAdd(place) })
+                PlaceRow(place = place, onClick = { onPlaceClick(place.placeId) }) { AddButton(place = place, onAdd = { onAdd(place) }) }
                 if (index < results.lastIndex) {
                     HorizontalDivider(color = colors.background, modifier = Modifier.padding(horizontal = spacing.space5))
                 }
@@ -450,16 +475,26 @@ private fun Results(
     }
 }
 
-/** Figma 결과 행: 60dp 썸네일, 이름·category·`★` 평점·영업 상태, 끝의 `+`. 이미지·본문은 상세로, `+`는 시트로. */
+/**
+ * Figma 결과 행: 60dp 썸네일, 이름·category·`★` 평점·영업 상태, 끝의 [trailing](F003은 `+`). 이미지·본문은 [onClick].
+ *
+ * F009 직접 검색 화면이 재사용한다(T031): [footer]는 본문 아래 거리·방문 가능 문구 자리, [enabled]가 `false`면
+ * 본문을 누를 수 없고 흐리게 보인다(문구와 병기, UI-007).
+ */
 @Composable
-private fun PlaceRow(place: PlaceDto, onClick: () -> Unit, onAdd: () -> Unit) {
+internal fun PlaceRow(
+    place: PlaceDto,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    footer: @Composable () -> Unit = {},
+    trailing: @Composable () -> Unit = {},
+) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = MaterialTheme.colorScheme
     val extra = LocalGilpickColors.current
     val statusRes = businessStatusLabelRes(place.businessStatus)
     val ratingText = place.rating?.toRatingText()
-    val addLabel = stringResource(R.string.place_search_add, place.name)
 
     Row(
         modifier = Modifier
@@ -472,7 +507,7 @@ private fun PlaceRow(place: PlaceDto, onClick: () -> Unit, onAdd: () -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(radius.md))
-                .clickable(onClick = onClick, role = Role.Button),
+                .clickable(enabled = enabled, onClick = onClick, role = Role.Button),
             horizontalArrangement = Arrangement.spacedBy(spacing.space3),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -481,64 +516,75 @@ private fun PlaceRow(place: PlaceDto, onClick: () -> Unit, onAdd: () -> Unit) {
                 url = place.imageUrl,
                 contentDescription = null,
                 shape = RoundedCornerShape(radius.md),
-                modifier = Modifier.size(60.dp),
+                modifier = Modifier.size(60.dp).alpha(if (enabled) 1f else DISABLED_ALPHA),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = place.name, style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
-                Text(
-                    text = stringResource(place.category.labelRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = extra.muted,
-                    modifier = Modifier.padding(bottom = spacing.space1),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (ratingText != null) {
-                        Text(text = "★", fontSize = 11.sp, color = extra.star)
-                        Text(
-                            text = ratingText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = ratingText.displayFont(),
-                            color = colors.onSurface,
-                            modifier = Modifier.semantics {
-                                contentDescription = "평점 ${ratingText}점"
-                            },
-                        )
-                    }
-                    if (statusRes != null) {
-                        Text(
-                            text = stringResource(statusRes),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (place.businessStatus == PlaceBusinessStatus.OPERATIONAL) extra.success else extra.warning,
-                        )
+                // 비활성이면 장소 정보만 흐리고 [footer]의 이유 문구(`방문 불가` 등)는 그대로 읽히게 둔다.
+                Column(modifier = Modifier.alpha(if (enabled) 1f else DISABLED_ALPHA)) {
+                    Text(text = place.name, style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
+                    Text(
+                        text = stringResource(place.category.labelRes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extra.muted,
+                        modifier = Modifier.padding(bottom = spacing.space1),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (ratingText != null) {
+                            Text(text = "★", fontSize = 11.sp, color = extra.star)
+                            Text(
+                                text = ratingText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = ratingText.displayFont(),
+                                color = colors.onSurface,
+                                modifier = Modifier.semantics {
+                                    contentDescription = "평점 ${ratingText}점"
+                                },
+                            )
+                        }
+                        if (statusRes != null) {
+                            Text(
+                                text = stringResource(statusRes),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (place.businessStatus == PlaceBusinessStatus.OPERATIONAL) extra.success else extra.warning,
+                            )
+                        }
                     }
                 }
+                footer()
             }
         }
-        // Figma 32dp 사각 버튼. 터치 영역은 48dp.
-        IconButton(onClick = onAdd, modifier = Modifier.size(MIN_TOUCH)) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(radius.sm))
-                    .background(colors.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lucide_plus),
-                    contentDescription = addLabel,
-                    tint = colors.primary,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+        trailing()
+    }
+}
+
+/** 행 끝의 `+`(Figma 32dp 사각 버튼, 터치 영역 48dp). 일정에 추가 시트를 연다. */
+@Composable
+private fun AddButton(place: PlaceDto, onAdd: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+
+    IconButton(onClick = onAdd, modifier = Modifier.size(MIN_TOUCH)) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(LocalGilpickRadius.current.sm))
+                .background(colors.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_plus),
+                contentDescription = stringResource(R.string.place_search_add, place.name),
+                tint = colors.primary,
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
 
-/** Figma 빈 상태: `background` 상자 안 `faint` 아이콘, 제목, 안내, 선택적 행동. 검색 전과 결과 없음이 같은 틀이다. */
+/** Figma 빈 상태: `background` 상자 안 `faint` 아이콘, 제목, 안내, 선택적 행동. 검색 전과 결과 없음이 같은 틀이다. F009 직접 검색도 쓴다. */
 @Composable
-private fun EmptyState(
+internal fun EmptyState(
     icon: Int,
     title: String,
     body: String,
@@ -593,7 +639,7 @@ private fun EmptyState(
 
 /** Figma `카테고리로 찾기`: 44dp, 2dp `outlineVariant` 테두리, 16dp 곡률. 재시도 버튼도 같은 모양이다. */
 @Composable
-private fun OutlineButton(label: String, onClick: () -> Unit) {
+internal fun OutlineButton(label: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
 
     Box(
@@ -629,6 +675,9 @@ private val CHIP_CATEGORIES = listOf(
 )
 
 private val MIN_TOUCH = 48.dp
+
+/** 비활성 행의 흐림. Material 3 disabled content alpha. */
+private const val DISABLED_ALPHA = 0.38f
 
 /** 48dp 터치 영역 안에 32dp 사각을 가운데 두면 밖 여백은 8dp다. Figma 오른쪽 여백 20에서 이만큼 뺀다. */
 private val CIRCLE_INSET = 8.dp
