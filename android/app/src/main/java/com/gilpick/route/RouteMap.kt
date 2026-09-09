@@ -75,7 +75,6 @@ fun RouteMap(
     sheetFraction: Float = 0.45f,
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val density = LocalDensity.current
     val gilpickColors = LocalGilpickColors.current
     val markerColor = MaterialTheme.colorScheme.primary.toArgb()
@@ -84,13 +83,64 @@ fun RouteMap(
     val pathColor = gilpickColors.primaryLight.toArgb()
     val description = stringResource(R.string.route_map_description, route.markers.size)
     val startLabel = stringResource(R.string.route_marker_start)
+    val overlays = remember { RouteOverlays() }
+
+    NaverMapHost(
+        modifier = modifier,
+        description = description,
+        drawKey = route to marks,
+        onDispose = { overlays.clear() },
+    ) { map, size ->
+        val bottomPadding = (size.height * sheetFraction).toInt()
+        map.setContentPadding(0, 0, 0, bottomPadding)
+        overlays.show(
+            map = map,
+            route = route,
+            marks = marks,
+            markerIcon = { marker ->
+                when (marks.statuses[marker.itemId]) {
+                    ItemStatus.COMPLETED, ItemStatus.ARRIVED -> circleMarker(context, MARKER_CHECK, doneColor, density.density)
+                    ItemStatus.SKIPPED -> circleMarker(context, MARKER_CROSS, faintColor, density.density)
+                    ItemStatus.PLANNED -> circleMarker(context, marker.sequence.toString(), faintColor, density.density)
+                    ItemStatus.EN_ROUTE, null -> circleMarker(context, marker.sequence.toString(), markerColor, density.density)
+                }
+            },
+            startIcon = { pillMarker(context, startLabel, markerColor, density.density) },
+            markerSizePx = (MARKER_SIZE_DP * density.density).toInt(),
+            pathColor = pathColor,
+            pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
+            boundsPaddingPx = with(density) { BOUNDS_PADDING.roundToPx() },
+        )
+    }
+}
+
+/**
+ * Naver `MapView`의 lifecycle·인증 실패·크기 측정을 맡는 공용 바탕(F009 T023에서 [RouteMap]에서 분리).
+ *
+ * `MapView`는 Activity lifecycle을 그대로 받아야 하므로 [LocalLifecycleOwner]의 이벤트를 전달한다.
+ * 지도 인증 key(`NCP_KEY_ID`)가 없거나 인증에 실패하면 지도 대신 안내 문구를 보인다. 지도 정보는
+ * 목록이 같은 순서로 제공하므로 지도 없이도 화면은 성립한다(F005 UI-005, F009 UI-004).
+ *
+ * @param drawKey 이 값이 바뀌면 [draw]를 다시 부른다. 지도·크기가 바뀔 때도 다시 부른다.
+ * @param onDispose 화면을 떠날 때 올린 overlay를 떼는 자리.
+ * @param draw 지도와 측정된 크기로 overlay를 그리고 카메라를 맞춘다. 크기가 0이면 부르지 않는다.
+ */
+@Composable
+internal fun NaverMapHost(
+    modifier: Modifier,
+    description: String,
+    drawKey: Any?,
+    onDispose: () -> Unit,
+    draw: (NaverMap, IntSize) -> Unit,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     // key가 없으면 SDK가 ClientUnspecifiedException을 던진다. 지도만 포기하고 나머지는 그대로 둔다.
     val mapView = remember { runCatching { MapView(context) }.getOrNull() }
     var naverMap by remember { mutableStateOf<NaverMap?>(null) }
     var authFailed by remember { mutableStateOf(false) }
     var size by remember { mutableStateOf(IntSize.Zero) }
-    val overlays = remember { RouteOverlays() }
 
     if (mapView == null) {
         MapUnavailable(modifier)
@@ -121,7 +171,7 @@ fun RouteMap(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             sdk.onAuthFailedListener = previousListener
-            overlays.clear()
+            onDispose()
             // 화면을 떠나면 lifecycle은 살아 있어도 지도는 버린다. 이미 파괴됐으면 두 번 부르지 않는다.
             if (!destroyed) mapView.onDestroy()
         }
@@ -135,30 +185,11 @@ fun RouteMap(
         }
     }
 
-    // 경로·진행 표시·지도·크기 중 하나라도 바뀌면 overlay를 다시 그리고 카메라를 맞춘다.
-    LaunchedEffect(naverMap, route, marks, size) {
+    // 내용·지도·크기 중 하나라도 바뀌면 overlay를 다시 그리고 카메라를 맞춘다.
+    LaunchedEffect(naverMap, drawKey, size) {
         val map = naverMap ?: return@LaunchedEffect
         if (size == IntSize.Zero) return@LaunchedEffect
-        val bottomPadding = (size.height * sheetFraction).toInt()
-        map.setContentPadding(0, 0, 0, bottomPadding)
-        overlays.show(
-            map = map,
-            route = route,
-            marks = marks,
-            markerIcon = { marker ->
-                when (marks.statuses[marker.itemId]) {
-                    ItemStatus.COMPLETED, ItemStatus.ARRIVED -> circleMarker(context, MARKER_CHECK, doneColor, density.density)
-                    ItemStatus.SKIPPED -> circleMarker(context, MARKER_CROSS, faintColor, density.density)
-                    ItemStatus.PLANNED -> circleMarker(context, marker.sequence.toString(), faintColor, density.density)
-                    ItemStatus.EN_ROUTE, null -> circleMarker(context, marker.sequence.toString(), markerColor, density.density)
-                }
-            },
-            startIcon = { pillMarker(context, startLabel, markerColor, density.density) },
-            markerSizePx = (MARKER_SIZE_DP * density.density).toInt(),
-            pathColor = pathColor,
-            pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
-            boundsPaddingPx = with(density) { BOUNDS_PADDING.roundToPx() },
-        )
+        draw(map, size)
     }
 
     if (authFailed) {
@@ -265,14 +296,14 @@ private class RouteOverlays {
     }
 }
 
-/** 순서 번호 또는 상태 기호를 담은 원형 마커 아이콘. 번호는 목록의 순서 번호와 같은 값이다(UI-006). */
-private fun circleMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
+/** 순서 번호 또는 상태 기호를 담은 원형 마커 아이콘. 번호는 목록의 순서 번호와 같은 값이다(UI-006). F009 후보 순위에도 쓴다. */
+internal fun circleMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
     val sizePx = (MARKER_SIZE_DP * density).toInt()
     return OverlayImage.fromView(markerView(context, label, color, density, sizePx, sizePx, GradientDrawable.OVAL))
 }
 
-/** `현위치` 알약형 마커. 글자가 원에 들어가지 않아 너비만 넓힌다. */
-private fun pillMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
+/** `현위치` 알약형 마커. 글자가 원에 들어가지 않아 너비만 넓힌다. F009 기존 장소 `!` 표시에도 쓴다. */
+internal fun pillMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
     val heightPx = (MARKER_SIZE_DP * density).toInt()
     val widthPx = (START_MARKER_WIDTH_DP * density).toInt()
     return OverlayImage.fromView(markerView(context, label, color, density, widthPx, heightPx, GradientDrawable.RECTANGLE))
@@ -301,11 +332,11 @@ private fun markerView(context: Context, label: String, color: Int, density: Flo
         layout(0, 0, widthPx, heightPx)
     }
 
-private const val MARKER_SIZE_DP = 28
+internal const val MARKER_SIZE_DP = 28
 private const val START_MARKER_WIDTH_DP = 52
 private const val MARKER_TEXT_SP = 12f
 private const val MARKER_CHECK = "\u2713"
 private const val MARKER_CROSS = "\u2715"
 private const val SINGLE_PLACE_ZOOM = 15.0
 private val PATH_WIDTH = 5.dp
-private val BOUNDS_PADDING = 48.dp
+internal val BOUNDS_PADDING = 48.dp

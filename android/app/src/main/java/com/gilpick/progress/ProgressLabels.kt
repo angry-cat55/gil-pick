@@ -10,6 +10,7 @@ import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.trip.KST
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -22,8 +23,8 @@ import java.util.Locale
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("a h:mm", Locale.KOREAN).withZone(KST)
 
-/** ISO-8601 시각을 Figma 표기(`오후 2:35`)로 바꾼다. 서버 시각은 UTC이므로 KST로 옮긴다. */
-fun timeLabel(iso: String): String = TIME_FORMAT.format(Instant.parse(iso))
+/** ISO-8601 시각을 Figma 표기(`오후 2:35`)로 바꾼다. `Z`든 `+09:00`이든 offset을 읽어 KST로 옮긴다. */
+fun timeLabel(iso: String): String = TIME_FORMAT.format(OffsetDateTime.parse(iso).toInstant())
 
 /**
  * 도착 예정 시각과 지금의 차이 문구(UI-002). `· 12분 남았어요` 또는 `· 5분 지났어요`.
