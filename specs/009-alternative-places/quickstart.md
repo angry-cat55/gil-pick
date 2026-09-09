@@ -102,7 +102,7 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 
 ### AND 3. 진행 화면 배너 (UI-001, FR-028)
 
-1. `ProgressViewModel`에 `ACTIVE` 감지 2건 fake → 오늘 날짜에서 ETA가 이른 감지가 배너에 `장소명 + 이유 / 도착 예정 시각 · N분 전 감지`로 보이고 `외 1곳` 표시; 탭 → `onOpenAlternatives(detectionId)`.
+1. `ProgressViewModel`에 `ACTIVE` 감지 2건 fake → 오늘 날짜에서 ETA가 이른 감지 하나만 배너에 `장소명 + 이유 / 도착 예정 시각 · N분 전 감지`로 보이고 탭 → `onOpenAlternatives(detectionId)`; 당일 완료 상태면 배너 없음.
 2. 감지 0건 또는 조회 실패 → 배너 없음, 나머지 진행 화면 정상(`ActiveTravelScreenTest`).
 3. 다른 날짜를 보고 있을 때 배너가 숨겨지는지 확인한다.
 

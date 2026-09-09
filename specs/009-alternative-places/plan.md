@@ -36,7 +36,7 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 **Tokens & Components**: 색은 `GilpickTheme` 토큰만 사용 — 경고 아이콘 박스·변수 칩·배너 `warningContainer`/`warning`, 1위 강조 배경 `primaryContainer`, 보조 글자 `muted`·`faint`, 폐점 임박 `warning`. 새 토큰 추가 없음. 재사용 component: `RouteMap`의 `circleMarker`·`pillMarker`·NaverMap 초기화(→ `internal`), `PlaceSearchScreen`의 `PlaceRow`·`EmptyState`(→ `internal` + 행 하단 slot), ui-guidelines 9절 `ErrorScreen` 형식은 `route`/`progress`가 쓰는 오류 composable 재사용. 신규: `AlternativePlacesScreen`, `AlternativeMap`, `AlternativeSearchScreen`, `VariableWarningBanner`(progress 패키지, 배너)
 
-**State & Interaction**: `AlternativeUiState` = Loading(1초 지연 표시) / Error(재시도·돌아가기, 기존 일정 유지) / Closed(409, 진행 화면으로) / Content(후보 목록, `items` 비면 empty 표현, `refreshing`은 기존 목록 유지, `dismissPending`·`dismissError`). 상세(DETECT-002)+후보(ALT-001) 병렬 조회, `LifecycleResumeEffect`로 재조회. 후보 선택·직접 검색 선택 → `onSelectPlace(SelectedAlternative)`; `기존 일정 그대로 진행` → DETECT-004 → `onDismissed`. 배너: `ProgressUiState.Content.bannerDetection`(오늘·ETA 최소)·`extraDetectionCount`, 탭 → `onOpenAlternatives(detectionId)`. 배너 없음은 빈 상태를 만들지 않는다(spec UI-001)
+**State & Interaction**: `AlternativeUiState` = Loading(1초 지연 표시) / Error(재시도·돌아가기, 기존 일정 유지) / Closed(409, 진행 화면으로) / Content(후보 목록, `items` 비면 empty 표현, `refreshing`은 기존 목록 유지, `dismissPending`·`dismissError`). 상세(DETECT-002)+후보(ALT-001) 병렬 조회, `LifecycleResumeEffect`로 재조회. 후보 선택·직접 검색 선택 → `onSelectPlace(SelectedAlternative)`; `기존 일정 그대로 진행` → DETECT-004 → `onDismissed`. 배너: `ProgressUiState.Content.bannerDetection`(오늘·당일 미완료·ETA 최소 1건, Figma 단일 배너), 탭 → `onOpenAlternatives(detectionId)`. 배너 없음은 빈 상태를 만들지 않는다(spec UI-001)
 
 **Accessibility & Adaptive Layout**: 터치 대상 `sizeIn(minHeight = 48.dp)`·간격 8dp, 아이콘 버튼 `contentDescription`, 후보 행 `contentDescription = "N위 이름, 카테고리, 거리, 운영 상태"`, TOP·폐점 임박·방문 불가는 배지·문구·테두리 병기(색 단독 금지), 360dp·fontScale 2.0에서 `weight(1f)`+줄바꿈으로 잘림 없음(F006 `오늘로 돌아가기` 교훈), 지도 정보는 목록으로 중복 제공(UI-004), `statusBarsPadding`/`navigationBarsPadding`
 
@@ -122,7 +122,7 @@ android/app/src/
 │   │   ├── AlternativeLabels.kt         # 거리·운영 상태·근거 코드 → 문구, 시각 KST
 │   │   └── AlternativeNavigation.kt     # AlternativePlacesRoute(detectionId, tripId), AlternativeSearchRoute, alternativeGraph(repository, map, onSelectPlace, onDismissed, onSessionExpired)
 │   ├── progress/
-│   │   ├── ProgressUiState.kt           # Content.activeDetections/bannerDetection/extraDetectionCount
+│   │   ├── ProgressUiState.kt           # Content.activeDetections/bannerDetection
 │   │   ├── ProgressViewModel.kt         # AlternativeRepository? 주입, DETECT-001 병렬 조회(실패 격리)
 │   │   └── ActiveTravelScreen.kt        # VariableWarningBanner + onOpenAlternatives
 │   ├── route/RouteMap.kt                # circleMarker/pillMarker/초기화 internal 공개 (F005)

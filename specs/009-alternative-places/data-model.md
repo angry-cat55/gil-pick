@@ -109,8 +109,7 @@ Content(
 | 필드 | 규칙 |
 |---|---|
 | `activeDetections: List<DetectionListItemDto>` | DETECT-001 `status=ACTIVE` 결과. 조회 실패 시 빈 목록(배너 숨김) |
-| `bannerDetection` | 오늘 날짜(`isToday`)일 때 `eta` 가장 이른 항목, 없으면 null |
-| `extraDetectionCount` | `activeDetections.size - 1` (0이면 표시 안 함) |
+| `bannerDetection` | 오늘 날짜(`isToday`)이고 당일이 완료되지 않았을 때 `eta` 가장 이른 항목 하나, 없으면 null(Figma 배너는 단일 항목) |
 
 ## 4. 계약 문서 동기화 대상
 
