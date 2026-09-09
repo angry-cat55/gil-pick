@@ -114,7 +114,8 @@
 
 - **생성**: §2 대상 장소에서 개별 변수 중 하나라도 위험이고 그 장소에 `ACTIVE`/`RESOLVED`/`DISMISSED` 행이 없으면 `INSERT`. 있으면(=`ACTIVE`) upsert로 갱신만. `RESOLVED`/`DISMISSED`가 있으면 아무것도 하지 않는다(사용자가 이미 결정 중/결정함).
 - **갱신**: `ACTIVE` 행에 대해 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 갱신. 모든 위험이 사라져도 `status`는 `ACTIVE` 유지(US2 Scenario 2), `score`는 낮아진 값으로 갱신.
-- **종료**(`ACTIVE` → `INVALIDATED`, `resolved_at=now`): 대상 항목 `status ∈ {COMPLETED, SKIPPED}` 또는 항목이 일정에서 제거됨 또는 `trip_days.status = COMPLETED`.
+- **종료**(`ACTIVE` → `INVALIDATED`, `resolved_at=now`): 대상 항목 `status ∈ {ARRIVED, COMPLETED, SKIPPED}` 또는 `trip_days.status = COMPLETED`.
+- **일정 삭제**: `itinerary_items`에서 항목이 삭제되면 `detections.item_id ON DELETE CASCADE`로 연결된 감지 결과도 함께 삭제한다. 삭제된 일정 항목의 감지 이력은 보존하지 않는다.
 - **재개**: 날짜가 `COMPLETED` → `IN_PROGRESS`(`detection_active=true`)로 복귀하면 다음 평가에서 새 `ACTIVE` 행이 생길 수 있다. `INVALIDATED` 행은 재사용하지 않는다.
 - **읽음**: `read_at` 갱신은 다른 상태 전이와 독립. 어느 `status`에서도 가능.
 

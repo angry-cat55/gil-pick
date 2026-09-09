@@ -202,7 +202,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T025 [P] [US3] 중복 억제·종료·재개 integration test in api/tests/integration/test_detection_lifecycle.py
+- [x] T025 [P] [US3] 중복 억제·종료·재개 integration test in api/tests/integration/test_detection_lifecycle.py
   - 영역: BE
   - 담당: jh
   - 선행: T018
@@ -210,12 +210,12 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] 종료·재개 생명주기 in api/app/services/detection/evaluator.py
+- [x] T026 [US3] 종료·재개 생명주기 in api/app/services/detection/evaluator.py
   - 영역: BE
   - 담당: jh
   - 선행: T018
-  - 검증: 평가 진입 시 대상에서 빠진 항목(`status IN ('ARRIVED','COMPLETED','SKIPPED')`·일정에서 제거·`trip_days.status='COMPLETED'`)의 `ACTIVE` 감지 결과를 `INVALIDATED`(`resolved_at=now`)로 전환. `RESOLVED`·`DISMISSED` 행이 있는 장소에는 새 `ACTIVE`를 만들지 않음(FR-013). 모든 위험이 사라져도 `ACTIVE`는 유지하고 `score`만 낮춘다(US2 Scenario 2와 구분). `INVALIDATED` 행은 재사용하지 않고, 날짜 복귀 시 새 행으로 생성
-- [ ] T027 [US3] 종료 처리를 주기·재평가 진입점에 연결 in api/app/services/detection/evaluator.py, api/app/jobs/variable_detection.py
+  - 검증: 평가 진입 시 대상에서 빠진 항목(`status IN ('ARRIVED','COMPLETED','SKIPPED')`·`trip_days.status='COMPLETED'`)의 `ACTIVE` 감지 결과를 `INVALIDATED`(`resolved_at=now`)로 전환. 일정에서 삭제된 항목의 감지 결과는 FK cascade로 함께 삭제. `RESOLVED`·`DISMISSED` 행이 있는 장소에는 새 `ACTIVE`를 만들지 않음(FR-013). 모든 위험이 사라져도 `ACTIVE`는 유지하고 `score`만 낮춘다(US2 Scenario 2와 구분). `INVALIDATED` 행은 재사용하지 않고, 날짜 복귀 시 새 행으로 생성
+- [x] T027 [US3] 종료 처리를 주기·재평가 진입점에 연결 in api/app/services/detection/evaluator.py, api/app/jobs/variable_detection.py
   - 영역: BE
   - 담당: jh
   - 선행: T026

@@ -41,22 +41,7 @@ _REASONS = {
 
 async def evaluate_all_active(session: AsyncSession) -> int:
     """현재 평가 가능한 일정 항목을 조회해 위험 결과를 원자적으로 갱신한다."""
-    now = datetime.now(KST)
-    await session.execute(
-        update(Detection)
-        .where(
-            Detection.status == "ACTIVE",
-            Detection.item_id.in_(
-                select(ItineraryItem.item_id)
-                .join(TripDay, TripDay.trip_day_id == ItineraryItem.trip_day_id)
-                .where(
-                    (TripDay.status == "COMPLETED")
-                    | ItineraryItem.status.in_(("COMPLETED", "SKIPPED"))
-                )
-            ),
-        )
-        .values(status="INVALIDATED", resolved_at=now)
-    )
+    await _invalidate_ineligible(session)
     rows = await _load_eligible_rows(session)
     return await _evaluate_rows(session, rows)
 
@@ -67,6 +52,7 @@ async def reevaluate_day(
     """진행 변경이 저장된 뒤 한 날짜를 즉시 재평가하며 실패를 요청과 격리한다."""
     try:
         async with session_factory() as session:
+            await _invalidate_ineligible(session, trip_day_id=trip_day_id)
             rows = await _load_eligible_rows(session, trip_day_id=trip_day_id)
             count = await _evaluate_rows(session, rows)
             await session.commit()
@@ -74,6 +60,32 @@ async def reevaluate_day(
     except Exception:
         logger.exception("날짜 단위 변수 재평가에 실패했습니다.", extra={"trip_day_id": str(trip_day_id)})
         return 0
+
+
+async def _invalidate_ineligible(
+    session: AsyncSession, *, trip_day_id: uuid.UUID | None = None
+) -> None:
+    """평가 대상에서 벗어난 항목의 ACTIVE 감지를 종료한다."""
+    ineligible_items = (
+        select(ItineraryItem.item_id)
+        .join(TripDay, TripDay.trip_day_id == ItineraryItem.trip_day_id)
+        .where(
+            (TripDay.status == "COMPLETED")
+            | ItineraryItem.status.in_(("ARRIVED", "COMPLETED", "SKIPPED"))
+        )
+    )
+    if trip_day_id is not None:
+        ineligible_items = ineligible_items.where(TripDay.trip_day_id == trip_day_id)
+    statement = update(Detection).where(
+        Detection.status == "ACTIVE",
+        Detection.item_id.in_(ineligible_items),
+    )
+    if trip_day_id is not None:
+        statement = statement.where(Detection.trip_day_id == trip_day_id)
+
+    await session.execute(
+        statement.values(status="INVALIDATED", resolved_at=datetime.now(KST))
+    )
 
 
 async def _load_eligible_rows(
@@ -178,6 +190,34 @@ async def _store_detection(
     operating: OperatingHoursVerdict,
 ) -> None:
     """한 장소의 평가 결과를 ACTIVE upsert로 저장한다."""
+    eligibility = (
+        await session.execute(
+            select(
+                ItineraryItem.status,
+                ItineraryItem.estimated_arrival_at,
+                TripDay.status,
+                TripDay.detection_active,
+            )
+            .join(TripDay, TripDay.trip_day_id == ItineraryItem.trip_day_id)
+            .where(ItineraryItem.item_id == item.item_id)
+            .with_for_update()
+        )
+    ).one_or_none()
+    if (
+        eligibility is None
+        or eligibility[0] not in ("PLANNED", "EN_ROUTE")
+        or eligibility[1] != eta
+        or eligibility[2] != "IN_PROGRESS"
+        or not eligibility[3]
+    ):
+        raise _NoRisk
+    detection_statuses = (
+        await session.execute(
+            select(Detection.status)
+            .where(Detection.item_id == item.item_id)
+            .with_for_update()
+        )
+    ).scalars().all()
     score = score_variables(
         congestion=congestion,
         weather=weather,
@@ -228,6 +268,8 @@ async def _store_detection(
         if result.rowcount == 0:
             raise _NoRisk
         return
+    if any(status in ("RESOLVED", "DISMISSED") for status in detection_statuses):
+        raise _NoRisk
     values = {
         "trip_day_id": day.trip_day_id,
         "item_id": item.item_id,
