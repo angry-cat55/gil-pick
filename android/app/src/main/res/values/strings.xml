@@ -433,6 +433,11 @@
     <string name="detection_off_enable">권한 허용</string>
     <string name="detection_off_dismiss">닫기</string>
 
+    <!-- F009 진행 화면 변수 경고 배너(UI-001) -->
+    <string name="progress_banner_title">%1$s %2$s</string>
+    <string name="progress_banner_subtitle">%1$s 도착 예정 · %2$s 전 감지</string>
+    <string name="progress_banner_open">대체 장소 보기</string>
+
     <!-- F009 대체 장소 화면(Figma AlternativePlacesScreen / alternativesEmpty) -->
     <string name="alternative_loading">대체 장소를 불러오는 중</string>
     <string name="alternative_back">뒤로</string>

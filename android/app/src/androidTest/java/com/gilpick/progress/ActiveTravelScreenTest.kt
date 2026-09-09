@@ -23,6 +23,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.alternative.DetectionListItemDto
+import com.gilpick.alternative.DetectionStatus
+import com.gilpick.alternative.DetectionType
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.route.ITEM_A
 import com.gilpick.route.ITEM_B
@@ -389,6 +392,62 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("예정").assertDoesNotExist()
     }
 
+    // ---- T027: F009 변수 경고 배너(UI-001, quickstart AND 3) ----
+
+    @Test
+    fun ACTIVE_감지가_있으면_ETA가_이른_하나만_배너에_보이고_탭하면_그_감지로_대체_장소를_연다() {
+        val opened = mutableListOf<String>()
+        setScreen(content().copy(activeDetections = listOf(laterDetection(), insadongDetection())), onOpenAlternatives = { opened += it })
+
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("인사동거리 지금 매우 혼잡해요").assertIsDisplayed()
+        composeRule.onNodeWithText("오후 4:00 도착 예정 · 5분 전 감지").assertIsDisplayed()
+        composeRule.onNodeWithText("남산타워 오후 강수 예보").assertDoesNotExist()
+        // 배너가 카드를 밀어내지 않는다.
+        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertIsDisplayed()
+
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).performClick()
+        composeRule.runOnIdle { assertEquals(listOf("det-insadong"), opened) }
+    }
+
+    @Test
+    fun 당일이_완료됐으면_감지가_있어도_배너가_없다() {
+        setScreen(content(progress = allDoneProgress()).copy(activeDetections = listOf(insadongDetection())))
+
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_CARD_ALL_DONE).assertIsDisplayed()
+    }
+
+    @Test
+    fun 다른_날짜를_보는_동안에는_배너가_없다() {
+        setScreen(content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-07"), activeDetections = listOf(insadongDetection())))
+
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertDoesNotExist()
+        composeRule.onNodeWithText("오늘로 돌아가기").assertIsDisplayed()
+    }
+
+    @Test
+    fun 감지가_없거나_조회에_실패하면_배너_없이_나머지_진행_화면이_정상이다() {
+        setScreen(content())
+
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertIsDisplayed()
+        composeRule.onNodeWithText("2일차 · 1/3 완료").assertIsDisplayed()
+    }
+
+    /** 인사동거리 혼잡 감지. ETA 오후 4:00, [NOW_BEFORE_ETA](오후 2:08) 5분 전 감지(Figma 배너 문구 그대로). */
+    private fun insadongDetection() = DetectionListItemDto(
+        detectionId = "det-insadong", itemId = ITEM_C, placeName = "인사동거리", primaryType = DetectionType.CONGESTION,
+        status = DetectionStatus.ACTIVE, totalRiskScore = 61, eta = "2026-09-08T16:00:00+09:00",
+        reason = "지금 매우 혼잡해요", createdAt = "2026-09-08T14:03:00+09:00", read = false,
+    )
+
+    /** ETA가 더 늦은 감지. 배너에 오르지 않는다. */
+    private fun laterDetection() = insadongDetection().copy(
+        detectionId = "det-later", itemId = "item-later", placeName = "남산타워", primaryType = DetectionType.WEATHER,
+        eta = "2026-09-08T17:00:00+09:00", reason = "오후 강수 예보",
+    )
+
     private fun row(sequence: Int) = composeRule.onNodeWithTag("$TAG_ROW_PREFIX$sequence")
 
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
@@ -409,6 +468,7 @@ class ActiveTravelScreenTest {
         onStatusAction: (String, ItemStatus) -> Unit = { _, _ -> },
         onSelectDate: (LocalDate) -> Unit = {},
         onReturnToToday: () -> Unit = {},
+        onOpenAlternatives: (String) -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -427,6 +487,7 @@ class ActiveTravelScreenTest {
                     onStatusAction = onStatusAction,
                     onSelectDate = onSelectDate,
                     onReturnToToday = onReturnToToday,
+                    onOpenAlternatives = onOpenAlternatives,
                     map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }

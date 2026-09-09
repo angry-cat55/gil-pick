@@ -1,9 +1,16 @@
 package com.gilpick.alternative
 
+import android.content.Context
+import com.gilpick.BuildConfig
+import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthError
 import com.gilpick.auth.AuthErrorCodes
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
+import com.gilpick.auth.AuthService
+import com.gilpick.auth.AuthSessionStore
+import com.gilpick.auth.SessionRevocationWorker
+import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.auth.toAuthResult
 import com.gilpick.place.PlaceListMeta
 import java.io.IOException
@@ -39,13 +46,15 @@ class AlternativeRepository(
      * 여행의 감지 목록을 조회한다(DETECT-001).
      *
      * @param status 지정하면 그 상태만 받는다. 진행 화면 배너는 [DetectionStatus.ACTIVE]로 조회한다.
+     * @param limit 페이지 크기. 배너는 한 페이지(50)로 끝낸다(research R7).
      */
     suspend fun listDetections(
         tripId: String,
         status: DetectionStatus? = null,
         cursor: String? = null,
+        limit: Int? = null,
     ): AuthResult<AlternativePage<DetectionListItemDto>> = call { token ->
-        api.listDetections(bearer = token, tripId = tripId, status = status, cursor = cursor)
+        api.listDetections(bearer = token, tripId = tripId, status = status, cursor = cursor, limit = limit)
             .toAuthResult { it.data.items.page(it.meta) }
     }
 
@@ -96,6 +105,23 @@ class AlternativeRepository(
 
     private fun <T> List<T>.page(meta: PlaceListMeta) =
         AlternativePage(items = this, nextCursor = meta.pagination.nextCursor, hasNext = meta.pagination.hasNext)
+
+    companion object {
+        /** 실제 서버를 향한 repository. F007 `DetectionRepository.default`와 같은 조립이다. */
+        fun default(context: Context): AlternativeRepository {
+            val appContext = context.applicationContext
+            val auth = AuthRepository(
+                store = AuthSessionStore.create(appContext),
+                api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
+                appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
+                scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+            )
+            return AlternativeRepository(
+                api = createAlternativeRetrofit(BuildConfig.API_BASE_URL).create(AlternativeService::class.java),
+                auth = auth,
+            )
+        }
+    }
 }
 
 /**

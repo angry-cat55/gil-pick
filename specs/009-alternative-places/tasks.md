@@ -161,7 +161,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: jy
   - 선행: T011
   - 검증: 상세+후보 병렬 조회 → `Content`, 후보 실패 → `Error(retryable)`, 409 → `Closed`, 재조회 시 기존 `Content` 유지+`refreshing`, `dismiss()` 성공 → `onDismissed` 1회·중복 호출 무시, 실패 → `dismissError`·화면 유지, `select(candidate)`/`select(searchItem)` → `SelectedAlternative` 값(candidateId 유무). 구현 전 실패 확인
-- [ ] T020 [P] [US2] ProgressViewModel 배너 unit test in android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
+- [x] T020 [P] [US2] ProgressViewModel 배너 unit test in android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T011
@@ -191,18 +191,18 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: jy
   - 선행: T022, T023
   - 검증: Figma `AlternativePlacesScreen`/`alternativesEmpty` 기준. `map` slot 파라미터(테스트 교체용). 상태: `loading` 1초 지연 표시, `empty`(2km 안내 + `기존 일정 그대로 진행` gradient + `직접 검색해서 고르기`), `error`(ui-guidelines 9절 형식, `다시 시도하기`+돌아가기), `closed`(처리된 감지 안내+진행 화면으로), `content`(감지 요약·변수 칩·`추천 후보 N곳`·`직접 검색`·후보 행·TOP·`기존 일정 그대로 진행`). 평점 없으면 `★` 생략, `UNKNOWN`은 `운영시간 확인 불가`, `CLOSING_SOON` 경고색+문구, 이동 시간 문구 없음. 거절 요청 중 버튼 비활성. 접근성: 터치 48dp·간격 8dp·아이콘 버튼 `contentDescription`·후보 행 `contentDescription`·색 단독 금지·360dp/2.0 잘림 없음. 색·간격은 theme 토큰만
-- [ ] T025 [US2] 진행 화면 배너 in android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [x] T025 [US2] 진행 화면 배너 in android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: jy
   - 교차 확인: hs
   - 선행: T020
   - 검증: T020 통과. `ProgressViewModel(alternativeRepository: AlternativeRepository? = null)` 주입, `load()`에서 DETECT-001(`status=ACTIVE`, limit 50) 병렬 조회·실패 격리, `Content.activeDetections`·`bannerDetection`. `VariableWarningBanner`(Figma ActiveTravelScreen 배너: `warningContainer` gradient·Figma 경계색에 해당하는 theme 토큰·36dp 경고 박스·`{장소명} {이유}` / `{오후 4:00} 도착 예정 · {N분 전} 감지` · `›`)를 오늘·당일 미완료일 때만 표시, 탭 → `onOpenAlternatives(detectionId)`. 기존 progress 테스트 변경 없이 통과
-- [ ] T026 [US2] 대체 장소 navigation과 MainActivity 배선 in android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt, android/app/src/androidTest/java/com/gilpick/alternative/AlternativeNavigationTest.kt
+- [x] T026 [US2] 대체 장소 navigation과 MainActivity 배선 in android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt, android/app/src/androidTest/java/com/gilpick/alternative/AlternativeNavigationTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T025
   - 검증: `AlternativePlacesRoute(detectionId, tripId)`, `alternativeGraph(repository, map, onSelectPlace, onDismissed, onSessionExpired)` 테스트 seam, `LifecycleResumeEffect` 재조회. MainActivity: 배너 → `AlternativePlacesRoute`, `onDismissed` → popBackStack, `onSelectPlace`는 no-op 자리(F010 교체, KDoc에 F010 연결 지점 명시, `TODO` 주석 없음). `AlternativeNavigationTest`: 배너 탭 → 화면 진입, 후보 선택 → `onSelectPlace` 값 검증, 거절 → 진행 화면 복귀
-- [ ] T027 [US2] 대체 장소 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativePlacesScreenTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt
+- [x] T027 [US2] 대체 장소 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativePlacesScreenTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T025

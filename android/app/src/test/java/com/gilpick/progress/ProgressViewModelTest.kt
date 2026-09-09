@@ -6,6 +6,12 @@ import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
+import com.gilpick.alternative.AlternativeRepository
+import com.gilpick.alternative.DETECTION_ID
+import com.gilpick.alternative.DetectionStatus
+import com.gilpick.alternative.FakeAlternativeService
+import com.gilpick.alternative.activeDetectionsJson
+import com.gilpick.alternative.list
 import com.gilpick.itinerary.FakeItineraryService
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryError
@@ -68,6 +74,10 @@ class ProgressViewModelTest {
     private val progressService = FakeProgressService()
     private val itineraryService = FakeItineraryService()
     private val detectionService = FakeDetectionService()
+    private val alternativeService = FakeAlternativeService()
+
+    /** 대체 장소 repository 주입 여부. F009 배너 조회는 주입됐을 때만 한다(T020). */
+    private var withAlternative = true
     private val geofenceClient = RecordingGeofenceClient()
     private val geofenceSession = FakeDetectionSessionStore()
 
@@ -621,6 +631,73 @@ class ProgressViewModelTest {
         assertEquals(LocalDate.parse("2026-09-09"), (viewModel.state.value as ProgressUiState.Content).viewing)
     }
 
+    // ---- T020: 진행 화면 배너(F009 US2, UI-001) ----
+
+    @Test
+    fun `ACTIVE 감지 2건이면 status ACTIVE limit 50으로 조회하고 배너는 ETA가 이른 하나다`() = viewModelTest { viewModel ->
+        alternativeService.onListDetections = { list(activeDetectionsJson()) }
+
+        viewModel.load()
+        runCurrent()
+
+        assertEquals(listOf(DetectionStatus.ACTIVE to 50), alternativeService.listCalls)
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(2, content.activeDetections.size)
+        assertEquals(DETECTION_ID, content.bannerDetection?.detectionId)
+        assertEquals("경복궁", content.bannerDetection?.placeName)
+    }
+
+    @Test
+    fun `당일이 완료됐으면 감지가 있어도 배너가 없다`() = viewModelTest { viewModel ->
+        alternativeService.onListDetections = { list(activeDetectionsJson()) }
+        progressService.onGet = { progressOk(inProgress().copy(dayStatus = DayStatus.COMPLETED)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(2, content.activeDetections.size)
+        assertNull(content.bannerDetection)
+    }
+
+    @Test
+    fun `다른 날짜를 보는 동안에는 배너가 없고 오늘로 돌아오면 다시 있다`() = viewModelTest { viewModel ->
+        alternativeService.onListDetections = { list(activeDetectionsJson()) }
+        itineraryService.onOverview = { ok(threeDayOverview()) }
+        viewModel.load()
+        runCurrent()
+        assertNotNull((viewModel.state.value as ProgressUiState.Content).bannerDetection)
+
+        viewModel.selectDate(LocalDate.parse("2026-09-09"))
+        assertNull((viewModel.state.value as ProgressUiState.Content).bannerDetection)
+
+        viewModel.returnToToday()
+        assertNotNull((viewModel.state.value as ProgressUiState.Content).bannerDetection)
+    }
+
+    @Test
+    fun `감지 조회 실패는 배너만 숨기고 나머지 내용은 정상이다`() = viewModelTest { viewModel ->
+        alternativeService.onListDetections = { throw IOException("offline") }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(emptyList<Any>(), content.activeDetections)
+        assertNull(content.bannerDetection)
+        assertEquals(3, content.rows.size)
+    }
+
+    @Test
+    fun `대체 장소 repository가 없으면 감지를 조회하지 않는다`() = viewModelTest(withAlternative = false) { viewModel ->
+        viewModel.load()
+        runCurrent()
+
+        assertTrue(alternativeService.listCalls.isEmpty())
+        assertTrue(viewModel.state.value is ProgressUiState.Content)
+        assertNull((viewModel.state.value as ProgressUiState.Content).bannerDetection)
+    }
+
     /** 9/7~9/9 사흘 여행 개요. 어제는 완료된 창덕궁 한 곳, 내일은 예정 한 곳이다. */
     private fun threeDayOverview() = overview(
         day("2026-09-07", dayNumber = 1, version = 1, items = listOf(savedItem("item-past", 1, name = "창덕궁", status = ItemStatus.COMPLETED))),
@@ -688,7 +765,8 @@ class ProgressViewModelTest {
     )
 
     /** ViewModel을 만들어 test에 넘기고, 끝나면 `onCleared`로 매분 갱신 loop를 멈춘다. */
-    private fun viewModelTest(block: suspend TestScope.(ProgressViewModel) -> Unit) = runTest {
+    private fun viewModelTest(withAlternative: Boolean = true, block: suspend TestScope.(ProgressViewModel) -> Unit) = runTest {
+        this@ProgressViewModelTest.withAlternative = withAlternative
         val store = ViewModelStore()
         val viewModel = newViewModel()
         store.put("progress", viewModel)
@@ -731,6 +809,7 @@ class ProgressViewModelTest {
             detectionRepository = DetectionRepository(api = detectionService, auth = auth),
             geofenceManager = GeofenceManager(client = geofenceClient, session = geofenceSession),
             hasBackgroundPermission = { backgroundPermission },
+            alternativeRepository = AlternativeRepository(api = alternativeService, auth = auth).takeIf { withAlternative },
         )
     }
 }
