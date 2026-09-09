@@ -170,7 +170,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] ETA 변경 재평가 integration test in api/tests/integration/test_detection_reevaluation.py
+- [x] T022 [P] [US2] ETA 변경 재평가 integration test in api/tests/integration/test_detection_reevaluation.py
   - 영역: BE
   - 담당: jh
   - 선행: T018
@@ -178,12 +178,12 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] `reevaluate_day` 함수 in api/app/services/detection/evaluator.py
+- [x] T023 [US2] `reevaluate_day` 함수 in api/app/services/detection/evaluator.py
   - 영역: BE
   - 담당: jh
   - 선행: T018
   - 검증: `reevaluate_day(session_factory, trip_day_id)`가 그 날짜의 US1 대상 장소 전체를 다시 평가해 `ACTIVE` 행을 upsert·갱신. 실패는 예외를 삼키고 log만 남긴다. `evaluate_all_active`와 평가 로직을 공유(중복 구현 금지)
-- [ ] T024 [US2] 진행 전환 commit 이후 재평가 훅 in api/app/api/v1/progress.py
+- [x] T024 [US2] 진행 전환 commit 이후 재평가 훅 in api/app/api/v1/progress.py
   - 영역: BE
   - 담당: jh
   - 교차 확인: jy (F006 원 담당자 review)
