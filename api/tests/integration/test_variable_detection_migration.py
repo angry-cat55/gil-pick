@@ -20,7 +20,7 @@ def _config() -> Config:
 
 def test_detection_migration_is_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(_config())
-    assert script.get_heads() == ["008_create_detections"]
+    assert script.get_heads() == ["009_create_replacement_tables"]
     assert script.get_revision("008_create_detections").down_revision == "007_create_progress_events"
 
 

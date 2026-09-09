@@ -62,17 +62,17 @@ description: "F010 일정 변경 구현 task 목록"
 
 **⚠️ CRITICAL**: 이 단계 완료 전에는 User Story 구현을 시작하지 않는다.
 
-- [ ] T004 [P] 미리보기·변경 이력 모델 in api/app/models/replacement.py
+- [x] T004 [P] 미리보기·변경 이력 모델 in api/app/models/replacement.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
   - 검증: `RoutePreview`·`PlaceReplacement`가 data-model 1.1·1.2의 컬럼과 제약을 갖는다. `uq_route_previews_pending_detection`(`detection_id`에 `status='PENDING'` 부분 unique), `uq_place_replacements_preview`(`preview_id` unique), `CHECK status IN ('PENDING','APPROVED','REJECTED','SUPERSEDED')` 포함. **기존 테이블에 컬럼을 추가하지 않는다**
-- [ ] T005 신규 테이블 migration in api/alembic/versions/00X_add_route_previews_and_place_replacements.py
+- [x] T005 신규 테이블 migration in api/alembic/versions/00X_add_route_previews_and_place_replacements.py
   - 영역: BE
   - 담당: jh
   - 선행: T004
   - 검증: `uv run alembic upgrade head` 후 두 테이블과 부분 unique 인덱스가 생성되고 `downgrade`로 원복된다. 기존 테이블 스키마가 바뀌지 않았음을 `alembic check` 또는 diff로 확인
-- [ ] T006 [P] REPL 요청·응답 스키마 in api/app/schemas/replacement.py
+- [x] T006 [P] REPL 요청·응답 스키마 in api/app/schemas/replacement.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
