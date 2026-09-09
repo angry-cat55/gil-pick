@@ -418,12 +418,14 @@ erDiagram
 | `detected_at` | timestamptz | N | 생성 시각 |
 | `last_evaluated_at` | timestamptz | N | 마지막 평가 시각 |
 | `read_at` | timestamptz | Y | 읽음 시각 |
-| `resolved_at` | timestamptz | Y | 처리 완료 시각 |
+| `resolved_at` | timestamptz | Y | 처리 완료 시각. DETECT-004 감지 거절(`ACTIVE → DISMISSED`) 시각도 이 컬럼에 기록한다(별도 `dismissed_at` 컬럼 없음) |
 
 제약:
 
 - `ACTIVE` 상태의 `fingerprint`는 partial unique index를 사용한다.
 - 사용자 승인·거절 전에는 같은 item에 동일 제안 알림을 추가 생성하지 않는다.
+- DETECT-004 감지 거절은 `UPDATE ... SET status='DISMISSED', resolved_at=now() WHERE detection_id=? AND status='ACTIVE'`로 한 번만 반영한다(상태 기반 멱등). 비-`ACTIVE` 감지는 무변경으로 현재 상태를 반환한다.
+- ALT-001·ALT-002 후보 조회·직접 검색은 `detections`를 읽기만 하고 어떤 행도 쓰지 않는다.
 - 후보 추천 결과는 요청 때 계산하며 `alternative_candidates` 테이블을 만들지 않는다.
 - `candidateId`는 `detectionId`, `placeId`, 평가시각을 포함한 짧은 수명의 서명 토큰으로 반환한다.
 - 경로 미리보기 요청에서 `candidateId`를 검증한 뒤 후보 장소를 `places`에 upsert한다.
@@ -591,7 +593,9 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | ITIN·PLACE | `itinerary_items`, `places` |
 | ROUTE | `routes` |
 | PROG | `trip_days`, `itinerary_items`, `progress_events`, `progress_transitions`, `progress_segments` |
-| DETECT·ALT | `detections`, `places` |
+| DETECT-001·002·003 | `detections`, `trip_days`, `itinerary_items`, `places` (읽기) |
+| DETECT-004 | `detections` (`status`·`resolved_at` 쓰기) |
+| ALT-001·ALT-002 | `detections`, `itinerary_items`, `places` (읽기 전용, 후보 저장 없음) |
 | REPL | `route_previews`, `replacements`, `routes`, `itinerary_items` |
 | NOTI | `notifications`, `device_sessions` |
 

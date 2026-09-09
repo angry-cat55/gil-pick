@@ -23,6 +23,7 @@ from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.trip import Trip
 from app.schemas.auth import ResponseMeta
+from app.schemas.alternatives import DetectionDismissEnvelope
 from app.schemas.detection import (
     DetectionDetail,
     DetectionDetailEnvelope,
@@ -205,3 +206,25 @@ async def mark_detection_read(
         detection.read_at = datetime.now(UTC)
         await session.flush()
     return success_response(request, DetectionReadData(detection_id=detection_id, read=True))
+
+
+@router.post(
+    "/detections/{detectionId}/dismiss",
+    response_model=DetectionDismissEnvelope,
+    responses={401: {"model": ErrorEnvelope}, 403: {"model": ErrorEnvelope}, 404: {"model": ErrorEnvelope}},
+)
+async def dismiss_detection(
+    request: Request,
+    detection_id: Annotated[uuid.UUID, Path(alias="detectionId")],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> JSONResponse:
+    """`기존 일정 그대로 진행`(DETECT-004): ACTIVE 감지를 거절한다.
+
+    비-`ACTIVE` 감지는 상태를 바꾸지 않고 현재 상태를 그대로 200으로 돌려준다(상태 기반 멱등).
+    """
+    # 순환 import(alternatives 서비스 → 이 모듈의 owned_detection)를 피하려고 함수 안에서 import한다.
+    from app.services.alternatives import dismiss_detection as dismiss_active_detection
+
+    data = await dismiss_active_detection(detection_id, principal.user_id, session)
+    return success_response(request, data)

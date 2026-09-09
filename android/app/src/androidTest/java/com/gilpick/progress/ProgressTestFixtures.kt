@@ -1,5 +1,8 @@
 package com.gilpick.progress
 
+import com.gilpick.alternative.DetectionListItemDto
+import com.gilpick.alternative.DetectionStatus
+import com.gilpick.alternative.DetectionType
 import com.gilpick.auth.ResponseMeta
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.itinerary.DayItineraryDto
@@ -220,4 +223,17 @@ internal fun arrivalUndoable() = UndoableTransitionDto(
     type = UndoableKind.ARRIVAL,
     confirmedAt = "2026-09-08T14:38:00+09:00",
     undoDeadline = "2026-09-08T14:43:00+09:00",
+)
+
+/** 인사동거리 혼잡 감지. ETA 오후 4:00, [NOW_BEFORE_ETA](오후 2:08) 5분 전 감지(Figma 배너 문구 그대로). */
+internal fun insadongDetection() = DetectionListItemDto(
+    detectionId = "det-insadong", itemId = ITEM_C, placeName = "인사동거리", primaryType = DetectionType.CONGESTION,
+    status = DetectionStatus.ACTIVE, totalRiskScore = 61, eta = "2026-09-08T16:00:00+09:00",
+    reason = "지금 매우 혼잡해요", createdAt = "2026-09-08T14:03:00+09:00", read = false,
+)
+
+/** ETA가 더 늦은 감지. 배너에 오르지 않는다. */
+internal fun laterDetection() = insadongDetection().copy(
+    detectionId = "det-later", itemId = "item-later", placeName = "남산타워", primaryType = DetectionType.WEATHER,
+    eta = "2026-09-08T17:00:00+09:00", reason = "오후 강수 예보",
 )

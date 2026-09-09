@@ -158,8 +158,9 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | DETECT-001 | 변수 감지 | 감지 목록 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}/detections` |
 | DETECT-002 | 변수 감지 | 감지 상세 조회 | [ ] | [ ] | GET | `/api/v1/detections/{detectionId}` |
 | DETECT-003 | 변수 감지 | 감지 읽음 처리 | [ ] | [ ] | PATCH | `/api/v1/detections/{detectionId}/read` |
-| ALT-001 | 대체 장소 | 추천 후보 조회 | [ ] | [ ] | GET | `/api/v1/detections/{detectionId}/alternatives` |
-| ALT-002 | 대체 장소 | 대체 장소 직접 검색 | [ ] | [ ] | GET | `/api/v1/detections/{detectionId}/alternatives/search` |
+| DETECT-004 | 변수 감지 | 감지 거절 (기존 일정 그대로 진행) | [ ] | [X] | POST | `/api/v1/detections/{detectionId}/dismiss` |
+| ALT-001 | 대체 장소 | 추천 후보 조회 | [ ] | [X] | GET | `/api/v1/detections/{detectionId}/alternatives` |
+| ALT-002 | 대체 장소 | 대체 장소 직접 검색 | [ ] | [X] | GET | `/api/v1/detections/{detectionId}/alternatives/search` |
 | REPL-001 | 일정 변경 | 대체 경로 미리보기 생성 | [ ] | [ ] | POST | `/api/v1/detections/{detectionId}/route-previews` |
 | REPL-002 | 일정 변경 | 대체 장소 승인 | [ ] | [ ] | POST | `/api/v1/route-previews/{previewId}/approve` |
 | REPL-003 | 일정 변경 | 대체 장소 거절 | [ ] | [ ] | POST | `/api/v1/route-previews/{previewId}/reject` |
@@ -1393,7 +1394,9 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 
 `GET /api/v1/trips/{tripId}/detections`
 
-Query: `cursor`, `limit`
+Query: `cursor`, `limit`, 선택 `status`(`ACTIVE | RESOLVED | DISMISSED | INVALIDATED`)
+
+`status`를 주면 그 상태만, 없으면 기존처럼 전체를 최신순으로 반환한다. 진행 화면의 변수 경고 배너는 `status=ACTIVE`로 조회한다.
 
 Response `200`:
 
@@ -1409,6 +1412,8 @@ Response `200`:
         "primaryType": "OPERATING_HOURS",
         "status": "ACTIVE",
         "totalRiskScore": 78,
+        "eta": "2026-08-22T13:00:00+09:00",
+        "reason": "도착 시각에 영업이 어렵거나 곧 문을 닫아요",
         "createdAt": "2026-08-22T11:00:00+09:00",
         "read": false
       }
@@ -1505,6 +1510,35 @@ Response `200`:
 
 주요 오류: `401`, `403`, `404`
 
+### DETECT-004 감지 거절 (기존 일정 그대로 진행)
+
+`POST /api/v1/detections/{detectionId}/dismiss`
+
+Request Body: 없음
+
+`대체 장소` 화면의 `기존 일정 그대로 진행`이다. `ACTIVE` 감지를 `DISMISSED`로 바꾸고 `resolved_at`을 기록한다. 이미 `DISMISSED`·`RESOLVED`·`INVALIDATED`면 상태를 바꾸지 않고 현재 상태를 그대로 `200`으로 돌려준다(상태 기반 멱등, `Idempotency-Key` 불필요). 일정·경로는 바꾸지 않는다.
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "detectionId": "uuid",
+    "status": "DISMISSED",
+    "decidedAt": "2026-08-22T11:20:00+09:00"
+  },
+  "meta": {
+    "requestId": "uuid"
+  }
+}
+```
+
+- `status`: 반영 후 현재 상태.
+- `decidedAt`: 거절·처리 시각. `INVALIDATED`처럼 사용자 결정이 없는 상태면 `null`.
+
+주요 오류: `401`, `403`, `404`
+
 ### 7.2 추천 점수 정책
 
 기본 가중치:
@@ -1528,9 +1562,19 @@ Response `200`:
 - 반환 후보 최대 10개
 - 동점: 거리 짧음 → Bayesian 평점 높음 → 리뷰 수 많음
 
+후보 탐색 순서:
+1. 기존 장소 좌표에서 TourAPI 위치 기반 목록을 2km 한 번 받고, 0.5km→1km→2km 반경 사다리와 소분류→중분류→대분류 비교 단계를 메모리에서 적용한다. 응답 `categoryMatchLevel`은 실제로 후보를 찾은 단계(`SMALL | MIDDLE | LARGE`)이고, 2km·대분류에도 없으면 `NONE`·`items: []`·`searchRadiusMeters: 2000`이다.
+2. 기존 장소와 같은 날짜 일정의 다른 장소는 후보에서 제외한다.
+3. 거리·혼잡·날씨만으로 예비 점수를 매겨 상위부터 Google Text Search를 후보당 1회씩 호출해 평점을 병합하고 운영 상태를 확인한다. 운영 종료(폐점 이후·임시휴업·영업 종료) 후보는 제외하며, 운영 중 후보 10개를 채우거나 확인 횟수가 `OPERATING_CHECK_LIMIT`(20)에 이르면 중단한다. 반경은 이때 넓히지 않는다.
+4. 확인된 후보만으로 Bayesian 보정과 최종 점수를 계산해 정렬한다.
+
+선택적 외부 데이터(Google 평점·서울시 혼잡·기상청 날씨·운영시간)의 실패는 해당 변수에만 격리하고 `scoreBreakdown`에서 그 key를 생략한다. 실내 카테고리 후보는 예보가 있어도 `weather`를 제외한다. TourAPI 조회가 재시도 후에도 실패하면 후보 없음이 아니라 `502`·`504`로 응답한다(빈 목록 위장 금지).
+
 ### ALT-001 추천 후보 조회
 
 `GET /api/v1/detections/{detectionId}/alternatives`
+
+`ACTIVE` 감지에 대해서만 동작하며, 비-`ACTIVE`면 `409 DETECTION_NOT_ACTIVE`(`details.status`에 현재 상태)를 반환한다. 후보는 저장하지 않는다.
 
 Response `200`:
 
@@ -1538,15 +1582,36 @@ Response `200`:
 {
   "success": true,
   "data": {
+    "detectionId": "uuid",
+    "originPlaceId": "tourapi:126508",
+    "eta": "2026-08-22T13:00:00+09:00",
     "searchRadiusMeters": 500,
+    "categoryMatchLevel": "SMALL",
+    "evaluatedAt": "2026-08-22T11:12:00+09:00",
     "items": [
       {
-        "placeId": "tourapi:123",
-        "name": "대체 장소",
-        "category": "문화·역사",
+        "rank": 1,
+        "candidateId": "eyJkIjoi...서명토큰",
+        "place": {
+          "placeId": "tourapi:123",
+          "source": "TOUR_API",
+          "sourcePlaceId": "123",
+          "name": "대체 장소",
+          "category": "HISTORY_CULTURE",
+          "tourApiCategory": { "large": "A02", "middle": "A0201", "small": "A02010100" },
+          "address": "서울특별시 종로구 ...",
+          "latitude": 37.5800,
+          "longitude": 126.9770,
+          "imageUrl": "https://...",
+          "recommendedStayMinutes": 90,
+          "rating": 4.5,
+          "userRatingCount": 820,
+          "businessStatus": "OPERATIONAL",
+          "regularOpeningHours": null,
+          "currentOpeningHours": null,
+          "googleAttributions": ["Google Maps"]
+        },
         "distanceMeters": 320,
-        "rating": 4.5,
-        "userRatingCount": 820,
         "adjustedRating": 4.42,
         "score": 86.73,
         "displayScore": 87,
@@ -1556,7 +1621,9 @@ Response `200`:
           "congestion": 0.76,
           "weather": 1.0
         },
-        "operatingStatus": "OPEN"
+        "operatingStatus": "OPEN",
+        "closesAt": "2026-08-22T21:00:00+09:00",
+        "reasons": ["CLOSER", "NOT_CROWDED", "OPEN_AT_ETA"]
       }
     ]
   },
@@ -1566,23 +1633,27 @@ Response `200`:
 }
 ```
 
-탐색 반경:
-1. 500m
-2. 후보 없음 → 1km
-3. 후보 없음 → 최대 2km
-4. 2km에도 없으면 대체 장소 없음
+- `place`: PLACE-001 장소 DTO 전체를 그대로 중첩한다.
+- `categoryMatchLevel`: 후보를 찾은 분류 비교 단계 `SMALL | MIDDLE | LARGE`. 후보 없음이면 `NONE`이고 `items: []`, `searchRadiusMeters: 2000`.
+- `scoreBreakdown`: 점수에 실제로 쓰인 0~1 정규화 변수만. 데이터 결손·실내 등으로 제외된 변수는 key 자체를 생략한다.
+- `operatingStatus`: `OPEN | CLOSING_SOON | UNKNOWN`. `CLOSED`는 후보에서 제외되어 나타나지 않는다.
+- `closesAt`: 폐점 시각(있을 때만). 없으면 `null`.
+- `reasons`: `INDOOR | NOT_CROWDED | NO_RAIN_RISK | CLOSER | OPEN_AT_ETA` 중 해당 항목.
+- `candidateId`: `detectionId`·`placeId`·`evaluatedAt`을 담은 15분 유효 서명 토큰. F010 미리보기 생성에서 검증한다.
 
-기준점은 기존 장소 좌표다.
+기준점은 기존 장소 좌표다. 탐색 반경 사다리와 분류 단계는 7.2 "후보 탐색 순서"를 따른다.
 
-주요 오류: `403`, `404`, `502`, `504`
+주요 오류: `403`, `404`, `409 DETECTION_NOT_ACTIVE`, `502`, `504`
 
 ### ALT-002 대체 장소 직접 검색
 
 `GET /api/v1/detections/{detectionId}/alternatives/search`
 
-Query: `query`, 선택 `cursor`, `limit`
+Query:
+- `query`: trim 후 2글자 이상. 미만이면 `400 INVALID_REQUEST`.
+- 선택 `cursor`, `limit`(기본·최대 20).
 
-Response 구조는 PLACE-001과 동일한 장소 기본 DTO를 사용하되 해당 detection의 기존 장소를 기준으로 거리와 방문 가능 여부를 추가한다.
+`ACTIVE` 감지에 대해서만 동작한다(비-`ACTIVE` → `409 DETECTION_NOT_ACTIVE`). PLACE-001 장소 검색을 그대로 실행하고 추가 Google 호출 없이 이미 병합된 필드만 사용해, 해당 detection의 기존 장소를 기준으로 거리·운영 상태·방문 가능 여부·일정 포함 여부를 덧붙인다. 운영 종료 장소도 결과에서 빼지 않고 `visitable=false`로 표시한다.
 
 ```json
 {
@@ -1590,11 +1661,29 @@ Response 구조는 PLACE-001과 동일한 장소 기본 DTO를 사용하되 해�
   "data": {
     "items": [
       {
-        "placeId": "tourapi:456",
-        "name": "직접 검색 장소",
-        "category": "카페",
+        "place": {
+          "placeId": "tourapi:456",
+          "source": "TOUR_API",
+          "sourcePlaceId": "456",
+          "name": "직접 검색 장소",
+          "category": "CAFE",
+          "tourApiCategory": { "large": "A05", "middle": "A0502", "small": "A05020900" },
+          "address": "서울특별시 ...",
+          "latitude": 37.5700,
+          "longitude": 126.9800,
+          "imageUrl": null,
+          "recommendedStayMinutes": 60,
+          "rating": 4.3,
+          "userRatingCount": 210,
+          "businessStatus": "OPERATIONAL",
+          "regularOpeningHours": null,
+          "currentOpeningHours": null,
+          "googleAttributions": null
+        },
         "distanceMeters": 680,
-        "visitable": true
+        "operatingStatus": "OPEN",
+        "visitable": true,
+        "inSchedule": false
       }
     ]
   },
@@ -1608,7 +1697,13 @@ Response 구조는 PLACE-001과 동일한 장소 기본 DTO를 사용하되 해�
 }
 ```
 
-주요 오류: `400`, `403`, `404`, `502`, `504`
+- `place`: PLACE-001 장소 DTO 전체.
+- `distanceMeters`: 기존 장소 기준 haversine 거리. 좌표가 없으면 `null`.
+- `operatingStatus`: `businessStatus`만으로 판정한다 — `CLOSED_TEMPORARILY`·`CLOSED_PERMANENTLY` → `CLOSED`, `OPERATIONAL` → `OPEN`, 없음 → `UNKNOWN`. 폐점 시각 기반 `CLOSING_SOON`은 ALT-002에 없다.
+- `visitable`: `operatingStatus != CLOSED && !inSchedule`.
+- `inSchedule`: 기존 장소 자신 또는 같은 날짜 일정의 장소.
+
+주요 오류: `400 INVALID_REQUEST | INVALID_CURSOR`, `403`, `404`, `409 DETECTION_NOT_ACTIVE`, `429`, `502`, `504`
 
 ## 8. 대체 일정 변경
 

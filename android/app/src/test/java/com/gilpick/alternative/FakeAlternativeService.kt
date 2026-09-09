@@ -17,9 +17,19 @@ class FakeAlternativeService : AlternativeService {
     /** 지금까지 도착한 거절 요청의 detectionId. */
     val dismissCalls = mutableListOf<String>()
 
+    /** 지금까지 도착한 감지 목록 요청의 `(status, limit)`. 진행 화면 배너 조회를 확인한다. */
+    val listCalls = mutableListOf<Pair<DetectionStatus?, Int?>>()
+
+    var onListDetections: suspend () -> Response<DetectionListEnvelope> = { list(detectionListJson()) }
+
     var onGetDetection: suspend () -> Response<SuccessEnvelope<DetectionDetailDto>> = { ok(detectionDetailJson()) }
     var onListAlternatives: suspend () -> Response<SuccessEnvelope<AlternativeListDto>> = { ok(alternativesJson()) }
     var onDismiss: suspend () -> Response<SuccessEnvelope<DismissResultDto>> = { ok(dismissJson()) }
+
+    /** 지금까지 도착한 직접 검색 요청의 `(query, cursor)`. */
+    val searchCalls = mutableListOf<Pair<String, String?>>()
+
+    var onSearch: suspend (cursor: String?) -> Response<AlternativeSearchEnvelope> = { search(searchJson()) }
 
     override suspend fun listDetections(
         bearer: String,
@@ -27,7 +37,10 @@ class FakeAlternativeService : AlternativeService {
         status: DetectionStatus?,
         cursor: String?,
         limit: Int?,
-    ): Response<DetectionListEnvelope> = throw UnsupportedOperationException("이 test는 감지 목록을 쓰지 않는다")
+    ): Response<DetectionListEnvelope> {
+        listCalls += status to limit
+        return onListDetections()
+    }
 
     override suspend fun getDetection(bearer: String, detectionId: String) = onGetDetection()
 
@@ -44,7 +57,10 @@ class FakeAlternativeService : AlternativeService {
         query: String,
         cursor: String?,
         limit: Int?,
-    ): Response<AlternativeSearchEnvelope> = throw UnsupportedOperationException("이 test는 직접 검색을 쓰지 않는다")
+    ): Response<AlternativeSearchEnvelope> {
+        searchCalls += query to cursor
+        return onSearch(cursor)
+    }
 }
 
 private val json = Json { ignoreUnknownKeys = true }
@@ -52,6 +68,12 @@ private val json = Json { ignoreUnknownKeys = true }
 /** 계약 JSON을 성공 응답으로 감싼다. */
 internal inline fun <reified T> ok(body: String): Response<SuccessEnvelope<T>> =
     Response.success(json.decodeFromString<SuccessEnvelope<T>>(body))
+
+/** DETECT-001 계약 JSON을 성공 응답으로 감싼다. `meta.pagination`이 있어 [SuccessEnvelope]가 아니다. */
+internal fun list(body: String): Response<DetectionListEnvelope> = Response.success(json.decodeFromString<DetectionListEnvelope>(body))
+
+/** ALT-002 계약 JSON을 성공 응답으로 감싼다. */
+internal fun search(body: String): Response<AlternativeSearchEnvelope> = Response.success(json.decodeFromString<AlternativeSearchEnvelope>(body))
 
 /** 계약 오류 JSON을 HTTP 오류 응답으로 감싼다. */
 internal fun <T> fail(httpStatus: Int, code: String, retryable: Boolean = false, details: String = "null"): Response<T> =

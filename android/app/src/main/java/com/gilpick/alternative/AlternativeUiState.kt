@@ -53,3 +53,46 @@ val AlternativeError.retryable: Boolean
         is AlternativeError.ProviderFailed -> retryable
         is AlternativeError.NotActive, AlternativeError.NotFound, AlternativeError.Forbidden, AlternativeError.SessionExpired -> false
     }
+
+/**
+ * 직접 검색 화면의 표시 단계(spec US3, T032). F003 `PlaceSearchPhase`와 같은 구분이되 조건은 검색어뿐이다.
+ */
+sealed interface AlternativeSearchPhase {
+    /** 검색을 실행한 적이 없다. F003 `어떤 장소를 찾고 계세요?`. */
+    data object Idle : AlternativeSearchPhase
+
+    /** 첫 페이지를 기다리는 중. */
+    data object Loading : AlternativeSearchPhase
+
+    /** 결과가 있다. 목록은 [AlternativeSearchUiState.results]다. */
+    data object Content : AlternativeSearchPhase
+
+    /** 정상 응답이지만 결과가 없다. */
+    data object Empty : AlternativeSearchPhase
+
+    /** 공백을 뗀 검색어가 2글자 미만이라 요청하지 않았다(US3 Scenario 4). */
+    data object TooShort : AlternativeSearchPhase
+
+    /** 첫 페이지 조회에 실패했다. `409`는 [AlternativeError.NotActive]로 처리된 감지임을 알린다. */
+    data class Failed(val error: AlternativeError) : AlternativeSearchPhase
+}
+
+/**
+ * 직접 검색 화면 상태. F003 `PlaceSearchUiState`에서 카테고리를 뺀 것이다.
+ *
+ * @property query 입력창의 현재 값(draft).
+ * @property committedQuery 마지막으로 실행한 검색어. 빈 결과 문구가 쓴다.
+ * @property results 화면에 보이는 결과. [AlternativeSearchPhase.Content]가 아니면 비어 있다.
+ * @property hasNext 이어질 페이지가 남았는지 여부.
+ * @property loadingMore 다음 페이지를 받는 중인지 여부.
+ * @property loadMoreError 다음 페이지 조회만 실패한 원인. 기존 결과는 유지한다.
+ */
+data class AlternativeSearchUiState(
+    val query: String = "",
+    val committedQuery: String = "",
+    val results: List<AlternativeSearchItemDto> = emptyList(),
+    val phase: AlternativeSearchPhase = AlternativeSearchPhase.Idle,
+    val hasNext: Boolean = false,
+    val loadingMore: Boolean = false,
+    val loadMoreError: AlternativeError? = null,
+)

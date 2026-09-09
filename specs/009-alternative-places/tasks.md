@@ -151,7 +151,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] DETECT-004 계약 test in api/tests/contract/test_detections_contract.py
+- [x] T018 [P] [US2] DETECT-004 계약 test in api/tests/contract/test_detections_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T009
@@ -161,7 +161,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: jy
   - 선행: T011
   - 검증: 상세+후보 병렬 조회 → `Content`, 후보 실패 → `Error(retryable)`, 409 → `Closed`, 재조회 시 기존 `Content` 유지+`refreshing`, `dismiss()` 성공 → `onDismissed` 1회·중복 호출 무시, 실패 → `dismissError`·화면 유지, `select(candidate)`/`select(searchItem)` → `SelectedAlternative` 값(candidateId 유무). 구현 전 실패 확인
-- [ ] T020 [P] [US2] ProgressViewModel 배너 unit test in android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
+- [x] T020 [P] [US2] ProgressViewModel 배너 unit test in android/app/src/test/java/com/gilpick/progress/ProgressViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T011
@@ -169,7 +169,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] DETECT-004 감지 거절 endpoint in api/app/api/v1/detections.py, api/app/services/alternatives/__init__.py
+- [x] T021 [US2] DETECT-004 감지 거절 endpoint in api/app/api/v1/detections.py, api/app/services/alternatives/__init__.py
   - 영역: BE
   - 담당: ts
   - 교차 확인: jh
@@ -191,18 +191,18 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: jy
   - 선행: T022, T023
   - 검증: Figma `AlternativePlacesScreen`/`alternativesEmpty` 기준. `map` slot 파라미터(테스트 교체용). 상태: `loading` 1초 지연 표시, `empty`(2km 안내 + `기존 일정 그대로 진행` gradient + `직접 검색해서 고르기`), `error`(ui-guidelines 9절 형식, `다시 시도하기`+돌아가기), `closed`(처리된 감지 안내+진행 화면으로), `content`(감지 요약·변수 칩·`추천 후보 N곳`·`직접 검색`·후보 행·TOP·`기존 일정 그대로 진행`). 평점 없으면 `★` 생략, `UNKNOWN`은 `운영시간 확인 불가`, `CLOSING_SOON` 경고색+문구, 이동 시간 문구 없음. 거절 요청 중 버튼 비활성. 접근성: 터치 48dp·간격 8dp·아이콘 버튼 `contentDescription`·후보 행 `contentDescription`·색 단독 금지·360dp/2.0 잘림 없음. 색·간격은 theme 토큰만
-- [ ] T025 [US2] 진행 화면 배너 in android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [x] T025 [US2] 진행 화면 배너 in android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: jy
   - 교차 확인: hs
   - 선행: T020
   - 검증: T020 통과. `ProgressViewModel(alternativeRepository: AlternativeRepository? = null)` 주입, `load()`에서 DETECT-001(`status=ACTIVE`, limit 50) 병렬 조회·실패 격리, `Content.activeDetections`·`bannerDetection`. `VariableWarningBanner`(Figma ActiveTravelScreen 배너: `warningContainer` gradient·Figma 경계색에 해당하는 theme 토큰·36dp 경고 박스·`{장소명} {이유}` / `{오후 4:00} 도착 예정 · {N분 전} 감지` · `›`)를 오늘·당일 미완료일 때만 표시, 탭 → `onOpenAlternatives(detectionId)`. 기존 progress 테스트 변경 없이 통과
-- [ ] T026 [US2] 대체 장소 navigation과 MainActivity 배선 in android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt, android/app/src/androidTest/java/com/gilpick/alternative/AlternativeNavigationTest.kt
+- [x] T026 [US2] 대체 장소 navigation과 MainActivity 배선 in android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt, android/app/src/androidTest/java/com/gilpick/alternative/AlternativeNavigationTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T025
   - 검증: `AlternativePlacesRoute(detectionId, tripId)`, `alternativeGraph(repository, map, onSelectPlace, onDismissed, onSessionExpired)` 테스트 seam, `LifecycleResumeEffect` 재조회. MainActivity: 배너 → `AlternativePlacesRoute`, `onDismissed` → popBackStack, `onSelectPlace`는 no-op 자리(F010 교체, KDoc에 F010 연결 지점 명시, `TODO` 주석 없음). `AlternativeNavigationTest`: 배너 탭 → 화면 진입, 후보 선택 → `onSelectPlace` 값 검증, 거절 → 진행 화면 복귀
-- [ ] T027 [US2] 대체 장소 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativePlacesScreenTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt
+- [x] T027 [US2] 대체 장소 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativePlacesScreenTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T025
@@ -220,12 +220,12 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] ALT-002 계약 test in api/tests/contract/test_alternatives_contract.py
+- [x] T028 [P] [US3] ALT-002 계약 test in api/tests/contract/test_alternatives_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T014
   - 검증: `place` DTO+`distanceMeters`·`operatingStatus`·`visitable`·`inSchedule`, `meta.pagination`, 1글자 → 400, 기존 장소 `inSchedule=true`·`visitable=false`, `CLOSED_TEMPORARILY` → `CLOSED`·`visitable=false`(결과 유지), 409/403, PLACE-001과 같은 provider 오류 형식. 구현 전 실패 확인
-- [ ] T029 [P] [US3] 직접 검색 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeSearchScreenTest.kt
+- [x] T029 [P] [US3] 직접 검색 화면 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeSearchScreenTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T011
@@ -233,18 +233,18 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] AlternativeService.search와 ALT-002 endpoint in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py
+- [x] T030 [US3] AlternativeService.search와 ALT-002 endpoint in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py
   - 영역: BE
   - 담당: ts
   - 선행: T028, T017
   - 검증: T028 통과. `PlaceService.search_places(query, category=None, area_code=None, cursor, limit)` 재사용, 거리 haversine, `inSchedule` 집합, `operatingStatus`는 `business_status`만으로(research R8), 추가 Google 호출 없음
-- [ ] T031 [P] [US3] PlaceSearchScreen 재사용 slot in android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
+- [x] T031 [P] [US3] PlaceSearchScreen 재사용 slot in android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt
   - 영역: FE
   - 담당: jy
   - 교차 확인: hs
   - 선행: 없음
   - 검증: `PlaceRow`·`EmptyState`를 `internal`로 열고 `PlaceRow(trailing: @Composable () -> Unit = {}, enabled: Boolean = true)` slot 추가. F003 `PlaceSearchScreenTest`·screenshot 변경 없이 통과
-- [ ] T032 [US3] 직접 검색 화면과 route in android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt
+- [x] T032 [US3] 직접 검색 화면과 route in android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeNavigation.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T029, T031, T026
@@ -262,7 +262,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 4
 
-- [ ] T033 [P] [US4] 결손·실패 격리 test in api/tests/unit/test_alternative_candidates.py, api/tests/contract/test_alternatives_contract.py
+- [x] T033 [P] [US4] 결손·실패 격리 test in api/tests/unit/test_alternative_candidates.py, api/tests/contract/test_alternatives_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T016, T017
@@ -270,7 +270,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] 격리 보장과 추적 log in api/app/services/alternatives/candidates.py, api/app/services/alternatives/__init__.py
+- [x] T034 [US4] 격리 보장과 추적 log in api/app/services/alternatives/candidates.py, api/app/services/alternatives/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: T033
@@ -280,28 +280,28 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T035 [P] api-spec·er-schema 동기화 in docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T035 [P] api-spec·er-schema 동기화 in docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: BE
   - 담당: ts
   - 교차 확인: jy
   - 선행: T017, T021, T030
   - 검증: data-model.md §4 목록대로 §2 구현 현황(ALT-001·ALT-002 `[x]`, DETECT-004 행), §7 DETECT-001 확장·DETECT-004 신설·ALT-001/002 예시 갱신, er-schema §8.1 `resolved_at` 설명·§13 매핑. `contracts/alternatives.openapi.yaml`과 필드 대조 결과를 PR에 기록
-- [ ] T036 [P] 요구사항·기능 명세 5절 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
+- [x] T036 [P] 요구사항·기능 명세 5절 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
   - 영역: 통합
   - 담당: jy
   - 선행: T001
   - 검증: ALT-01~05에 반경·분류 결합 순서(Clarifications), 운영 상태 확인 순서(점수 상위부터 10개, 상한 20), 감지 거절(`기존 일정 그대로 진행` = DISMISSED)을 반영. 값은 `policy.py`가 정본임을 명시
-- [ ] T037 [US2] 대체 장소·배너 screenshot과 실제 지도 확인 in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeScreenshotTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt
+- [x] T037 [US2] 대체 장소·배너 screenshot과 실제 지도 확인 in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeScreenshotTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T025, T032
   - 검증: 후보 있음·후보 없음·추천 실패·처리된 감지 × (360dp 기본, 360dp fontScale 2.0) 8장 + 배너 2장을 ATD `captureToImage`로 저장, 360dp·2.0 잘림·가로 스크롤 없음, 터치 48dp 확인. `AlternativeMap` 실제 마커는 `gilpick_api36_play`+Naver 키로 확인해 screenshot을 PR에 첨부
-- [ ] T038 quickstart Backend 검증 실행 in specs/009-alternative-places/quickstart.md
+- [x] T038 quickstart Backend 검증 실행 in specs/009-alternative-places/quickstart.md
   - 영역: BE
   - 담당: ts
   - 선행: T017, T021, T030, T034, T035
   - 검증: quickstart BE 1~9 전부 실행하고 결과·미실행 항목(실제 TourAPI·Google 연동은 local `.env` 자격으로 가능한 범위)을 quickstart "검증 기록" 절과 PR에 기록. `pytest tests/unit tests/contract` 전체 통과(기존 auth 9건 제외)
-- [ ] T039 quickstart Android·실서버 검증과 Feature 상태 갱신 in specs/009-alternative-places/quickstart.md, docs/planning/mvp-features.md
+- [x] T039 quickstart Android·실서버 검증과 Feature 상태 갱신 in specs/009-alternative-places/quickstart.md, docs/planning/mvp-features.md
   - 영역: 통합
   - 담당: jy
   - 교차 확인: ts

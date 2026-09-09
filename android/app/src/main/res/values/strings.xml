@@ -433,6 +433,11 @@
     <string name="detection_off_enable">권한 허용</string>
     <string name="detection_off_dismiss">닫기</string>
 
+    <!-- F009 진행 화면 변수 경고 배너(UI-001) -->
+    <string name="progress_banner_title">%1$s %2$s</string>
+    <string name="progress_banner_subtitle">%1$s 도착 예정 · %2$s 전 감지</string>
+    <string name="progress_banner_open">대체 장소 보기</string>
+
     <!-- F009 대체 장소 화면(Figma AlternativePlacesScreen / alternativesEmpty) -->
     <string name="alternative_loading">대체 장소를 불러오는 중</string>
     <string name="alternative_back">뒤로</string>
@@ -486,4 +491,8 @@
     <string name="alternative_to_progress">진행 화면으로</string>
     <string name="alternative_dismiss_retry">다시 시도</string>
     <string name="alternative_dismiss_close">닫기</string>
+    <string name="alternative_search_idle_hint">기존 장소 대신 갈 곳의 이름을 검색해 보세요</string>
+    <string name="alternative_search_empty_hint">띄어쓰기나 철자를 확인해 주세요</string>
+    <string name="alternative_search_from_origin">기존 장소에서 %1$s</string>
+    <string name="alternative_in_schedule">이미 일정에 있음</string>
 </resources>

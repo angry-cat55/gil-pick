@@ -1,5 +1,6 @@
 package com.gilpick.progress
 
+import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryError
@@ -7,6 +8,7 @@ import com.gilpick.itinerary.ItineraryItemDto
 import com.gilpick.route.RouteMarks
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 
 /**
  * 진행 화면의 표시 상태(`plan.md` State & Interaction, spec UI-008).
@@ -41,6 +43,7 @@ sealed interface ProgressUiState {
      * @property undoError 마지막 되돌리기 실패. 토스트에 원인을 보인다.
      * @property detectionOff 자동 감지가 꺼진 원인. `null`이면 켜져 있다(UI-005).
      * @property detectionNoticeDismissed 사용자가 꺼짐 안내를 닫았다. 안내를 따르지 않아도 진행은 계속된다(FR-025).
+     * @property activeDetections F008 변수 감지 중 사용자 결정 전(`ACTIVE`)인 것(DETECT-001). 조회 실패면 빈 목록이다(F009 data-model §3.3).
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -56,7 +59,17 @@ sealed interface ProgressUiState {
         val undoError: DetectionError? = null,
         val detectionOff: DetectionOffReason? = null,
         val detectionNoticeDismissed: Boolean = false,
+        val activeDetections: List<DetectionListItemDto> = emptyList(),
     ) : ProgressUiState {
+
+        /**
+         * 변수 경고 배너에 보일 감지(F009 UI-001). 오늘을 보고 있고 당일이 끝나지 않았을 때 도착 예정 시각이
+         * 가장 이른 하나다. Figma 배너는 단일 항목이라 나머지는 F011 감지 목록이 다룬다. 없으면 배너도 없다.
+         */
+        val bannerDetection: DetectionListItemDto?
+            get() = activeDetections
+                .takeIf { isToday && progress.dayStatus != DayStatus.COMPLETED }
+                ?.minByOrNull { OffsetDateTime.parse(it.eta) }
 
         /**
          * 지금 띄울 자동 감지 꺼짐 안내. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다.
