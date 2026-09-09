@@ -195,23 +195,23 @@ description: "Task list for F011 알림"
 
 **Independent Test**: quickstart BE 2 + AND 3 — `register_event` 후 `ARRIVAL_CHECK`/`DEPARTURE_CHECK` 1행, 무응답 자동 확정 시 `..._AUTO_CONFIRMED` 1행(되돌리기 남은 시간), 재질문 시 `prompt_seq=2` 1행(최대 2회), 당일 완료 후 미생성, 탭 시 `ActiveTravelRoute`.
 
-- [ ] T026 [US3] 확인·자동·재질문 hook in api/app/services/detection/__init__.py
+- [x] T026 [US3] 확인·자동·재질문 hook in api/app/services/detection/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: T009
   - 검증: `register_event`가 `PENDING_CONFIRMATION` 전환 생성 직후 `create_transition_check(prompt_seq=1)`, `_auto_confirm` 직후 `create_transition_auto_confirmed`, `decide_transition(NOT_ARRIVED)`가 `next_prompt_at`을 남긴 뒤 dispatch가 발견해 `create_transition_check(prompt_seq=2)`. 전환 규칙·응답 불변. 교차 계약 review: F006/F007 담당
-- [ ] T027 [US3] dispatch finalize·재질문 알림 통합 검증 in api/tests/unit/test_notification_dispatch.py, api/tests/unit/test_notification_service.py
+- [x] T027 [US3] dispatch finalize·재질문 알림 통합 검증 in api/tests/unit/test_notification_dispatch.py, api/tests/unit/test_notification_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T010, T026
   - 검증: T010의 `tick`과 T026의 hook을 함께 실행했을 때 만료 후보가 자동 확정 알림으로 이어지고, `next_prompt_at <= now` 후보에는 `prompt_seq=2` 알림이 한 번만 생성되는지 검증한다. `finalize_due_candidates` 호출과 재질문 스캔 자체는 T010 구현을 재사용한다.
   - 교차 계약 review: T026의 F006/F007 hook과 기존 전환 규칙·응답 불변을 담당자가 확인한다.
-- [ ] T028 [US3] 확인 알림 즉시 발송 in api/app/api/v1/progress.py
+- [x] T028 [US3] 확인 알림 즉시 발송 in api/app/api/v1/progress.py
   - 영역: BE
   - 담당: ts
   - 선행: T010, T026
   - 검증: `register_progress_event` 응답 후 `BackgroundTasks`로 방금 만든 확인 알림에 `send_one` 1회 시도(SC-012 30초). 교차 계약 review: F007 담당(`progress.py`)
-- [ ] T029 [US3] 진행 알림 생성·설정 무관 검증 in api/tests/unit/test_notification_service.py, api/tests/unit/test_notification_dispatch.py
+- [x] T029 [US3] 진행 알림 생성·설정 무관 검증 in api/tests/unit/test_notification_service.py, api/tests/unit/test_notification_dispatch.py
   - 영역: BE
   - 담당: ts
   - 선행: T026, T027, T028

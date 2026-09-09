@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.errors import success_response
 from app.api.dependencies import get_current_principal
 from app.api.v1.itinerary import _owned_trip_date
+from app.clients.fcm import FcmClient
 from app.db import create_session_factory, get_session
 from app.models.itinerary import TripDay
+from app.models.notification import Notification
 from app.core.config import Settings, get_settings
 from app.schemas.auth import ErrorEnvelope
 from app.schemas.progress import (
@@ -35,7 +37,15 @@ from app.core.security import AuthPrincipal
 from app.services.progress import ProgressService
 from app.services.detection import DetectionService
 from app.services.detection.evaluator import reevaluate_day
+from app.services.notification.dispatch import NotificationDispatchService
 from app.services.route import build_route_service
+
+_PROGRESS_NOTIFICATION_TYPES = (
+    "ARRIVAL_CHECK",
+    "DEPARTURE_CHECK",
+    "ARRIVAL_AUTO_CONFIRMED",
+    "DEPARTURE_AUTO_CONFIRMED",
+)
 
 router = APIRouter(prefix="/trips/{tripId}", tags=["progress"])
 item_router = APIRouter(prefix="/itinerary-items", tags=["progress"])
@@ -60,6 +70,52 @@ async def _reevaluate_progress_day(
     except Exception:
         logger.exception(
             "진행 변경 후 변수 재평가 연결에 실패했습니다.",
+            extra={"trip_id": str(trip_id), "visit_date": visit_date.isoformat()},
+        )
+
+
+async def _dispatch_progress_notifications(
+    session_factory, *, trip_id: uuid.UUID, visit_date: date
+) -> None:
+    """진행 이벤트 응답 후 방금 만든 도착·출발 확인·자동 처리 알림을 즉시 1회 발송한다.
+
+    SC-012(30초) 목표를 위해 요청 경로에서 한 번 시도하며, FCM 실패는 `send_one`이
+    흡수하므로 진행 상태를 되돌리지 않는다. 실패·누락 건은 dispatch tick이 재시도한다.
+    """
+    try:
+        client = FcmClient(get_settings())
+        try:
+            async with session_factory() as session:
+                trip_day_id = await session.scalar(
+                    select(TripDay.trip_day_id).where(
+                        TripDay.trip_id == trip_id,
+                        TripDay.visit_date == visit_date,
+                    )
+                )
+                if trip_day_id is None:
+                    return
+                async with session.begin():
+                    notifications = list(
+                        (
+                            await session.scalars(
+                                select(Notification)
+                                .where(
+                                    Notification.trip_day_id == trip_day_id,
+                                    Notification.sent_at.is_(None),
+                                    Notification.type.in_(_PROGRESS_NOTIFICATION_TYPES),
+                                )
+                                .with_for_update(skip_locked=True)
+                            )
+                        ).all()
+                    )
+                    dispatch = NotificationDispatchService(session, client=client)
+                    for notification in notifications:
+                        await dispatch.send_one(notification)
+        finally:
+            await client.aclose()
+    except Exception:
+        logger.exception(
+            "진행 알림 즉시 발송에 실패했습니다.",
             extra={"trip_id": str(trip_id), "visit_date": visit_date.isoformat()},
         )
 
@@ -148,6 +204,7 @@ async def register_progress_event(
     payload: ProgressEventRequest,
     visit_date: Annotated[date, Path(alias="date")],
     request: Request,
+    background_tasks: BackgroundTasks,
     trip: Annotated[Trip, Depends(_owned_trip_date)],
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -158,6 +215,12 @@ async def register_progress_event(
         trip_id=trip.trip_id,
         visit_date=visit_date,
         payload=payload,
+    )
+    background_tasks.add_task(
+        _dispatch_progress_notifications,
+        create_session_factory(),
+        trip_id=trip.trip_id,
+        visit_date=visit_date,
     )
     return success_response(request, data)
 
