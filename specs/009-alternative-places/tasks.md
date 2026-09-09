@@ -156,7 +156,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: ts
   - 선행: T009
   - 검증: `ACTIVE` → 200 `DISMISSED`·`decidedAt`·DB `resolved_at`; 재요청 → 동일 응답·불변; `INVALIDATED` → 200 현재 상태·`decidedAt=null`; 타인 → 403/404; 거절 후 `status=ACTIVE` 목록에서 제외(quickstart BE 6). 구현 전 실패 확인
-- [ ] T019 [P] [US2] AlternativeViewModel unit test in android/app/src/test/java/com/gilpick/alternative/AlternativeViewModelTest.kt
+- [x] T019 [P] [US2] AlternativeViewModel unit test in android/app/src/test/java/com/gilpick/alternative/AlternativeViewModelTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T011
@@ -175,18 +175,18 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 교차 확인: jh
   - 선행: T018
   - 검증: T018 통과. `UPDATE detections SET status='DISMISSED', resolved_at=now() WHERE detection_id=? AND status='ACTIVE'`로 1회만 반영, 비-`ACTIVE`는 현재 상태 반환, 일정·경로 무변경
-- [ ] T022 [P] [US2] Android 상태 모델·ViewModel·라벨 in android/app/src/main/java/com/gilpick/alternative/AlternativeUiState.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeLabels.kt
+- [x] T022 [P] [US2] Android 상태 모델·ViewModel·라벨 in android/app/src/main/java/com/gilpick/alternative/AlternativeUiState.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeLabels.kt
   - 영역: FE
   - 담당: jy
   - 선행: T019
   - 검증: T019 통과. data-model.md §3.1·§3.2 그대로. `AlternativeLabels`: 거리(`320m`/`1.2km`), 운영 상태(`18:00 마감`·`곧 마감 18:00`·`운영시간 확인 불가`), `reasons` 코드 → 문구, 시각 KST(`ProgressLabels.timeLabel` 재사용)
-- [ ] T023 [P] [US2] RouteMap helper 공개와 AlternativeMap in android/app/src/main/java/com/gilpick/route/RouteMap.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeMap.kt
+- [x] T023 [P] [US2] RouteMap helper 공개와 AlternativeMap in android/app/src/main/java/com/gilpick/route/RouteMap.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeMap.kt
   - 영역: FE
   - 담당: jy
   - 교차 확인: hs
   - 선행: T010
   - 검증: `circleMarker`·`pillMarker`·NaverMap 초기화/인증 실패 처리를 `internal`로 열고(기존 route 테스트 변경 없이 통과) `AlternativeMap(origin, candidates, modifier)`이 기존 장소를 `warning` pill(느낌표), 후보를 순위 원형 마커로 그리고 전체가 보이도록 카메라를 맞춘다. 실제 지도 확인은 T037
-- [ ] T024 [US2] 대체 장소 화면 in android/app/src/main/java/com/gilpick/alternative/AlternativePlacesScreen.kt
+- [x] T024 [US2] 대체 장소 화면 in android/app/src/main/java/com/gilpick/alternative/AlternativePlacesScreen.kt
   - 영역: FE
   - 담당: jy
   - 선행: T022, T023

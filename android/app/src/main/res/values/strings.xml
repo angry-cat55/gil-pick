@@ -432,4 +432,58 @@
     <string name="detection_off_accuracy_how">실내나 지하에서는 위치가 흐려질 수 있어요. 도착·출발은 직접 처리하시면 됩니다.</string>
     <string name="detection_off_enable">권한 허용</string>
     <string name="detection_off_dismiss">닫기</string>
+
+    <!-- F009 대체 장소 화면(Figma AlternativePlacesScreen / alternativesEmpty) -->
+    <string name="alternative_loading">대체 장소를 불러오는 중</string>
+    <string name="alternative_back">뒤로</string>
+    <string name="alternative_map_description">기존 장소와 대체 후보 %1$d곳 지도</string>
+    <string name="alternative_title">%1$s · 방문 어려움 감지</string>
+    <!-- 위험 변수 칩. Figma 이모지·문구 그대로이며 판정된 변수만 보인다(UI-002). -->
+    <string name="alternative_chip_rain">🌧 강수 예보</string>
+    <string name="alternative_chip_crowded">👥 매우 혼잡</string>
+    <string name="alternative_chip_closing">⏰ 마감 임박</string>
+    <string name="alternative_count">추천 후보 %1$d곳</string>
+    <string name="alternative_search">직접 검색</string>
+    <string name="alternative_top">TOP</string>
+    <string name="alternative_rating">★%1$s</string>
+    <!-- 앞뒤 공백이 있어 따옴표로 감싼다. -->
+    <string name="alternative_separator">" · "</string>
+    <!-- 운영 상태(UI-003). %1$s는 KST 마감 시각 18:00 형식. -->
+    <string name="alternative_closes_at">%1$s 마감</string>
+    <string name="alternative_closing_soon">곧 마감 %1$s</string>
+    <string name="alternative_closing_soon_no_time">곧 마감</string>
+    <string name="alternative_hours_unknown">운영시간 확인 불가</string>
+    <string name="alternative_not_visitable">방문 불가</string>
+    <!-- 추천 근거 code → 문구. 이동 시간 비교 문구는 F010 범위라 없다(UI-003). -->
+    <string name="alternative_reason_indoor">실내 관람 가능</string>
+    <string name="alternative_reason_not_crowded">혼잡하지 않아요</string>
+    <string name="alternative_reason_no_rain_risk">비 예보 영향 적어요</string>
+    <string name="alternative_reason_closer">현재보다 가까워요</string>
+    <string name="alternative_reason_open_at_eta">도착 시각에 운영 중</string>
+    <!-- 후보 행 접근성 설명: 순위, 이름, 카테고리, 거리, 운영 상태(UI-008). -->
+    <string name="alternative_candidate_description">%1$d위 %2$s, %3$s, %4$s, %5$s</string>
+    <string name="alternative_compare_top">경로 비교</string>
+    <string name="alternative_compare">비교</string>
+    <string name="alternative_keep">기존 일정 그대로 진행</string>
+    <string name="alternative_keep_pending">보내는 중</string>
+    <string name="alternative_empty_title">2km 안에 추천할 장소가 없어요</string>
+    <string name="alternative_empty_body">반경을 넓혀봤지만 적합한 곳을 찾지 못했습니다</string>
+    <string name="alternative_search_manually">직접 검색해서 고르기</string>
+    <string name="alternative_error_title">대체 장소를 추천할 수 없어요</string>
+    <string name="alternative_retry">다시 시도하기</string>
+    <string name="alternative_go_back">돌아가기</string>
+    <string name="alternative_error_network">연결을 확인한 뒤 다시 시도해 주세요. 기존 일정은 그대로예요.</string>
+    <string name="alternative_error_not_found">이미 삭제되었거나 없는 감지예요.</string>
+    <string name="alternative_error_forbidden">이 여행의 감지를 볼 권한이 없습니다.</string>
+    <string name="alternative_error_provider">지금은 주변 장소를 가져올 수 없어요. 기존 일정은 그대로예요.</string>
+    <string name="alternative_error_session">로그인 상태가 만료됐어요. 다시 로그인해 주세요.</string>
+    <string name="alternative_error_unexpected">지금은 대체 장소를 처리할 수 없어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="alternative_closed_title">이미 처리된 감지예요</string>
+    <string name="alternative_closed_body">이 감지는 이미 처리됐어요. 진행 화면에서 최신 상태를 확인해 주세요.</string>
+    <string name="alternative_closed_dismissed">기존 일정 그대로 진행하기로 처리된 감지예요.</string>
+    <string name="alternative_closed_resolved">다른 장소로 이미 바꾼 감지예요.</string>
+    <string name="alternative_closed_invalidated">장소에 도착했거나 일정이 끝나 더 이상 필요 없는 감지예요.</string>
+    <string name="alternative_to_progress">진행 화면으로</string>
+    <string name="alternative_dismiss_retry">다시 시도</string>
+    <string name="alternative_dismiss_close">닫기</string>
 </resources>

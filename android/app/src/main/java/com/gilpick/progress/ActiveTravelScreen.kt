@@ -395,9 +395,9 @@ private fun ErrorState(error: ProgressError, onRetry: () -> Unit, onReauthentica
     }
 }
 
-/** 가운데 안내. 아이콘·제목·설명·행동 순서는 가이드라인 9절 빈 상태 형식이다. */
+/** 가운데 안내. 아이콘·제목·설명·행동 순서는 가이드라인 9절 빈 상태 형식이다. F009 대체 장소 화면도 쓴다. */
 @Composable
-private fun StateMessage(title: String, body: String, icon: Int, actions: @Composable () -> Unit) {
+internal fun StateMessage(title: String, body: String, icon: Int, actions: @Composable () -> Unit) {
     val spacing = LocalGilpickSpacing.current
     val sizing = LocalGilpickSizing.current
 
