@@ -27,7 +27,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 **Purpose**: 계약을 공용 문서와 대조해 고정하고, 조정 가능한 정책값과 Figma 기준을 확인한다.
 
-- [ ] T001 F009 ALT·DETECT-004 계약·ERD·API 명세 대조와 교차 review in specs/009-alternative-places/contracts/alternatives.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T001 F009 ALT·DETECT-004 계약·ERD·API 명세 대조와 교차 review in specs/009-alternative-places/contracts/alternatives.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: 통합
   - 담당: ts
   - 교차 확인: jy
