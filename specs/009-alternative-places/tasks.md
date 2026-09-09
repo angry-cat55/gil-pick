@@ -286,7 +286,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 교차 확인: jy
   - 선행: T017, T021, T030
   - 검증: data-model.md §4 목록대로 §2 구현 현황(ALT-001·ALT-002 `[x]`, DETECT-004 행), §7 DETECT-001 확장·DETECT-004 신설·ALT-001/002 예시 갱신, er-schema §8.1 `resolved_at` 설명·§13 매핑. `contracts/alternatives.openapi.yaml`과 필드 대조 결과를 PR에 기록
-- [ ] T036 [P] 요구사항·기능 명세 5절 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
+- [x] T036 [P] 요구사항·기능 명세 5절 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
   - 영역: 통합
   - 담당: jy
   - 선행: T001

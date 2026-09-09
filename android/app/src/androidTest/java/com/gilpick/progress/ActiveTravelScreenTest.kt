@@ -435,19 +435,6 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("2일차 · 1/3 완료").assertIsDisplayed()
     }
 
-    /** 인사동거리 혼잡 감지. ETA 오후 4:00, [NOW_BEFORE_ETA](오후 2:08) 5분 전 감지(Figma 배너 문구 그대로). */
-    private fun insadongDetection() = DetectionListItemDto(
-        detectionId = "det-insadong", itemId = ITEM_C, placeName = "인사동거리", primaryType = DetectionType.CONGESTION,
-        status = DetectionStatus.ACTIVE, totalRiskScore = 61, eta = "2026-09-08T16:00:00+09:00",
-        reason = "지금 매우 혼잡해요", createdAt = "2026-09-08T14:03:00+09:00", read = false,
-    )
-
-    /** ETA가 더 늦은 감지. 배너에 오르지 않는다. */
-    private fun laterDetection() = insadongDetection().copy(
-        detectionId = "det-later", itemId = "item-later", placeName = "남산타워", primaryType = DetectionType.WEATHER,
-        eta = "2026-09-08T17:00:00+09:00", reason = "오후 강수 예보",
-    )
-
     private fun row(sequence: Int) = composeRule.onNodeWithTag("$TAG_ROW_PREFIX$sequence")
 
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */

@@ -169,8 +169,29 @@ BE 시나리오 ↔ 커버하는 자동 test (외부 provider는 `httpx` mock tr
 
 미검증(실서버): BE 3.2의 `businessStatus=CLOSED_TEMPORARILY` 후보 제외는 실제 Google 매칭이 성사되지 않아 확인 못 함(mock test로만). BE 7.3·7.4의 `inSchedule=true`·`CLOSED` 케이스는 실제 검색 결과에 기존 장소·폐점 장소가 포함되지 않아 확인 못 함(mock test로만).
 
+### Android 자동 검증 (2026-09-09, T037·T039)
+
+명령(`android/`):
+
+```bash
+gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug
+ANDROID_SERIAL=emulator-5556 gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.alternative
+ANDROID_SERIAL=emulator-5556 gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.progress
+```
+
+- unit 445 통과. connected `alternative` 33 통과, `progress` 113 통과(ATD `gilpick_api36`). `progress` 첫 실행에서 `ProgressNavigationTest` 1건이 실패했으나 단독·전체 재실행 모두 통과해 순서 의존 flake로 본다(F009 변경 파일 아님).
+
+| # | 시나리오 | 커버 test | 상태 |
+|---|---|---|---|
+| AND 1 | 후보 4곳 요약·칩·`추천 후보 N곳`·`TOP`·행 구성, 후보 0곳, 추천 실패·재시도, 409 `Closed`, 1초 대기·재조회 중 목록 유지, 평점 없음·`UNKNOWN`·`CLOSING_SOON` | `AlternativePlacesScreenTest` 12건 | 통과 |
+| AND 2 | `경로 비교`/`비교` → `onSelectPlace(SelectedAlternative)` 필드 전달, 직접 검색 2글자 미만·거리·`방문 불가`·`이미 일정에 있음`·`candidateId=null` 전달, 거절 → DETECT-004·`onDismissed`·버튼 잠금·실패 유지 | `AlternativeNavigationTest`, `AlternativeSearchScreenTest`, unit `AlternativeViewModelTest` | 통과 |
+| AND 3 | ACTIVE 2건 중 ETA 이른 하나만 배너, 탭 → `onOpenAlternatives`, 당일 완료·다른 날짜·0건·조회 실패 시 배너 없음 | `ActiveTravelScreenTest` T027 절 4건, unit `ProgressViewModelTest` | 통과 |
+| AND 4 | 후보 있음·후보 없음·추천 실패·처리된 감지 × (360dp 기본, 360dp fontScale 2.0) 8장 + 배너 2장 | `AlternativeScreenshotTest` 8건, `ActiveTravelScreenshotTest` `alternative_banner*` 2건 | 통과 |
+
+AND 4 screenshot(`/sdcard/Android/data/com.gilpick/files/screenshots/alternative_*.png`, ATD `captureToImage`, PR 첨부): 360dp·2.0에서 잘림·가로 스크롤 없음. 후보 목록·후보 없음은 sheet가 `verticalScroll`이라 아래 버튼은 스크롤로 닿는다. 터치 48dp는 `AlternativePlacesScreenTest`(`TAG_KEEP`·`TAG_SEARCH`·`TAG_RETRY`·`TAG_TO_PROGRESS`·`TAG_BACK`·후보 행)와 `AlternativeSearchScreenTest`의 `assertHeightIsAtLeast(48.dp)`로 확인. 관찰: 공용 `StateMessage` 제목 `이미 처리된 감지예요`가 2.0에서 `감지예/요`로 한 글자만 내려간다(잘림 아님, `progress/*` 소유 `hs` 참고).
+
 ### 미실행
 
 - `KMA`·`SEOUL` 실키 연동(`.env`에 키 없음). 결손 격리 경로로만 확인됐다.
-- Android 시나리오(AND 1~5), screenshot·실서버 requestId 기록은 T037·T039(FE·통합)에서 수행한다.
-- `mvp-features.md` F009 `VERIFY` 전이는 T038 + T039 완료 PR(T039, jy)에서 반영하고, `DONE`은 관련 PR 전부 병합 후 반영한다.
+- AND 5 실서버 연동(`gilpick_api36_play` + local API + 실제 TourAPI·Google 키)과 `AlternativeMap` 실제 마커 확인은 아직 수행하지 못했다. 결과와 requestId는 수행 후 이 절에 추가한다.
+- `mvp-features.md` F009 `VERIFY` 전이는 AND 5까지 끝난 PR에서 반영하고, `DONE`은 관련 PR 전부 병합 후 반영한다.
