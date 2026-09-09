@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -66,6 +67,12 @@ class ProgressViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val progressService = FakeProgressService()
     private val itineraryService = FakeItineraryService()
+    private val detectionService = FakeDetectionService()
+    private val geofenceClient = RecordingGeofenceClient()
+    private val geofenceSession = FakeDetectionSessionStore()
+
+    /** 백그라운드 위치 권한 보유 여부. test가 기기 상태 대신 바꾼다. */
+    private var backgroundPermission = true
 
     /** 2026-09-08 11:10:30 KST. [inProgress]의 B ETA(02:20Z = 11:20 KST)까지 9분 30초 남았다. */
     private var now: Instant = Instant.parse("2026-09-08T02:10:30Z")
@@ -333,6 +340,201 @@ class ProgressViewModelTest {
         assertEquals(progressService.updateCalls[0].first, progressService.updateCalls[1].first)
     }
 
+    // --- #313: 처리 출처와 이벤트 거절 이유 ---
+
+    @Test
+    fun `자동 처리 표시는 항목별 처리 출처로 판단한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(withSources(auto = P_ITEM_A, manual = P_ITEM_B)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        // 사용자가 확인 시트에 답해 확정된 것(MANUAL)과 이력이 없는 것(null)은 표시하지 않는다.
+        assertEquals(setOf(P_ITEM_A), content.autoProcessedItemIds)
+    }
+
+    @Test
+    fun `되돌릴 수 없게 된 뒤에도 자동 처리 표시가 남는다`() = viewModelTest { viewModel ->
+        // undoable이 사라져도 표시는 처리 출처에서 오므로 유지된다(#313 완료 조건).
+        progressService.onGet = { progressOk(withSources(auto = P_ITEM_A, manual = null).copy(undoable = null)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertNull(content.progress.undoable)
+        assertEquals(setOf(P_ITEM_A), content.autoProcessedItemIds)
+    }
+
+    @Test
+    fun `정확도 미달로 거절되면 자동 감지 꺼짐을 안내한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(withRejection(EventRejectionReason.LOW_ACCURACY)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DetectionOffReason.AccuracyLow, content.visibleDetectionNotice)
+    }
+
+    @Test
+    fun `정확도 밖의 거절 이유는 안내하지 않는다`() = viewModelTest { viewModel ->
+        // 감지 일시 중지 같은 정상 상태까지 문제처럼 알리지 않는다(UI-005는 두 원인만 정한다).
+        progressService.onGet = { progressOk(withRejection(EventRejectionReason.DETECTION_PAUSED)) }
+
+        viewModel.load()
+        runCurrent()
+
+        assertNull((viewModel.state.value as ProgressUiState.Content).visibleDetectionNotice)
+    }
+
+    @Test
+    fun `권한 없음이 정확도 부족보다 먼저다`() = viewModelTest { viewModel ->
+        // 권한이 없으면 이벤트 자체가 올라가지 않는다. 사용자가 먼저 풀 수 있는 원인을 보인다.
+        backgroundPermission = false
+        progressService.onGet = { progressOk(withRejection(EventRejectionReason.LOW_ACCURACY)) }
+
+        viewModel.load()
+        runCurrent()
+
+        assertEquals(
+            DetectionOffReason.PermissionMissing,
+            (viewModel.state.value as ProgressUiState.Content).visibleDetectionNotice,
+        )
+    }
+
+    // --- T033: 백그라운드 권한과 자동 감지 ---
+
+    @Test
+    fun `권한이 없으면 감지를 걸지 않고 원인을 남긴다`() = viewModelTest { viewModel ->
+        backgroundPermission = false
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DetectionOffReason.PermissionMissing, content.detectionOff)
+        assertEquals(emptyList<List<String>>(), geofenceClient.added)
+        // 수동 진행은 그대로다(FR-024). 다음 장소와 행동이 남아 있다.
+        assertEquals(P_ITEM_B, content.progress.nextItemId)
+    }
+
+    @Test
+    fun `권한이 있으면 받은 대상을 걸고 안내를 지운다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertNull(content.detectionOff)
+        assertEquals(listOf(listOf(detectionTarget().geofenceId)), geofenceClient.added)
+    }
+
+    @Test
+    fun `진행 중 권한을 회수하면 걸어 둔 것을 풀고 안내한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+        viewModel.load()
+        runCurrent()
+        val before = viewModel.state.value as ProgressUiState.Content
+        geofenceClient.clearLog()
+
+        backgroundPermission = false
+        viewModel.load()
+        runCurrent()
+
+        val after = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DetectionOffReason.PermissionMissing, after.detectionOff)
+        assertEquals(listOf(listOf(detectionTarget().geofenceId)), geofenceClient.removed)
+        // 이미 확정된 상태는 그대로다. 자동 감지만 멈춘다.
+        assertEquals(before.progress.items, after.progress.items)
+    }
+
+    @Test
+    fun `안내를 닫으면 다시 조회해도 뜨지 않는다`() = viewModelTest { viewModel ->
+        backgroundPermission = false
+        viewModel.load()
+        runCurrent()
+
+        viewModel.dismissDetectionNotice()
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        // 원인은 그대로 남지만 안내는 보이지 않는다(FR-025).
+        assertEquals(DetectionOffReason.PermissionMissing, content.detectionOff)
+        assertNull(content.visibleDetectionNotice)
+    }
+
+    @Test
+    fun `권한을 허용하고 돌아오면 그 자리에서 감지를 건다`() = viewModelTest { viewModel ->
+        backgroundPermission = false
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+        viewModel.load()
+        runCurrent()
+
+        backgroundPermission = true
+        viewModel.onBackgroundPermissionResult()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertNull(content.detectionOff)
+        assertEquals(listOf(listOf(detectionTarget().geofenceId)), geofenceClient.added)
+    }
+
+    @Test
+    fun `확인 응답이 실패하면 보낸 답과 원인을 함께 남긴다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        detectionService.onDecide = { decideServerError() }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.decide(TransitionDecision.STILL_HERE)
+        runCurrent()
+
+        val failed = viewModel.state.value as ProgressUiState.Content
+        assertNull(failed.decisionPending)
+        assertEquals(DecisionFailure(TransitionDecision.STILL_HERE, DetectionError.Unexpected), failed.decisionFailure)
+        // 후보는 그대로 둔다. 사용자가 다시 답할 수 있어야 한다(UI-006).
+        assertNotNull(failed.visibleCandidate)
+    }
+
+    @Test
+    fun `다시 시도는 실패한 답을 그대로 다시 보낸다`() = viewModelTest { viewModel ->
+        // `allowedDecisions`의 첫 값(CONFIRM)을 보내면 사용자가 거절한 출발을 확정하게 된다.
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        var fail = true
+        detectionService.onDecide = { if (fail) decideServerError() else decideOk() }
+        viewModel.load()
+        runCurrent()
+        viewModel.decide(TransitionDecision.STILL_HERE)
+        runCurrent()
+
+        fail = false
+        viewModel.retryDecision()
+        runCurrent()
+
+        assertEquals(
+            listOf(TransitionDecision.STILL_HERE, TransitionDecision.STILL_HERE),
+            detectionService.decideCalls.map { it.second },
+        )
+        assertNull((viewModel.state.value as ProgressUiState.Content).decisionFailure)
+    }
+
+    @Test
+    fun `실패한 답이 없으면 다시 시도는 아무것도 보내지 않는다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.retryDecision()
+        runCurrent()
+
+        assertEquals(emptyList<Pair<String, TransitionDecision>>(), detectionService.decideCalls)
+    }
+
     @Test
     fun `VERSION_CONFLICT면 오류를 남기고 최신 현황을 다시 조회한다`() = viewModelTest { viewModel ->
         progressService.onUpdate = { _, _ -> progressError(409, ProgressErrorCodes.VERSION_CONFLICT) }
@@ -440,6 +642,51 @@ class ProgressViewModelTest {
         ),
     )
 
+    /** 항목별 처리 출처를 지정한 진행 현황. */
+    private fun withSources(auto: String?, manual: String?) = inProgress().let { data ->
+        data.copy(
+            items = data.items.map { item ->
+                when (item.itemId) {
+                    auto -> item.copy(processingSource = ProgressProcessingSource.AUTO)
+                    manual -> item.copy(processingSource = ProgressProcessingSource.MANUAL)
+                    else -> item
+                }
+            },
+        )
+    }
+
+    /** 첫 장소의 최신 위치 이벤트가 거절된 진행 현황. */
+    private fun withRejection(reason: EventRejectionReason) = inProgress().let { data ->
+        data.copy(items = data.items.map { if (it.itemId == P_ITEM_A) it.copy(eventRejectionReason = reason) else it })
+    }
+
+    /** 서버가 준 감지 대상 하나. 앱은 목록을 그대로 등록만 한다(research 4절). */
+    private fun detectionTarget() = DetectionTargetDto(
+        itemId = P_ITEM_B,
+        kind = DetectionKind.ARRIVAL,
+        geofenceId = "$P_ITEM_B:ARRIVAL",
+        latitude = 37.5825,
+        longitude = 126.9830,
+        radiusMeters = 300,
+        dwellMinutes = 5,
+    )
+
+    /**
+     * 출발 확인을 기다리는 후보. `아직 머무는 중`과 `출발 확정`을 함께 받는다.
+     *
+     * 두 답의 뜻이 반대여서, 실패한 답을 기억하지 않으면 `다시 시도`가 무엇을 보내는지가 문제가 된다.
+     */
+    private fun departureCandidate() = TransitionCandidateDto(
+        transitionId = TRANSITION_ID,
+        itemId = P_ITEM_B,
+        type = DetectionKind.DEPARTURE,
+        status = TransitionStatus.PENDING_CONFIRMATION,
+        detectedAt = "2026-09-08T02:33:00Z",
+        autoFinalizeAt = "2026-09-08T02:38:00Z",
+        allowedDecisions = listOf(TransitionDecision.CONFIRM, TransitionDecision.STILL_HERE),
+        evidence = CandidateEvidenceDto(occurredAt = "2026-09-08T02:33:00Z", accuracyMeters = 22.0, dwellMinutes = null),
+    )
+
     /** ViewModel을 만들어 test에 넘기고, 끝나면 `onCleared`로 매분 갱신 loop를 멈춘다. */
     private fun viewModelTest(block: suspend TestScope.(ProgressViewModel) -> Unit) = runTest {
         val store = ViewModelStore()
@@ -481,6 +728,9 @@ class ProgressViewModelTest {
             itineraryRepository = ItineraryRepository(api = itineraryService, auth = auth),
             tripId = PROGRESS_TRIP_ID,
             clock = clock,
+            detectionRepository = DetectionRepository(api = detectionService, auth = auth),
+            geofenceManager = GeofenceManager(client = geofenceClient, session = geofenceSession),
+            hasBackgroundPermission = { backgroundPermission },
         )
     }
 }

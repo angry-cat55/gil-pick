@@ -169,6 +169,67 @@ class ActiveTravelScreenshotTest {
         Narrow { Sheet(content(progress = allDoneProgress()).rows[2]) }
     }
 
+    // T036(F007): 도착 확인·출발 확인·자동 확정 후 되돌리기·되돌리기 만료·자동 감지 꺼짐(UI-010). 기본과 360dp+2.0 두 벌.
+    // 확인 시트는 별도 window라 상태 수정 시트와 같이 내용만 inline으로 그린다.
+    @Test
+    fun 도착_확인_시트() = capture("detection_arrival_sheet") { ConfirmSheetInline(arrivalCandidate()) }
+
+    @Test
+    fun 도착_확인_시트_360dp_최대_글자배율() = capture("detection_arrival_sheet_360dp_fontscale2") { Narrow { ConfirmSheetInline(arrivalCandidate()) } }
+
+    @Test
+    fun 출발_확인_시트() = capture("detection_departure_sheet") { ConfirmSheetInline(departureCandidate()) }
+
+    @Test
+    fun 출발_확인_시트_360dp_최대_글자배율() = capture("detection_departure_sheet_360dp_fontscale2") { Narrow { ConfirmSheetInline(departureCandidate()) } }
+
+    @Test
+    fun 도착_확인_시트_응답_실패() = capture("detection_arrival_sheet_error") { ConfirmSheetInline(arrivalCandidate(), error = DetectionError.Network) }
+
+    @Test
+    fun 도착_확인_시트_응답_실패_360dp_최대_글자배율() = capture("detection_arrival_sheet_error_360dp_fontscale2") {
+        Narrow { ConfirmSheetInline(arrivalCandidate(), error = DetectionError.Network) }
+    }
+
+    @Test
+    fun 자동_확정_되돌리기() = capture("detection_undo_toast") { Screen(undoableContent(NOW_UNDOABLE)) }
+
+    @Test
+    fun 자동_확정_되돌리기_360dp_최대_글자배율() = capture("detection_undo_toast_360dp_fontscale2") { Narrow { Screen(undoableContent(NOW_UNDOABLE)) } }
+
+    @Test
+    fun 되돌리기_만료() = capture("detection_undo_expired") { Screen(undoableContent(NOW_UNDO_EXPIRED)) }
+
+    @Test
+    fun 되돌리기_만료_360dp_최대_글자배율() = capture("detection_undo_expired_360dp_fontscale2") { Narrow { Screen(undoableContent(NOW_UNDO_EXPIRED)) } }
+
+    @Test
+    fun 자동_감지_꺼짐() = capture("detection_off") { Screen(content().copy(detectionOff = DetectionOffReason.PermissionMissing)) }
+
+    @Test
+    fun 자동_감지_꺼짐_360dp_최대_글자배율() = capture("detection_off_360dp_fontscale2") {
+        Narrow { Screen(content().copy(detectionOff = DetectionOffReason.PermissionMissing)) }
+    }
+
+    /** 북촌한옥마을 도착이 자동 확정된 직후의 화면. 토스트와 목록 행의 `자동 처리` 표시가 함께 보인다. */
+    private fun undoableContent(now: java.time.Instant) =
+        content(progress = arrivedProgress().copy(undoable = arrivalUndoable()), now = now)
+
+    @Composable
+    private fun ConfirmSheetInline(candidate: TransitionCandidateDto, error: DetectionError? = null) {
+        GilpickTheme {
+            ConfirmSheetContent(
+                candidate = candidate,
+                placeName = "북촌한옥마을",
+                now = NOW_CANDIDATE,
+                submitting = false,
+                error = error,
+                onDecide = {},
+                onRetry = {},
+            )
+        }
+    }
+
     /** 360dp 너비 + 최대 글자 배율. */
     @Composable
     private fun Narrow(content: @Composable () -> Unit) {

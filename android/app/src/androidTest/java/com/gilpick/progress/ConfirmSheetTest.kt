@@ -134,6 +134,25 @@ class ConfirmSheetTest {
         assertEquals(1, retried)
     }
 
+    @Test
+    fun 출발_시트도_보내는_동안_두_행동이_잠긴다() {
+        setSheet(candidate = departureCandidate(), submitting = true)
+
+        composeRule.onNodeWithText("네, 출발했어요").assertDoesNotExist()
+        composeRule.onNodeWithText("아직 머무는 중").assertIsNotEnabled()
+    }
+
+    @Test
+    fun 출발_시트도_실패하면_원인과_다시_시도를_보이고_거절_행동은_남는다() {
+        // `아직 머무는 중`이 실패해도 사용자가 다시 그 답을 고를 수 있어야 한다.
+        setSheet(candidate = departureCandidate(), error = DetectionError.Network)
+
+        composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").assertIsDisplayed()
+        composeRule.onNodeWithText("북촌한옥마을에서 출발하셨나요?").assertIsDisplayed()
+        composeRule.onNodeWithText("아직 머무는 중").assertIsEnabled()
+    }
+
     // --- UI-008 접근성 ---
 
     @Test
@@ -142,6 +161,14 @@ class ConfirmSheetTest {
 
         composeRule.onNodeWithText("네, 도착했어요").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithText("아직이에요").assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun 출발_시트_두_행동의_터치_영역도_48dp_이상이다() {
+        setSheet(candidate = departureCandidate())
+
+        composeRule.onNodeWithText("네, 출발했어요").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("아직 머무는 중").assertHeightIsAtLeast(48.dp)
     }
 
     private fun setSheet(

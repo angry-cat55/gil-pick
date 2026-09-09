@@ -35,10 +35,12 @@ sealed interface ProgressUiState {
      * @property actionError 마지막 전환 실패. 내용은 요청 전 그대로이고 원인과 `다시 시도`를 보인다(US2 시나리오 8).
      * @property viewingDate 목록에 보이는 날짜(UI-005). `null`이면 오늘이다. 오늘이 아니면 카드·행동·시트가 없다.
      * @property decisionPending 확인 시트에서 보낸 뒤 응답을 기다리는 답. 있는 동안 두 행동이 잠긴다(UI-006).
-     * @property decisionError 마지막 확인 응답 실패. 후보는 그대로 두고 원인과 다시 시도를 보인다(UI-006).
+     * @property decisionFailure 마지막 확인 응답 실패. 후보는 그대로 두고 원인과 다시 시도를 보인다(UI-006).
      * @property candidateDismissed 사용자가 시트를 닫았다. 후보는 살아 있지만 시트를 다시 띄우지 않는다(UI-007).
      * @property undoPending 되돌리기를 보낸 뒤 응답을 기다리는 중. 버튼을 잠근다.
      * @property undoError 마지막 되돌리기 실패. 토스트에 원인을 보인다.
+     * @property detectionOff 자동 감지가 꺼진 원인. `null`이면 켜져 있다(UI-005).
+     * @property detectionNoticeDismissed 사용자가 꺼짐 안내를 닫았다. 안내를 따르지 않아도 진행은 계속된다(FR-025).
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -48,11 +50,34 @@ sealed interface ProgressUiState {
         val actionError: ProgressActionFailure? = null,
         val viewingDate: LocalDate? = null,
         val decisionPending: TransitionDecision? = null,
-        val decisionError: DetectionError? = null,
+        val decisionFailure: DecisionFailure? = null,
         val candidateDismissed: Boolean = false,
         val undoPending: Boolean = false,
         val undoError: DetectionError? = null,
+        val detectionOff: DetectionOffReason? = null,
+        val detectionNoticeDismissed: Boolean = false,
     ) : ProgressUiState {
+
+        /**
+         * 지금 띄울 자동 감지 꺼짐 안내. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다.
+         *
+         * 지난 날짜에는 감지 자체가 없으므로 안내도 뜻이 없다.
+         */
+        val visibleDetectionNotice: DetectionOffReason?
+            get() = detectionCause?.takeIf { isToday && !detectionNoticeDismissed }
+
+        /**
+         * 자동 감지가 지금 동작하지 않는 원인.
+         *
+         * 권한이 먼저다. 권한이 없으면 이벤트 자체가 올라가지 않아 정확도는 따질 것도 없다.
+         * 정확도 부족은 서버가 최신 위치 이벤트를 거절한 이유로 알 수 있다(#312 계약).
+         */
+        private val detectionCause: DetectionOffReason?
+            get() = detectionOff ?: DetectionOffReason.AccuracyLow.takeIf { lowAccuracyRejected }
+
+        /** 오늘 장소 중 최신 위치 이벤트가 정확도 미달로 거절된 것이 있다. */
+        private val lowAccuracyRejected: Boolean
+            get() = progress.items.any { it.eventRejectionReason == EventRejectionReason.LOW_ACCURACY }
 
         /**
          * 지금 확인 시트를 띄울 후보. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다(UI-007).
@@ -76,13 +101,17 @@ sealed interface ProgressUiState {
             }.orEmpty()
 
         /**
-         * 자동으로 처리된 장소(UI-004).
+         * 자동으로 처리된 장소들(UI-004).
          *
-         * 지금 계약에서 "자동으로 바뀌었다"를 알 수 있는 유일한 값이 되돌릴 수 있는 전환이다.
-         * 되돌릴 수 있는 시간이 지나면 표시도 사라진다. 그 뒤에도 남기려면 서버가 항목별
-         * 처리 출처를 함께 내려줘야 한다.
+         * 항목별 [ProgressItemDto.processingSource]로 판단한다(#312 계약). 되돌릴 수 있는
+         * 시간이 지나 [ProgressData.undoable]이 사라져도 표시는 남는다. 사용자가 확인 시트에
+         * 답해 확정된 것은 `MANUAL`이라 표시하지 않는다.
          */
-        val autoProcessedItemId: String? get() = progress.undoable?.itemId
+        val autoProcessedItemIds: Set<String>
+            get() = progress.items
+                .filter { it.processingSource == ProgressProcessingSource.AUTO }
+                .map { it.itemId }
+                .toSet()
         /** 진행 현황의 날짜(오늘, KST). */
         val today: LocalDate get() = LocalDate.parse(progress.date)
 
@@ -162,6 +191,28 @@ data class ProgressAction(val itemId: String, val status: ItemStatus)
  */
 data class ProgressActionFailure(val action: ProgressAction, val error: ProgressError) {
     val retryable: Boolean get() = error == ProgressError.Network || error == ProgressError.Unexpected
+}
+
+/**
+ * 확인 시트 응답 실패. **어떤 답이 실패했는지**를 [decision]에 함께 담는다.
+ *
+ * 후보가 허용하는 답은 여러 개이고(`allowedDecisions`) 그 뜻이 서로 반대다. 실패한 답을
+ * 기억하지 않으면 `다시 시도`가 사용자가 고르지 않은 답을 보낼 수 있다. 특히 `아직 머무는 중`
+ * 실패 후 `출발 확정`을 보내면 사용자가 거절한 전환을 확정하게 된다.
+ */
+data class DecisionFailure(val decision: TransitionDecision, val error: DetectionError)
+
+/**
+ * 자동 감지가 꺼진 원인(UI-005·FR-025).
+ *
+ * 권한은 앱이 직접 판정하고, 정확도 부족은 서버가 준 최신 이벤트 거절 이유로 안다(#312 계약).
+ */
+enum class DetectionOffReason {
+    /** 백그라운드 위치 권한이 없다. 앱이 지오펜스를 걸 수 없다. */
+    PermissionMissing,
+
+    /** 위치 정확도가 기준에 못 미쳐 서버가 최신 이벤트를 판정에 쓰지 않았다. */
+    AccuracyLow,
 }
 
 /**

@@ -213,7 +213,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T024
   - 검증: quickstart BE 5 전체(후보·`REENTER` 취소·`STILL_HERE` 중단·무응답 자동 출발·두 번째 되돌리기 중단). 수동 출발 후 뒤늦은 `EXIT`가 추가 전환을 만들지 않음(US3 Acceptance 5). 반복 회귀: 도착은 되돌리기 → 재개 → 상한 도달로, 출발은 되돌리기 2회로 각각 유한 횟수 안에 멈추고 같은 장소에서 무한 반복이 생기지 않음(SC-011)
-- [ ] T027 [P] [US3] 출발 확인 시트 UI test in android/app/src/androidTest/java/com/gilpick/progress/ConfirmSheetTest.kt
+- [X] T027 [P] [US3] 출발 확인 시트 UI test in android/app/src/androidTest/java/com/gilpick/progress/ConfirmSheetTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T025
@@ -231,7 +231,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T028
   - 검증: T026 통과. `STILL_HERE` 이후 그 날짜 자동 출발 중단(`DEPARTURE_DETECTION_STOPPED`, FR-013), 같은 장소의 출발 되돌리기 2회 이후 중단(FR-017a). 두 규칙 모두 `progress_transitions` 파생 계산이며 새 컬럼 없음
-- [ ] T030 [US3] 출발 확인 시트 연결 in android/app/src/main/java/com/gilpick/progress/ConfirmSheet.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
+- [X] T030 [US3] 출발 확인 시트 연결 in android/app/src/main/java/com/gilpick/progress/ConfirmSheet.kt, android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T027, T003
@@ -249,7 +249,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Tests for User Story 4
 
-- [ ] T031 [P] [US4] 권한 축소 동작 UI test in android/app/src/androidTest/java/com/gilpick/progress/DetectionPermissionTest.kt
+- [X] T031 [P] [US4] 권한 축소 동작 UI test in android/app/src/androidTest/java/com/gilpick/progress/DetectionPermissionTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T030
@@ -262,12 +262,12 @@ description: "F007 위치 기반 감지 구현 task 목록"
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] 백그라운드 위치 권한 2단계 요청 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [X] T033 [US4] 백그라운드 위치 권한 2단계 요청 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T031
   - 검증: T031 통과. 진행 시작 후 자동 감지를 켤 때만 백그라운드 권한을 별도 요청하고, 거부해도 시작·수동 진행을 막지 않음(research 8절, FR-024). F006이 받는 앱 사용 중 권한과 이어짐
-- [ ] T034 [US4] 자동 감지 꺼짐 안내 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [X] T034 [US4] 자동 감지 꺼짐 안내 in android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T033, T003
@@ -284,17 +284,22 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T032
   - 검증: quickstart Backend 명령 전체 통과, `api-spec.md` PROG-003·004·005와 PROG-001 응답 확장 갱신, `compileall`, `git diff --check`, 공개 함수 docstring(constitution 문서화 기준)
-- [ ] T036 Android F007 전체 자동 test·build와 AVD 검증 in android/app/src/test/java/com/gilpick/progress/, android/app/src/androidTest/java/com/gilpick/progress/
+- [x] T036 Android F007 전체 자동 test·build와 AVD 검증 in android/app/src/test/java/com/gilpick/progress/, android/app/src/androidTest/java/com/gilpick/progress/
   - 영역: FE
   - 담당: hs
   - 선행: T034
   - 검증: quickstart Android 항목 전체. `testDebugUnitTest`·`connectedDebugAndroidTest` 통과, `Pixel_9_Pro`(API 36)에서 도착 확인·출발 확인·되돌리기·만료·감지 꺼짐 5개 상태를 360dp와 최대 글자 배율로 screenshot(UI-010), `adb emu geo fix`로 앱 종료 상태의 지오펜스 발화 확인
-- [ ] T037 F007 종단간 검증과 Feature 상태 갱신 in docs/planning/mvp-features.md, specs/007-location-detection/quickstart.md
+- [x] T037 F007 종단간 검증과 Feature 상태 갱신 in docs/planning/mvp-features.md, specs/007-location-detection/quickstart.md
   - 영역: 통합
   - 담당: hs
   - 교차 확인: ts
   - 선행: T035, T036
   - 검증: quickstart 종단간 5단계를 로컬 API + AVD로 수행하고 결과를 PR에 기록. mvp-features.md의 F007 상태를 `VERIFY`로 갱신. 미실행 항목과 이유를 명시
+- [x] T038 PROG-001 item별 처리 출처·최신 이벤트 거절 이유 응답 in api/app/schemas/progress.py, api/app/services/progress.py, specs/006-trip-progress/contracts/progress.openapi.yaml, docs/design/api-spec.md
+  - 영역: BE
+  - 담당: ts
+  - 선행: T035
+  - 검증: Issue #312. `MANUAL`·`AUTO`·처리 이력 없음, 무응답 자동 확정의 `undoable` 만료 후 `AUTO` 유지, 복합 전환 전체 item, 거절 후 최신 수락 이벤트의 `null` 해제를 schema·contract·PostgreSQL integration test로 확인. 기존 `response_snapshot`의 신규 필드 누락을 허용하고 DB migration이 불필요함을 확인
 
 ---
 
@@ -305,7 +310,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 - **Setup(T001~T003)**: T001이 먼저다. T002·T003은 T001과 무관하게 병렬 가능
 - **Foundational(T004~T009)**: Setup 완료 후. 모든 User Story를 차단한다
 - **US1(T010~T019)** → **US2(T020~T025)** → **US3(T026~T030)** → **US4(T031~T034)**
-- **Polish(T035~T037)**: 원하는 User Story가 모두 끝난 뒤
+- **Polish(T035~T038)**: 원하는 User Story가 모두 끝난 뒤. T038은 T037과 독립적으로 수행 가능
 
 ### User Story Dependencies
 
@@ -317,7 +322,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 ### 담당자별 흐름
 
 ```text
-BE ts: T001 → T004~T007 → T010·T011 → T014~T017 → T020 → T022~T024 → T026 → T028·T029 → T032 → T035
+BE ts: T001 → T004~T007 → T010·T011 → T014~T017 → T020 → T022~T024 → T026 → T028·T029 → T032 → T035 → T038
 FE hs: T002·T003 → T008·T009 → T012·T013 → T018·T019 → T021 → T025 → T027 → T030 → T031 → T033·T034 → T036
 통합:  T037
 ```

@@ -1,6 +1,9 @@
 package com.gilpick.progress
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -41,6 +44,8 @@ import kotlinx.coroutines.launch
  *
  * @param tripId 여행.
  * @param clock 오늘 날짜와 현재 시각의 출처. test가 고정한다.
+ * @param hasBackgroundPermission 백그라운드 위치 권한 보유 여부. 자동 감지를 걸 수 있는지의 유일한 판단
+ *   근거이며, 화면이 다시 보일 때마다 다시 묻는다. 권한이 없어도 F006 수동 진행은 그대로 둔다(FR-024).
  */
 class ProgressViewModel(
     private val progressRepository: ProgressRepository,
@@ -49,6 +54,7 @@ class ProgressViewModel(
     private val clock: Clock = Clock.system(KST),
     private val detectionRepository: DetectionRepository? = null,
     private val geofenceManager: GeofenceManager? = null,
+    private val hasBackgroundPermission: () -> Boolean = { true },
 ) : ViewModel() {
 
     /** 진행 현황을 조회하는 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다. */
@@ -91,12 +97,17 @@ class ProgressViewModel(
                         actionError = kept.actionError,
                         viewingDate = kept.viewingDate,
                         decisionPending = kept.decisionPending,
-                        decisionError = kept.decisionError,
+                        decisionFailure = kept.decisionFailure,
                         undoPending = kept.undoPending,
                         // 되돌릴 대상이 바뀌면 지난 실패 안내를 지운다.
                         undoError = kept.undoError.takeIf {
                             kept.progress.undoable?.transitionId == next.progress.undoable?.transitionId
                         },
+                        // 감지 가능 여부는 조회 응답이 아니라 기기 권한에서 온다. 조회로 지우지 않고
+                        // 이어받아야 setDetectionOff가 "원인이 새로 생겼는지"를 바르게 판정한다.
+                        detectionOff = kept.detectionOff,
+                        // 안내를 닫은 사용자에게 조회할 때마다 다시 띄우지 않는다(FR-025).
+                        detectionNoticeDismissed = kept.detectionNoticeDismissed,
                         // 후보가 바뀌면 닫아 둔 시트를 다시 띄운다. 새 질문이기 때문이다.
                         candidateDismissed = kept.candidateDismissed &&
                             kept.progress.pendingCandidate?.transitionId == next.progress.pendingCandidate?.transitionId,
@@ -120,7 +131,43 @@ class ProgressViewModel(
             manager.clear()
             return
         }
+        // 권한이 없으면 걸어 둔 것을 풀고 원인을 안내한다. 진행 중 권한을 회수해도 여기로 온다.
+        if (!hasBackgroundPermission()) {
+            manager.clear()
+            setDetectionOff(DetectionOffReason.PermissionMissing)
+            return
+        }
+        setDetectionOff(null)
         manager.sync(tripId, content.progress.date, content.progress.detectionTargets)
+    }
+
+    private fun setDetectionOff(reason: DetectionOffReason?) {
+        _state.update { current ->
+            val content = current as? ProgressUiState.Content ?: return@update current
+            if (content.detectionOff == reason) {
+                content
+            } else {
+                // 원인이 새로 생기면 닫아 둔 안내를 다시 띄운다. 사용자가 모르는 사이 꺼졌기 때문이다.
+                content.copy(detectionOff = reason, detectionNoticeDismissed = false)
+            }
+        }
+    }
+
+    /**
+     * 권한 요청·설정 화면에서 돌아왔을 때 자동 감지를 다시 맞춘다(T033).
+     *
+     * 허용됐으면 그 자리에서 감지 대상을 등록하고, 그대로면 안내가 남는다. 어느 쪽이든 진행은
+     * 막지 않는다(FR-024).
+     */
+    fun onBackgroundPermissionResult() {
+        viewModelScope.launch { syncGeofences() }
+    }
+
+    /** 자동 감지 꺼짐 안내를 닫는다. 안내를 따르지 않아도 진행은 계속된다(FR-025). */
+    fun dismissDetectionNotice() {
+        _state.update { current ->
+            (current as? ProgressUiState.Content)?.copy(detectionNoticeDismissed = true) ?: current
+        }
     }
 
     /** 이동 중 카드의 `도착했어요`: 다음 장소를 `ARRIVED`로(US2 시나리오 1·4). */
@@ -171,12 +218,12 @@ class ProgressViewModel(
         val repository = detectionRepository ?: return
         if (content.decisionPending != null) return
 
-        _state.value = content.copy(decisionPending = decision, decisionError = null)
+        _state.value = content.copy(decisionPending = decision, decisionFailure = null)
         viewModelScope.launch {
             when (val result = repository.decide(candidate.transitionId, decision)) {
                 is AuthResult.Success -> {
                     _state.update { current ->
-                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = null) ?: current
+                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionFailure = null) ?: current
                     }
                     // 응답은 전환 결과만 준다. 후보·상태·감지 대상은 진행 조회로 한 번에 맞춘다.
                     load()
@@ -185,7 +232,8 @@ class ProgressViewModel(
                 is AuthResult.Failure -> {
                     val error = result.error.toDetectionError()
                     _state.update { current ->
-                        (current as? ProgressUiState.Content)?.copy(decisionPending = null, decisionError = error) ?: current
+                        (current as? ProgressUiState.Content)
+                            ?.copy(decisionPending = null, decisionFailure = DecisionFailure(decision, error)) ?: current
                     }
                     // 이미 처리된 후보는 최신 상태를 다시 받아야 화면이 맞는다.
                     if (error == DetectionError.TransitionNotPending || error == DetectionError.InvalidDecision) load()
@@ -194,11 +242,16 @@ class ProgressViewModel(
         }
     }
 
-    /** 실패한 확인 응답을 같은 내용으로 다시 보낸다. */
+    /**
+     * 실패한 확인 응답을 **같은 답으로** 다시 보낸다.
+     *
+     * 보낼 답은 [ProgressUiState.Content.decisionFailure]에 기억해 둔 것을 쓴다. 후보가 허용하는
+     * 답 목록에서 고르면 사용자가 거절한 전환을 확정해 버릴 수 있다.
+     */
     fun retryDecision() {
         val pending = (_state.value as? ProgressUiState.Content) ?: return
-        val decision = pending.decisionError?.let { pending.progress.pendingCandidate?.allowedDecisions?.firstOrNull() } ?: return
-        _state.value = pending.copy(decisionError = null)
+        val decision = pending.decisionFailure?.decision ?: return
+        _state.value = pending.copy(decisionFailure = null)
         decide(decision)
     }
 
@@ -240,7 +293,7 @@ class ProgressViewModel(
     /** 확인 시트를 닫는다. 후보는 살아 있고 수동 진행을 계속할 수 있다(UI-007). */
     fun dismissCandidate() {
         _state.update { state ->
-            if (state is ProgressUiState.Content) state.copy(candidateDismissed = true, decisionError = null) else state
+            if (state is ProgressUiState.Content) state.copy(candidateDismissed = true, decisionFailure = null) else state
         }
     }
 
@@ -340,6 +393,7 @@ class ProgressViewModel(
             itineraryRepository: ItineraryRepository,
             detectionRepository: DetectionRepository? = null,
             geofenceManager: GeofenceManager? = null,
+            hasBackgroundPermission: () -> Boolean = { true },
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ProgressViewModel(
@@ -348,9 +402,23 @@ class ProgressViewModel(
                     tripId = tripId,
                     detectionRepository = detectionRepository,
                     geofenceManager = geofenceManager,
+                    hasBackgroundPermission = hasBackgroundPermission,
                 )
             }
         }
+
+        /**
+         * 백그라운드 위치 권한을 가지고 있는지.
+         *
+         * Android 10부터 별도 권한이며, 그 이전에는 앱 사용 중 권한으로 백그라운드 수신까지 됐다.
+         */
+        fun hasBackgroundLocationPermission(context: Context): Boolean =
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+                    PackageManager.PERMISSION_GRANTED
+            } else {
+                DeviceLocationProvider.hasLocationPermission(context)
+            }
 
         /** 실제 서버를 향한 repository. F005 `RouteViewModel.defaultRepository`와 같은 조립이다. */
         fun defaultRepository(context: Context): ProgressRepository {

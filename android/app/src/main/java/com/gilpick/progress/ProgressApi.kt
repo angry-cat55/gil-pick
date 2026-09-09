@@ -74,7 +74,20 @@ data class ProgressItemDto(
     val actualArrivedAt: String?,
     val completedAt: String?,
     val inboundTravel: InboundTravelDto?,
+    // 아래 둘은 PROG-001 확장(#312)이다. 서버가 내려주지 않던 시절의 응답과
+    // 저장된 멱등 snapshot도 그대로 파싱해야 하므로 기본값을 둔다.
+    val processingSource: ProgressProcessingSource? = null,
+    val eventRejectionReason: EventRejectionReason? = null,
 )
+
+/**
+ * 지금 상태를 확정한 처리 출처(#312 계약).
+ *
+ * 무응답으로 자동 확정된 전환만 [AUTO]다. 사용자가 확인 시트에 답해 확정된 것은 사용자의
+ * 결정이므로 [MANUAL]이다. 처리 이력이 없으면 `null`이다.
+ */
+@Serializable
+enum class ProgressProcessingSource { MANUAL, AUTO }
 
 /** 시작 요청에 실린 유효한 현재 위치. 없으면 `null`이다. */
 @Serializable

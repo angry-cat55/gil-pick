@@ -117,3 +117,53 @@
 3. 장소 밖 좌표를 주입해 출발 확인 시트를 띄우고 응답하지 않은 채 대기해 자동 출발과 되돌리기 토스트를 확인한다.
 4. 되돌린 뒤 같은 자리에서 쉬는 시간 동안 재확정이 없고, 그 시간이 지나면 다시 물어보는지 확인한다.
 5. 마지막 장소 도착을 확정해 당일 완료와 감지 종료를 확인한다.
+
+## Android 검증 기록 (#269 T036, 2026-09-09, jy)
+
+환경: `main` ca924f3(BE #300~#304, FE #296~#306 병합 후), AVD `gilpick_api36_play`(API 36, 1080x2400/420dpi, Play Services 포함; `Pixel_9_Pro` 대신 같은 API 36 image). 로컬 API는 docker postgres + `alembic upgrade head`(007·008) + uvicorn 127.0.0.1:8001 → `adb reverse tcp:8000 tcp:8001`.
+
+### 자동 test·build
+
+- `testDebugUnitTest` 392 통과, `assembleDebug`·`assembleDebugAndroidTest` 성공.
+- `connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.progress` 100 통과: ActiveTravelScreenTest 21 · ActiveTravelScreenshotTest 44 · ConfirmSheetTest 14 · UndoToastTest 8 · DetectionPermissionTest 10 · ProgressNavigationTest 3.
+- quickstart Android 항목 대응: FE 1(ConfirmSheetTest), FE 2·FE 3(UndoToastTest, ActiveTravelScreenTest `자동 처리`), FE 4-1·4-2(unit `GeofenceManagerTest` 차이 반영·빈 목록 해제), FE 5(DetectionPermissionTest), FE 6-1(`assertHeightIsAtLeast(48.dp)` 시트 2·토스트 1·안내 2).
+
+### FE 6 screenshot (UI-009·UI-010)
+
+`ActiveTravelScreenshotTest`에 12건 추가(총 44건): 도착 확인 시트·출발 확인 시트·응답 실패 시트·자동 확정 후 되돌리기·되돌리기 만료·자동 감지 꺼짐 × (기본, 360dp + 글자 배율 2.0). 확인 시트는 별도 window라 `ConfirmSheetContent`를 inline으로 그렸다. PNG는 `/sdcard/Android/data/com.gilpick/files/screenshots/detection_*.png`에서 pull했다.
+
+- 360dp·2.0에서 시트의 질문·근거·남은 시간·두 행동, 토스트의 문구·남은 시간·`되돌리기`, 꺼짐 안내의 원인·방법·두 행동이 모두 보인다(잘림 없음).
+- 남은 관찰(수정 안 함): 360dp·2.0에서 되돌리기 토스트 문구가 `북촌한옥 / 마을 도착 / 으로 자동 / 처리했어 / 요`처럼 음절 단위 5줄로 접힌다. `240초`와 `되돌리기`가 한 줄 폭의 절반 가까이 차지하기 때문이다. 시트 근거 `오 / 후 2:33`, 제목 `도착 / 하셨나요?`도 음절 단위로 접힌다. 읽기에는 지장 없음.
+
+### FE 4-3 앱 종료 상태의 지오펜스 발화
+
+여행 `F007 지오펜스`(9/9, 도보 3곳: 경복궁 → 북촌한옥마을 → 노블관광호텔 인사동)를 API로 만들고 시작(startLocation 37.57, 126.97). `pm grant`로 FINE·COARSE·BACKGROUND_LOCATION 허용.
+
+| 단계 | 확인 내용 | 결과 |
+|---|---|---|
+| 등록 | 진행 화면 진입 → PROG-001 `detectionTargets` = 경복궁 `ARRIVAL`(300m, dwell 5분) 1건 → `gilpick_detection_session` prefs에 tripId·date 저장(등록 성공 뒤에만 저장됨), 꺼짐 안내 없음 | 통과 |
+| 앱 종료 | HOME → `am kill com.gilpick` → `pidof` 없음, `stopped=false`(force-stop 아님, PendingIntent 유지) | 통과 |
+| 발화 | `adb emu geo fix 126.9770 37.5796`를 15초마다 주입(13:21:36부터) → 13:26:07 `ActivityManager: Start proc … for broadcast {com.gilpick/.progress.GeofenceReceiver}` → 13:26:11 `POST …/progress/events` 200 → PROG-001 `pendingCandidate` ARRIVAL(dwellMinutes 5, accuracyMeters 100.0, autoFinalizeAt +5분) | 통과 (주입 후 4분 31초) |
+| 시트(FE 1 실서버) | 앱 재실행 → `경복궁에 도착하셨나요?` · `이 근처에서 5분 머무는 중 · 오후 1:26 감지` · `1분 뒤 자동으로 도착 처리돼요` · `네, 도착했어요`·`아직이에요` | 통과 |
+| 자동 확정·토스트(FE 2·3 실서버) | 응답하지 않고 대기 → 13:31:10 AUTO_CONFIRMED → 카드 `현재 장소` 경복궁, 토스트 `경복궁 도착으로 자동 처리했어요 · 250초 · 되돌리기`, 1번 행 `자동 처리` 표시, 서버 targets가 `DEPARTURE`(400m)로 교체 | 통과 |
+| 되돌리기 | `되돌리기` → 서버 v3, 1번 `EN_ROUTE`·ETA 복원, 토스트 사라짐, `detectionTargets` `[]`(재개 대기) → prefs 비워짐(등록 해제) | 통과 |
+
+- 관찰: emulator `geo fix` 위치의 accuracy가 정확히 100.0m로 올라와 `MAX_ACCURACY_METERS`(100, 초과 시 거부) 경계에 걸린다. 실기기와 무관한 emulator 특성이지만 정확도 기준을 낮추면 emulator 검증이 막힌다.
+- 미실행: 출발 후보(EXIT)·재진입·`STILL_HERE`·당일 완료 후 전체 해제의 실서버 흐름은 T037(#270) 종단간 검증 범위라 여기서 하지 않았다(UI는 ConfirmSheetTest·unit test로 확인). FE 5-3(진행 도중 권한 회수)은 `DetectionPermissionTest`와 `ProgressViewModelTest`(권한 판정 → `detectionOff`)로 대신했다. 실기기·`Pixel_9_Pro` AVD는 없어 같은 API 36 image `gilpick_api36_play`로 수행했다.
+
+## 종단간 검증 기록 (#270 T037, 2026-09-09, jy)
+
+환경: `main` f3a226d(#311 병합 후), AVD `gilpick_api36_play`(API 36, Play Services, headless). 로컬 API는 docker postgres(`alembic` head = 008) + uvicorn 127.0.0.1:8002(`JWT_SIGNING_SECRET` env) → `adb reverse tcp:8000 tcp:8002`. 앱은 #311 검증 때 설치한 build 그대로(그 뒤 android 변경은 test 파일뿐). 여행 `F007 종단간`(9/9, 도보 2곳: 경복궁 → 북촌한옥마을)을 API로 만들고 시작 위치는 펜스 밖(37.5700, 126.9650)으로 뒀다.
+
+| 단계 | 확인 내용 | 결과 |
+|---|---|---|
+| 1. 진행 시작 | 여행 상세 `오늘 여행 시작` → PROG-002 200, v1 `IN_PROGRESS`, `detectionTargets` = 경복궁 `ARRIVAL`(300m, dwell 5) 1건 → `gilpick_detection_session` prefs 저장(등록 성공) | 통과 |
+| 2. 첫 장소 도착 | 경복궁 좌표 주입 → 14:44:45 DWELL(주입 뒤 5분 8초) → `POST /progress/events` 200 → `pendingCandidate` ARRIVAL(autoFinalizeAt +5분). 앱 복귀 → `경복궁에 도착하셨나요?` · `이 근처에서 5분 머무는 중 · 오후 2:44 감지` · `4분 뒤 자동으로 도착 처리돼요` → `네, 도착했어요` → PROG-004 200, v2 경복궁 `ARRIVED`, 카드 `현재 장소`, targets가 `DEPARTURE`(400m)로 교체 | 통과 |
+| 3. 무응답 자동 출발 | 펜스 밖 좌표 주입 → EXIT 200 → `pendingCandidate` DEPARTURE(`allowedDecisions` CONFIRM·STILL_HERE). 시트 `경복궁에서 출발하셨나요?` · `이 근처를 벗어났어요 · 오후 2:47 감지` · `네, 출발했어요`·`아직 머무는 중`. 응답하지 않고 대기 → 14:52:57 앱이 `autoFinalizeAt`에 스스로 재조회 → v3 경복궁 `COMPLETED`·북촌 `EN_ROUTE`, 카드 `다음 장소 북촌한옥마을`, 토스트 `경복궁 출발로 자동 처리했어요 · 297초 · 되돌리기`, 1번 행 `자동 처리` | 통과 |
+| 4. 되돌리기와 쉬는 시간 | `되돌리기` → PROG-005 200, v4 경복궁 `ARRIVED`·북촌 `PLANNED` 복원, 토스트 사라짐, `detectionTargets` `[]` → prefs 비워짐(지오펜스 해제). 쉬는 시간 중(14:54) 같은 자리에서 EXIT를 보내면 `accepted=false`, `rejectionReason=DETECTION_PAUSED`. `undone_at`+10분(15:03:35) 뒤 화면 복귀 → targets에 `DEPARTURE` 복귀·prefs 재저장 → 펜스 밖 이동 → 15:04:30 EXIT → 새 후보, 시트 `경복궁에서 출발하셨나요?` 재표시 → `네, 출발했어요` → v5 | 통과 |
+| 5. 마지막 장소 도착·당일 완료 | 북촌 좌표 주입 → 15:10:20 DWELL → 시트 `북촌한옥마을에 도착하셨나요?` → `네, 도착했어요` → v6 `dayStatus=COMPLETED`, 카드 `오늘 일정을 모두 마쳤어요 · 2곳 방문 · 마지막 도착 오후 3:10`, `detectionTargets` `[]`, prefs 비워짐(전체 해제) | 통과 |
+
+- 부수 확인(FR-012): 3단계 중 안·밖 좌표가 6초 간격으로 번갈아 들어간 구간(주입 loop 2개가 겹친 실수)에서 EXIT→REENTER가 7회 반복됐고, 매번 `REENTER`가 직전 후보를 `CANCELLED`로 만들고 상태는 `ARRIVED` 그대로였다. 마지막 EXIT만 후보로 남아 3단계가 진행됐다.
+- 관찰(앱): 포그라운드에 둔 채로는 후보가 생겨도 시트가 바로 뜨지 않는다. 앱은 resume·마감 시각·행동 뒤에만 재조회하므로 HOME→복귀로 띄웠다(plan.md의 설계대로, 알림은 F011). 자동 확정 시각에는 앱이 스스로 재조회해 토스트가 뜬다.
+- 관찰(emulator): 시작 위치가 펜스에서 1.5km 떨어져 있으면 GMS 지오펜서가 GPS를 요청하지 않아 `adb emu geo fix`만으로는 10분 넘게 발화하지 않았다(`dumpsys location` gps provider `OFF`). `cmd location providers add-test-provider gps` + `set-test-provider-location`으로 프레임워크에 위치를 넣으니(FLP passive 수신) 5분 뒤 정상 발화했다. #311 기록의 accuracy 100.0m 경계 문제도 이 방법이면 `--accuracy 10`으로 피할 수 있다.
+- 미실행: `STILL_HERE`(FR-013)·`NOT_ARRIVED` 재질문 상한(FR-008)·자동 출발 2회 되돌리기 중단(FR-017a)은 종단간 5단계 밖이라 BE 자동 test(#268)와 `ConfirmSheetTest`로 갈음했다. 실기기·`Pixel_9_Pro` AVD는 없어 같은 API 36 image로 수행했다.

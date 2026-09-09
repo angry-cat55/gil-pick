@@ -116,6 +116,8 @@ fun ActiveTravelScreen(
     onRetryDecision: () -> Unit = {},
     onDismissCandidate: () -> Unit = {},
     onUndo: () -> Unit = {},
+    onEnableDetection: () -> Unit = {},
+    onDismissDetectionNotice: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -146,6 +148,8 @@ fun ActiveTravelScreen(
                     onRetryDecision = onRetryDecision,
                     onDismissCandidate = onDismissCandidate,
                     onUndo = onUndo,
+                    onEnableDetection = onEnableDetection,
+                    onDismissDetectionNotice = onDismissDetectionNotice,
                     map = map,
                 )
             }
@@ -454,6 +458,8 @@ private fun Content(
     onRetryDecision: () -> Unit,
     onDismissCandidate: () -> Unit,
     onUndo: () -> Unit,
+    onEnableDetection: () -> Unit,
+    onDismissDetectionNotice: () -> Unit,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -469,6 +475,15 @@ private fun Content(
             .navigationBarsPadding(),
     ) {
         Spacer(modifier = Modifier.height(spacing.space3))
+        // Figma `ActiveTravelScreen`은 이 안내를 스크롤 영역 맨 위, 다른 배너보다 앞에 둔다.
+        content.visibleDetectionNotice?.let { reason ->
+            DetectionOffBanner(
+                reason = reason,
+                onEnable = onEnableDetection,
+                onDismiss = onDismissDetectionNotice,
+                modifier = Modifier.padding(bottom = spacing.space2),
+            )
+        }
         if (content.isToday) {
             NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
         }
@@ -523,7 +538,7 @@ private fun Content(
             placeName = content.candidatePlaceName,
             now = content.now,
             submitting = content.decisionPending != null,
-            error = content.decisionError,
+            error = content.decisionFailure?.error,
             onDecide = onDecide,
             onRetry = onRetryDecision,
             onDismiss = onDismissCandidate,
@@ -582,6 +597,66 @@ private fun ActionErrorBar(failure: ProgressActionFailure, onRetry: () -> Unit, 
         }
     }
 }
+
+/**
+ * 자동 감지 꺼짐 안내(UI-005, Figma `ActiveTravelScreen` Location permission banner).
+ *
+ * 원인과 켜는 방법, 닫기를 함께 둔다. 안내를 따르지 않아도 진행은 계속되므로 닫을 수 있어야
+ * 한다(FR-025). 색만으로 알리지 않고 문구로 원인을 적는다(가이드라인 10절).
+ */
+@Composable
+private fun DetectionOffBanner(
+    reason: DetectionOffReason,
+    onEnable: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(radius.lg))
+            .background(colors.warningContainer)
+            .padding(horizontal = spacing.space4, vertical = spacing.space3)
+            .testTag(TAG_DETECTION_OFF),
+    ) {
+        Text(
+            text = stringResource(reason.causeRes),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onWarningContainer,
+        )
+        Text(
+            text = stringResource(reason.howToRes),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onWarningContainer,
+            modifier = Modifier.padding(top = spacing.space1),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2), modifier = Modifier.padding(top = spacing.space1)) {
+            // 정확도 부족은 사용자가 권한으로 풀 수 있는 문제가 아니다. 켜는 행동을 주지 않는다.
+            if (reason == DetectionOffReason.PermissionMissing) {
+                TextAction(label = stringResource(R.string.detection_off_enable), onClick = onEnable)
+            }
+            TextAction(label = stringResource(R.string.detection_off_dismiss), onClick = onDismiss)
+        }
+    }
+}
+
+/** 꺼진 원인 문구. */
+private val DetectionOffReason.causeRes: Int
+    get() = when (this) {
+        DetectionOffReason.PermissionMissing -> R.string.detection_off_permission
+        DetectionOffReason.AccuracyLow -> R.string.detection_off_accuracy
+    }
+
+/** 켜는 방법과 켜지 않아도 된다는 안내. */
+private val DetectionOffReason.howToRes: Int
+    get() = when (this) {
+        DetectionOffReason.PermissionMissing -> R.string.detection_off_permission_how
+        DetectionOffReason.AccuracyLow -> R.string.detection_off_accuracy_how
+    }
 
 @Composable
 private fun TextAction(label: String, onClick: () -> Unit) {
@@ -1003,7 +1078,7 @@ private fun ItemList(
                     last = index == rows.lastIndex,
                     started = content.viewingStarted,
                     showTime = content.isToday,
-                    autoProcessed = content.isToday && row.item.itemId == content.autoProcessedItemId,
+                    autoProcessed = content.isToday && row.item.itemId in content.autoProcessedItemIds,
                     onClick = onRowClick?.let { click -> { click(row) } },
                 )
             }
@@ -1235,6 +1310,9 @@ internal const val TAG_MAP_SLOT = "progress_map_slot"
 internal const val TAG_ROW_PREFIX = "progress_row_"
 internal const val TAG_ADD_PLACE = "progress_add_place"
 internal const val TAG_ACTION_ERROR = "progress_action_error"
+
+/** 자동 감지 꺼짐 안내(UI-005). */
+internal const val TAG_DETECTION_OFF = "progress_detection_off"
 internal const val TAG_BUSY = "progress_busy"
 internal const val TAG_VIEWING_BANNER = "progress_viewing_banner"
 

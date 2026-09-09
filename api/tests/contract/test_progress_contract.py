@@ -157,6 +157,13 @@ def test_progress_openapi_declares_expected_responses() -> None:
         progress_schema["properties"]["pendingCandidate"]
     )
     assert "UndoableTransition" in str(progress_schema["properties"]["undoable"])
+    item_schema = schema["components"]["schemas"]["ProgressItem"]
+    assert {"processingSource", "eventRejectionReason"} <= set(
+        item_schema["properties"]
+    )
+    assert set(
+        schema["components"]["schemas"]["ProgressProcessingSource"]["enum"]
+    ) == {"MANUAL", "AUTO"}
 
 
 def test_progress_source_contract_matches_common_validation_error_policy() -> None:
@@ -179,6 +186,7 @@ def test_progress_source_contract_matches_common_validation_error_policy() -> No
     error_body = contract["components"]["schemas"]["ErrorEnvelope"]["properties"][
         "error"
     ]
+    progress_item = contract["components"]["schemas"]["ProgressItem"]
 
     assert "400" in get_responses
     assert "400" in start_responses
@@ -186,6 +194,12 @@ def test_progress_source_contract_matches_common_validation_error_policy() -> No
     assert "INVALID_REQUEST" not in start_responses["422"]["description"]
     assert "details" in error_body["required"]
     assert "details" in error_body["properties"]
+    assert {"processingSource", "eventRejectionReason"} <= set(
+        progress_item["properties"]
+    )
+    assert set(
+        contract["components"]["schemas"]["ProgressProcessingSource"]["enum"]
+    ) == {"MANUAL", "AUTO"}
 
 
 def test_unstored_day_progress_contract_returns_empty_and_rejects_start() -> None:
