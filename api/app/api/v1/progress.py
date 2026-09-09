@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Path, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Path, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import success_response
 from app.api.dependencies import get_current_principal
 from app.api.v1.itinerary import _owned_trip_date
 from app.db import create_session_factory, get_session
+from app.models.itinerary import TripDay
 from app.core.config import Settings, get_settings
 from app.schemas.auth import ErrorEnvelope
 from app.schemas.progress import (
@@ -31,11 +34,34 @@ from app.schemas.trip import Trip
 from app.core.security import AuthPrincipal
 from app.services.progress import ProgressService
 from app.services.detection import DetectionService
+from app.services.detection.evaluator import reevaluate_day
 from app.services.route import build_route_service
 
 router = APIRouter(prefix="/trips/{tripId}", tags=["progress"])
 item_router = APIRouter(prefix="/itinerary-items", tags=["progress"])
 transition_router = APIRouter(prefix="/progress/transitions", tags=["progress"])
+logger = logging.getLogger(__name__)
+
+
+async def _reevaluate_progress_day(
+    session_factory, *, trip_id: uuid.UUID, visit_date: date
+) -> None:
+    """진행 변경 commit 이후 해당 날짜의 ETA 기반 변수를 재평가한다."""
+    try:
+        async with session_factory() as session:
+            trip_day_id = await session.scalar(
+                select(TripDay.trip_day_id).where(
+                    TripDay.trip_id == trip_id,
+                    TripDay.visit_date == visit_date,
+                )
+            )
+        if trip_day_id is not None:
+            await reevaluate_day(session_factory, trip_day_id)
+    except Exception:
+        logger.exception(
+            "진행 변경 후 변수 재평가 연결에 실패했습니다.",
+            extra={"trip_id": str(trip_id), "visit_date": visit_date.isoformat()},
+        )
 
 
 async def _service(
@@ -89,6 +115,7 @@ async def start_day_progress(
     payload: StartDayProgressRequest,
     visit_date: Annotated[date, Path(alias="date")],
     request: Request,
+    background_tasks: BackgroundTasks,
     trip: Annotated[Trip, Depends(_owned_trip_date)],
     idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
     service: Annotated[ProgressService, Depends(_service)],
@@ -97,6 +124,13 @@ async def start_day_progress(
         trip_id=trip.trip_id, visit_date=visit_date,
         payload=payload, idempotency_key=idempotency_key,
     )
+    if (session_factory := getattr(service, "session_factory", None)) is not None:
+        background_tasks.add_task(
+            _reevaluate_progress_day,
+            session_factory,
+            trip_id=trip.trip_id,
+            visit_date=visit_date,
+        )
     return success_response(request, data)
 
 
@@ -200,6 +234,7 @@ async def update_item_progress_status(
     payload: UpdateItemProgressStatusRequest,
     item_id: Annotated[uuid.UUID, Path(alias="itemId")],
     request: Request,
+    background_tasks: BackgroundTasks,
     principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
     idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
     service: Annotated[ProgressService, Depends(_service)],
@@ -211,6 +246,13 @@ async def update_item_progress_status(
         progress_version=payload.progress_version,
         idempotency_key=idempotency_key,
     )
+    if (session_factory := getattr(service, "session_factory", None)) is not None:
+        background_tasks.add_task(
+            _reevaluate_progress_day,
+            session_factory,
+            trip_id=data.trip_id,
+            visit_date=data.date,
+        )
     return success_response(request, data)
 
 
