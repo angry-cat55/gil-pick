@@ -61,12 +61,14 @@ data class ErrorBody(
  * @property violations `INVALID_ITINERARY`. 규칙을 어긴 항목과 이유.
  * @property itemId `ITINERARY_ITEM_LOCKED`. 변경이 거부된 처리된 항목.
  * @property deletedItemCount `CONFIRMATION_REQUIRED`. 기간 축소로 삭제될 일정 항목 수.
+ * @property status `DETECTION_NOT_ACTIVE`. 감지의 현재 상태(F009 `DetectionStatus` 이름).
  */
 @Serializable
 data class ErrorDetails(
     val violations: List<Violation>? = null,
     val itemId: String? = null,
     val deletedItemCount: Int? = null,
+    val status: String? = null,
 )
 
 /**
