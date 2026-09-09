@@ -37,13 +37,13 @@ description: "F010 일정 변경 구현 task 목록"
 
 **Purpose**: 계약을 공용 문서와 대조해 고정하고, 조정 가능한 정책값과 Figma 기준을 확인한다.
 
-- [ ] T001 F010 REPL 계약·ERD·API 명세 대조와 교차 review in specs/010-schedule-replacement/contracts/replacements.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T001 F010 REPL 계약·ERD·API 명세 대조와 교차 review in specs/010-schedule-replacement/contracts/replacements.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: 통합
   - 담당: jh
   - 교차 확인: hs
   - 선행: 없음
   - 검증: `replacements.openapi.yaml`의 REPL-001~004 경로가 `api-spec.md` 8절과 일치하는지, 응답 구조 차이(`comparison` 네 항목, `detectionReason`, `detectionRestored`, `UndoableReplacement`)와 **`itineraryVersion` → `scheduleVersion` 이름 정정**(research 11절) 대상을 목록화. `er-schema.md`에 `route_previews`·`place_replacements` 두 테이블과 13절 API 매핑 추가 대상을 대조해 PR에 기록. 실제 문서 반영은 T034
-- [ ] T002 [P] 변경 정책 모듈 in api/app/services/replacement.py
+- [x] T002 [P] 변경 정책 모듈 in api/app/services/replacement.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음

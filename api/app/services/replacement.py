@@ -1,0 +1,7 @@
+"""일정 변경의 조정 가능한 정책값."""
+
+PREVIEW_TTL_MINUTES = 5
+UNDO_WINDOW_SECONDS = 30
+
+
+__all__ = ["PREVIEW_TTL_MINUTES", "UNDO_WINDOW_SECONDS"]
