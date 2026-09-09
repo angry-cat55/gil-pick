@@ -19,6 +19,10 @@ class ForecastSlot:
     pty: int | None = None
 
 
+class KmaProviderError(RuntimeError):
+    """재시도 후에도 기상청 요청을 완료하지 못했다."""
+
+
 def latitude_longitude_to_grid(latitude: float, longitude: float) -> tuple[int, int]:
     """기상청 DFS 공식 LCC 식으로 WGS84 좌표를 격자로 변환한다."""
     if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
@@ -78,7 +82,8 @@ class KmaClient:
                 if response.status_code >= 400: return None
                 break
             except (httpx2.TimeoutException, httpx2.RequestError, httpx2.HTTPStatusError):
-                if attempt == 1: return None
+                if attempt == 1:
+                    raise KmaProviderError("KMA_PROVIDER_FAILED")
         try:
             payload = response.json()
             if str(payload["response"]["header"]["resultCode"]) != "00": return None

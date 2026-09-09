@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
-from app.clients.google_places import GooglePlacesClient, GooglePlacesClientError
+from app.clients.google_places import GooglePlacesClient
 from app.core.config import Settings
 
 
@@ -40,8 +40,7 @@ class OperatingHoursSource:
     async def get(self, place_id: str, eta: datetime) -> OperatingHours:
         """ETA가 속한 영업 구간의 폐점 시각과 영업 상태를 반환한다."""
         if not self.settings.google_places_api_key.get_secret_value(): return OperatingHours()
-        try: payload = await self.client.get_place(place_id)
-        except GooglePlacesClientError: return OperatingHours()
+        payload = await self.client.get_place(place_id)
         try:
             status = BusinessStatus(payload.get("businessStatus", "UNKNOWN"))
             offset = int(payload.get("utcOffsetMinutes", 540))

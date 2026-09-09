@@ -30,6 +30,10 @@ class PopulationData:
     forecasts: list[PopulationForecast]
 
 
+class SeoulCityDataProviderError(RuntimeError):
+    """재시도 후에도 서울시 도시데이터 요청을 완료하지 못했다."""
+
+
 class SeoulCityDataClient:
     """지원 지점의 현재·예측 혼잡 수준을 조회한다."""
 
@@ -55,7 +59,8 @@ class SeoulCityDataClient:
                 if response.status_code >= 400: return None
                 break
             except (httpx2.TimeoutException, httpx2.RequestError, httpx2.HTTPStatusError):
-                if attempt == 1: return None
+                if attempt == 1:
+                    raise SeoulCityDataProviderError("SEOUL_CITYDATA_PROVIDER_FAILED")
         try:
             row = response.json()["SeoulRtd.citydata_ppltn"][0]
             kst = timezone(timedelta(hours=9))
