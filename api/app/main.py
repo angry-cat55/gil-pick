@@ -18,6 +18,7 @@ from app.api.v1.progress import item_router as progress_item_router
 from app.api.v1.progress import router as progress_router
 from app.api.v1.progress import transition_router as progress_transition_router
 from app.api.v1.route import router as route_router
+from app.api.v1.replacements import router as replacements_router
 from app.api.v1.trips import router as trips_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     application.include_router(progress_item_router, prefix="/api/v1")
     application.include_router(progress_transition_router, prefix="/api/v1")
     application.include_router(route_router, prefix="/api/v1")
+    application.include_router(replacements_router, prefix="/api/v1")
     application.include_router(trips_router, prefix="/api/v1")
 
     def contract_openapi() -> dict:
