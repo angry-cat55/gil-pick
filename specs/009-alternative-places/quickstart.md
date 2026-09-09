@@ -122,3 +122,34 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 
 - `docs/design/api-spec.md` 2절·7절, `docs/design/er-schema.md` 8.1·13절, `docs/planning/requirements.md`·`functional-spec.md` 5절이 [data-model.md](data-model.md) 4절의 목록대로 갱신됐는지 확인한다.
 - `docs/planning/mvp-features.md` F009 상태 전이(READY → IN_PROGRESS → VERIFY → DONE)를 각 PR에 포함한다.
+
+## 검증 기록
+
+### Backend 자동 검증 (2026-09-09, T038)
+
+명령: `cd api && set -a && . ./.env && set +a && uv run pytest tests/unit tests/contract -q`
+
+- **결과: 465 passed, 0 failed.** (T038 기준 범위. quickstart 초안이 언급한 "auth 9건 기존 실패"는 현재 origin/main에서 재현되지 않는다 — 그 사이 수정됨.)
+- 전체 `pytest tests/` 실행 시 6건이 실패하나 모두 파일 단위로 재실행하면 통과한다. 공유 DB·로깅 핸들러 상태 오염에 따른 순서 의존적 flakiness이며 F009 회귀가 아니다(`tests/integration/test_itinerary_flow.py`, `test_progress_flow.py` 2건, `test_variable_detection_migration.py`, `tests/unit/test_alternative_candidates.py::test_pipeline_logs_request_id_...`, `tests/unit/test_api_foundation.py::test_unexpected_error_keeps_request_id_...`). 후자 2건은 `caplog` 기반 단언이라 격리 실행에서 통과 확인함(`pytest tests/unit/test_alternative_candidates.py tests/unit/test_api_foundation.py` → 32 passed).
+
+BE 시나리오 ↔ 커버하는 자동 test (외부 provider는 `httpx` mock transport):
+
+| # | 시나리오 | 커버 test | 상태 |
+|---|---|---|---|
+| BE 1 | 후보 조회 기본·정렬·동점·`displayScore` | `test_alternative_candidates.py::test_radius_and_category_ladder`, `test_alternative_scoring.py` 전체 | 통과 |
+| BE 2 | 반경 사다리·분류 단계·2km 없음(`NONE`,`items=[]`)·Google 전용 origin·기존/같은 날짜 장소 제외 | `test_radius_and_category_ladder`, `test_no_match_returns_successful_empty_2km_result`, `test_origin_and_same_day_places_are_excluded` | 통과 |
+| BE 3 | 폐점·임시휴업 제외·`UNKNOWN` 유지·확인 상한 20·반경 미확장 | `test_closed_places_are_skipped_unknown_is_kept_and_ten_are_filled`, `test_operating_check_stops_at_twenty_without_expanding_radius` | 통과 |
+| BE 4 | Google 전부 실패→`rating` 생략·`UNKNOWN`, 혼잡 미지원·실내→변수 제외, 기상청 실패→전 후보 `weather` 제외, 재분배 수치 | `test_google_all_timeout_keeps_candidates_without_rating_as_unknown`, `test_congestion_unavailable_is_isolated_to_that_variable`, `test_indoor_candidate_excludes_weather_even_when_forecast_available`, `test_kma_failure_removes_weather_from_all_candidates_with_success`, `test_weight_redistribution_when_rating_and_weather_excluded` | 통과 |
+| BE 5 | TourAPI timeout→504 / 5xx→502(빈 목록 위장 금지), 비-`ACTIVE`→`409 DETECTION_NOT_ACTIVE`+`details.status`, 타인→403/404 | `test_tour_api_failure_raises_instead_of_returning_empty_list`, `test_list_candidates_surfaces_tour_failure_instead_of_empty_list`, `test_alt_001_preserves_public_error_contract` | 통과 |
+| BE 5.4 | ALT-001·ALT-002 호출 전후 `itinerary_items`·`routes`·`detections` 불변 | `test_alternative_service_only_reads_schedule_rows`(session이 select만 실행하는지 단언). 실제 DB 왕복 불변은 자동 test 미커버 → 실서버 항목 참고 | 부분 |
+| BE 6 | DETECT-004 `ACTIVE`→`DISMISSED`·`decidedAt`·멱등·`INVALIDATED`→`decidedAt=null`·소유권 | `test_detections_contract.py::test_detect_004_dismiss_route_matches_contract`, `test_dismiss_active_detection_transitions_once_and_reports_decided_at`, `test_dismiss_is_idempotent_for_non_active_detection`, `test_dismiss_reports_null_decided_at_for_invalidated`, `test_dismiss_propagates_ownership_errors_without_writing` | 통과 |
+| BE 6.4 | 거절 후 `?status=ACTIVE` 목록에서 제외 | DETECT-001 `status` 필터 동작은 `test_detection_routes_match_documented_methods_and_models`가 확인. 거절→목록 반영 종단은 실서버 항목 | 부분 |
+| BE 7 | ALT-002 `place`+4필드·`meta.pagination`·2글자 400·`inSchedule`·`CLOSED_TEMPORARILY`→`CLOSED`(결과 유지)·409/403·provider 오류 형식 | `test_alt_002_exposes_documented_contract_and_pagination`, `test_alt_002_rejects_query_shorter_than_two_characters`, `test_alt_002_preserves_public_error_contract`, `test_alternative_service_search_annotates_places`, `test_alternative_service_search_rejects_non_active_detection` | 통과 |
+| BE 8 | `candidateId` 검증 일치·서명 변조·15분 만료→`None` | `test_candidate_token.py` 전체, `test_radius_and_category_ladder`의 `verify_candidate_token` 단언 | 통과 |
+| BE 9 | DETECT-001 `status` 필터·`eta`·`reason`·기존 형식 호환 | `test_detections_contract.py::test_f009_detection_list_extension_matches_contract`, `test_detection_routes_match_documented_methods_and_models` | 통과 |
+
+### 미실행
+
+- 실제 TourAPI·Google·기상청·서울시 연동(local `.env` 자격 필요)은 이 검증에서 실행하지 않았다. mock transport 자동 test로만 확인했다.
+- BE 5.4·6.4의 실제 DB 왕복 종단 확인, Android 시나리오(AND 1~5), screenshot·실서버 requestId 기록은 T037·T039(FE·통합)에서 수행한다.
+- `mvp-features.md` F009 `VERIFY` 전이는 이 문서 PR에 포함하고, `DONE`은 관련 PR 전부 병합 후 T039에서 반영한다.
