@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_serializer
 
 from app.schemas.auth import ApiModel, ErrorBody, ResponseMeta
 from app.schemas.detection import DetectionStatus, PaginatedMeta
@@ -45,6 +45,11 @@ class ScoreBreakdown(ApiModel):
     rating: float | None = Field(default=None, ge=0, le=1)
     congestion: float | None = Field(default=None, ge=0, le=1)
     weather: float | None = Field(default=None, ge=0, le=1)
+
+    @model_serializer(mode="wrap")
+    def omit_unavailable_variables(self, handler):
+        """점수에서 제외된 변수는 계약대로 key 자체를 생략한다."""
+        return {key: value for key, value in handler(self).items() if value is not None}
 
 
 class AlternativeCandidate(ApiModel):

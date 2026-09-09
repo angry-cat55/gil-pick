@@ -105,17 +105,17 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] 점수 산출 unit test in api/tests/unit/test_alternative_scoring.py
+- [x] T012 [P] [US1] 점수 산출 unit test in api/tests/unit/test_alternative_scoring.py
   - 영역: BE
   - 담당: ts
   - 선행: T002
   - 검증: 거리·혼잡·날씨·평점 정규화 값, 결손 가중치 비례 재분배(예: rating·weather 제외 시 `(0.35d+0.20c)/0.55`), 베이지안 `m` 중앙값·`m=20` 조건, 동점 규칙(거리→보정 평점→리뷰 수), `displayScore=round(score)`이며 정렬은 원점수, `reasons` 코드 생성 규칙을 검증. 구현 전 실패 확인
-- [ ] T013 [P] [US1] 후보 파이프라인 unit test in api/tests/unit/test_alternative_candidates.py
+- [x] T013 [P] [US1] 후보 파이프라인 unit test in api/tests/unit/test_alternative_candidates.py
   - 영역: BE
   - 담당: ts
   - 선행: T002, T004, T005, T006
   - 검증: TourAPI·Google mock transport로 (a) 500m 소분류 일치 → `SMALL`·500, (b) 800m 중분류만 → `MIDDLE`·1000, (c) 2km 없음 → `NONE`·2000·`items=[]`, (d) Google 전용 기존 장소 → `LARGE`, (e) 기존 장소·같은 날짜 장소 제외, (f) 폐점·임시휴업 제외 후 10개 채움, (g) 운영시간 없음 → `UNKNOWN` 유지, (h) 상위 20곳 모두 폐점 → Google 호출 20회에서 중단·빈 목록·반경 유지, (i) 기상청은 1회만 호출·서울시는 구역별 메모이즈. 구현 전 실패 확인
-- [ ] T014 [P] [US1] ALT-001 계약 test in api/tests/contract/test_alternatives_contract.py
+- [x] T014 [P] [US1] ALT-001 계약 test in api/tests/contract/test_alternatives_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T007, T009
@@ -123,17 +123,17 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] 점수 산출 모듈 in api/app/services/alternatives/scoring.py
+- [x] T015 [US1] 점수 산출 모듈 in api/app/services/alternatives/scoring.py
   - 영역: BE
   - 담당: ts
   - 선행: T012
   - 검증: T012 통과. 정규화·재분배·베이지안·동점·표시 점수·`reasons`(INDOOR·NOT_CROWDED·NO_RAIN_RISK·CLOSER·OPEN_AT_ETA)를 `policy.py` 값으로만 계산
-- [ ] T016 [US1] 후보 파이프라인 in api/app/services/alternatives/candidates.py
+- [x] T016 [US1] 후보 파이프라인 in api/app/services/alternatives/candidates.py
   - 영역: BE
   - 담당: ts
   - 선행: T013, T015, T008
   - 검증: T013 통과. research R1~R3 순서(TourAPI 2km 1회 → 사다리·소→중→대 → 제외 → 예비 점수 → 상위부터 Text Search 매칭·`parse` 운영 판정·상한 → 최종 점수 → 10개 → `candidateId` 발급). `evaluate_weather` 1회·`evaluate_congestion` 구역 메모이즈. Google·기상청·서울시 예외는 변수 제외로 격리(US4에서 test 보강)
-- [ ] T017 [US1] AlternativeService.list_candidates와 ALT-001 endpoint in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py, api/app/main.py
+- [x] T017 [US1] AlternativeService.list_candidates와 ALT-001 endpoint in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py, api/app/main.py
   - 영역: BE
   - 담당: ts
   - 선행: T014, T016
