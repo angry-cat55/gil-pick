@@ -110,7 +110,8 @@ components:
       enum: [ACTIVE, RESOLVED, DISMISSED, INVALIDATED]
       description: |
         ACTIVE=사용자 결정 전(pending). RESOLVED·DISMISSED=F009·F010 변경 승인·거절.
-        INVALIDATED=대상 장소 완료·건너뜀·제거 또는 당일 완료로 종료.
+        INVALIDATED=대상 장소 도착·완료·건너뜀 또는 당일 완료로 종료.
+        일정에서 장소가 삭제되면 연결된 감지 결과도 함께 삭제된다.
     DetectionType:
       type: string
       enum: [CONGESTION, WEATHER, OPERATING_HOURS]

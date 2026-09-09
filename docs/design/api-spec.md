@@ -1352,7 +1352,7 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 - 각 주기마다 대상 장소의 전체 변수 점수를 계산한다.
 - 하나 이상의 변수가 위험이면 `ACTIVE` 감지 결과를 생성한다. 장소 변경 제안 알림은 F011에서 처리한다.
 - 사용자가 해당 감지를 결정하기 전에는 동일 대상 장소의 `ACTIVE` 결과를 갱신하고 중복 생성하지 않는다.
-- 해당 장소 일정이 완료·건너뛰기되면 `ACTIVE` 결과를 `INVALIDATED`로 종료한다.
+- 해당 장소가 도착·완료·건너뛰기되거나 날짜가 완료되면 `ACTIVE` 결과를 `INVALIDATED`로 종료한다. 일정에서 장소를 삭제하면 연결된 감지 결과도 함께 삭제한다.
 - MVP는 단일 서버를 전제로 하며 다중 서버 분산락은 제외한다.
 
 혼잡:
@@ -1375,6 +1375,15 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 - ETA가 폐점 30분 전 이내면 폐점 임박 경고
 - 임시휴업 정보가 있으면 방문 불가
 - 운영시간 미상은 운영시간 변수 제외
+
+감지 상태:
+
+| 값 | 의미 |
+|---|---|
+| `ACTIVE` | 사용자 결정 전이며 재평가로 갱신되는 감지 |
+| `RESOLVED` | 사용자가 변경을 승인해 처리된 감지 |
+| `DISMISSED` | 사용자가 변경을 거절한 감지 |
+| `INVALIDATED` | 장소·날짜 진행 상태 변경으로 더 이상 유효하지 않은 감지 |
 
 ### DETECT-001 감지 목록 조회
 
@@ -1411,7 +1420,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `403`, `404`
+주요 오류: `400`, `401`, `403`, `404`
 
 ### DETECT-002 감지 상세 조회
 
@@ -1433,12 +1442,14 @@ Response `200`:
     "variables": {
       "congestion": {
         "available": true,
+        "unavailableReason": null,
         "level": "CROWDED",
         "sensitivity": "MEDIUM",
         "crowded": true
       },
       "weather": {
         "available": true,
+        "unavailableReason": null,
         "precipitationProbability": 80,
         "precipitationMmPerHour": 0.5,
         "precipitationType": "RAIN",
@@ -1446,6 +1457,7 @@ Response `200`:
       },
       "operatingHours": {
         "available": true,
+        "unavailableReason": null,
         "closesAt": "2026-08-22T13:20:00+09:00",
         "closingSoon": true,
         "visitBlocked": false,
@@ -1464,7 +1476,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `403`, `404`
+주요 오류: `401`, `403`, `404`
 
 ### DETECT-003 감지 읽음 처리
 
@@ -1487,7 +1499,7 @@ Response `200`:
 }
 ```
 
-주요 오류: `403`, `404`
+주요 오류: `401`, `403`, `404`
 
 ### 7.2 추천 점수 정책
 
