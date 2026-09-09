@@ -552,6 +552,7 @@ class ProgressService:
             progress_durations={},
             has_start_location=location is not None,
         )
+        response = await self._to_data(day)
         await self.session.commit()
         logger.info({
             "operation": "START_DAY_PROGRESS",
@@ -606,7 +607,7 @@ class ProgressService:
                     return await ProgressService(result_session).get_day(
                         trip_id=trip_id, visit_date=visit_date
                     )
-        return await self._to_data(day)
+        return response
 
     async def _load_day(
         self, trip_id: uuid.UUID, visit_date: date

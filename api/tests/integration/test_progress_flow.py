@@ -228,8 +228,12 @@ async def test_provider_failure_keeps_start_success_and_unknown_eta(
         "currentLocation": {"latitude": 37.57, "longitude": 126.98, "accuracyMeters": 20, "occurredAt": now.isoformat()},
     })
     caplog.set_level(logging.INFO, logger="gilpick.progress")
-    async with session_factory() as session:
-        result = await ProgressService(session, calculator=_FailingCalculator()).start_day(
+    async with transaction_session(session_factory) as session:
+        result = await ProgressService(
+            session,
+            calculator=_FailingCalculator(),
+            session_factory=session_factory,
+        ).start_day(
             trip_id=trip_id, visit_date=today, payload=payload, idempotency_key=uuid.uuid4()
         )
 
