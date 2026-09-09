@@ -169,8 +169,44 @@ BE 시나리오 ↔ 커버하는 자동 test (외부 provider는 `httpx` mock tr
 
 미검증(실서버): BE 3.2의 `businessStatus=CLOSED_TEMPORARILY` 후보 제외는 실제 Google 매칭이 성사되지 않아 확인 못 함(mock test로만). BE 7.3·7.4의 `inSchedule=true`·`CLOSED` 케이스는 실제 검색 결과에 기존 장소·폐점 장소가 포함되지 않아 확인 못 함(mock test로만).
 
+### Android 자동 검증 (2026-09-09, T037·T039)
+
+명령(`android/`):
+
+```bash
+gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug
+ANDROID_SERIAL=emulator-5556 gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.alternative
+ANDROID_SERIAL=emulator-5556 gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.progress
+```
+
+- unit 445 통과. connected `alternative` 33 통과, `progress` 113 통과(ATD `gilpick_api36`). `progress` 첫 실행에서 `ProgressNavigationTest` 1건이 실패했으나 단독·전체 재실행 모두 통과해 순서 의존 flake로 본다(F009 변경 파일 아님).
+
+| # | 시나리오 | 커버 test | 상태 |
+|---|---|---|---|
+| AND 1 | 후보 4곳 요약·칩·`추천 후보 N곳`·`TOP`·행 구성, 후보 0곳, 추천 실패·재시도, 409 `Closed`, 1초 대기·재조회 중 목록 유지, 평점 없음·`UNKNOWN`·`CLOSING_SOON` | `AlternativePlacesScreenTest` 12건 | 통과 |
+| AND 2 | `경로 비교`/`비교` → `onSelectPlace(SelectedAlternative)` 필드 전달, 직접 검색 2글자 미만·거리·`방문 불가`·`이미 일정에 있음`·`candidateId=null` 전달, 거절 → DETECT-004·`onDismissed`·버튼 잠금·실패 유지 | `AlternativeNavigationTest`, `AlternativeSearchScreenTest`, unit `AlternativeViewModelTest` | 통과 |
+| AND 3 | ACTIVE 2건 중 ETA 이른 하나만 배너, 탭 → `onOpenAlternatives`, 당일 완료·다른 날짜·0건·조회 실패 시 배너 없음 | `ActiveTravelScreenTest` T027 절 4건, unit `ProgressViewModelTest` | 통과 |
+| AND 4 | 후보 있음·후보 없음·추천 실패·처리된 감지 × (360dp 기본, 360dp fontScale 2.0) 8장 + 배너 2장 | `AlternativeScreenshotTest` 8건, `ActiveTravelScreenshotTest` `alternative_banner*` 2건 | 통과 |
+
+AND 4 screenshot(`/sdcard/Android/data/com.gilpick/files/screenshots/alternative_*.png`, ATD `captureToImage`, PR 첨부): 360dp·2.0에서 잘림·가로 스크롤 없음. 후보 목록·후보 없음은 sheet가 `verticalScroll`이라 아래 버튼은 스크롤로 닿는다. 터치 48dp는 `AlternativePlacesScreenTest`(`TAG_KEEP`·`TAG_SEARCH`·`TAG_RETRY`·`TAG_TO_PROGRESS`·`TAG_BACK`·후보 행)와 `AlternativeSearchScreenTest`의 `assertHeightIsAtLeast(48.dp)`로 확인. 관찰: 공용 `StateMessage` 제목 `이미 처리된 감지예요`가 2.0에서 `감지예/요`로 한 글자만 내려간다(잘림 아님, `progress/*` 소유 `hs` 참고).
+
+### Android 실서버 검증 (2026-09-09, T037 실제 지도 + T039 AND 5)
+
+환경: `gilpick_api36_play`(Naver 키, `adb reverse tcp:8000 tcp:8003`), local `uvicorn app.main:app --port 8003`(현재 `main` 코드, `JWT_SIGNING_SECRET` 환경변수, docker `gil-pick-postgres-1`, `.env`의 실제 TourAPI·Google 키), 앱은 `-PGILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/`로 빌드. 세션은 F006/F007과 같은 임시 `SeedSession` androidTest로 주입(커밋 안 함). 여행 `F009 대체`(2026-09-09, 사용자 `a48af56b…`): 명동성당 → `명동 카페거리 카페`(CAFE, Google 전용 id, 37.5636/126.9838) → 남산골한옥마을, WALK, `progress/start` 후 2번 장소에 `ACTIVE OPERATING_HOURS` 감지(`da5be285-5b30-4412-b474-3b73a0478697`)를 DB에 시드(F008 `evaluate_all_active` 대신 직접 insert, `evaluation_snapshot`은 DETECT-002 스키마 그대로).
+
+| 단계 | 결과 |
+|---|---|
+| AND 5.1 준비 | DETECT-001 `?status=ACTIVE` → 1건(requestId `78319d81-b4dd-462e-814f-c59aa9545e7d`). ALT-001 host 호출 → `200`(requestId `084aa549-4a27-4ded-8d99-400202213860`), `searchRadiusMeters=500`, `categoryMatchLevel=LARGE`(Google 전용 origin), 실제 TourAPI 카페 2곳(더 스팟 패뷸러스 171m 66점, 바캉스커피 411m 18점), 둘 다 `operatingStatus=UNKNOWN`(Google 매칭 안 됨). |
+| AND 5.2 배너→후보→콜백 | 진행 화면에 `명동 카페거리 카페 도착 예정 시각에 영업이 끝나요 + 매우 혼잡 / 오전 12:28 도착 예정 · 2분 전 감지` 배너(`shots/e2e/01_progress_banner.png`). 탭 → 대체 장소 화면: 감지 요약, `추천 후보 2곳`, 1위 `TOP`·`경로 비교`, 2위 `비교`, 행 contentDescription `1위 더 스팟 패뷸러스, 카페, 171m, 운영시간 확인 불가`(`02_alternatives.png`). 배너 탭 1 + `경로 비교` 탭 1 = 2탭으로 선택(3탭 이내). 콜백은 `MainActivity.openRoutePreview`에 임시 `Log.i`를 넣어 확인(커밋 안 함): 1위 → `SelectedAlternative(detectionId=da5be285…, placeId=tourapi:2786072, candidateId=eyJ…, name=더 스팟 패뷸러스, distanceMeters=171, displayScore=66)`, 2위 → `name=바캉스커피, distanceMeters=411, displayScore=18`. |
+| T037 실제 지도 | Naver 지도에 후보 1·2 순위 원형 마커가 실제 좌표(명동 롯데백화점·한국은행 일대)에 그려지고 카메라가 둘을 포함(`02_alternatives.png`). 기존 장소 `!` pill은 그려지지 않음 — ALT-001·DETECT-002에 origin 좌표가 없어 `origin=null`인 알려진 gap(#330 PR 기록, ts에게 DETECT-002 좌표 추가 요청 중). |
+| AND 5.4 직접 검색 | `직접 검색` → 검색 화면, `CGV` 입력·검색 → `검색 결과 2곳`, 각 행 `쇼핑 · 기존 장소에서 7.8km · 운영시간 확인 불가`(`03_search_cgv.png`; 서버 requestId `29df1f4c-9861-4067-81ea-6014cdcdad25`, host 동일 호출). 행 탭 → `SelectedAlternative(placeId=tourapi:4026619, candidateId=null, name=렌즈미 CGV 강남점, distanceMeters=7844, displayScore=null)`. 한글 키워드는 `adb input text`가 못 넣어 ASCII 키워드 사용(한글 검색은 host ALT-002 `query=명동`으로 T038에서 확인됨). `방문 불가`·`이미 일정에 있음` 행은 실제 결과에 없어 androidTest로만 확인. |
+| AND 5.3 거절 | 대체 장소 화면 `기존 일정 그대로 진행` → 진행 화면 복귀, 배너 없음(`04_after_dismiss.png`). DB `detections.status=DISMISSED`, `resolved_at=2026-09-09 14:30:30Z`. DETECT-001 `?status=ACTIVE` → `items=[]`(requestId `ae169ca4-f08c-4d7a-a3d0-7220e6711708`). 같은 감지 ALT-001 → `409 DETECTION_NOT_ACTIVE`, `details.status=DISMISSED`(requestId `b21a9208-e0c8-4eab-b81b-67d8031b84da`). |
+| 서버 log | uvicorn 순서: `GET …/detections?status=ACTIVE&limit=50` 200 → `GET /detections/{id}` 200 + `GET …/alternatives` 200(병렬) → `GET …/alternatives/search?query=CGV` 200 → `POST …/dismiss` 200 → `GET …/detections?status=ACTIVE` 200. 앱 요청의 requestId는 INFO 로그에 남지 않아 host 재현 호출의 requestId를 적었다. |
+
+발견(BE, F006/F008 범위, `jh`): `POST /trips/{tripId}/days/{date}/progress/start`(currentLocation 포함, WALK 3곳)가 `500 INTERNAL_ERROR`(`exception_type=InvalidRequestError`, requestId `15a9adcf-95e7-4881-a2a0-7cb658656be9`, 재현 `e2c7c011-a99a-4ba5-be0c-5fafe1fb8468`)를 돌려주지만 DB에는 `IN_PROGRESS v1`·ETA가 정상 반영된다(응답 직렬화 또는 commit 이후 단계의 오류로 추정, 원인 미확인). F009 검증에는 영향 없음. BE Issue #359로 올렸다.
+
 ### 미실행
 
 - `KMA`·`SEOUL` 실키 연동(`.env`에 키 없음). 결손 격리 경로로만 확인됐다.
-- Android 시나리오(AND 1~5), screenshot·실서버 requestId 기록은 T037·T039(FE·통합)에서 수행한다.
-- `mvp-features.md` F009 `VERIFY` 전이는 T038 + T039 완료 PR(T039, jy)에서 반영하고, `DONE`은 관련 PR 전부 병합 후 반영한다.
+- 실서버에서 `CLOSING_SOON`·`CLOSED`·`이미 일정에 있음` 후보는 실제 데이터에 없어 androidTest fixture로만 확인했다.
+- `mvp-features.md` F009 `VERIFY`는 이 PR에서 반영했다. `DONE`은 관련 PR 전부 병합 후 반영한다.

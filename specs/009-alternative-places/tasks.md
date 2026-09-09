@@ -286,12 +286,12 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 교차 확인: jy
   - 선행: T017, T021, T030
   - 검증: data-model.md §4 목록대로 §2 구현 현황(ALT-001·ALT-002 `[x]`, DETECT-004 행), §7 DETECT-001 확장·DETECT-004 신설·ALT-001/002 예시 갱신, er-schema §8.1 `resolved_at` 설명·§13 매핑. `contracts/alternatives.openapi.yaml`과 필드 대조 결과를 PR에 기록
-- [ ] T036 [P] 요구사항·기능 명세 5절 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
+- [x] T036 [P] 요구사항·기능 명세 5절 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
   - 영역: 통합
   - 담당: jy
   - 선행: T001
   - 검증: ALT-01~05에 반경·분류 결합 순서(Clarifications), 운영 상태 확인 순서(점수 상위부터 10개, 상한 20), 감지 거절(`기존 일정 그대로 진행` = DISMISSED)을 반영. 값은 `policy.py`가 정본임을 명시
-- [ ] T037 [US2] 대체 장소·배너 screenshot과 실제 지도 확인 in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeScreenshotTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt
+- [x] T037 [US2] 대체 장소·배너 screenshot과 실제 지도 확인 in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeScreenshotTest.kt, android/app/src/androidTest/java/com/gilpick/progress/ActiveTravelScreenshotTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T024, T025, T032
@@ -301,7 +301,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: ts
   - 선행: T017, T021, T030, T034, T035
   - 검증: quickstart BE 1~9 전부 실행하고 결과·미실행 항목(실제 TourAPI·Google 연동은 local `.env` 자격으로 가능한 범위)을 quickstart "검증 기록" 절과 PR에 기록. `pytest tests/unit tests/contract` 전체 통과(기존 auth 9건 제외)
-- [ ] T039 quickstart Android·실서버 검증과 Feature 상태 갱신 in specs/009-alternative-places/quickstart.md, docs/planning/mvp-features.md
+- [x] T039 quickstart Android·실서버 검증과 Feature 상태 갱신 in specs/009-alternative-places/quickstart.md, docs/planning/mvp-features.md
   - 영역: 통합
   - 담당: jy
   - 교차 확인: ts

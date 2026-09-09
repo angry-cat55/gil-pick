@@ -25,7 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * T020·T039: 진행 화면의 상태별 screenshot 증빙(UI-012·SC-007).
+ * T020·T039: 진행 화면의 상태별 screenshot 증빙(UI-012·SC-007). F009 T037의 변수 경고 배너 2장도 여기에 둔다.
  *
  * 검증이 아니라 기록이다. F005 `DayRouteScreenshotTest`와 같은 방식으로 각 상태를 그려 기기 저장소에
  * PNG로 남기고 `adb pull`로 꺼내 사람이 Figma `ActiveTravelScreen`과 대조한다. 지도는 SDK 인증 없이
@@ -209,6 +209,16 @@ class ActiveTravelScreenshotTest {
     @Test
     fun 자동_감지_꺼짐_360dp_최대_글자배율() = capture("detection_off_360dp_fontscale2") {
         Narrow { Screen(content().copy(detectionOff = DetectionOffReason.PermissionMissing)) }
+    }
+
+    // ---- T037: F009 변수 경고 배너(UI-001·UI-009) ----
+
+    @Test
+    fun 변수_경고_배너() = capture("alternative_banner") { Screen(content().copy(activeDetections = listOf(laterDetection(), insadongDetection()))) }
+
+    @Test
+    fun 변수_경고_배너_360dp_최대_글자배율() = capture("alternative_banner_360dp_fontscale2") {
+        Narrow { Screen(content().copy(activeDetections = listOf(laterDetection(), insadongDetection()))) }
     }
 
     /** 북촌한옥마을 도착이 자동 확정된 직후의 화면. 토스트와 목록 행의 `자동 처리` 표시가 함께 보인다. */
