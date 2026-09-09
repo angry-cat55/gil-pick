@@ -253,13 +253,13 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T030 [P] `api-spec.md` §7 동기화 in docs/design/api-spec.md
+- [x] T030 [P] `api-spec.md` §7 동기화 in docs/design/api-spec.md
   - 영역: 문서
   - 담당: jh
   - 교차 확인: FE 담당(미정)
   - 선행: T001, T020
   - 검증: DETECT-001·002 예시의 `"status": "PENDING_DECISION"`를 `ACTIVE`로 교체하고 `status` 4값 표 추가, 상세 `variables`에 `operatingHours.visitBlocked`·`tempClosed`·`weather.precipitationType`·`congestion.sensitivity`·각 변수 `unavailableReason` 반영, §7.1의 "임계값 초과 시 장소 변경 제안 알림을 1회 생성"을 F011 알림 조건으로 읽히도록 문구 정리. 구현 PR과 같은 PR
-- [ ] T031 [P] 정책값·계약 추가 요청 기록 in docs/planning/requirements.md, docs/planning/functional-spec.md
+- [x] T031 [P] 정책값·계약 추가 요청 기록 in docs/planning/requirements.md, docs/planning/functional-spec.md
   - 영역: 문서
   - 담당: jh
   - 선행: T004, T017
@@ -274,7 +274,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 담당: jh
   - 선행: T021, T024, T027, T029
   - 검증: BE 1~7 전 시나리오를 실행하고 결과를 PR에 기록. 외부 client는 mock/계약 fixture. 미검증 항목(G001 의존)을 명시
-- [ ] T034 [P] Feature 상태 갱신 지점 정리 in docs/planning/mvp-features.md
+- [x] T034 [P] Feature 상태 갱신 지점 정리 in docs/planning/mvp-features.md
   - 영역: 문서
   - 담당: jh
   - 선행: 없음
