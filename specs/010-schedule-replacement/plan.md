@@ -30,7 +30,7 @@ Backend는 신규 테이블 2개(`route_previews`·`place_replacements`)와 `ser
 
 **Project Type**: Mobile + API
 
-**Performance Goals**: 미리보기 생성은 경로 provider 호출을 포함해 3초 안에 응답(SC-001). 승인·되돌리기는 외부 호출이 없어 DB transaction 시간만 든다
+**Performance Goals**: 미리보기 생성은 경로 provider 호출을 포함해 3초 안에 응답(SC-001). 승인의 Google 운영 상태 재확인은 DB transaction 전에 끝내고, 승인·되돌리기 transaction에는 DB 작업만 둔다
 
 **Constraints**: 승인·되돌리기는 부분 성공 금지(constitution III). 만료 판정은 서버 시각. 되돌리기 30초는 `docs/planning/requirements.md` REPL-02 확정값
 
@@ -58,7 +58,7 @@ Backend는 신규 테이블 2개(`route_previews`·`place_replacements`)와 `ser
 |---|---|---|
 | I. 사용자 통제와 안전한 fallback | 후보 선택만으로 일정을 바꾸지 않고 미리보기·승인을 거친다(FR-001). 승인에는 30초 되돌리기가 있다(FR-015). 되돌릴 수 없게 된 뒤에도 F004 일정 편집으로 바꿀 수 있음을 안내한다(FR-019). 경로 계산 실패 시 기존 일정을 보존하고 `다시 시도`·`다른 후보 보기`를 제공한다(FR-007) | PASS |
 | II. 계약 우선 SDD와 문서 동기화 | 계약을 `contracts/replacements.openapi.yaml`로 먼저 확정했다. api-spec REPL 절의 `itineraryVersion`을 `scheduleVersion`으로 고치고, F008·F009의 감지 결과 상태 전이에 `RESOLVED → ACTIVE`·`RESOLVED → INVALIDATED`를 더하는 동기화를 같은 변경 범위에 넣는다(`data-model.md` 5절) | PASS |
-| III. 상태 변경의 일관성·멱등성·추적 가능성 | 승인·되돌리기는 외부 호출 없는 단일 transaction이다(`research.md` 2절). 미리보기 생성·승인은 `Idempotency-Key`를 받고 F006 저장소를 재사용한다. `schedule_version`으로 충돌을 감지하고 후속 변경도 같은 값으로 판정한다. `place_replacements`가 변경 전후 장소·승인 시각·되돌린 시각을 남긴다. 만료 판정은 서버 시각 | PASS |
+| III. 상태 변경의 일관성·멱등성·추적 가능성 | Google 운영 상태는 별도 읽기 session으로 먼저 확인하고, 승인·되돌리기 transaction에서는 외부 provider를 호출하지 않는다(`research.md` 2절). 미리보기 생성·승인은 `Idempotency-Key`를 받고 F006의 `response_snapshot` 방식을 재사용하며, 승인 key와 응답은 `place_replacements`에 저장한다. `schedule_version`으로 충돌을 감지하고 후속 변경도 같은 값으로 판정한다. `place_replacements`가 변경 전후 장소·승인 시각·되돌린 시각을 남긴다. 만료 판정은 서버 시각 | PASS |
 | IV. 외부 의존성 실패 격리 | 경로 계산 실패는 미리보기 단계에서만 일어나고 일정을 건드리지 않는다. 운영 마감 시각을 확보하지 못하면 그 비교 항목만 `null`로 두고 나머지를 제공하며 값을 지어내지 않는다(FR-002) | PASS |
 | V. 보안·소유권·최소 데이터 | 네 endpoint 모두 인증과 여행 소유권을 검증한다(FR-021). `route_previews`는 계산 결과와 비교 값만 담고 위치 이력을 쌓지 않는다. 만료된 미리보기는 승인에 쓰이지 않는다 | PASS |
 
@@ -130,7 +130,7 @@ android/app/src/androidTest/java/com/gilpick/replacement/  # UI test
 
 **Structure Decision**: 기존 `api/`(FastAPI 단일 레이아웃)와 `android/app` 구조를 그대로 쓴다.
 
-Backend는 F007 `services/detection/`처럼 하위 패키지로 나눌 만큼 로직이 크지 않아 `services/replacement.py` 한 파일로 둔다. 미리보기 생성·승인·거절·되돌리기 네 동작이고 점수 계산이나 외부 provider 조합이 없다.
+Backend는 F007 `services/detection/`처럼 하위 패키지로 나눌 만큼 로직이 크지 않아 `services/replacement.py` 한 파일로 둔다. 미리보기 생성·승인·거절·되돌리기 네 동작이며, 경로 provider 조합은 기존 `RouteCalculationService`를 재사용한다.
 
 Android는 `progress` 패키지가 이미 F006·F007로 커서 미리보기 화면을 `replacement` 패키지로 분리하고, 되돌리기만 `progress`에 둔다. F009가 `alternative` 패키지를 같은 방식으로 나눈 것과 일관된다.
 

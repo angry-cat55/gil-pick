@@ -18,6 +18,8 @@
 
 **Decision**: **경로 계산을 미리보기 생성 시점에 끝내고, 승인 transaction 안에서는 외부 호출을 하지 않는다.** 승인은 미리보기에 저장된 계산 결과를 확정하기만 한다.
 
+Google 장소의 최신 운영 상태는 승인 transaction을 시작하기 전에 별도 읽기 session으로 재확인한다. 명확히 방문 불가인 경우만 `ALTERNATIVE_UNAVAILABLE`로 거절하고, provider 조회 실패는 불가능 상태로 지어내지 않으며 미리보기에 저장된 마감 시각 검증을 유지한다(constitution IV).
+
 승인 transaction이 하는 일:
 
 1. `itinerary_items.place_id` 교체(3절)
@@ -89,7 +91,7 @@
 
 ## 6. 멱등성
 
-**Decision**: 미리보기 생성(REPL-001)과 승인(REPL-002)은 `Idempotency-Key`를 받는다. F006이 쓰는 기존 멱등 저장소와 `response_snapshot` 방식을 그대로 재사용한다. 거절(REPL-003)과 되돌리기(REPL-004)는 키 없이 자연 멱등으로 둔다.
+**Decision**: 미리보기 생성(REPL-001)과 승인(REPL-002)은 `Idempotency-Key`를 받는다. F006의 `response_snapshot` 방식을 재사용하되, 승인 key와 응답은 승인 이력인 `place_replacements` 행에 저장한다. 거절(REPL-003)과 되돌리기(REPL-004)는 키 없이 자연 멱등으로 둔다.
 
 **Rationale**:
 

@@ -1,25 +1,28 @@
 """F010 미리보기 생성·폐기의 DB 무결성 검증."""
 
+import asyncio
 import os
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from geoalchemy2 import WKTElement
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.errors import AppError
 from app.models.auth import User
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.replacement import RoutePreview as RoutePreviewModel
+from app.models.replacement import PlaceReplacement, RoutePreview as RoutePreviewModel
 from app.models.route import Route as RouteModel
 from app.models.trip import Trip
 from app.schemas.replacement import CreatePreviewRequest
 from app.schemas.route import Provider, Route, RouteGeometry, RouteMarker, RouteSegment, RouteStatus, TransportMode
 from app.services.alternatives.candidate_token import issue_candidate_token
-from app.services.replacement import PREVIEW_TTL_MINUTES, ReplacementService
+from app.services.detection.operating_hours_source import BusinessStatus, OperatingHours
+from app.services import replacement as replacement_module
+from app.services.replacement import PREVIEW_TTL_MINUTES, UNDO_WINDOW_SECONDS, ReplacementService
 from app.services.route import RouteCalculationResult
 
 pytestmark = pytest.mark.asyncio
@@ -68,7 +71,7 @@ class _Unused:
         return None
 
 
-async def _seed(factory):
+async def _seed(factory, *, alternative_provider="tourapi"):
     now = datetime.now(UTC)
     async with factory.begin() as session:
         user = User(social_provider="KAKAO", social_subject=f"replacement-{uuid.uuid4()}")
@@ -79,8 +82,13 @@ async def _seed(factory):
                          location=WKTElement("POINT(126.97 37.57)", srid=4326))
         following = Place(tour_content_id=f"following-{uuid.uuid4()}", name="다음 장소", category="OTHER",
                           location=WKTElement("POINT(126.98 37.58)", srid=4326))
-        alternative = Place(tour_content_id=f"alternative-{uuid.uuid4()}", name="대체 장소", category="OTHER",
-                            location=WKTElement("POINT(126.99 37.59)", srid=4326))
+        alternative_value = f"alternative-{uuid.uuid4()}"
+        alternative = Place(
+            tour_content_id=alternative_value if alternative_provider == "tourapi" else None,
+            google_place_id=alternative_value if alternative_provider == "google" else None,
+            name="대체 장소", category="OTHER",
+            location=WKTElement("POINT(126.99 37.59)", srid=4326),
+        )
         session.add_all([trip, original, following, alternative])
         await session.flush()
         day = TripDay(trip_id=trip.trip_id, visit_date=now.date(), day_number=1, status="IN_PROGRESS",
@@ -114,14 +122,16 @@ async def _seed(factory):
         return {
             "user_id": user.user_id, "trip_day_id": day.trip_day_id, "item_id": target.item_id,
             "original_place_id": original.place_id, "detection_id": detection.detection_id,
-            "alternative_public_id": f"tourapi:{alternative.tour_content_id}", "now": now,
+            "alternative_place_id": alternative.place_id,
+            "alternative_public_id": f"{alternative_provider}:{alternative_value}", "now": now,
         }
 
 
-def _service(session, now):
+def _service(session, now, *, operating_hours_source=None):
     return ReplacementService(
         session, calculator=_Calculator(), place_service=_Unused(),
-        operating_hours_source=_Unused(), candidate_secret=SECRET, now=lambda: now,
+        operating_hours_source=operating_hours_source or _Unused(),
+        candidate_secret=SECRET, now=lambda: now,
     )
 
 
@@ -215,3 +225,278 @@ async def test_invalid_candidate_is_rejected_before_route_calculation(mismatch: 
             idempotency_key="invalid",
         )
     assert caught.value.status_code == 400
+
+
+async def _create_preview(session, seeded, key="preview"):
+    payload = CreatePreviewRequest(
+        place_id=seeded["alternative_public_id"], schedule_version=1
+    )
+    preview = await _service(session, seeded["now"]).create_preview(
+        detection_id=seeded["detection_id"], user_id=seeded["user_id"],
+        payload=payload, idempotency_key=key,
+    )
+    await session.commit()
+    return preview
+
+
+async def test_approve_preview_changes_schedule_atomically_and_is_idempotent() -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        seeded = await _seed(factory)
+        async with factory() as session:
+            preview = await _create_preview(session, seeded)
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            preserved = (
+                item.item_id, item.sequence, item.planned_stay_minutes,
+                item.transport_mode_to_next,
+            )
+
+            with pytest.raises(AppError, match="TRIP_FORBIDDEN"):
+                await _service(session, seeded["now"]).approve_preview(
+                    preview_id=preview.preview_id, user_id=uuid.uuid4(),
+                    idempotency_key="forbidden",
+                )
+
+            first = await _service(session, seeded["now"]).approve_preview(
+                preview_id=preview.preview_id, user_id=seeded["user_id"],
+                idempotency_key="approval",
+            )
+            await session.commit()
+            second = await _service(session, seeded["now"]).approve_preview(
+                preview_id=preview.preview_id, user_id=seeded["user_id"],
+                idempotency_key="approval",
+            )
+            await session.commit()
+            with pytest.raises(AppError, match="ALREADY_APPROVED"):
+                await _service(session, seeded["now"]).approve_preview(
+                    preview_id=preview.preview_id, user_id=seeded["user_id"],
+                    idempotency_key="different-approval",
+                )
+            await session.rollback()
+
+            day = await session.get(TripDay, seeded["trip_day_id"])
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            detection = await session.get(Detection, seeded["detection_id"])
+            routes = list((await session.scalars(select(RouteModel).where(
+                RouteModel.trip_day_id == seeded["trip_day_id"]
+            ).order_by(RouteModel.schedule_version))).all())
+            histories = list((await session.scalars(select(PlaceReplacement).where(
+                PlaceReplacement.preview_id == preview.preview_id
+            ))).all())
+
+            assert first == second
+            assert item.place_id == seeded["alternative_place_id"]
+            assert (
+                item.item_id, item.sequence, item.planned_stay_minutes,
+                item.transport_mode_to_next,
+            ) == preserved
+            assert day.schedule_version == 2
+            assert [(route.schedule_version, route.status, route.is_active) for route in routes] == [
+                (1, "HISTORICAL", False),
+                (2, "READY", True),
+            ]
+            assert len(histories) == 1
+            assert histories[0].undo_expires_at == seeded["now"] + timedelta(
+                seconds=UNDO_WINDOW_SECONDS
+            )
+            assert detection.status == "RESOLVED"
+            assert detection.resolved_at == seeded["now"]
+    finally:
+        await engine.dispose()
+
+
+async def test_approve_preview_rolls_back_every_change_when_eta_update_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def fail_eta(*_args, **_kwargs):
+        raise RuntimeError("eta update failed")
+
+    try:
+        seeded = await _seed(factory)
+        async with factory() as session:
+            preview = await _create_preview(session, seeded)
+        monkeypatch.setattr("app.services.replacement.recalculate_day_eta", fail_eta)
+
+        with pytest.raises(RuntimeError, match="eta update failed"):
+            async with factory.begin() as session:
+                await _service(session, seeded["now"]).approve_preview(
+                    preview_id=preview.preview_id, user_id=seeded["user_id"],
+                    idempotency_key="approval",
+                )
+
+        async with factory() as session:
+            day = await session.get(TripDay, seeded["trip_day_id"])
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            detection = await session.get(Detection, seeded["detection_id"])
+            preview_row = await session.get(RoutePreviewModel, preview.preview_id)
+            routes = list((await session.scalars(select(RouteModel).where(
+                RouteModel.trip_day_id == seeded["trip_day_id"]
+            ))).all())
+            histories = await session.scalar(select(func.count()).select_from(PlaceReplacement).where(
+                PlaceReplacement.preview_id == preview.preview_id
+            ))
+            assert day.schedule_version == 1
+            assert item.place_id == seeded["original_place_id"]
+            assert detection.status == "ACTIVE"
+            assert preview_row.status == "PENDING"
+            assert [(route.schedule_version, route.status, route.is_active) for route in routes] == [
+                (1, "READY", True)
+            ]
+            assert histories == 0
+    finally:
+        await engine.dispose()
+
+
+async def test_approve_preview_rechecks_google_operating_status_before_transaction() -> None:
+    class _ClosedSource:
+        async def get(self, _place_id, _eta):
+            return OperatingHours(status=BusinessStatus.CLOSED_TEMPORARILY)
+
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        seeded = await _seed(factory, alternative_provider="google")
+        async with factory() as session:
+            preview = await _create_preview(session, seeded)
+            with pytest.raises(AppError, match="ALTERNATIVE_UNAVAILABLE"):
+                await _service(
+                    session, seeded["now"], operating_hours_source=_ClosedSource()
+                ).approve_preview(
+                    preview_id=preview.preview_id, user_id=seeded["user_id"],
+                    idempotency_key="approval",
+                )
+            await session.rollback()
+
+            day = await session.get(TripDay, seeded["trip_day_id"])
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            detection = await session.get(Detection, seeded["detection_id"])
+            assert day.schedule_version == 1
+            assert item.place_id == seeded["original_place_id"]
+            assert detection.status == "ACTIVE"
+    finally:
+        await engine.dispose()
+
+
+async def test_approve_and_reject_serialize_on_the_preview_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    locked = asyncio.Event()
+    release = asyncio.Event()
+    recalculate = replacement_module.recalculate_day_eta
+
+    async def pause_after_mutation(session, trip_day_id):
+        locked.set()
+        await release.wait()
+        await recalculate(session, trip_day_id)
+
+    try:
+        seeded = await _seed(factory)
+        async with factory() as session:
+            preview = await _create_preview(session, seeded)
+        monkeypatch.setattr(replacement_module, "recalculate_day_eta", pause_after_mutation)
+
+        async def approve():
+            async with factory.begin() as session:
+                return await _service(session, seeded["now"]).approve_preview(
+                    preview_id=preview.preview_id, user_id=seeded["user_id"],
+                    idempotency_key="approval",
+                )
+
+        async def reject():
+            async with factory.begin() as session:
+                return await _service(session, seeded["now"]).reject_preview(
+                    preview_id=preview.preview_id, user_id=seeded["user_id"]
+                )
+
+        approval = asyncio.create_task(approve())
+        await locked.wait()
+        rejection = asyncio.create_task(reject())
+        await asyncio.sleep(0.05)
+        assert not rejection.done()
+
+        release.set()
+        await approval
+        with pytest.raises(AppError, match="ALREADY_APPROVED"):
+            await rejection
+    finally:
+        release.set()
+        await engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("change", "error_code"),
+    [
+        ("version", "VERSION_CONFLICT"),
+        ("visited", "ITEM_ALREADY_VISITED"),
+        ("detection", "DETECTION_NOT_ACTIVE"),
+        ("unavailable", "ALTERNATIVE_UNAVAILABLE"),
+    ],
+)
+async def test_approve_preview_revalidation_preserves_schedule(change: str, error_code: str) -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        seeded = await _seed(factory)
+        async with factory() as session:
+            preview = await _create_preview(session, seeded)
+            day = await session.get(TripDay, seeded["trip_day_id"])
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            detection = await session.get(Detection, seeded["detection_id"])
+            preview_row = await session.get(RoutePreviewModel, preview.preview_id)
+            if change == "version":
+                day.schedule_version += 1
+            elif change == "visited":
+                item.status = "ARRIVED"
+                item.actual_arrived_at = seeded["now"]
+            elif change == "detection":
+                detection.status = "DISMISSED"
+                detection.resolved_at = seeded["now"]
+            else:
+                preview_row.comparison = {
+                    **preview_row.comparison,
+                    "closesAt": {
+                        "before": None,
+                        "after": (seeded["now"] - timedelta(seconds=1)).isoformat(),
+                    },
+                }
+            await session.commit()
+
+            before = (
+                day.schedule_version, item.place_id,
+                await session.scalar(select(func.count()).select_from(PlaceReplacement)),
+            )
+            with pytest.raises(AppError, match=error_code):
+                await _service(session, seeded["now"]).approve_preview(
+                    preview_id=preview.preview_id, user_id=seeded["user_id"],
+                    idempotency_key="approval",
+                )
+            await session.rollback()
+            await session.refresh(day)
+            await session.refresh(item)
+            assert (
+                day.schedule_version, item.place_id,
+                await session.scalar(select(func.count()).select_from(PlaceReplacement)),
+            ) == before
+    finally:
+        await engine.dispose()

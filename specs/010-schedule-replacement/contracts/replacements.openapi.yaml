@@ -92,6 +92,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReplacementEnvelope' }
+        '400':
+          description: '`INVALID_REQUEST` 잘못된 `Idempotency-Key`'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
         '403':
           description: '`TRIP_FORBIDDEN`'
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } }
@@ -289,7 +292,7 @@ components:
       type: object
       required:
         [replacementId, tripId, date, itemId, originalPlaceId, newPlaceId,
-         scheduleVersion, routeStatus, undoExpiresAt]
+         newPlaceName, originalPlaceName, scheduleVersion, routeStatus, undoExpiresAt]
       properties:
         replacementId: { type: string, format: uuid }
         tripId: { type: string, format: uuid }

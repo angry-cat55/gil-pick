@@ -62,8 +62,8 @@ class Replacement(ApiModel):
     item_id: uuid.UUID
     original_place_id: str
     new_place_id: str
-    new_place_name: str | None = None
-    original_place_name: str | None = None
+    new_place_name: str
+    original_place_name: str
     schedule_version: int
     route_status: Literal["READY"]
     undo_expires_at: datetime

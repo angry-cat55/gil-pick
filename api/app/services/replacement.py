@@ -12,14 +12,14 @@ from typing import Callable
 from geoalchemy2 import Geometry, WKTElement
 from sqlalchemy import cast, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.errors import AppError
 from app.clients.route_provider import Coordinate, TransportMode as ClientTransportMode
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.progress import ProgressSegment
-from app.models.replacement import RoutePreview as RoutePreviewModel
+from app.models.replacement import PlaceReplacement, RoutePreview as RoutePreviewModel
 from app.models.route import Route as RouteModel
 from app.models.trip import Trip
 from app.schemas.place import PlaceDetail
@@ -28,12 +28,14 @@ from app.schemas.replacement import (
     CreatePreviewRequest,
     PreviewComparison,
     ReplacedPlace,
+    Replacement,
     RoutePreview,
 )
 from app.schemas.route import RouteStatus
 from app.services.alternatives.candidate_token import verify_candidate_token
 from app.services.detection.operating_hours import evaluate_operating_hours
 from app.services.detection.operating_hours_source import OperatingHoursSource
+from app.services.eta import recalculate_day_eta
 from app.services.place import PlaceService
 from app.services.route import RouteCalculationService, RouteItemSnapshot, RouteSnapshot
 
@@ -252,6 +254,151 @@ class ReplacementService:
             preview.status = "REJECTED"
             await self.session.flush()
 
+    async def approve_preview(
+        self, *, preview_id: uuid.UUID, user_id: uuid.UUID, idempotency_key: str,
+    ) -> Replacement:
+        """미리 계산한 경로와 대체 장소를 하나의 transaction으로 확정한다."""
+        key = idempotency_key.strip()
+        if not key or len(key) > 255:
+            raise AppError(400, "INVALID_REQUEST", "Idempotency-Key 형식이 올바르지 않습니다.")
+
+        await self._check_current_availability(preview_id, user_id)
+
+        row = (await self.session.execute(
+            select(RoutePreviewModel, TripDay, ItineraryItem, Detection, Trip.user_id)
+            .join(TripDay, TripDay.trip_day_id == RoutePreviewModel.trip_day_id)
+            .join(Trip, Trip.trip_id == TripDay.trip_id)
+            .join(ItineraryItem, ItineraryItem.item_id == RoutePreviewModel.item_id)
+            .join(Detection, Detection.detection_id == RoutePreviewModel.detection_id)
+            .where(RoutePreviewModel.preview_id == preview_id, Trip.deleted_at.is_(None))
+            .with_for_update()
+        )).one_or_none()
+        if row is None:
+            raise AppError(404, "PREVIEW_NOT_FOUND", "미리보기를 찾을 수 없습니다.")
+        preview, day, item, detection, owner_id = row
+        if owner_id != user_id:
+            raise AppError(403, "TRIP_FORBIDDEN", "다른 사용자의 여행에는 접근할 수 없습니다.")
+
+        existing = await self.session.scalar(select(PlaceReplacement).where(
+            PlaceReplacement.preview_id == preview_id
+        ))
+        if existing is not None:
+            if existing.idempotency_key == key:
+                return Replacement.model_validate(existing.response_snapshot)
+            raise AppError(409, "ALREADY_APPROVED", "이미 승인한 미리보기입니다.")
+
+        now = self.now()
+        _validate_approval(preview, day, item, detection, now)
+        duplicate = await self.session.scalar(select(ItineraryItem.item_id).where(
+            ItineraryItem.trip_day_id == day.trip_day_id,
+            ItineraryItem.place_id == preview.alternative_place_id,
+            ItineraryItem.item_id != item.item_id,
+        ))
+        if duplicate is not None:
+            raise AppError(409, "ALTERNATIVE_UNAVAILABLE", "대체 장소를 더 이상 방문할 수 없습니다.")
+
+        original = await self.session.get(Place, preview.original_place_id)
+        alternative = await self.session.get(Place, preview.alternative_place_id)
+        if original is None or alternative is None:
+            raise AppError(409, "ALTERNATIVE_UNAVAILABLE", "대체 장소를 더 이상 방문할 수 없습니다.")
+
+        before_version = day.schedule_version
+        approved_version = before_version + 1
+        replacement_id = uuid.uuid4()
+        undo_expires_at = now + timedelta(seconds=UNDO_WINDOW_SECONDS)
+        response = Replacement(
+            replacement_id=replacement_id,
+            trip_id=day.trip_id,
+            date=day.visit_date,
+            item_id=item.item_id,
+            original_place_id=_provider_id(original),
+            new_place_id=_provider_id(alternative),
+            original_place_name=original.name,
+            new_place_name=alternative.name,
+            schedule_version=approved_version,
+            route_status="READY",
+            undo_expires_at=undo_expires_at,
+        )
+
+        item.place_id = preview.alternative_place_id
+        day.schedule_version = approved_version
+        await self.session.execute(update(RouteModel).where(
+            RouteModel.trip_day_id == day.trip_day_id,
+            RouteModel.is_active.is_(True),
+        ).values(status="HISTORICAL", is_active=False))
+        self.session.add(RouteModel(
+            trip_day_id=day.trip_day_id,
+            schedule_version=approved_version,
+            status="READY",
+            is_active=True,
+            provider=preview.provider,
+            total_duration_seconds=preview.total_duration_seconds,
+            total_distance_meters=preview.total_distance_meters,
+            route_payload=preview.route_payload,
+            calculated_at=now,
+        ))
+        await recalculate_day_eta(self.session, day.trip_day_id)
+        self.session.add(PlaceReplacement(
+            replacement_id=replacement_id,
+            preview_id=preview.preview_id,
+            detection_id=detection.detection_id,
+            trip_day_id=day.trip_day_id,
+            item_id=item.item_id,
+            original_place_id=preview.original_place_id,
+            new_place_id=preview.alternative_place_id,
+            before_schedule_version=before_version,
+            approved_schedule_version=approved_version,
+            approved_at=now,
+            undo_expires_at=undo_expires_at,
+            idempotency_key=key,
+            response_snapshot=response.model_dump(mode="json", by_alias=True),
+        ))
+        preview.status = "APPROVED"
+        detection.status = "RESOLVED"
+        detection.resolved_at = now
+        await self.session.flush()
+        return response
+
+    async def _check_current_availability(
+        self, preview_id: uuid.UUID, user_id: uuid.UUID,
+    ) -> None:
+        """승인 transaction 전에 Google 장소의 최신 운영 상태를 확인한다."""
+        if self.session.bind is None:
+            return
+        factory = async_sessionmaker(self.session.bind, expire_on_commit=False)
+        async with factory() as read_session:
+            row = (await read_session.execute(
+                select(RoutePreviewModel, Place, Trip.user_id)
+                .join(TripDay, TripDay.trip_day_id == RoutePreviewModel.trip_day_id)
+                .join(Trip, Trip.trip_id == TripDay.trip_id)
+                .join(Place, Place.place_id == RoutePreviewModel.alternative_place_id)
+                .where(RoutePreviewModel.preview_id == preview_id, Trip.deleted_at.is_(None))
+            )).one_or_none()
+            approved = await read_session.scalar(select(PlaceReplacement.replacement_id).where(
+                PlaceReplacement.preview_id == preview_id
+            ))
+        if row is None:
+            return
+        if approved is not None:
+            return
+        preview, alternative, owner_id = row
+        if owner_id != user_id:
+            raise AppError(403, "TRIP_FORBIDDEN", "다른 사용자의 여행에는 접근할 수 없습니다.")
+        if alternative.google_place_id is None:
+            return
+        eta_value = preview.comparison.get("estimatedArrivalAt", {}).get("after")
+        eta = datetime.fromisoformat(str(eta_value)) if eta_value is not None else self.now()
+        try:
+            verdict = await evaluate_operating_hours(
+                self.operating_hours_source,
+                place_id=alternative.google_place_id,
+                eta=eta,
+            )
+        except Exception:
+            return
+        if verdict.visit_blocked:
+            raise AppError(409, "ALTERNATIVE_UNAVAILABLE", "대체 장소를 더 이상 방문할 수 없습니다.")
+
     async def _load_context(self, detection_id: uuid.UUID, user_id: uuid.UUID) -> _PreviewContext:
         point = cast(Place.location, Geometry(geometry_type="POINT", srid=4326))
         row = (await self.session.execute(
@@ -419,6 +566,37 @@ def _validate_context(context: _PreviewContext, payload: CreatePreviewRequest) -
     target = context.target
     if target.status not in {"PLANNED", "EN_ROUTE"} or target.actual_arrived_at or target.completed_at:
         raise AppError(409, "ITEM_ALREADY_VISITED", "이미 방문을 시작한 장소입니다.")
+
+
+def _validate_approval(
+    preview: RoutePreviewModel,
+    day: TripDay,
+    item: ItineraryItem,
+    detection: Detection,
+    now: datetime,
+) -> None:
+    """승인 직전의 변경 가능성을 원인별로 재검증한다."""
+    if preview.status == "SUPERSEDED":
+        raise AppError(409, "PREVIEW_SUPERSEDED", "더 새로운 미리보기가 있습니다.")
+    if preview.status == "REJECTED":
+        raise AppError(409, "PREVIEW_REJECTED", "이미 폐기한 미리보기입니다.")
+    if preview.status == "APPROVED":
+        raise AppError(409, "ALREADY_APPROVED", "이미 승인한 미리보기입니다.")
+    if preview.expires_at <= now:
+        raise AppError(409, "PREVIEW_EXPIRED", "미리보기의 유효 시간이 지났습니다.")
+    if day.schedule_version != preview.schedule_version:
+        raise AppError(409, "VERSION_CONFLICT", "일정 버전이 일치하지 않습니다.")
+    if (
+        item.status not in {"PLANNED", "EN_ROUTE"}
+        or item.actual_arrived_at is not None
+        or item.completed_at is not None
+    ):
+        raise AppError(409, "ITEM_ALREADY_VISITED", "이미 방문을 시작한 장소입니다.")
+    if detection.status != "ACTIVE":
+        raise AppError(409, "DETECTION_NOT_ACTIVE", "이미 처리된 감지 결과입니다.")
+    closes_at = preview.comparison.get("closesAt", {}).get("after")
+    if closes_at is not None and datetime.fromisoformat(str(closes_at)) <= now:
+        raise AppError(409, "ALTERNATIVE_UNAVAILABLE", "대체 장소를 더 이상 방문할 수 없습니다.")
 
 
 def _preview_eta(context: _PreviewContext, route_payload: dict[str, object]) -> datetime | None:

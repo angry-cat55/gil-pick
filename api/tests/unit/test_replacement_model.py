@@ -49,6 +49,8 @@ def test_place_replacement_exposes_expected_columns_and_invariants() -> None:
         "approved_schedule_version",
         "approved_at",
         "undo_expires_at",
+        "idempotency_key",
+        "response_snapshot",
         "undone_at",
         "undo_schedule_version",
     }
