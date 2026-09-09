@@ -170,6 +170,8 @@ async def test_start_commits_once_and_same_key_returns_stored_result(
 
     assert first.actual_started_at == second.actual_started_at
     assert second.progress_version == 1
+    assert first.items[0].processing_source == "MANUAL"
+    assert first.items[0].event_rejection_reason is None
     assert transition is not None
     assert transition.source == "MANUAL"
     assert transition.confirmed_at == transition.detected_at

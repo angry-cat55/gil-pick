@@ -182,6 +182,44 @@ async def test_rejected_event_is_still_saved(
 
 
 @pytest.mark.asyncio
+async def test_progress_reports_latest_event_rejection_and_clears_after_acceptance(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, item_id, user_id, now = await _seed(session_factory)
+    async with transaction_session(session_factory) as session:
+        rejected = await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=_payload(item_id, now, accuracy=101),
+            received_at=now,
+        )
+    async with session_factory() as session:
+        after_rejection = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
+
+    assert rejected.rejection_reason == "LOW_ACCURACY"
+    assert after_rejection.items[0].event_rejection_reason == "LOW_ACCURACY"
+
+    async with transaction_session(session_factory) as session:
+        accepted = await DetectionService(session).register_event(
+            user_id=user_id,
+            trip_id=trip_id,
+            visit_date=now.date(),
+            payload=_payload(item_id, now),
+            received_at=now + timedelta(seconds=1),
+        )
+    async with session_factory() as session:
+        after_acceptance = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
+
+    assert accepted.accepted is True
+    assert after_acceptance.items[0].event_rejection_reason is None
+
+
+@pytest.mark.asyncio
 async def test_duplicate_event_returns_first_result_without_second_row(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -422,12 +460,16 @@ async def test_confirm_arrival_changes_item_and_has_no_undo_deadline(
     async with session_factory() as session:
         item = await session.get(ItineraryItem, item_id)
         day = await session.scalar(select(TripDay).where(TripDay.trip_id == trip_id))
+        progress = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
 
     assert result.status == "CONFIRMED"
     assert result.undo_deadline is None
     assert result.progress_version == 2
     assert item is not None and item.status == "ARRIVED"
     assert day is not None and day.progress_version == 2
+    assert progress.items[0].processing_source == "MANUAL"
 
 
 @pytest.mark.asyncio
@@ -479,12 +521,19 @@ async def test_confirm_next_arrival_records_composite_transition(
         transition = await session.get(
             ProgressTransition, event.candidate.transition_id
         )
+        progress = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
 
     assert transition is not None and transition.transition_type == "COMPOSITE"
     assert [(item.item_id, item.before_status, item.after_status) for item in result.affected_items] == [
         (first_id, "ARRIVED", "COMPLETED"),
         (next_id, "EN_ROUTE", "ARRIVED"),
     ]
+    assert {item.item_id: item.processing_source for item in progress.items} == {
+        first_id: "MANUAL",
+        next_id: "MANUAL",
+    }
 
 
 @pytest.mark.asyncio
@@ -634,6 +683,19 @@ async def test_lazy_finalize_auto_confirms_expired_candidate_by_stored_time(
         minutes=UNDO_WINDOW_MINUTES
     )
 
+    async with transaction_session(session_factory) as session:
+        stored = await session.get(
+            ProgressTransition, created.candidate.transition_id
+        )
+        stored.undo_deadline = datetime.now(UTC) - timedelta(seconds=1)
+    async with session_factory() as session:
+        progress = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
+
+    assert progress.undoable is None
+    assert progress.items[0].processing_source == "AUTO"
+
 
 @pytest.mark.asyncio
 async def test_lazy_finalize_skips_candidate_when_item_already_handled(
@@ -725,7 +787,13 @@ async def test_undo_restores_composite_transition_as_one_unit(
     )
     async with session_factory() as session:
         transition = await session.get(ProgressTransition, transition_id)
+        confirmed_progress = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
     assert transition is not None and transition.transition_type == "COMPOSITE"
+    assert {
+        item.item_id: item.processing_source for item in confirmed_progress.items
+    } == {first_id: "AUTO", second_id: "AUTO"}
 
     async with transaction_session(session_factory) as session:
         result = await DetectionService(session).undo_transition(
@@ -737,6 +805,9 @@ async def test_undo_restores_composite_transition_as_one_unit(
     async with session_factory() as session:
         first = await session.get(ItineraryItem, first_id)
         second = await session.get(ItineraryItem, second_id)
+        restored_progress = await ProgressService(session).get_day(
+            trip_id=trip_id, visit_date=now.date()
+        )
 
     assert first is not None and first.status == "ARRIVED"
     assert second is not None and second.status == "EN_ROUTE"
@@ -744,6 +815,9 @@ async def test_undo_restores_composite_transition_as_one_unit(
         (first_id, "ARRIVED"),
         (second_id, "EN_ROUTE"),
     }
+    assert all(
+        item.processing_source is None for item in restored_progress.items
+    )
 
 
 @pytest.mark.asyncio

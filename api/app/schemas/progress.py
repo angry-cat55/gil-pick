@@ -45,6 +45,11 @@ class InboundTravelSource(StrEnum):
     COMPUTED = "COMPUTED"
 
 
+class ProgressProcessingSource(StrEnum):
+    MANUAL = "MANUAL"
+    AUTO = "AUTO"
+
+
 class ProgressErrorCode(StrEnum):
     INVALID_REQUEST = "INVALID_REQUEST"
     INVALID_ACCESS_TOKEN = "INVALID_ACCESS_TOKEN"
@@ -192,6 +197,8 @@ class ProgressItem(ApiModel):
     actual_arrived_at: datetime | None
     completed_at: datetime | None
     inbound_travel: InboundTravel | None
+    processing_source: ProgressProcessingSource | None = None
+    event_rejection_reason: RejectionReason | None = None
 
 
 class DetectionTarget(ApiModel):
@@ -285,7 +292,7 @@ __all__ = [
     "InboundTravelSource", "ProgressData", "ProgressEnvelope",
     "ProgressErrorCode", "ProgressEventEnvelope", "ProgressEventRequest",
     "ProgressEventResult",
-    "ProgressEventType", "ProgressItem", "ProgressTargetStatus", "PendingCandidate",
+    "ProgressEventType", "ProgressItem", "ProgressProcessingSource", "ProgressTargetStatus", "PendingCandidate",
     "RejectionReason", "StartDayProgressRequest", "StartLocation",
     "TransitionCandidate", "TransitionDecision", "TransitionResult",
     "TransitionResultEnvelope",
