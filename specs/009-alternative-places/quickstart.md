@@ -148,8 +148,29 @@ BE 시나리오 ↔ 커버하는 자동 test (외부 provider는 `httpx` mock tr
 | BE 8 | `candidateId` 검증 일치·서명 변조·15분 만료→`None` | `test_candidate_token.py` 전체, `test_radius_and_category_ladder`의 `verify_candidate_token` 단언 | 통과 |
 | BE 9 | DETECT-001 `status` 필터·`eta`·`reason`·기존 형식 호환 | `test_detections_contract.py::test_f009_detection_list_extension_matches_contract`, `test_detection_routes_match_documented_methods_and_models` | 통과 |
 
+### Backend 실서버 검증 (2026-09-09, local `.env` + docker `gilpick-postgres-1`)
+
+`DATABASE_URL`(로컬 PG/PostGIS, migration head `008_create_detections`) + 실제 `TOUR_API_SERVICE_KEY`·`GOOGLE_PLACES_API_KEY`로 `uvicorn app.main:app`을 띄우고, 명동 좌표(`POINT(126.9838 37.5636)`, `CAFE`)에 `ACTIVE` `OPERATING_HOURS` 감지를 시드해 확인했다. `KMA`·`SEOUL` 키는 `.env`에 없어 혼잡·날씨 변수는 결손 격리 경로로 확인됐다. 시드·검증 후 시드 행 전부 삭제(baseline 복귀 확인).
+
+| 시나리오 | 실서버 결과 |
+|---|---|
+| BE 1·2 | `GET /detections/{id}/alternatives` → `200`, `searchRadiusMeters=500`, `categoryMatchLevel=SMALL`(실제 TourAPI `lclsSystm` 소분류 매칭), 실제 명동 카페 2곳 반환, `score` 내림차순·`rank` 1~2, `place`는 PLACE-001 DTO 전체 중첩, `candidateId`·`eta`·`originPlaceId`·`evaluatedAt` 포함. 응답 ~2.5s. |
+| BE 3 | 실제 응답에서 `regularOpeningHours` 없는 후보가 `operatingStatus=UNKNOWN`·`closesAt=null`로 유지됨(제외 안 됨). |
+| BE 4 | Google 평점 미매칭·`KMA`/`SEOUL` 키 없음 → `scoreBreakdown`이 `{distance}`만, `rating`·`congestion`·`weather` key 생략. 실내(CAFE) 후보 `reasons`에 `INDOOR`. 가중치가 distance로 재분배돼 `score` 계산됨(예: 65.78 = 100 × 0.6578). 응답 `200`. |
+| BE 5.2 | `DISMISSED` 감지에 ALT-001·ALT-002 → `409 DETECTION_NOT_ACTIVE`, `details.status="DISMISSED"`. |
+| BE 5.3 | 다른 사용자 토큰 → DETECT-004 `403 DETECTION_FORBIDDEN`, ALT-001 `403 TRIP_FORBIDDEN`(remap), 토큰 없음 `401`. 존재하지 않는 감지 id `404 DETECTION_NOT_FOUND`. |
+| BE 5.4 | ALT-001·ALT-002 호출 전후 `itinerary_items`(3128)·`routes`(116) 행 수 불변. DETECT-004 전후에도 불변. |
+| BE 6.1 | `POST /detections/{id}/dismiss` → `200`, `status=DISMISSED`, `decidedAt` 존재, DB `resolved_at` 기록됨. |
+| BE 6.2 | 재요청 → `200`, **같은 `decidedAt`**(`2026-09-09T13:31:03.941341Z`), `resolved_at` 불변. |
+| BE 6.4 | 거절 직후 `GET /trips/{tripId}/detections?status=ACTIVE` → 해당 감지 없음(0건). 필터 없이 조회 → `DISMISSED`로 보임. |
+| BE 7.1 | `GET /detections/{id}/alternatives/search?query=명동` → `200`, 실제 TourAPI 키워드 결과 각 항목에 `place`(PLACE-001 DTO)+`distanceMeters`(haversine, 예: 332m·18708m)·`operatingStatus=UNKNOWN`·`visitable=true`·`inSchedule=false`, `meta.pagination.nextCursor` 발급·`hasNext=true`. |
+| BE 7.2 | `query=카`(1글자) → `400 INVALID_REQUEST`. |
+| BE 8 | ALT-001 응답의 `candidateId`를 `verify_candidate_token`으로 검증 → `detection_id`·`place_id`·`evaluated_at` 응답과 일치. 서명 1바이트 변조 → `None`. 발급 후 20분(>15분 TTL) → `None`. |
+
+미검증(실서버): BE 3.2의 `businessStatus=CLOSED_TEMPORARILY` 후보 제외는 실제 Google 매칭이 성사되지 않아 확인 못 함(mock test로만). BE 7.3·7.4의 `inSchedule=true`·`CLOSED` 케이스는 실제 검색 결과에 기존 장소·폐점 장소가 포함되지 않아 확인 못 함(mock test로만).
+
 ### 미실행
 
-- 실제 TourAPI·Google·기상청·서울시 연동(local `.env` 자격 필요)은 이 검증에서 실행하지 않았다. mock transport 자동 test로만 확인했다.
-- BE 5.4·6.4의 실제 DB 왕복 종단 확인, Android 시나리오(AND 1~5), screenshot·실서버 requestId 기록은 T037·T039(FE·통합)에서 수행한다.
-- `mvp-features.md` F009 `VERIFY` 전이는 이 문서 PR에 포함하고, `DONE`은 관련 PR 전부 병합 후 T039에서 반영한다.
+- `KMA`·`SEOUL` 실키 연동(`.env`에 키 없음). 결손 격리 경로로만 확인됐다.
+- Android 시나리오(AND 1~5), screenshot·실서버 requestId 기록은 T037·T039(FE·통합)에서 수행한다.
+- `mvp-features.md` F009 `VERIFY` 전이는 T038 + T039 완료 PR(T039, jy)에서 반영하고, `DONE`은 관련 PR 전부 병합 후 반영한다.
