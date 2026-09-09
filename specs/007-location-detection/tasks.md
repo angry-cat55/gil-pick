@@ -295,6 +295,11 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 교차 확인: ts
   - 선행: T035, T036
   - 검증: quickstart 종단간 5단계를 로컬 API + AVD로 수행하고 결과를 PR에 기록. mvp-features.md의 F007 상태를 `VERIFY`로 갱신. 미실행 항목과 이유를 명시
+- [x] T038 PROG-001 item별 처리 출처·최신 이벤트 거절 이유 응답 in api/app/schemas/progress.py, api/app/services/progress.py, specs/006-trip-progress/contracts/progress.openapi.yaml, docs/design/api-spec.md
+  - 영역: BE
+  - 담당: ts
+  - 선행: T035
+  - 검증: Issue #312. `MANUAL`·`AUTO`·처리 이력 없음, 무응답 자동 확정의 `undoable` 만료 후 `AUTO` 유지, 복합 전환 전체 item, 거절 후 최신 수락 이벤트의 `null` 해제를 schema·contract·PostgreSQL integration test로 확인. 기존 `response_snapshot`의 신규 필드 누락을 허용하고 DB migration이 불필요함을 확인
 
 ---
 
@@ -305,7 +310,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 - **Setup(T001~T003)**: T001이 먼저다. T002·T003은 T001과 무관하게 병렬 가능
 - **Foundational(T004~T009)**: Setup 완료 후. 모든 User Story를 차단한다
 - **US1(T010~T019)** → **US2(T020~T025)** → **US3(T026~T030)** → **US4(T031~T034)**
-- **Polish(T035~T037)**: 원하는 User Story가 모두 끝난 뒤
+- **Polish(T035~T038)**: 원하는 User Story가 모두 끝난 뒤. T038은 T037과 독립적으로 수행 가능
 
 ### User Story Dependencies
 
@@ -317,7 +322,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
 ### 담당자별 흐름
 
 ```text
-BE ts: T001 → T004~T007 → T010·T011 → T014~T017 → T020 → T022~T024 → T026 → T028·T029 → T032 → T035
+BE ts: T001 → T004~T007 → T010·T011 → T014~T017 → T020 → T022~T024 → T026 → T028·T029 → T032 → T035 → T038
 FE hs: T002·T003 → T008·T009 → T012·T013 → T018·T019 → T021 → T025 → T027 → T030 → T031 → T033·T034 → T036
 통합:  T037
 ```

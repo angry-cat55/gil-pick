@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.api.errors import AppError
 from app.core.logging import request_id_context
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.progress import ProgressSegment, ProgressTransition
+from app.models.progress import ProgressEvent, ProgressSegment, ProgressTransition
 from app.models.trip import Trip
 from app.clients.route_provider import Coordinate, RouteProviderError, TransportMode as ClientTransportMode
 from app.schemas.progress import (
@@ -25,6 +25,7 @@ from app.schemas.progress import (
     InboundTravelSource,
     ProgressData,
     ProgressItem,
+    ProgressProcessingSource,
     StartDayProgressRequest,
     StartLocation,
 )
@@ -229,7 +230,7 @@ class ProgressService:
         detection = DetectionService(self.session)
         # 지연 확정: 조회 전에 만료된 무응답 후보를 먼저 자동 확정한다(research 2절).
         await detection.finalize_due_candidates(day)
-        data = self._to_data(day)
+        data = await self._to_data(day)
         targets, pending = await detection.build_state(day)
         undoable = await detection.current_undoable(day)
         return data.model_copy(update={
@@ -386,7 +387,7 @@ class ProgressService:
         self.session.add(transition)
         await recalculate_day_eta(self.session, day.trip_day_id)
         await self._attach_start_location(day)
-        response = self._to_data(day)
+        response = await self._to_data(day)
         if skip_segment is None:
             transition.response_snapshot = response.model_dump(mode="json", by_alias=True)
         await self.session.commit()
@@ -489,13 +490,13 @@ class ProgressService:
         ))
         if existing is not None:
             await self._attach_start_location(day)
-            return self._to_data(day)
+            return await self._to_data(day)
         items = sorted(day.items, key=lambda item: item.sequence)
         if not items:
             raise AppError(422, "DAY_EMPTY", "장소가 없는 날짜는 시작할 수 없습니다.")
         if day.status != "NOT_STARTED":
             await self._attach_start_location(day)
-            return self._to_data(day)
+            return await self._to_data(day)
         if payload.progress_version != day.progress_version:
             raise AppError(409, "VERSION_CONFLICT", "진행 버전이 일치하지 않습니다.")
 
@@ -605,7 +606,7 @@ class ProgressService:
                     return await ProgressService(result_session).get_day(
                         trip_id=trip_id, visit_date=visit_date
                     )
-        return self._to_data(day)
+        return await self._to_data(day)
 
     async def _load_day(
         self, trip_id: uuid.UUID, visit_date: date
@@ -628,8 +629,9 @@ class ProgressService:
         )).one()
         day._progress_start_location = (coords[1], coords[0])
 
-    def _to_data(self, day: TripDay) -> ProgressData:
+    async def _to_data(self, day: TripDay) -> ProgressData:
         items = sorted(day.items, key=lambda item: item.sequence)
+        processing_sources, rejection_reasons = await self._item_metadata(day, items)
         routes = _route_durations(day)
         computed = _progress_segments(day)
         remaining_keys = _remaining_inbound_keys(items)
@@ -660,6 +662,8 @@ class ProgressService:
                 estimated_departure_at=item.estimated_departure_at,
                 actual_arrived_at=item.actual_arrived_at,
                 completed_at=item.completed_at, inbound_travel=inbound,
+                processing_source=processing_sources.get(item.item_id),
+                event_rejection_reason=rejection_reasons.get(item.item_id),
             ))
         arrived = next((item.item_id for item in items if item.status == "ARRIVED"), None)
         en_route = next((item.item_id for item in items if item.status == "EN_ROUTE"), None)
@@ -674,6 +678,79 @@ class ProgressService:
             current_item_id=arrived, next_item_id=next_item, items=progress_items,
             detection_targets=[], pending_candidate=None, undoable=None,
         )
+
+    async def _item_metadata(
+        self, day: TripDay, items: list[ItineraryItem]
+    ) -> tuple[
+        dict[uuid.UUID, ProgressProcessingSource],
+        dict[uuid.UUID, str | None],
+    ]:
+        """현재 item 상태의 처리 출처와 최신 위치 이벤트 거절 이유를 이력에서 파생한다.
+
+        Args:
+            day: 응답을 만들 날짜 aggregate.
+            items: 날짜에 속한 최신 일정 항목 목록.
+
+        Returns:
+            item ID별 처리 출처와 최신 이벤트 거절 이유. 수락된 최신 이벤트의 이유는
+            ``None``이고, 처리 이력이 없는 item은 각 mapping에 포함되지 않는다.
+
+        Notes:
+            복합 전환의 모든 item을 반영하기 위해 ``primary_item_id``가 아니라
+            ``affected_items``를 사용한다. 되돌린 전환은 현재 상태 출처에서 제외한다.
+        """
+        item_by_id = {item.item_id: item for item in items}
+        processing_sources: dict[uuid.UUID, ProgressProcessingSource] = {}
+        transitions = await self.session.scalars(
+            select(ProgressTransition)
+            .where(
+                ProgressTransition.trip_day_id == day.trip_day_id,
+                ProgressTransition.status.in_(("CONFIRMED", "AUTO_CONFIRMED")),
+            )
+            .order_by(
+                ProgressTransition.progress_version_after.desc(),
+                ProgressTransition.created_at.desc(),
+            )
+        )
+        source_map = {
+            "MANUAL": ProgressProcessingSource.MANUAL,
+            "GEOFENCE_CONFIRMED": ProgressProcessingSource.MANUAL,
+            "GEOFENCE_AUTO": ProgressProcessingSource.AUTO,
+        }
+        for transition in transitions:
+            source = source_map.get(transition.source)
+            if source is None:
+                continue
+            for affected in transition.affected_items:
+                item_id_value = affected.get("itemId")
+                if item_id_value is None:
+                    continue
+                item_id = uuid.UUID(str(item_id_value))
+                item = item_by_id.get(item_id)
+                if (
+                    item is not None
+                    and item_id not in processing_sources
+                    and affected.get("afterStatus") == item.status
+                ):
+                    processing_sources[item_id] = source
+
+        rejection_reasons: dict[uuid.UUID, str | None] = {}
+        if item_by_id:
+            events = await self.session.scalars(
+                select(ProgressEvent)
+                .where(
+                    ProgressEvent.trip_day_id == day.trip_day_id,
+                    ProgressEvent.item_id.in_(item_by_id),
+                )
+                .order_by(
+                    ProgressEvent.received_at.desc(),
+                    ProgressEvent.progress_event_id.desc(),
+                )
+            )
+            for event in events:
+                if event.item_id not in rejection_reasons:
+                    rejection_reasons[event.item_id] = event.rejection_reason
+        return processing_sources, rejection_reasons
 
 
 def _route_durations(day: TripDay) -> dict[tuple[uuid.UUID | None, uuid.UUID], tuple[int, int, str]]:

@@ -12,6 +12,7 @@ from app.schemas.progress import (
     ProgressData,
     ProgressErrorCode,
     ProgressItem,
+    ProgressProcessingSource,
     ProgressTargetStatus,
     StartDayProgressRequest,
     UpdateItemProgressStatusRequest,
@@ -52,6 +53,36 @@ def test_progress_data_serializes_nullable_inbound_travel_with_camel_case() -> N
 
     assert payload["progressVersion"] == 1
     assert payload["items"][0]["inboundTravel"] is None
+    assert payload["items"][0]["processingSource"] is None
+    assert payload["items"][0]["eventRejectionReason"] is None
+
+
+def test_progress_item_serializes_processing_metadata_and_accepts_old_snapshot() -> None:
+    common = {
+        "itemId": str(uuid.uuid4()),
+        "sequence": 1,
+        "status": "ARRIVED",
+        "estimatedArrivalAt": None,
+        "estimatedDepartureAt": None,
+        "actualArrivedAt": None,
+        "completedAt": None,
+        "inboundTravel": None,
+    }
+
+    old_snapshot = ProgressItem.model_validate(common)
+    current = ProgressItem.model_validate({
+        **common,
+        "processingSource": "AUTO",
+        "eventRejectionReason": "LOW_ACCURACY",
+    })
+
+    assert old_snapshot.processing_source is None
+    assert old_snapshot.event_rejection_reason is None
+    assert current.processing_source is ProgressProcessingSource.AUTO
+    assert current.event_rejection_reason == "LOW_ACCURACY"
+
+    with pytest.raises(ValidationError):
+        ProgressItem.model_validate({**common, "processingSource": "GEOFENCE_AUTO"})
 
 
 def test_inbound_travel_requires_source_and_accepts_null_from_item() -> None:
