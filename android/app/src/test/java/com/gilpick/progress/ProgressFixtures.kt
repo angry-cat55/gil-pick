@@ -48,6 +48,27 @@ internal fun inProgressJson(progressVersion: Int = 2) = envelope(
     """.trimIndent(),
 )
 
+/** 항목마다 처리 출처와 거절 이유가 다른 응답(#312 계약). */
+internal fun itemMetadataJson() = envelope(
+    """
+    {
+      "tripId": "$PROGRESS_TRIP_ID", "date": "$PROGRESS_DATE", "dayStatus": "IN_PROGRESS",
+      "progressVersion": 4, "scheduleVersion": 3,
+      "actualStartedAt": "2026-09-08T01:00:00Z", "completedAt": null,
+      "startLocation": {"latitude": 37.57, "longitude": 126.97},
+      "currentItemId": null, "nextItemId": "$P_ITEM_B",
+      "items": [
+        {"itemId": "$P_ITEM_A", "sequence": 1, "status": "COMPLETED", "estimatedArrivalAt": null, "estimatedDepartureAt": null, "actualArrivedAt": null, "completedAt": null, "inboundTravel": null,
+         "processingSource": "AUTO", "eventRejectionReason": "LOW_ACCURACY"},
+        {"itemId": "$P_ITEM_B", "sequence": 2, "status": "ARRIVED", "estimatedArrivalAt": null, "estimatedDepartureAt": null, "actualArrivedAt": null, "completedAt": null, "inboundTravel": null,
+         "processingSource": "MANUAL", "eventRejectionReason": null},
+        {"itemId": "$P_ITEM_C", "sequence": 3, "status": "PLANNED", "estimatedArrivalAt": null, "estimatedDepartureAt": null, "actualArrivedAt": null, "completedAt": null, "inboundTravel": null,
+         "processingSource": null, "eventRejectionReason": null}
+      ]
+    }
+    """.trimIndent(),
+)
+
 private fun envelope(data: String) =
     """{"success": true, "data": $data, "meta": {"requestId": "$PROGRESS_REQUEST_ID"}}"""
 

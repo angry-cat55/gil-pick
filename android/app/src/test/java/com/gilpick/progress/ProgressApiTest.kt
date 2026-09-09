@@ -41,6 +41,33 @@ class ProgressApiTest {
     }
 
     @Test
+    fun `항목의 처리 출처와 이벤트 거절 이유를 읽는다`() = withService { server, api ->
+        server.enqueue(MockResponse(code = 200, body = itemMetadataJson()))
+
+        val items = api.getDayProgress(BEARER, PROGRESS_TRIP_ID, PROGRESS_DATE).body()!!.data.items
+
+        assertEquals(
+            listOf(ProgressProcessingSource.AUTO, ProgressProcessingSource.MANUAL, null),
+            items.map { it.processingSource },
+        )
+        assertEquals(
+            listOf(EventRejectionReason.LOW_ACCURACY, null, null),
+            items.map { it.eventRejectionReason },
+        )
+    }
+
+    @Test
+    fun `두 필드가 없는 기존 응답도 그대로 읽는다`() = withService { server, api ->
+        // 서버 배포 전 응답과 저장된 멱등 snapshot이 그대로 파싱돼야 한다(#312 호환 조건).
+        server.enqueue(MockResponse(code = 200, body = inProgressJson()))
+
+        val items = api.getDayProgress(BEARER, PROGRESS_TRIP_ID, PROGRESS_DATE).body()!!.data.items
+
+        assertEquals(listOf(null, null, null), items.map { it.processingSource })
+        assertEquals(listOf(null, null, null), items.map { it.eventRejectionReason })
+    }
+
+    @Test
     fun `PROG-002 시작은 POST start 경로에 Idempotency-Key와 progressVersion·currentLocation을 보낸다`() = withService { server, api ->
         server.enqueue(MockResponse(code = 200, body = inProgressJson(progressVersion = 1)))
         val location = CurrentLocationDto(latitude = 37.57, longitude = 126.97, accuracyMeters = 12.5, occurredAt = "2026-09-08T00:59:30Z")
