@@ -233,7 +233,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Tests for User Story 4
 
-- [ ] T028 [P] [US4] 외부 데이터 결손 격리 integration test in api/tests/integration/test_detection_degradation.py
+- [x] T028 [P] [US4] 외부 데이터 결손 격리 integration test in api/tests/integration/test_detection_degradation.py
   - 영역: BE
   - 담당: jh
   - 선행: T018
@@ -241,7 +241,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
 
 ### Implementation for User Story 4
 
-- [ ] T029 [US4] client 재시도·타임아웃 확정과 평가기 격리 보장 in api/app/clients/kma.py, api/app/clients/seoul_citydata.py, api/app/services/detection/operating_hours_source.py, api/app/services/detection/evaluator.py
+- [x] T029 [US4] client 재시도·타임아웃 확정과 평가기 격리 보장 in api/app/clients/kma.py, api/app/clients/seoul_citydata.py, api/app/services/detection/operating_hours_source.py, api/app/services/detection/evaluator.py
   - 영역: BE
   - 담당: jh
   - 선행: T008, T009, T010, T018

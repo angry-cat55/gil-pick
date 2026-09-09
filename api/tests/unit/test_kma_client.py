@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import httpx2
 import pytest
 
-from app.clients.kma import KmaClient, latest_base_slot, latitude_longitude_to_grid
+from app.clients.kma import KmaClient, KmaProviderError, latest_base_slot, latitude_longitude_to_grid
 from app.core.config import Settings
 
 
@@ -45,7 +45,8 @@ async def test_kma_retries_timeout_once_then_returns_none() -> None:
     async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls; calls += 1; raise httpx2.ReadTimeout("timeout", request=request)
     client = KmaClient(_settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
-    assert await client.get_forecast(37.5, 127.0) is None
+    with pytest.raises(KmaProviderError):
+        await client.get_forecast(37.5, 127.0)
     assert calls == 2
 
 

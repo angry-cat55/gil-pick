@@ -3,7 +3,7 @@ import pytest
 from datetime import timedelta
 from pydantic import SecretStr
 
-from app.clients.seoul_citydata import CongestionLevel, SeoulCityDataClient
+from app.clients.seoul_citydata import CongestionLevel, SeoulCityDataClient, SeoulCityDataProviderError
 from tests.unit.test_kma_client import _settings
 
 
@@ -29,5 +29,23 @@ async def test_citydata_retries_server_error_once_then_returns_none() -> None:
     async def handler(_: httpx2.Request) -> httpx2.Response:
         nonlocal calls; calls += 1; return httpx2.Response(503)
     client = SeoulCityDataClient(_city_settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
-    assert await client.get_population("POI014") is None
+    with pytest.raises(SeoulCityDataProviderError):
+        await client.get_population("POI014")
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_citydata_retries_timeout_once() -> None:
+    calls = 0
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        raise httpx2.ReadTimeout("timeout", request=request)
+
+    client = SeoulCityDataClient(
+        _city_settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+    with pytest.raises(SeoulCityDataProviderError):
+        await client.get_population("POI014")
     assert calls == 2
