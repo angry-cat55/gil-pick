@@ -132,13 +132,14 @@ async def test_auto_confirmed_notification_uses_one_key_and_undo_window() -> Non
 
 @pytest.mark.asyncio
 async def test_mark_read_is_idempotent() -> None:
-    notification = SimpleNamespace(read_at=None)
-    session = SimpleNamespace(scalar=AsyncMock(return_value=notification))
+    user_id = uuid4()
+    notification = SimpleNamespace(user_id=user_id, read_at=None)
+    session = SimpleNamespace(get=AsyncMock(return_value=notification))
     service = NotificationService(session, now=lambda: NOW)
 
-    assert await service.mark_read(uuid4(), uuid4()) is notification
+    assert await service.mark_read(user_id, uuid4()) is notification
     assert notification.read_at == NOW
-    assert await service.mark_read(uuid4(), uuid4()) is notification
+    assert await service.mark_read(user_id, uuid4()) is notification
     assert notification.read_at == NOW
 
 
@@ -163,3 +164,37 @@ async def test_list_notifications_returns_database_order() -> None:
 
     assert result == notifications
     session.scalars.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_register_fcm_token_moves_duplicate_token_to_owned_device() -> None:
+    user_id = uuid4()
+    device = SimpleNamespace(
+        session_id=uuid4(), user_id=user_id, fcm_token=None, platform="ANDROID"
+    )
+    session = SimpleNamespace(
+        scalar=AsyncMock(return_value=device),
+        execute=AsyncMock(return_value=SimpleNamespace(rowcount=1)),
+    )
+
+    result = await NotificationService(session).register_fcm_token(
+        user_id, "device-1", "token-1", "ANDROID"
+    )
+
+    assert result is device
+    assert device.fcm_token == "token-1"
+    session.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_unregister_fcm_token_is_idempotent() -> None:
+    user_id = uuid4()
+    device = SimpleNamespace(
+        session_id=uuid4(), user_id=user_id, fcm_token=None, platform="ANDROID"
+    )
+    session = SimpleNamespace(scalar=AsyncMock(return_value=device))
+
+    result = await NotificationService(session).unregister_fcm_token(user_id, "device-1")
+
+    assert result is device
+    assert device.fcm_token is None

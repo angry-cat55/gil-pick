@@ -378,7 +378,7 @@ async def logout_device_session(
             DeviceSession.revoked_at.is_(None),
             DeviceSession.refresh_expires_at > clock,
         )
-        .values(revoked_at=clock, last_seen_at=clock)
+        .values(revoked_at=clock, last_seen_at=clock, fcm_token=None)
         .returning(DeviceSession.session_id)
     )
     session_id = result.scalar_one_or_none()

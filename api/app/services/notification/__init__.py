@@ -11,9 +11,10 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.errors import AppError
 from app.core.config import get_settings
 from app.core.logging import request_id_context
-from app.models.auth import User
+from app.models.auth import DeviceSession, User
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.notification import Notification
@@ -84,10 +85,14 @@ class NotificationService:
             statement = statement.where((Notification.created_at < created_at) | ((Notification.created_at == created_at) & (Notification.notification_id < notification_id)))
         return list((await self.session.scalars(statement.order_by(Notification.created_at.desc(), Notification.notification_id.desc()).limit(limit))).all())
 
-    async def mark_read(self, user_id: uuid.UUID, notification_id: uuid.UUID) -> Notification | None:
+    async def mark_read(self, user_id: uuid.UUID, notification_id: uuid.UUID) -> Notification:
         """소유한 알림 한 건을 멱등하게 읽음 처리한다."""
-        notification = await self.session.scalar(select(Notification).where(Notification.notification_id == notification_id, Notification.user_id == user_id))
-        if notification is not None and notification.read_at is None:
+        notification = await self.session.get(Notification, notification_id)
+        if notification is None:
+            raise AppError(404, "NOTIFICATION_NOT_FOUND", "알림을 찾을 수 없습니다.")
+        if notification.user_id != user_id:
+            raise AppError(403, "NOTIFICATION_FORBIDDEN", "다른 사용자의 알림입니다.")
+        if notification.read_at is None:
             notification.read_at = self.now()
         return notification
 
@@ -95,6 +100,60 @@ class NotificationService:
         """사용자의 안 읽은 알림을 모두 읽음 처리한다."""
         result = await self.session.execute(update(Notification).where(Notification.user_id == user_id, Notification.read_at.is_(None)).values(read_at=self.now()))
         return result.rowcount or 0
+
+    async def register_fcm_token(
+        self,
+        user_id: uuid.UUID,
+        device_id: str,
+        fcm_token: str,
+        platform: str,
+    ) -> DeviceSession:
+        """소유한 활성 기기 session에 FCM token을 멱등 등록한다."""
+        device_session = await self._owned_active_device(user_id, device_id)
+        await self.session.execute(
+            update(DeviceSession)
+            .where(
+                DeviceSession.fcm_token == fcm_token,
+                DeviceSession.session_id != device_session.session_id,
+                DeviceSession.revoked_at.is_(None),
+            )
+            .values(fcm_token=None)
+        )
+        device_session.fcm_token = fcm_token
+        device_session.platform = platform
+        return device_session
+
+    async def unregister_fcm_token(
+        self, user_id: uuid.UUID, device_id: str
+    ) -> DeviceSession:
+        """소유한 활성 기기 session의 FCM token을 멱등 해제한다."""
+        device_session = await self._owned_active_device(user_id, device_id)
+        device_session.fcm_token = None
+        return device_session
+
+    async def _owned_active_device(
+        self, user_id: uuid.UUID, device_id: str
+    ) -> DeviceSession:
+        """기기 식별자의 활성 session과 소유권을 확인한다."""
+        device_session = await self.session.scalar(
+            select(DeviceSession).where(
+                DeviceSession.user_id == user_id,
+                DeviceSession.client_device_id == device_id,
+                DeviceSession.revoked_at.is_(None),
+            )
+        )
+        if device_session is not None:
+            return device_session
+        exists_for_another_user = await self.session.scalar(
+            select(DeviceSession.session_id).where(
+                DeviceSession.client_device_id == device_id,
+                DeviceSession.user_id != user_id,
+                DeviceSession.revoked_at.is_(None),
+            ).limit(1)
+        )
+        if exists_for_another_user is not None:
+            raise AppError(403, "DEVICE_FORBIDDEN", "다른 사용자의 기기입니다.")
+        raise AppError(404, "DEVICE_SESSION_NOT_FOUND", "활성 기기 세션을 찾을 수 없습니다.")
 
     async def _transition_context(self, transition: ProgressTransition):
         return (await self.session.execute(select(Trip.user_id.label("user_id"), Trip.trip_id.label("trip_id"), TripDay.status.label("day_status"), Place.name.label("name")).join(TripDay, TripDay.trip_id == Trip.trip_id).join(ItineraryItem, ItineraryItem.trip_day_id == TripDay.trip_day_id).join(Place, Place.place_id == ItineraryItem.place_id).where(TripDay.trip_day_id == transition.trip_day_id, ItineraryItem.item_id == transition.primary_item_id))).one_or_none()
