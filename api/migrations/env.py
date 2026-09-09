@@ -11,11 +11,11 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import get_settings
 from app.db import Base
-from app.models import auth, itinerary, progress, replacement, trip  # noqa: F401
+from app.models import auth, itinerary, notification, progress, replacement, trip  # noqa: F401
 
 config = context.config
 if config.config_file_name:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Alembic stores options in ConfigParser, where percent signs are interpolation markers.
 config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))

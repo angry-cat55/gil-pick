@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     seoul_citydata_api_key: SecretStr = SecretStr("")
     detection_provider_timeout_seconds: float = Field(default=5.0, gt=0)
     detection_cycle_seconds: int = Field(default=600, gt=0)
+    fcm_enabled: bool = False
+    fcm_project_id: str = ""
+    fcm_service_account_json: SecretStr = SecretStr("")
+    fcm_request_timeout_seconds: float = Field(default=5.0, gt=0)
+    notification_retention_days: int = Field(default=90, gt=0)
+    notification_dispatch_interval_seconds: int = Field(default=30, gt=0)
+    notification_cleanup_interval_seconds: int = Field(default=3600, gt=0)
 
     @field_validator("jwt_signing_secret")
     @classmethod

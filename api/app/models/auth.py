@@ -65,6 +65,12 @@ class DeviceSession(TimestampMixin, Base):
         UniqueConstraint("user_id", "client_device_id", name="uq_device_sessions_user_device"),
         CheckConstraint("platform IN ('ANDROID')", name="ck_device_sessions_platform"),
         Index("ix_device_sessions_cleanup", "revoked_at", "refresh_expires_at"),
+        Index(
+            "uq_device_sessions_fcm_token",
+            "fcm_token",
+            unique=True,
+            postgresql_where=text("fcm_token IS NOT NULL AND revoked_at IS NULL"),
+        ),
     )
 
     session_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

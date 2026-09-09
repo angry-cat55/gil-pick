@@ -4,7 +4,7 @@
 
 ## 사전 조건
 
-- `docker compose up -d postgres` → `cd api && alembic upgrade head`(migration `009_create_notifications` 포함) → `uvicorn app.main:app`.
+- `docker compose up -d postgres` → `cd api && alembic upgrade head`(migration `011_create_notifications` 포함) → `uvicorn app.main:app`.
 - 환경변수: `JWT_SIGNING_SECRET` 필수. FCM은 `FCM_ENABLED=false`(기본)면 발송을 건너뛰고 `notifications.sent_at`만 찍는다. 실발송은 `FCM_ENABLED=true` + `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON`(G001).
 - 오늘 날짜(Asia/Seoul)에 장소가 2곳 이상이고 `오늘 여행 시작`을 끝낸 여행이 필요하다(진행 알림용). 장소 변경 제안 알림은 남은 장소 하나에 F008 `ACTIVE` 감지가 새로 생기게 한다(그 장소 `estimated_arrival_at`을 폐점 이후로 두고 `evaluate_all_active` 1회 실행 — F008 quickstart BE 1).
 - 계약: [contracts/notifications.openapi.yaml](contracts/notifications.openapi.yaml). 데이터·상태 모델: [data-model.md](data-model.md). 결정 근거: [research.md](research.md).
@@ -86,7 +86,7 @@ gradlew.bat --offline :app:connectedDebugAndroidTest \
 1. `cleanup_notifications(session, now=T)`가 `created_at < T - 90d` 행과 `trip_id`가 논리 삭제된 여행을 가리키는 행을 지우고 그 외는 남기는지 `test_notification_cleanup.py`에서 확인한다(`test_auth_cleanup.py` 패턴).
 2. `run_notification_cleanup` 루프가 `lifespan`에서 뜨고 예외가 cycle 단위로 격리되는지 확인한다.
 
-### BE 8. Migration 009 (data-model 1)
+### BE 8. Migration 011 (data-model 1)
 
 1. `alembic upgrade head` → `alembic downgrade -1` → `alembic upgrade head` 왕복이 되고, `notifications` 테이블·인덱스 4개·`type` CHECK·`uq_device_sessions_fcm_token`가 생기는지 `test_notification_migration.py`에서 확인한다.
 2. `migrations/env.py` 모델 import에 `notification`이 있어 `Base.metadata`에 테이블이 잡히는지 확인한다.

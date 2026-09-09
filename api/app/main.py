@@ -25,6 +25,8 @@ from app.core.logging import configure_logging
 from app.db import create_session_factory
 from app.jobs.auth_cleanup import run_auth_cleanup
 from app.jobs.variable_detection import run_variable_detection
+from app.jobs.notification_cleanup import run_notification_cleanup
+from app.jobs.notification_dispatch import run_notification_dispatch
 
 
 @asynccontextmanager
@@ -47,15 +49,36 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             interval_seconds=get_settings().detection_cycle_seconds,
         )
     )
+    settings = get_settings()
+    notification_dispatch_task = asyncio.create_task(
+        run_notification_dispatch(
+            session_factory,
+            settings=settings,
+            interval_seconds=settings.notification_dispatch_interval_seconds,
+        )
+    )
+    notification_cleanup_task = asyncio.create_task(
+        run_notification_cleanup(
+            session_factory,
+            retention_days=settings.notification_retention_days,
+            interval_seconds=settings.notification_cleanup_interval_seconds,
+        )
+    )
     try:
         yield
     finally:
         cleanup_task.cancel()
         detection_task.cancel()
+        notification_dispatch_task.cancel()
+        notification_cleanup_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
         with suppress(asyncio.CancelledError):
             await detection_task
+        with suppress(asyncio.CancelledError):
+            await notification_dispatch_task
+        with suppress(asyncio.CancelledError):
+            await notification_cleanup_task
 
 
 def create_app() -> FastAPI:

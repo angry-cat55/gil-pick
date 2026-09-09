@@ -18,7 +18,7 @@ Android는 새 패키지 `com.gilpick.notification`에 알림 목록 화면(Figm
 
 **Primary Dependencies**: Backend는 FastAPI, SQLAlchemy 2 async, `httpx2`, `pydantic-settings`, **`pyjwt`(이미 있음, FCM OAuth2 assertion에 재사용)** — `firebase-admin`은 도입하지 않는다(research R5). Android는 Retrofit 3 + kotlinx.serialization, Navigation Compose, WorkManager(이미 있음) + **신규 `com.google.firebase:firebase-messaging`(firebase-bom) 및 `com.google.gms.google-services` 플러그인**
 
-**Storage**: PostgreSQL/PostGIS. **신규 테이블 1개(`notifications`)와 migration 1개(`009_create_notifications`)**. `device_sessions.fcm_token` 갱신·`NULL`화, `users.replacement_suggestion_enabled` 읽기, `detections`·`progress_transitions`·`trip_days`·`trips`·`itinerary_items`·`places` 읽기. `device_sessions`에 partial unique 인덱스 1개 추가
+**Storage**: PostgreSQL/PostGIS. **신규 테이블 1개(`notifications`)와 migration 1개(`011_create_notifications`)**. `device_sessions.fcm_token` 갱신·`NULL`화, `users.replacement_suggestion_enabled` 읽기, `detections`·`progress_transitions`·`trip_days`·`trips`·`itinerary_items`·`places` 읽기. `device_sessions`에 partial unique 인덱스 1개 추가
 
 **Testing**: pytest unit/contract(`httpx2` mock transport, 고정 시각)/integration(실 Postgres, `test_auth_cleanup.py`·`test_*_migration.py` 패턴). Android JUnit unit(fake repository/service) + androidTest(Compose UI·navigation·screenshot, 계측 `captureToImage`, 에뮬레이터 `gilpick_api36_play`) + 실서버·실 FCM 수동 절차(quickstart 실서버 1~6)
 
@@ -30,7 +30,7 @@ Android는 새 패키지 `com.gilpick.notification`에 알림 목록 화면(Figm
 
 **Constraints**: 알림 생성·조회·읽음·기기 등록은 감지·전환·일정·경로 상태를 바꾸지 않는다(FR-025). FCM 발송은 도메인 커밋 이후에만 하고 발송 실패가 도메인 전이를 롤백하지 않는다(FR-009, constitution IV). 일시 오류 재시도 ≤ 2회, 무효 토큰은 그 컬럼만 `NULL`(FR-008·FR-027). payload는 재조회 식별자 + `title`·`body`만, 좌표·평점·정밀 위치·토큰 금지(FR-006, SC-004). 모든 endpoint는 `user_id`(알림) / `user_id + client_device_id`(기기) 소유권 검증(constitution V). 조정값(`fcm_enabled`, timeout, 재시도, 보존 90일, dispatch 주기)은 `core/config.py` `Settings` 한곳. 화면 값은 `com.gilpick.ui.theme` 토큰만 사용
 
-**Scale/Scope**: 신규 endpoint 5개(NOTI-001·002·003·DEV-001·002), 신규 BE 파일 ~8개(`models/notification.py`, `schemas/notification.py`, `schemas/device.py`, `services/notification/{__init__,dedup,messages}.py`, `services/notification/dispatch.py`, `clients/fcm.py`, `api/v1/notifications.py`, `api/v1/devices.py`, `jobs/notification_dispatch.py`, `jobs/notification_cleanup.py`, migration `009`) + F008·F006/F007·F001 파일에 동작 불변 hook 추가 4건 + `main.py`·`migrations/env.py`·`models/__init__.py`·`core/config.py`·`.env.example` 수정. Android 신규 패키지 `com.gilpick.notification` ~10파일 + FCM messaging service + 2 worker + `MainActivity`·`AuthRepository`·`TripListScreen`·`ActiveTravelScreen`·Gradle·Manifest 수정. F012(설정 화면·PREF) 제외
+**Scale/Scope**: 신규 endpoint 5개(NOTI-001·002·003·DEV-001·002), 신규 BE 파일(`models/notification.py`, `schemas/notification.py`, `schemas/device.py`, `services/notification/{__init__,dedup,messages}.py`, `services/notification/dispatch.py`, `clients/fcm.py`, `api/v1/notifications.py`, `api/v1/devices.py`, `jobs/notification_dispatch.py`, `jobs/notification_cleanup.py`, migration `010`) + F008·F006/F007·F001 파일에 동작 불변 hook 추가 4건 + `main.py`·`migrations/env.py`·`models/__init__.py`·`core/config.py`·`.env.example` 수정. Android 신규 패키지 `com.gilpick.notification` ~10파일 + FCM messaging service + 2 worker + `MainActivity`·`AuthRepository`·`TripListScreen`·`ActiveTravelScreen`·Gradle·Manifest 수정. F012(설정 화면·PREF) 제외
 
 ## UI Implementation & Validation
 
@@ -129,7 +129,7 @@ api/
 │   └── main.py                          # notifications_router·devices_router 등록, dispatch·cleanup task 2개 lifespan 추가
 ├── migrations/
 │   ├── env.py                           # 모델 import에 notification 추가
-│   └── versions/009_create_notifications.py  # notifications 테이블·인덱스 4개·type CHECK, device_sessions fcm_token partial unique
+│   └── versions/011_create_notifications.py  # notifications 테이블·인덱스 4개·type CHECK, device_sessions fcm_token partial unique
 ├── .env.example                         # FCM_* 항목 추가
 └── tests/
     ├── unit/test_notification_service.py

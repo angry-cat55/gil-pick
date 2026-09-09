@@ -22,12 +22,12 @@ description: "Task list for F011 알림"
 
 ## Phase 1: Setup (공유 인프라·빌드 설정)
 
-- [ ] T001 [P] FCM·보존 설정값 추가 in api/app/core/config.py, api/.env.example
+- [x] T001 [P] FCM·보존 설정값 추가 in api/app/core/config.py, api/.env.example
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `Settings`에 `fcm_enabled`(기본 false)·`fcm_project_id`·`fcm_service_account_json`(SecretStr)·`fcm_request_timeout_seconds`(기본 5.0)·`notification_retention_days`(기본 90)·`notification_dispatch_interval_seconds`(기본 30)·`notification_cleanup_interval_seconds`(기본 3600)이 로드되고 `.env.example`에 대응 항목이 있는지 단위 확인
-- [ ] T002 [P] pyjwt RS256 서명 가능 여부 확인 in api/pyproject.toml
+- [x] T002 [P] pyjwt RS256 서명 가능 여부 확인 in api/pyproject.toml
   - 영역: BE
   - 담당: ts
   - 선행: 없음
@@ -53,32 +53,32 @@ description: "Task list for F011 알림"
 
 ### Backend 파이프라인
 
-- [ ] T005 Notification 모델과 metadata 등록 in api/app/models/notification.py, api/app/models/__init__.py, api/migrations/env.py
+- [x] T005 Notification 모델과 metadata 등록 in api/app/models/notification.py, api/app/models/__init__.py, api/migrations/env.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: `Notification`(`notifications` 테이블, data-model.md 1.1 컬럼) 정의, `models/__init__.py` 재노출, `migrations/env.py` import 목록에 `notification` 추가로 `Base.metadata`에 잡힘
-- [ ] T006 migration 009_create_notifications in api/migrations/versions/009_create_notifications.py
+- [x] T006 migration 011_create_notifications in api/migrations/versions/011_create_notifications.py
   - 영역: BE
   - 담당: ts
   - 선행: T005
-  - 검증: `notifications` 테이블·`type` CHECK(5값)·인덱스 4개(`ix_notifications_user_unread`·`ix_notifications_retention`·`uq_notifications_dedup` partial·`ix_notifications_pending` partial), `device_sessions`에 `uq_device_sessions_fcm_token` partial unique 추가. `tests/integration/test_notification_migration.py`로 `upgrade → downgrade → upgrade` 왕복·인덱스·CHECK 확인. `down_revision = "008_create_detections"`
-- [ ] T007 [P] FcmClient in api/app/clients/fcm.py
+  - 검증: `notifications` 테이블·`type` CHECK(5값)·인덱스 4개(`ix_notifications_user_unread`·`ix_notifications_retention`·`uq_notifications_dedup` partial·`ix_notifications_pending` partial), `device_sessions`에 `uq_device_sessions_fcm_token` partial unique 추가. `tests/integration/test_notification_migration.py`로 `upgrade → downgrade → upgrade` 왕복·인덱스·CHECK 확인. F010 승인 migration 병합을 반영해 `down_revision = "010_replacement_approval"`
+- [x] T007 [P] FcmClient in api/app/clients/fcm.py
   - 영역: BE
   - 담당: ts
   - 선행: T001, T002
   - 검증: FCM HTTP v1(`.../messages:send`) + `pyjwt` RS256 → OAuth2 access token(~55분 캐시), data-only 메시지, 결과 `FcmSendResult`(`OK`/`INVALID_TOKEN`/`RETRYABLE`/`FATAL`), `FcmClientError(code, retryable, status_code)`. `fcm_enabled=false`면 발송 생략. `tests/unit/test_fcm_client.py`(`httpx2` fake + `tests/fixtures/fcm/*.json`: `send_ok`·`invalid_token`·`unavailable`·`oauth_token`)
-- [ ] T008 [P] dedup_key·본문 문구 생성 in api/app/services/notification/dedup.py, api/app/services/notification/messages.py
+- [x] T008 [P] dedup_key·본문 문구 생성 in api/app/services/notification/dedup.py, api/app/services/notification/messages.py
   - 영역: BE
   - 담당: ts
   - 선행: 없음
   - 검증: 유형별 `dedup_key`(research R2: `detection:{id}` / `transition:{id}:arrival_check:{seq}` / `transition:{id}:departure_check` / `transition:{id}:auto`), 유형별 `title`·`body`(research R14, 자동 확정은 `undo_deadline - now`로 남은 시간 계산·만료 문구). `tests/unit/test_notification_messages.py`
-- [ ] T009 NotificationService in api/app/services/notification/__init__.py
+- [x] T009 NotificationService in api/app/services/notification/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: T005, T008
   - 검증: `create_place_change_suggestion(session, detection)`(설정 off면 no-op, `ON CONFLICT DO NOTHING`), `create_transition_check(session, transition, prompt_seq)`, `create_transition_auto_confirmed(session, transition)`, `list_notifications(user_id, cursor, limit, read)`(90일 필터·cursor), `mark_read(user_id, notification_id)`·`mark_all_read(user_id)`(멱등). `tests/unit/test_notification_service.py`
-- [ ] T010 NotificationDispatchService in api/app/services/notification/dispatch.py
+- [x] T010 NotificationDispatchService in api/app/services/notification/dispatch.py
   - 영역: BE
   - 담당: ts
   - 선행: T007, T009
@@ -93,7 +93,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T009, T011
   - 검증: NOTI-001(`GET /notifications`)·NOTI-002(`PATCH /notifications/{id}/read`)·NOTI-003(`PATCH /notifications/read-all`)·DEV-001(`PUT /devices/fcm-token`)·DEV-002(`DELETE /devices/{deviceId}/fcm-token`), 소유권 검증, `main.py` router 2개 등록. `tests/contract/test_notification_contract.py`(contracts YAML vs `create_app().openapi()`, 401/403/404)
-- [ ] T013 dispatch·cleanup job in api/app/jobs/notification_dispatch.py, api/app/jobs/notification_cleanup.py, api/app/main.py
+- [x] T013 dispatch·cleanup job in api/app/jobs/notification_dispatch.py, api/app/jobs/notification_cleanup.py, api/app/main.py
   - 영역: BE
   - 담당: ts
   - 선행: T010
@@ -200,13 +200,12 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T009
   - 검증: `register_event`가 `PENDING_CONFIRMATION` 전환 생성 직후 `create_transition_check(prompt_seq=1)`, `_auto_confirm` 직후 `create_transition_auto_confirmed`, `decide_transition(NOT_ARRIVED)`가 `next_prompt_at`을 남긴 뒤 dispatch가 발견해 `create_transition_check(prompt_seq=2)`. 전환 규칙·응답 불변. 교차 계약 review: F006/F007 담당
-- [ ] T027 [US3] dispatch의 finalize 연동 in api/app/services/notification/dispatch.py
+- [ ] T027 [US3] dispatch finalize·재질문 알림 통합 검증 in api/tests/unit/test_notification_dispatch.py, api/tests/unit/test_notification_service.py
   - 영역: BE
   - 담당: ts
   - 선행: T010, T026
-  - 검증: `tick`이 `IN_PROGRESS` `trip_days`마다 `DetectionService(session).finalize_due_candidates(day)`(idempotent) 호출로 만료 후보를 제때 자동 확정하고, `next_prompt_at <= now`·도착 질문 ≤1회인 후보에 `prompt_seq=2` 행 생성.
-  - 교차 계약 review: **F006/F007 담당의 blocking review**. 자동 확정 기록 시점이 "다음 요청"에서 "마감 후 ~30초"로 앞당겨진다(되돌리기 창은 `auto_finalize_at` 기준이라 불변).
-  - review 미승인 시 대안: dispatch는 `finalize_due_candidates`를 호출하지 않고 자동 확정·재질문 알림을 F006/F007의 지연 확정(다음 요청 시)에 맡긴다. 그 경우 `ARRIVAL_AUTO_CONFIRMED`·`DEPARTURE_AUTO_CONFIRMED`·재질문 유형은 SC-012(30초) 대상에서 제외하고 spec Success Criteria에 예외를 기록한다.
+  - 검증: T010의 `tick`과 T026의 hook을 함께 실행했을 때 만료 후보가 자동 확정 알림으로 이어지고, `next_prompt_at <= now` 후보에는 `prompt_seq=2` 알림이 한 번만 생성되는지 검증한다. `finalize_due_candidates` 호출과 재질문 스캔 자체는 T010 구현을 재사용한다.
+  - 교차 계약 review: T026의 F006/F007 hook과 기존 전환 규칙·응답 불변을 담당자가 확인한다.
 - [ ] T028 [US3] 확인 알림 즉시 발송 in api/app/api/v1/progress.py
   - 영역: BE
   - 담당: ts
@@ -337,7 +336,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: 없음
   - 검증: requirements NOTI-01·functional-spec 6절에 전달 목표 30초·재시도·포그라운드 미표시·90일 보존 반영(spec Clarifications 2026-09-10과 일치). 새 정책값을 지어내지 않고 spec 값만 옮김
-- [ ] T044 관찰 가능성 점검 in api/app/services/notification/dispatch.py, api/app/services/notification/__init__.py
+- [x] T044 관찰 가능성 점검 in api/app/services/notification/dispatch.py, api/app/services/notification/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: T010, T013
@@ -378,14 +377,14 @@ description: "Task list for F011 알림"
 ### User Story 간 관계
 
 - US1은 다른 story와 독립(발송 대상 준비). US2·US3은 US1이 없어도 "행 생성·목록 적재"까지 검증 가능하나 실 전달 검증은 US1 필요
-- US2·US3은 서로 독립(다른 hook 파일 아님 — 둘 다 `services/detection/` 이나 T022는 `evaluator.py`, T026은 `__init__.py`로 파일이 다름). dispatch(T010)는 공유하므로 T010 완료 후 병렬
+- US2·US3은 같은 `services/detection/` 패키지지만 T022는 `evaluator.py`, T026은 `__init__.py`를 수정하므로 서로 독립이다. dispatch(T010)는 공유하므로 T010 완료 후 병렬
 - US4는 US2·US3이 만든 알림을 소비하지만 fake repository로 독립 검증 가능
 - US5는 US2 hook(T022)에 의존
 - US6은 F009 재사용만 하므로 Phase 2 FE 골격 후 독립
 
 ### 파일 소유권 조율(같은 파일 동시 수정 금지)
 
-- `api/app/services/notification/dispatch.py`: T010(생성) → T027(finalize 연동) → T044(로그). 순차
+- `api/app/services/notification/dispatch.py`: T010(생성·finalize·재질문 스캔) → T044(로그). 순차. T027은 이 구현과 T026 hook의 통합 test만 추가
 - `android/.../MainActivity.kt`: T016(골격) → T025(대체 딥링크) → T030(진행 딥링크) → T036(벨 배선). 순차, 한 담당(jy)
 - `android/.../GilpickMessagingService.kt`: T021(onNewToken) → T025(onMessageReceived) → T030(유형별). 순차
 - `api/app/main.py`: T012(router)·T013(job) — 같은 파일, 순서 조율
