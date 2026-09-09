@@ -67,7 +67,7 @@ paths:
         - $ref: '#/components/parameters/DetectionId'
       responses:
         '200':
-          description: 후보 목록(후보가 없으면 `items: []`, `searchRadiusMeters: 2000`)
+          description: "후보 목록(후보가 없으면 `items: []`, `searchRadiusMeters: 2000`)"
           content:
             application/json:
               schema:
