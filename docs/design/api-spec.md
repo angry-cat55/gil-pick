@@ -1062,7 +1062,9 @@ Response `200`:
           "durationSeconds": 900,
           "distanceMeters": 1100,
           "source": "COMPUTED"
-        }
+        },
+        "processingSource": "AUTO",
+        "eventRejectionReason": null
       }
     ],
     "detectionTargets": [
@@ -1087,6 +1089,8 @@ Response `200`:
 
 - `detectionTargets`는 저장하지 않고 날짜 상태와 `progress_transitions` 이력에서 매 조회마다 계산한다. `EN_ROUTE` 항목의 `ARRIVAL` 하나와 `ARRIVED` 항목의 `DEPARTURE` 하나만 담기며, 질문 횟수 상한·재질문/재개 대기·`아직 머무는 중`·되돌리기 2회 중단에 걸린 대상은 빠진다. 당일이 완료되면 빈 배열이다.
 - `pendingCandidate`는 지금 확인을 기다리는 후보(PROG-003이 만든 것), `undoable`은 무응답 자동 확정 뒤 되돌리기 창(기본 5분)이 아직 열린 전환이다. 둘 다 서버가 채우며 앱이 추정하지 않는다.
+- 각 `items[].processingSource`는 현재 상태를 사용자가 처리했거나 확인했으면 `MANUAL`, 무응답 자동 확정이면 `AUTO`다. 처리 이력이 없으면 `null`이며, `undoable`이 만료되어 `null`이 된 뒤에도 현재 상태가 바뀌지 않았다면 `AUTO`를 유지한다.
+- 각 `items[].eventRejectionReason`은 서버 수신 시각 기준 최신 위치 이벤트가 거절됐을 때 그 이유를 반환한다. 이벤트 이력이 없거나 이후 정상 이벤트가 수락되면 `null`이다.
 - 이 조회는 응답을 만들기 전에 만료된 무응답 후보를 먼저 자동 확정한다(지연 확정). 따라서 `items`와 `progressVersion`은 확정이 반영된 값으로 내려간다.
 
 주요 오류: `400 INVALID_REQUEST`, `401`, `403`, `404`

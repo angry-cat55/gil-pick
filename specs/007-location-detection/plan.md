@@ -38,7 +38,7 @@
 
 **Tokens & Components**: 기존 `com.gilpick.ui.theme` token만 사용하고 새 token을 만들지 않는다. 재사용: F006 `ActiveTravelScreen` 구조와 `StatusSheet`의 `ModalBottomSheet` 패턴, F006 `ProgressLabels`의 상태·시각 문구, F002/F004의 상태 칩 규칙(문구+아이콘 병기). 신규: `ArrivalDepartureConfirmSheet`(두 종류를 한 composable로, 행동 라벨만 다름), `UndoToast`. 두 요소 모두 진행 화면 안에 두고 별도 화면을 만들지 않는다.
 
-**State & Interaction**: F006 `ProgressUiState.Content`에 `pendingCandidate`와 `undoable`을 더한다. 두 값 모두 서버 응답에서만 오고 앱이 추정하지 않는다(F006 FR-021과 같은 규칙). 확인 응답·되돌리기 요청 중에는 해당 요소의 버튼만 잠그고 진행 화면의 나머지는 그대로 둔다. 실패해도 후보를 임의로 취소하지 않고 원인과 다시 시도를 보인다. 남은 시간은 서버가 준 `autoFinalizeAt`·`undoDeadline`과 기기 시각으로 1초 단위 표시만 하고 만료 판정은 하지 않는다. `autoFinalizeAt`과 `undoDeadline`에 맞춰 로컬 알람을 걸어 그 시각에 진행을 다시 조회한다.
+**State & Interaction**: F006 `ProgressUiState.Content`에 `pendingCandidate`와 `undoable`을 더한다. 두 값 모두 서버 응답에서만 오고 앱이 추정하지 않는다(F006 FR-021과 같은 규칙). PROG-001의 각 item은 현재 상태를 만든 `processingSource`와 서버 수신 시각 기준 최신 위치 이벤트의 `eventRejectionReason`을 함께 받는다. 처리 출처는 `progress_transitions.affected_items`에서, 거절 이유는 `progress_events`에서 파생하며 새 컬럼을 만들지 않는다. `undoable`은 되돌리기 가능 여부만 나타내므로 만료되어도 현재 자동 확정 상태의 `processingSource=AUTO`는 유지한다. 확인 응답·되돌리기 요청 중에는 해당 요소의 버튼만 잠그고 진행 화면의 나머지는 그대로 둔다. 실패해도 후보를 임의로 취소하지 않고 원인과 다시 시도를 보인다. 남은 시간은 서버가 준 `autoFinalizeAt`·`undoDeadline`과 기기 시각으로 1초 단위 표시만 하고 만료 판정은 하지 않는다. `autoFinalizeAt`과 `undoDeadline`에 맞춰 로컬 알람을 걸어 그 시각에 진행을 다시 조회한다.
 
 **Accessibility & Adaptive Layout**: 터치 48×48dp·간격 8dp, 아이콘 전용 버튼 `contentDescription`, 자동 처리 여부는 색+문구 병기. 360dp·최대 글자 배율에서 시트 질문과 근거 문구가 줄바꿈으로 들어가도록 하고 두 행동 버튼을 세로로 쌓는다. 토스트는 문구가 길어지면 두 줄까지 허용하고 `되돌리기`를 잘라내지 않는다. 시트는 `navigationBarsPadding`을 지킨다.
 
@@ -88,9 +88,9 @@ api/
 ├── app/
 │   ├── api/v1/progress.py         # (수정) PROG-003·004·005 endpoint 추가
 │   ├── models/progress.py         # (수정) ProgressEvent 추가, transition F007 필드 사용
-│   ├── schemas/progress.py        # (수정) 이벤트·후보·결정·되돌리기 DTO, detectionTargets
+│   ├── schemas/progress.py        # (수정) 이벤트·후보·결정·되돌리기 DTO, item별 처리 출처·거절 이유
 │   ├── services/detection.py      # 이벤트 검증, 후보 생성·취소, 파생 판정, 감지 대상 산출
-│   ├── services/progress.py       # (수정) 지연 확정 진입점, 확정·되돌리기에서 F006 전환 재사용
+│   ├── services/progress.py       # (수정) 지연 확정 진입점, item별 처리 출처·거절 이유 파생
 │   └── main.py                    # 변경 없음(progress router 재사용)
 ├── migrations/versions/006_create_progress_events.py
 └── tests/
