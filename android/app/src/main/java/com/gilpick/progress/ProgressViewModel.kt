@@ -10,6 +10,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gilpick.BuildConfig
+import com.gilpick.alternative.AlternativeRepository
+import com.gilpick.alternative.DetectionStatus
 import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
@@ -46,6 +48,7 @@ import kotlinx.coroutines.launch
  * @param clock 오늘 날짜와 현재 시각의 출처. test가 고정한다.
  * @param hasBackgroundPermission 백그라운드 위치 권한 보유 여부. 자동 감지를 걸 수 있는지의 유일한 판단
  *   근거이며, 화면이 다시 보일 때마다 다시 묻는다. 권한이 없어도 F006 수동 진행은 그대로 둔다(FR-024).
+ * @param alternativeRepository F009 변수 경고 배너의 감지 목록(DETECT-001) 출처. `null`이면 조회하지 않고 배너도 없다.
  */
 class ProgressViewModel(
     private val progressRepository: ProgressRepository,
@@ -55,6 +58,7 @@ class ProgressViewModel(
     private val detectionRepository: DetectionRepository? = null,
     private val geofenceManager: GeofenceManager? = null,
     private val hasBackgroundPermission: () -> Boolean = { true },
+    private val alternativeRepository: AlternativeRepository? = null,
 ) : ViewModel() {
 
     /** 진행 현황을 조회하는 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다. */
@@ -325,6 +329,10 @@ class ProgressViewModel(
     private suspend fun fetch(): ProgressUiState = coroutineScope {
         val overview = async { itineraryRepository.getOverview(tripId) }
         val progress = async { progressRepository.getDayProgress(tripId, today) }
+        // 배너 감지는 함께 조회하되 실패는 배너 숨김으로 격리한다(F009 research R9). 진행 화면을 막지 않는다.
+        val detections = alternativeRepository?.let { repository ->
+            async { repository.listDetections(tripId, status = DetectionStatus.ACTIVE, limit = BANNER_DETECTION_LIMIT) }
+        }
         val days = when (val result = overview.await()) {
             is AuthResult.Success -> result.value.days
             is AuthResult.Failure -> return@coroutineScope ProgressUiState.Error(result.error.toItineraryError().toProgressError())
@@ -333,7 +341,12 @@ class ProgressViewModel(
             is AuthResult.Success -> if (result.value.items.isEmpty()) {
                 ProgressUiState.Empty
             } else {
-                ProgressUiState.Content(days = days, progress = result.value, now = clock.instant())
+                ProgressUiState.Content(
+                    days = days,
+                    progress = result.value,
+                    now = clock.instant(),
+                    activeDetections = (detections?.await() as? AuthResult.Success)?.value?.items.orEmpty(),
+                )
             }
             is AuthResult.Failure -> ProgressUiState.Error(result.error.toProgressError())
         }
@@ -386,6 +399,9 @@ class ProgressViewModel(
         /** 새 만료 시각이 생겼는지 확인하는 주기. 토스트 남은 초 표시와 같은 정도면 충분하다. */
         private const val DEADLINE_POLL_MILLIS = 1_000L
 
+        /** 배너용 `ACTIVE` 감지 조회 페이지 크기. 한 페이지로 끝낸다(F009 research R7). */
+        private const val BANNER_DETECTION_LIMIT = 50
+
         /** 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다. */
         fun factory(
             tripId: String,
@@ -394,6 +410,7 @@ class ProgressViewModel(
             detectionRepository: DetectionRepository? = null,
             geofenceManager: GeofenceManager? = null,
             hasBackgroundPermission: () -> Boolean = { true },
+            alternativeRepository: AlternativeRepository? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ProgressViewModel(
@@ -403,6 +420,7 @@ class ProgressViewModel(
                     detectionRepository = detectionRepository,
                     geofenceManager = geofenceManager,
                     hasBackgroundPermission = hasBackgroundPermission,
+                    alternativeRepository = alternativeRepository,
                 )
             }
         }

@@ -21,6 +21,8 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.gilpick.alternative.AlternativePlacesRoute
+import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.ItineraryEditViewModel
 import com.gilpick.itinerary.ItineraryRepository
@@ -54,6 +56,7 @@ data class ActiveTravelRoute(
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
  * @param repository 진행 데이터 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param itineraryRepository 일정 개요 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
+ * @param alternativeRepository F009 배너용 감지 목록 접근 지점을 만든다. `null`을 돌려주면 배너를 조회하지 않는다.
  * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.progressGraph(
@@ -61,6 +64,7 @@ fun NavGraphBuilder.progressGraph(
     onSessionExpired: () -> Unit,
     repository: (Context) -> ProgressRepository = ProgressViewModel::defaultRepository,
     itineraryRepository: (Context) -> ItineraryRepository = ItineraryEditViewModel::defaultRepository,
+    alternativeRepository: (Context) -> AlternativeRepository? = AlternativeRepository::default,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
         RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f)
     },
@@ -80,6 +84,7 @@ fun NavGraphBuilder.progressGraph(
                     session = PrefsDetectionSessionStore(context),
                 ),
                 hasBackgroundPermission = { ProgressViewModel.hasBackgroundLocationPermission(context) },
+                alternativeRepository = alternativeRepository(context),
             )
         }
         val viewModel: ProgressViewModel = viewModel(factory = factory)
@@ -119,6 +124,8 @@ fun NavGraphBuilder.progressGraph(
             onUndo = viewModel::undo,
             onEnableDetection = { requestBackgroundLocation(context, backgroundLauncher) },
             onDismissDetectionNotice = viewModel::dismissDetectionNotice,
+            // F009 배너 → 그 감지의 대체 장소 화면. 돌아오면 위 재개 조회가 배너를 다시 맞춘다(거절 후 소멸).
+            onOpenAlternatives = { detectionId -> navController.navigate(AlternativePlacesRoute(detectionId, route.tripId)) },
             map = map,
         )
     }

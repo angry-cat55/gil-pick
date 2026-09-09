@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
+import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.iconRes
@@ -68,6 +69,7 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
 import com.gilpick.ui.theme.displayFont
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import kotlinx.coroutines.delay
 
 /**
@@ -93,6 +95,7 @@ import kotlinx.coroutines.delay
  * @param onStatusAction 상태 수정 시트에서 고른 `(장소, 목표 상태)`(US3).
  * @param onSelectDate 날짜 진행 표시의 점을 눌러 그 날짜를 본다(US4).
  * @param onReturnToToday `오늘로 돌아가기`(UI-005).
+ * @param onOpenAlternatives F009 변수 경고 배너 탭. 그 감지의 대체 장소 화면으로 간다(F009 FR-028).
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -118,6 +121,7 @@ fun ActiveTravelScreen(
     onUndo: () -> Unit = {},
     onEnableDetection: () -> Unit = {},
     onDismissDetectionNotice: () -> Unit = {},
+    onOpenAlternatives: (detectionId: String) -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -150,6 +154,7 @@ fun ActiveTravelScreen(
                     onUndo = onUndo,
                     onEnableDetection = onEnableDetection,
                     onDismissDetectionNotice = onDismissDetectionNotice,
+                    onOpenAlternatives = onOpenAlternatives,
                     map = map,
                 )
             }
@@ -460,6 +465,7 @@ private fun Content(
     onUndo: () -> Unit,
     onEnableDetection: () -> Unit,
     onDismissDetectionNotice: () -> Unit,
+    onOpenAlternatives: (detectionId: String) -> Unit,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -481,6 +487,15 @@ private fun Content(
                 reason = reason,
                 onEnable = onEnableDetection,
                 onDismiss = onDismissDetectionNotice,
+                modifier = Modifier.padding(bottom = spacing.space2),
+            )
+        }
+        // F009 변수 경고 배너(UI-001). Figma는 권한 안내 다음, 카드 앞에 둔다. 없으면 자리도 없다.
+        content.bannerDetection?.let { detection ->
+            VariableWarningBanner(
+                detection = detection,
+                now = content.now,
+                onClick = { onOpenAlternatives(detection.detectionId) },
                 modifier = Modifier.padding(bottom = spacing.space2),
             )
         }
@@ -641,6 +656,75 @@ private fun DetectionOffBanner(
             }
             TextAction(label = stringResource(R.string.detection_off_dismiss), onClick = onDismiss)
         }
+    }
+}
+
+/**
+ * F009 변수 경고 배너(spec UI-001, Figma `ActiveTravelScreen` Alert banner).
+ *
+ * `{장소명} {이유}` / `{오후 4:00} 도착 예정 · {N분} 전 감지` / `›`. 배너 전체가 하나의 버튼이며
+ * 탭하면 그 감지의 대체 장소 화면으로 간다(FR-028). Figma의 gradient·경계선·36dp 경고 박스는
+ * `warningContainer`·`warning` 토큰으로만 그린다(plan.md Tokens). 경과 시간은 F006 매분 `now` tick을 따른다.
+ */
+@Composable
+private fun VariableWarningBanner(
+    detection: DetectionListItemDto,
+    now: Instant,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val sinceSeconds = (now.epochSecond - OffsetDateTime.parse(detection.createdAt).toEpochSecond()).toInt().coerceAtLeast(0)
+    val shape = RoundedCornerShape(radius.xl)
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            // Figma: `#FFF7ED → #FFEDD5` gradient, `#FED7AA` 경계선. 토큰 위에 warning을 옅게 겹쳐 같은 색을 낸다.
+            .background(Brush.linearGradient(listOf(colors.warningContainer, colors.warning.copy(alpha = BANNER_TINT_ALPHA))))
+            .border(1.dp, colors.warning.copy(alpha = BANNER_BORDER_ALPHA), shape)
+            .clickable(onClick = onClick, role = Role.Button)
+            .heightIn(min = MIN_TOUCH)
+            .padding(horizontal = spacing.space4, vertical = spacing.space3)
+            .testTag(TAG_VARIABLE_BANNER),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(BANNER_ICON_BOX)
+                .background(colors.warning, RoundedCornerShape(radius.lg)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_triangle_alert),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(BANNER_ICON),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.progress_banner_title, detection.placeName, detection.reason),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = colors.onWarningContainer,
+            )
+            Text(
+                text = stringResource(R.string.progress_banner_subtitle, timeLabel(detection.eta), durationLabel(sinceSeconds)),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onWarningContainer,
+            )
+        }
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_chevron_right),
+            contentDescription = stringResource(R.string.progress_banner_open),
+            tint = colors.warning,
+            modifier = Modifier.size(BANNER_ICON),
+        )
     }
 }
 
@@ -1315,6 +1399,15 @@ internal const val TAG_ACTION_ERROR = "progress_action_error"
 internal const val TAG_DETECTION_OFF = "progress_detection_off"
 internal const val TAG_BUSY = "progress_busy"
 internal const val TAG_VIEWING_BANNER = "progress_viewing_banner"
+internal const val TAG_VARIABLE_BANNER = "progress_variable_banner"
+
+/** Figma 배너 경고 박스 36dp, 안의 아이콘 16dp. */
+private val BANNER_ICON_BOX: Dp = 36.dp
+private val BANNER_ICON: Dp = 16.dp
+
+/** Figma `#FFEDD5`(gradient 끝)·`#FED7AA`(경계선)를 `warning` 위에 alpha로 낸다. 새 토큰을 두지 않는다(plan.md). */
+private const val BANNER_TINT_ALPHA = 0.12f
+private const val BANNER_BORDER_ALPHA = 0.35f
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 

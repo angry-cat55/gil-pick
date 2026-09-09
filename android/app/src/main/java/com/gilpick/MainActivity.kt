@@ -20,6 +20,8 @@ import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import com.gilpick.alternative.SelectedAlternative
+import com.gilpick.alternative.alternativeGraph
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.itineraryGraph
 import com.gilpick.itinerary.returnAddToSchedule
@@ -342,6 +344,15 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
         // 위 itineraryGraph·routeGraph로 간다.
         progressGraph(navController, onSessionExpired = onSessionExpired)
 
+        // F009 대체 장소. destination 정의는 com.gilpick.alternative가 소유한다. 진행 화면의 변수 경고
+        // 배너가 이 route로 들어오고, `기존 일정 그대로 진행`은 진행 화면으로 돌아간다.
+        alternativeGraph(
+            navController,
+            onSessionExpired = onSessionExpired,
+            onSelectPlace = ::openRoutePreview,
+            onDismissed = { navController.popBackStack() },
+        )
+
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
         // 등록만 한다. `일정에 추가` 결과는 편집 화면 entry로 돌려주고 검색·상세를 닫는다.
         placeGraph(
@@ -351,6 +362,15 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
         )
     }
 }
+
+/**
+ * F010 변경 경로 미리보기 진입 지점.
+ *
+ * F009는 후보·직접 검색에서 고른 장소를 [SelectedAlternative]로 여기까지만 전달하고 일정을 바꾸지
+ * 않는다(F009 FR-015). F010이 미리보기 화면을 붙일 때 이 함수 본문을 그 route 이동으로 바꾼다.
+ */
+@Suppress("UNUSED_PARAMETER")
+private fun openRoutePreview(selected: SelectedAlternative) = Unit
 
 /** 여행 목록. 로그인 후 첫 화면이다. */
 @Serializable
