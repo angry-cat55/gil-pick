@@ -14,7 +14,7 @@ from app.schemas.replacement import (
     Replacement,
     RoutePreview,
     UndoableReplacement,
-    UndoResult,
+    ReplacementUndoResult,
 )
 
 
@@ -82,7 +82,7 @@ def test_replacement_response_models_match_contract_fields() -> None:
         route_status="READY",
         undo_expires_at=NOW,
     )
-    undo = UndoResult(
+    undo = ReplacementUndoResult(
         replacement_id=replacement_id,
         restored=True,
         schedule_version=10,

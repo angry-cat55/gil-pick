@@ -10,13 +10,14 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from geoalchemy2 import Geometry, WKTElement
 from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.errors import AppError
 from app.core.logging import request_id_context
 from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.progress import ProgressEvent, ProgressSegment, ProgressTransition
+from app.models.replacement import PlaceReplacement
 from app.models.trip import Trip
 from app.clients.route_provider import Coordinate, RouteProviderError, TransportMode as ClientTransportMode
 from app.schemas.progress import (
@@ -29,6 +30,7 @@ from app.schemas.progress import (
     StartDayProgressRequest,
     StartLocation,
 )
+from app.schemas.replacement import UndoableReplacement
 from app.schemas.route import TransportMode
 from app.services.eta import recalculate_day_eta, recalculate_eta
 from app.services.route import RouteCalculationService
@@ -233,11 +235,43 @@ class ProgressService:
         data = await self._to_data(day)
         targets, pending = await detection.build_state(day)
         undoable = await detection.current_undoable(day)
+        undoable_replacement = await self._current_undoable_replacement(day)
         return data.model_copy(update={
             "detection_targets": targets,
             "pending_candidate": pending,
             "undoable": undoable,
+            "undoable_replacement": undoable_replacement,
         })
+
+    async def _current_undoable_replacement(
+        self, day: TripDay,
+    ) -> UndoableReplacement | None:
+        """현재 일정 version에서 아직 되돌릴 수 있는 최근 장소 변경을 반환한다."""
+        original_place = aliased(Place)
+        new_place = aliased(Place)
+        row = (await self.session.execute(
+            select(PlaceReplacement, original_place.name, new_place.name)
+            .join(original_place, original_place.place_id == PlaceReplacement.original_place_id)
+            .join(new_place, new_place.place_id == PlaceReplacement.new_place_id)
+            .where(
+                PlaceReplacement.trip_day_id == day.trip_day_id,
+                PlaceReplacement.undone_at.is_(None),
+                PlaceReplacement.undo_expires_at >= datetime.now(UTC),
+                PlaceReplacement.approved_schedule_version == day.schedule_version,
+            )
+            .order_by(PlaceReplacement.approved_at.desc())
+            .limit(1)
+        )).one_or_none()
+        if row is None:
+            return None
+        replacement, original_name, new_name = row
+        return UndoableReplacement(
+            replacement_id=replacement.replacement_id,
+            item_id=replacement.item_id,
+            original_place_name=original_name,
+            new_place_name=new_name,
+            undo_expires_at=replacement.undo_expires_at,
+        )
 
     async def update_item_status(
         self,

@@ -12,6 +12,7 @@ from pydantic.alias_generators import to_camel
 
 from app.schemas.auth import ApiModel, ResponseMeta
 from app.schemas.itinerary import ItemStatus
+from app.schemas.replacement import UndoableReplacement
 from app.schemas.route import TransportMode
 
 
@@ -260,6 +261,7 @@ class ProgressData(ApiModel):
     detection_targets: list[DetectionTarget]
     pending_candidate: PendingCandidate | None
     undoable: UndoableTransition | None
+    undoable_replacement: UndoableReplacement | None = None
 
 
 class ProgressEnvelope(ApiModel):

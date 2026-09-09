@@ -76,7 +76,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: 없음
-  - 검증: `contracts/replacements.openapi.yaml`의 `CreatePreviewRequest`·`RoutePreview`·`Replacement`·`UndoResult`·`UndoableReplacement`·`ComparisonValue`를 그대로 옮긴다. `ApiModel`의 `to_camel` alias를 따르고 일정 version 필드는 `schedule_version`(직렬화 시 `scheduleVersion`)이다. `ComparisonValue`의 `before`/`after`가 `null`을 받는다
+  - 검증: `contracts/replacements.openapi.yaml`의 `CreatePreviewRequest`·`RoutePreview`·`Replacement`·`ReplacementUndoResult`·`UndoableReplacement`·`ComparisonValue`를 그대로 옮긴다. `ApiModel`의 `to_camel` alias를 따르고 일정 version 필드는 `schedule_version`(직렬화 시 `scheduleVersion`)이다. `ComparisonValue`의 `before`/`after`가 `null`을 받는다
 - [ ] T007 [P] Android 변경 API 계층 in android/app/src/main/java/com/gilpick/replacement/ReplacementApi.kt, android/app/src/test/java/com/gilpick/replacement/ReplacementApiTest.kt
   - 영역: FE
   - 담당: hs
@@ -205,12 +205,12 @@ description: "F010 일정 변경 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] REPL-004 계약 test in api/tests/contract/test_replacement_contract.py
+- [x] T024 [P] [US3] REPL-004 계약 test in api/tests/contract/test_replacement_contract.py
   - 영역: BE
   - 담당: jh
   - 선행: T006
   - 검증: 응답 필드(`restored`·`scheduleVersion`·`routeStatus`·`detectionRestored`)와 오류 코드(`UNDO_EXPIRED`·`FOLLOW_UP_CHANGE_EXISTS`)가 계약과 같다. `UndoableReplacement`가 PROG-001 응답에 실리는 형태도 확인
-- [ ] T025 [P] [US3] 되돌리기와 감지 결과 복귀 integration test in api/tests/integration/test_replacement_flow.py
+- [x] T025 [P] [US3] 되돌리기와 감지 결과 복귀 integration test in api/tests/integration/test_replacement_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
@@ -223,18 +223,18 @@ description: "F010 일정 변경 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] 되돌리기 서비스와 감지 결과 복귀 in api/app/services/replacement.py
+- [x] T027 [US3] 되돌리기 서비스와 감지 결과 복귀 in api/app/services/replacement.py
   - 영역: BE
   - 담당: jh
   - 교차 확인: ts, jy
   - 선행: T021, T024, T025
   - 검증: T024·T025 통과. data-model 3.2를 **하나의 transaction**으로 수행한다. 되돌리기 가능 3조건(미되돌림·미만료·`schedule_version = approved_schedule_version`)으로 판정하고 만료는 서버 시각으로 본다(FR-015). 승인 전 경로는 `routes`의 `HISTORICAL` 행을 복사해 쓰고 다시 계산하지 않는다. data-model 3.3의 fingerprint 충돌 분기를 구현한다. **F008 감지 결과 상태 전이를 건드리므로 F009 담당 `ts`·`jy` 교차 확인**
-- [ ] T028 [US3] REPL-004 라우터 in api/app/api/v1/replacements.py
+- [x] T028 [US3] REPL-004 라우터 in api/app/api/v1/replacements.py
   - 영역: BE
   - 담당: jh
   - 선행: T027
   - 검증: T024 통과. 소유권 검증. 이미 되돌린 변경에 다시 요청하면 `409`가 아니라 `200`으로 이미 되돌아간 상태를 반환한다(FR-017)
-- [ ] T029 [US3] PROG-001 응답에 되돌릴 수 있는 장소 변경 추가 in api/app/services/progress.py, api/app/schemas/progress.py
+- [x] T029 [US3] PROG-001 응답에 되돌릴 수 있는 장소 변경 추가 in api/app/services/progress.py, api/app/schemas/progress.py
   - 영역: BE
   - 담당: jh
   - review: jy

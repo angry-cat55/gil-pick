@@ -30,6 +30,7 @@ from app.schemas.replacement import (
     ReplacedPlace,
     Replacement,
     RoutePreview,
+    ReplacementUndoResult,
 )
 from app.schemas.route import RouteStatus
 from app.services.alternatives.candidate_token import verify_candidate_token
@@ -41,6 +42,7 @@ from app.services.route import RouteCalculationService, RouteItemSnapshot, Route
 
 PREVIEW_TTL_MINUTES = 5
 UNDO_WINDOW_SECONDS = 30
+_UNDO_RESULT_SNAPSHOT_KEY = "_undoResult"
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,7 +286,11 @@ class ReplacementService:
         ))
         if existing is not None:
             if existing.idempotency_key == key:
-                return Replacement.model_validate(existing.response_snapshot)
+                approval_snapshot = {
+                    name: value for name, value in existing.response_snapshot.items()
+                    if name != _UNDO_RESULT_SNAPSHOT_KEY
+                }
+                return Replacement.model_validate(approval_snapshot)
             raise AppError(409, "ALREADY_APPROVED", "이미 승인한 미리보기입니다.")
 
         now = self.now()
@@ -358,6 +364,126 @@ class ReplacementService:
         detection.resolved_at = now
         await self.session.flush()
         return response
+
+    async def undo_replacement(
+        self, *, replacement_id: uuid.UUID, user_id: uuid.UUID,
+    ) -> ReplacementUndoResult:
+        """승인된 장소·경로·감지 결과를 하나의 transaction으로 복원한다.
+
+        Args:
+            replacement_id: 되돌릴 장소 변경 이력 식별자.
+            user_id: 요청한 인증 사용자의 식별자.
+
+        Returns:
+            복원된 일정 version과 경로·감지 결과 상태.
+
+        Raises:
+            AppError: 변경 이력이 없거나 소유권·시간·후속 변경 조건을 만족하지 못한 경우.
+
+        Notes:
+            이미 되돌린 이력은 저장된 version을 사용해 같은 결과를 반환한다. 경로 provider를
+            다시 호출하지 않고 승인 전 HISTORICAL 경로를 새 version으로 복사한다.
+        """
+        row = (await self.session.execute(
+            select(PlaceReplacement, TripDay, ItineraryItem, Detection, Trip.user_id)
+            .join(TripDay, TripDay.trip_day_id == PlaceReplacement.trip_day_id)
+            .join(Trip, Trip.trip_id == TripDay.trip_id)
+            .join(ItineraryItem, ItineraryItem.item_id == PlaceReplacement.item_id)
+            .join(Detection, Detection.detection_id == PlaceReplacement.detection_id)
+            .where(
+                PlaceReplacement.replacement_id == replacement_id,
+                Trip.deleted_at.is_(None),
+            )
+            .with_for_update()
+        )).one_or_none()
+        if row is None:
+            raise AppError(404, "REPLACEMENT_NOT_FOUND", "장소 변경 이력을 찾을 수 없습니다.")
+        replacement, day, item, detection, owner_id = row
+        if owner_id != user_id:
+            raise AppError(403, "TRIP_FORBIDDEN", "다른 사용자의 여행에는 접근할 수 없습니다.")
+
+        if replacement.undone_at is not None:
+            stored_undo = replacement.response_snapshot.get(_UNDO_RESULT_SNAPSHOT_KEY)
+            if isinstance(stored_undo, dict):
+                return ReplacementUndoResult.model_validate(stored_undo)
+            route = await self.session.scalar(select(RouteModel).where(
+                RouteModel.trip_day_id == day.trip_day_id,
+                RouteModel.schedule_version == replacement.undo_schedule_version,
+            ))
+            return ReplacementUndoResult(
+                replacement_id=replacement.replacement_id,
+                restored=True,
+                schedule_version=replacement.undo_schedule_version,
+                route_status=_restored_route_status(route),
+                detection_restored=detection.status == "ACTIVE",
+            )
+
+        now = self.now()
+        if now > replacement.undo_expires_at:
+            raise AppError(409, "UNDO_EXPIRED", "되돌릴 수 있는 시간이 지났습니다.")
+        if day.schedule_version != replacement.approved_schedule_version:
+            raise AppError(409, "FOLLOW_UP_CHANGE_EXISTS", "승인 이후 일정이 다시 변경되었습니다.")
+
+        original_route = await self.session.scalar(
+            select(RouteModel).where(
+                RouteModel.trip_day_id == day.trip_day_id,
+                RouteModel.schedule_version == replacement.before_schedule_version,
+            ).with_for_update()
+        )
+        if original_route is None:
+            raise AppError(409, "FOLLOW_UP_CHANGE_EXISTS", "승인 전 경로를 복원할 수 없습니다.")
+
+        new_version = day.schedule_version + 1
+        route_status = _restored_route_status(original_route)
+        item.place_id = replacement.original_place_id
+        day.schedule_version = new_version
+        await self.session.execute(update(RouteModel).where(
+            RouteModel.trip_day_id == day.trip_day_id,
+            RouteModel.is_active.is_(True),
+        ).values(status="HISTORICAL", is_active=False))
+        self.session.add(RouteModel(
+            trip_day_id=day.trip_day_id,
+            schedule_version=new_version,
+            status=route_status,
+            is_active=True,
+            provider=original_route.provider,
+            total_duration_seconds=original_route.total_duration_seconds,
+            total_distance_meters=original_route.total_distance_meters,
+            route_payload=original_route.route_payload,
+            failure_code=original_route.failure_code,
+            calculated_at=original_route.calculated_at,
+        ))
+        await self.session.flush()
+        await recalculate_day_eta(self.session, day.trip_day_id)
+
+        active_detection = await self.session.scalar(
+            select(Detection.detection_id).where(
+                Detection.fingerprint == detection.fingerprint,
+                Detection.status == "ACTIVE",
+                Detection.detection_id != detection.detection_id,
+            ).with_for_update()
+        )
+        detection_restored = active_detection is None
+        if detection_restored:
+            detection.status = "ACTIVE"
+            detection.resolved_at = None
+        else:
+            detection.status = "INVALIDATED"
+        replacement.undone_at = now
+        replacement.undo_schedule_version = new_version
+        result = ReplacementUndoResult(
+            replacement_id=replacement.replacement_id,
+            restored=True,
+            schedule_version=new_version,
+            route_status=route_status,
+            detection_restored=detection_restored,
+        )
+        replacement.response_snapshot = {
+            **replacement.response_snapshot,
+            _UNDO_RESULT_SNAPSHOT_KEY: result.model_dump(mode="json", by_alias=True),
+        }
+        await self.session.flush()
+        return result
 
     async def _check_current_availability(
         self, preview_id: uuid.UUID, user_id: uuid.UUID,
@@ -658,6 +784,11 @@ def _public_place(place: _PlaceSnapshot) -> ReplacedPlace:
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _restored_route_status(route: RouteModel | None) -> str:
+    """HISTORICAL 행의 보존 필드로 승인 전 공개 경로 상태를 복원한다."""
+    return "FAILED" if route is not None and route.failure_code is not None else "READY"
 
 
 __all__ = ["PREVIEW_TTL_MINUTES", "ReplacementService", "UNDO_WINDOW_SECONDS"]

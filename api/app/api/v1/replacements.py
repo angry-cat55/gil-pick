@@ -21,7 +21,12 @@ from app.core.config import Settings, get_settings
 from app.core.security import AuthPrincipal
 from app.db import get_session
 from app.schemas.auth import ErrorEnvelope
-from app.schemas.replacement import CreatePreviewRequest, ReplacementEnvelope, RoutePreviewEnvelope
+from app.schemas.replacement import (
+    CreatePreviewRequest,
+    ReplacementEnvelope,
+    RoutePreviewEnvelope,
+    UndoEnvelope,
+)
 from app.services.detection.operating_hours_source import OperatingHoursSource
 from app.services.place import PlaceService
 from app.services.replacement import ReplacementService
@@ -116,6 +121,34 @@ async def approve_route_preview(
         preview_id=preview_id,
         user_id=principal.user_id,
         idempotency_key=idempotency_key,
+    )
+    return success_response(request, data)
+
+
+@router.post(
+    "/replacements/{replacementId}/undo",
+    operation_id="undoReplacement",
+    response_model=UndoEnvelope,
+    responses={
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope, "description": "`TRIP_FORBIDDEN`"},
+        404: {"model": ErrorEnvelope, "description": "`REPLACEMENT_NOT_FOUND`"},
+        409: {
+            "model": ErrorEnvelope,
+            "description": "`UNDO_EXPIRED`, `FOLLOW_UP_CHANGE_EXISTS`",
+        },
+    },
+)
+async def undo_replacement(
+    request: Request,
+    replacement_id: Annotated[uuid.UUID, Path(alias="replacementId")],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[ReplacementService, Depends(get_replacement_service)],
+) -> JSONResponse:
+    """소유한 장소 변경의 일정·경로·감지 결과를 원자적으로 복원한다."""
+    data = await service.undo_replacement(
+        replacement_id=replacement_id,
+        user_id=principal.user_id,
     )
     return success_response(request, data)
 
