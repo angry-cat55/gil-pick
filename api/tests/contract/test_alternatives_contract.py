@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app.api.dependencies import get_current_principal
 from app.api.errors import AppError
 from app.api.v1.alternatives import get_alternative_service
+from app.clients.tour_api import TourApiClientError
 from app.core.security import AuthPrincipal
 from app.main import app
 from app.models.itinerary import Place
@@ -158,6 +159,63 @@ async def test_alternative_service_only_reads_schedule_rows(
 
     assert result.items == []
     assert session.results == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tour_error", "status", "code"),
+    [
+        (TourApiClientError("TOUR_API_TIMEOUT", retryable=True), 504, "TOUR_API_TIMEOUT"),
+        (TourApiClientError("TOUR_API_FAILED", retryable=True), 502, "TOUR_API_FAILED"),
+        (TourApiClientError("TOUR_API_RATE_LIMITED", status_code=429), 502, "TOUR_API_FAILED"),
+    ],
+)
+async def test_list_candidates_surfaces_tour_failure_instead_of_empty_list(
+    monkeypatch: pytest.MonkeyPatch, tour_error: TourApiClientError, status: int, code: str
+) -> None:
+    place = Place(
+        place_id=uuid.uuid4(), tour_content_id="origin", google_place_id=None,
+        name="기준 장소", category="CAFE", tour_category_1="FD",
+        tour_category_2="FD05", tour_category_3="FD050100",
+        address="서울", location="POINT(126.978 37.5665)", image_url=None,
+    )
+
+    class Result:
+        def __init__(self, value): self.value = value
+        def one(self): return self.value
+        def scalars(self): return iter(self.value)
+
+    class ReadOnlySession:
+        def __init__(self) -> None:
+            self.results = [Result((place, 37.5665, 126.978)), Result([place])]
+
+        async def execute(self, statement):
+            return self.results.pop(0)
+
+    detection = SimpleNamespace(
+        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.owned_detection",
+        lambda *args: _async_value((detection, uuid.uuid4(), place.name)),
+    )
+
+    async def build(**kwargs):
+        raise tour_error
+
+    monkeypatch.setattr("app.services.alternatives.build_candidates", build)
+    service = AlternativeService(
+        ReadOnlySession(), tour_client=object(), google_client=object(),
+        operating_hours_source=object(), kma_client=object(), seoul_client=object(),
+        candidate_secret="x" * 32,
+    )
+
+    with pytest.raises(AppError) as raised:
+        await service.list_candidates(DETECTION_ID, USER_ID)
+
+    assert raised.value.status_code == status
+    assert raised.value.code == code
+    assert raised.value.retryable is tour_error.retryable
 
 
 async def _async_value(value):

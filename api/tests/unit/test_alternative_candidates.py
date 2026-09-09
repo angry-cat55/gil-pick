@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -10,8 +12,9 @@ import httpx2
 import pytest
 
 from app.clients.google_places import GooglePlacesClient
-from app.clients.tour_api import TourApiClient
+from app.clients.tour_api import TourApiClient, TourApiClientError
 from app.core.config import Settings
+from app.core.logging import request_id_context
 from app.schemas.detection import CongestionVerdict, WeatherVerdict
 from app.schemas.place import PlaceCategory, PlaceSource, PlaceSummary, TourApiCategory
 from app.services.alternatives.candidate_token import verify_candidate_token
@@ -372,3 +375,297 @@ async def _clear_congestion(*args: Any, **kwargs: Any) -> CongestionVerdict:
     return CongestionVerdict(
         available=True, level="RELAXED", sensitivity="MEDIUM", crowded=False
     )
+
+
+# --- US4: 외부 데이터 결손 격리와 추적 log (T033) ---
+
+
+def _nature_origin() -> PlaceSummary:
+    """야외(NATURE) 기준 장소. 실내 격리와 무관하게 날씨 변수를 유지하는 대조군."""
+    return origin(google_only=True).model_copy(update={"category": PlaceCategory.NATURE})
+
+
+def _nature_items(count: int) -> list[dict[str, str]]:
+    return [
+        tour_item(number, 200 + number, large="NA", middle="NA01", small="NA0101")
+        for number in range(1, count + 1)
+    ]
+
+
+def _google_always_times_out() -> GooglePlacesClient:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.TimeoutException("timeout", request=request)
+
+    return GooglePlacesClient(
+        settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+    )
+
+
+async def _run(
+    *,
+    items: list[dict[str, str]],
+    origin_place: PlaceSummary | None = None,
+    tour_client: Any | None = None,
+    google_client: Any | None = None,
+) -> Any:
+    tour, google, _ = clients(items)
+    return await build_candidates(
+        session=object(),
+        detection_id=DETECTION_ID,
+        origin=origin_place or origin(),
+        eta=ETA,
+        scheduled_place_ids=set(),
+        tour_client=tour_client or tour,
+        google_client=google_client or google,
+        operating_hours_source=OperatingHoursSource(settings(), google_client or google),
+        kma_client=object(),
+        seoul_client=object(),
+        candidate_secret=SECRET,
+        evaluated_at=ETA,
+    )
+
+
+@pytest.mark.asyncio
+async def test_google_all_timeout_keeps_candidates_without_rating_as_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    result = await _run(
+        items=[tour_item(number, 100 + number) for number in range(1, 4)],
+        google_client=_google_always_times_out(),
+    )
+
+    assert len(result.items) == 3
+    for candidate in result.items:
+        assert candidate.adjusted_rating is None
+        assert candidate.score_breakdown.rating is None
+        assert candidate.operating_status == "UNKNOWN"
+        assert candidate.closes_at is None
+
+
+@pytest.mark.asyncio
+async def test_congestion_unavailable_is_isolated_to_that_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+
+    async def outside_support_area(*args: Any, **kwargs: Any) -> CongestionVerdict:
+        return CongestionVerdict(
+            available=False, unavailable_reason="NOT_IN_SUPPORT_AREA"
+        )
+
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", outside_support_area
+    )
+
+    result = await _run(items=[tour_item(1, 300), tour_item(2, 400)])
+
+    assert len(result.items) == 2
+    for candidate in result.items:
+        assert candidate.score_breakdown.congestion is None
+
+
+@pytest.mark.asyncio
+async def test_indoor_candidate_excludes_weather_even_when_forecast_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def sunny(*args: Any, **kwargs: Any) -> WeatherVerdict:
+        return WeatherVerdict(available=True, at_risk=False)
+
+    monkeypatch.setattr("app.services.alternatives.candidates.evaluate_weather", sunny)
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    # 기준·후보 모두 CAFE(실내) → 예보가 있어도 후보 점수에서 weather 제외
+    result = await _run(items=[tour_item(1, 300), tour_item(2, 400)])
+
+    assert len(result.items) == 2
+    for candidate in result.items:
+        assert candidate.score_breakdown.weather is None
+
+
+@pytest.mark.asyncio
+async def test_outdoor_candidate_keeps_weather_when_forecast_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def sunny(*args: Any, **kwargs: Any) -> WeatherVerdict:
+        return WeatherVerdict(available=True, at_risk=False)
+
+    monkeypatch.setattr("app.services.alternatives.candidates.evaluate_weather", sunny)
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    result = await _run(items=_nature_items(2), origin_place=_nature_origin())
+
+    assert len(result.items) == 2
+    for candidate in result.items:
+        assert candidate.score_breakdown.weather == 1.0
+
+
+@pytest.mark.asyncio
+async def test_kma_failure_removes_weather_from_all_candidates_with_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def kma_down(*args: Any, **kwargs: Any) -> WeatherVerdict:
+        raise RuntimeError("기상청 timeout")
+
+    monkeypatch.setattr("app.services.alternatives.candidates.evaluate_weather", kma_down)
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    # 야외 후보라 실내 격리가 아닌 기상청 실패로 weather가 빠지는 것을 확인한다
+    result = await _run(items=_nature_items(2), origin_place=_nature_origin())
+
+    assert len(result.items) == 2
+    for candidate in result.items:
+        assert candidate.score_breakdown.weather is None
+
+
+@pytest.mark.asyncio
+async def test_weight_redistribution_when_rating_and_weather_excluded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    # Google 실패 → rating 제외, CAFE(실내) → weather 제외. 남는 변수: distance(0.35)+congestion(0.20)
+    result = await _run(
+        items=[tour_item(1, 250)], google_client=_google_always_times_out()
+    )
+
+    candidate = result.items[0]
+    distance = candidate.score_breakdown.distance
+    congestion = candidate.score_breakdown.congestion
+    assert candidate.score_breakdown.rating is None
+    assert candidate.score_breakdown.weather is None
+    assert candidate.score == pytest.approx(
+        100 * (0.35 * distance + 0.20 * congestion) / 0.55
+    )
+
+
+@pytest.mark.asyncio
+async def test_single_candidate_google_failure_does_not_affect_others(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+    items = [tour_item(1, 200), tour_item(2, 300), tour_item(3, 400)]
+
+    async def tour_handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=tour_payload(items))
+
+    async def google_handler(request: httpx2.Request) -> httpx2.Response:
+        name = json.loads(request.content)["textQuery"]
+        if name == "후보 2":
+            raise httpx2.TimeoutException("timeout", request=request)
+        item = next(value for value in items if value["title"] == name)
+        return httpx2.Response(200, json=google_payload(item, state="OPEN"))
+
+    config = settings()
+    tour = TourApiClient(
+        config, httpx2.AsyncClient(transport=httpx2.MockTransport(tour_handler))
+    )
+    google = GooglePlacesClient(
+        config, httpx2.AsyncClient(transport=httpx2.MockTransport(google_handler))
+    )
+    result = await build_candidates(
+        session=object(), detection_id=DETECTION_ID, origin=origin(), eta=ETA,
+        scheduled_place_ids=set(), tour_client=tour, google_client=google,
+        operating_hours_source=OperatingHoursSource(config, google),
+        kma_client=object(), seoul_client=object(), candidate_secret=SECRET,
+        evaluated_at=ETA,
+    )
+
+    by_id = {candidate.place.place_id: candidate for candidate in result.items}
+    assert set(by_id) == {"tourapi:1", "tourapi:2", "tourapi:3"}
+    assert by_id["tourapi:2"].operating_status == "UNKNOWN"
+    assert by_id["tourapi:2"].score_breakdown.rating is None
+    assert by_id["tourapi:1"].score_breakdown.rating is not None
+    assert by_id["tourapi:3"].score_breakdown.rating is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tour_behavior", "expected_code"),
+    [("timeout", "TOUR_API_TIMEOUT"), ("server_error", "TOUR_API_FAILED")],
+)
+async def test_tour_api_failure_raises_instead_of_returning_empty_list(
+    monkeypatch: pytest.MonkeyPatch, tour_behavior: str, expected_code: str
+) -> None:
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    async def tour_handler(request: httpx2.Request) -> httpx2.Response:
+        if tour_behavior == "timeout":
+            raise httpx2.TimeoutException("timeout", request=request)
+        return httpx2.Response(503, json={})
+
+    config = settings()
+    tour = TourApiClient(
+        config, httpx2.AsyncClient(transport=httpx2.MockTransport(tour_handler))
+    )
+    _, google, _ = clients([tour_item(1, 300)])
+
+    with pytest.raises(TourApiClientError) as raised:
+        await build_candidates(
+            session=object(), detection_id=DETECTION_ID, origin=origin(), eta=ETA,
+            scheduled_place_ids=set(), tour_client=tour, google_client=google,
+            operating_hours_source=OperatingHoursSource(config, google),
+            kma_client=object(), seoul_client=object(), candidate_secret=SECRET,
+            evaluated_at=ETA,
+        )
+
+    assert raised.value.code == expected_code
+
+
+@pytest.mark.asyncio
+async def test_pipeline_logs_request_id_radius_stage_count_and_provider_availability(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    token = request_id_context.set("11111111-1111-1111-1111-111111111111")
+    try:
+        with caplog.at_level(logging.INFO, logger="gilpick.alternatives"):
+            await _run(items=[tour_item(1, 300)])
+    finally:
+        request_id_context.reset(token)
+
+    record = next(
+        r for r in caplog.records if r.getMessage() == "대체 후보 평가 완료"
+    )
+    assert record.request_id == "11111111-1111-1111-1111-111111111111"
+    assert record.search_radius_meters == 500
+    assert record.category_match_level == "SMALL"
+    assert record.candidate_count == 1
+    assert set(record.provider_availability) == {
+        "tour_api", "google_places", "kma", "seoul_citydata"
+    }

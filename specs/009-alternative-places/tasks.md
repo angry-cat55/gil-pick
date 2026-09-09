@@ -262,7 +262,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 4
 
-- [ ] T033 [P] [US4] 결손·실패 격리 test in api/tests/unit/test_alternative_candidates.py, api/tests/contract/test_alternatives_contract.py
+- [x] T033 [P] [US4] 결손·실패 격리 test in api/tests/unit/test_alternative_candidates.py, api/tests/contract/test_alternatives_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T016, T017
@@ -270,7 +270,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 4
 
-- [ ] T034 [US4] 격리 보장과 추적 log in api/app/services/alternatives/candidates.py, api/app/services/alternatives/__init__.py
+- [x] T034 [US4] 격리 보장과 추적 log in api/app/services/alternatives/candidates.py, api/app/services/alternatives/__init__.py
   - 영역: BE
   - 담당: ts
   - 선행: T033
