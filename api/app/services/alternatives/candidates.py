@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.google_places import GooglePlacesClientError
+from app.core.logging import request_id_context
 from app.schemas.alternatives import (
     AlternativeCandidate,
     AlternativeListData,
@@ -105,6 +106,13 @@ def _category_stage(
     return (matched, "LARGE") if matched else ([], None)
 
 
+def _candidate_weather_at_risk(place: PlaceSummary, weather: WeatherVerdict) -> bool | None:
+    """실내 카테고리 후보이거나 공유 예보가 없으면 날씨 변수를 제외한다(research R3)."""
+    if not weather.available or weather_exposure(place.category.value) == "INDOOR":
+        return None
+    return weather.at_risk
+
+
 def _operating_status(hours: OperatingHours, eta: datetime) -> OperatingStatus:
     if hours.status in {
         BusinessStatus.CLOSED_TEMPORARILY,
@@ -170,6 +178,7 @@ async def build_candidates(
         logger.info(
             "대체 후보 평가 완료",
             extra={
+                "request_id": request_id_context.get(),
                 "detection_id": str(detection_id),
                 "search_radius_meters": radius,
                 "category_match_level": "NONE",
@@ -220,7 +229,7 @@ async def build_candidates(
             search_radius_meters=radius,
             congestion_level=item.congestion.level if item.congestion.available else None,
             crowded=bool(item.congestion.crowded),
-            weather_at_risk=item.weather.at_risk if item.weather.available else None,
+            weather_at_risk=_candidate_weather_at_risk(item.place, item.weather),
         ).score
         return -score, item.distance
 
@@ -267,7 +276,7 @@ async def build_candidates(
             adjusted_rating=rating,
             congestion_level=item.congestion.level if item.congestion.available else None,
             crowded=bool(item.congestion.crowded),
-            weather_at_risk=item.weather.at_risk if item.weather.available else None,
+            weather_at_risk=_candidate_weather_at_risk(item.place, item.weather),
             indoor=weather_exposure(item.place.category.value) == "INDOOR",
             closer=item.distance <= radius / 2,
             open_at_eta=operating_status in {OperatingStatus.OPEN, OperatingStatus.CLOSING_SOON},
@@ -314,6 +323,7 @@ async def build_candidates(
     logger.info(
         "대체 후보 평가 완료",
         extra={
+            "request_id": request_id_context.get(),
             "detection_id": str(detection_id),
             "search_radius_meters": radius,
             "category_match_level": match_level,
