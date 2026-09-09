@@ -23,10 +23,13 @@ async def test_reevaluate_day_evaluates_only_requested_day(monkeypatch) -> None:
     rows = [object()]
     load_rows = AsyncMock(return_value=rows)
     evaluate_rows = AsyncMock(return_value=1)
+    invalidate = AsyncMock()
+    monkeypatch.setattr(evaluator, "_invalidate_ineligible", invalidate)
     monkeypatch.setattr(evaluator, "_load_eligible_rows", load_rows)
     monkeypatch.setattr(evaluator, "_evaluate_rows", evaluate_rows)
 
     assert await evaluator.reevaluate_day(lambda: Context(), day_id) == 1
+    invalidate.assert_awaited_once_with(session, trip_day_id=day_id)
     load_rows.assert_awaited_once_with(session, trip_day_id=day_id)
     evaluate_rows.assert_awaited_once_with(session, rows)
     session.commit.assert_awaited_once()
