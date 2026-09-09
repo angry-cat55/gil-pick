@@ -1350,9 +1350,9 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 
 - 서버 감지 주기: 10분
 - 각 주기마다 대상 장소의 전체 변수 점수를 계산한다.
-- 임계값 초과 시 장소 변경 제안 알림을 1회 생성한다.
-- 사용자가 해당 제안을 결정하기 전에는 동일 대상 장소에 추가 제안을 보내지 않는다.
-- 해당 장소 일정이 완료·통과되면 pending 제안 상태는 종료한다.
+- 하나 이상의 변수가 위험이면 `ACTIVE` 감지 결과를 생성한다. 장소 변경 제안 알림은 F011에서 처리한다.
+- 사용자가 해당 감지를 결정하기 전에는 동일 대상 장소의 `ACTIVE` 결과를 갱신하고 중복 생성하지 않는다.
+- 해당 장소 일정이 완료·건너뛰기되면 `ACTIVE` 결과를 `INVALIDATED`로 종료한다.
 - MVP는 단일 서버를 전제로 하며 다중 서버 분산락은 제외한다.
 
 혼잡:
@@ -1393,7 +1393,8 @@ Response `200`:
         "detectionId": "uuid",
         "itemId": "uuid",
         "placeName": "경복궁",
-        "status": "PENDING_DECISION",
+        "primaryType": "OPERATING_HOURS",
+        "status": "ACTIVE",
         "totalRiskScore": 78,
         "createdAt": "2026-08-22T11:00:00+09:00",
         "read": false
@@ -1425,26 +1426,37 @@ Response `200`:
     "detectionId": "uuid",
     "tripId": "uuid",
     "itemId": "uuid",
+    "placeName": "경복궁",
+    "primaryType": "OPERATING_HOURS",
     "eta": "2026-08-22T13:00:00+09:00",
     "totalRiskScore": 78,
     "variables": {
       "congestion": {
         "available": true,
-        "level": "CROWDED"
+        "level": "CROWDED",
+        "sensitivity": "MEDIUM",
+        "crowded": true
       },
       "weather": {
         "available": true,
         "precipitationProbability": 80,
-        "precipitationMmPerHour": 0.5
+        "precipitationMmPerHour": 0.5,
+        "precipitationType": "RAIN",
+        "atRisk": true
       },
       "operatingHours": {
         "available": true,
         "closesAt": "2026-08-22T13:20:00+09:00",
-        "closingSoon": true
+        "closingSoon": true,
+        "visitBlocked": false,
+        "tempClosed": false
       }
     },
-    "status": "PENDING_DECISION",
-    "read": false
+    "status": "ACTIVE",
+    "reason": "도착 시각에 영업이 어렵거나 곧 문을 닫아요",
+    "read": false,
+    "createdAt": "2026-08-22T11:00:00+09:00",
+    "lastEvaluatedAt": "2026-08-22T11:10:00+09:00"
   },
   "meta": {
     "requestId": "uuid"

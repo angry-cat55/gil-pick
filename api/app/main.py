@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 
 from app.api.errors import install_error_handling
 from app.api.v1.auth import router as auth_router
+from app.api.v1.detections import router as detections_router
 from app.api.v1.itinerary import router as itinerary_router
 from app.api.v1.places import router as places_router
 from app.api.v1.progress import item_router as progress_item_router
@@ -21,6 +22,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db import create_session_factory
 from app.jobs.auth_cleanup import run_auth_cleanup
+from app.jobs.variable_detection import run_variable_detection
 
 
 @asynccontextmanager
@@ -34,13 +36,24 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         pydantic.ValidationError: If a required environment value is missing or invalid.
     """
     get_settings()
-    cleanup_task = asyncio.create_task(run_auth_cleanup(create_session_factory()))
+    session_factory = create_session_factory()
+    cleanup_task = asyncio.create_task(run_auth_cleanup(session_factory))
+    # background job은 worker마다 생성되므로 운영 배포는 uvicorn 단일 worker를 권장한다.
+    detection_task = asyncio.create_task(
+        run_variable_detection(
+            session_factory,
+            interval_seconds=get_settings().detection_cycle_seconds,
+        )
+    )
     try:
         yield
     finally:
         cleanup_task.cancel()
+        detection_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
+        with suppress(asyncio.CancelledError):
+            await detection_task
 
 
 def create_app() -> FastAPI:
@@ -53,6 +66,7 @@ def create_app() -> FastAPI:
     application = FastAPI(title="길픽 API", version="0.1.0", lifespan=lifespan)
     install_error_handling(application)
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(detections_router, prefix="/api/v1")
     application.include_router(itinerary_router, prefix="/api/v1")
     application.include_router(places_router, prefix="/api/v1")
     application.include_router(progress_router, prefix="/api/v1")
