@@ -1,0 +1,332 @@
+openapi: 3.1.0
+info:
+  title: 길픽 F009 대체 장소 추천 계약
+  version: 0.1.0
+  description: |
+    F009가 추가·확장하는 endpoint. 공통 응답 봉투(`success`·`data`·`meta.requestId`)와 오류 형식은
+    `docs/design/api-spec.md` 1절을 따른다. 시각은 ISO-8601 `+09:00`, 거리는 m 단위 정수.
+    ALT-001·ALT-002의 후보 항목은 F003 장소 DTO(`PLACE-001` item)를 `place`에 그대로 중첩한다
+    (api-spec 7.2 예시의 평면 필드는 이 계약으로 갱신한다).
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+
+paths:
+  /trips/{tripId}/detections:
+    get:
+      operationId: listDetections
+      summary: DETECT-001 감지 목록 조회 (F009 확장)
+      description: |
+        F008 DETECT-001에 `status` 필터와 항목 필드 `eta`·`reason`을 더한다. 기존 호출과 호환된다.
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DetectionStatus'
+          description: 지정하면 해당 상태의 감지만 반환한다.
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: 감지 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/DetectionListItem' }
+                  meta: { $ref: '#/components/schemas/PaginatedMeta' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /detections/{detectionId}/alternatives:
+    get:
+      operationId: listAlternatives
+      summary: ALT-001 추천 후보 조회
+      description: |
+        `ACTIVE` 감지 결과의 기존 장소를 기준으로 0.5km→1km→2km 사다리와 소→중→대분류 비교로 후보를 찾고,
+        거리·보정 평점·혼잡·날씨 점수 순으로 최대 10개를 반환한다. 저장하지 않으며 요청마다 계산한다.
+      parameters:
+        - $ref: '#/components/parameters/DetectionId'
+      responses:
+        '200':
+          description: 후보 목록(후보가 없으면 `items: []`, `searchRadiusMeters: 2000`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data: { $ref: '#/components/schemas/AlternativeListData' }
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: 감지가 `ACTIVE`가 아니다 (`DETECTION_NOT_ACTIVE`, details.status에 현재 상태)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '502':
+          description: TourAPI 최종 실패 (`TOUR_API_FAILED`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '504':
+          description: TourAPI 시간 초과 (`TOUR_API_TIMEOUT`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /detections/{detectionId}/alternatives/search:
+    get:
+      operationId: searchAlternatives
+      summary: ALT-002 대체 장소 직접 검색
+      description: |
+        F003 PLACE-001 검색을 그대로 실행하고 각 결과에 기존 장소로부터의 거리, 운영 상태, 방문 가능 여부,
+        같은 날짜 일정 포함 여부를 더한다. 운영 종료 장소를 제외하지 않고 `visitable=false`로 표시한다.
+      parameters:
+        - $ref: '#/components/parameters/DetectionId'
+        - name: query
+          in: query
+          required: true
+          schema: { type: string, minLength: 2 }
+          description: trim 후 2글자 이상
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 20, default: 20 }
+      responses:
+        '200':
+          description: 검색 결과 한 페이지
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AlternativeSearchItem' }
+                  meta: { $ref: '#/components/schemas/PaginatedMeta' }
+        '400':
+          description: '`INVALID_REQUEST`(검색어 2글자 미만) 또는 `INVALID_CURSOR`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: 감지가 `ACTIVE`가 아니다 (`DETECTION_NOT_ACTIVE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '429': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '504': { $ref: '#/components/responses/Error' }
+
+  /detections/{detectionId}/dismiss:
+    post:
+      operationId: dismissDetection
+      summary: DETECT-004 감지 거절 (기존 일정 그대로 진행)
+      description: |
+        `ACTIVE` 감지를 `DISMISSED`로 바꾸고 `resolved_at`을 기록한다. 이미 `DISMISSED`·`RESOLVED`·
+        `INVALIDATED`면 상태를 바꾸지 않고 현재 상태를 200으로 돌려준다(상태 기반 멱등). 일정·경로는 바꾸지 않는다.
+      parameters:
+        - $ref: '#/components/parameters/DetectionId'
+      responses:
+        '200':
+          description: 거절 결과(또는 이미 처리된 현재 상태)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [detectionId, status, decidedAt]
+                    properties:
+                      detectionId: { type: string, format: uuid }
+                      status: { $ref: '#/components/schemas/DetectionStatus' }
+                      decidedAt:
+                        type: [string, 'null']
+                        format: date-time
+                        description: 거절·처리 시각. `INVALIDATED`처럼 사용자 결정이 없으면 null
+                  meta: { $ref: '#/components/schemas/ResponseMeta' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DetectionId:
+      name: detectionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: 공통 오류 봉투
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    DetectionStatus:
+      type: string
+      enum: [ACTIVE, RESOLVED, DISMISSED, INVALIDATED]
+    DetectionType:
+      type: string
+      enum: [CONGESTION, WEATHER, OPERATING_HOURS]
+    OperatingStatus:
+      type: string
+      enum: [OPEN, CLOSING_SOON, CLOSED, UNKNOWN]
+      description: 기존 장소 도착 예정 시각 기준. CLOSED는 ALT-001에서는 제외되어 나타나지 않고 ALT-002에서만 표시된다.
+    DetectionListItem:
+      type: object
+      required: [detectionId, itemId, placeName, primaryType, status, totalRiskScore, eta, reason, createdAt, read]
+      properties:
+        detectionId: { type: string, format: uuid }
+        itemId: { type: string, format: uuid }
+        placeName: { type: string }
+        primaryType: { $ref: '#/components/schemas/DetectionType' }
+        status: { $ref: '#/components/schemas/DetectionStatus' }
+        totalRiskScore: { type: integer, minimum: 0, maximum: 100 }
+        eta: { type: string, format: date-time, description: F009 추가 }
+        reason: { type: string, description: F009 추가. 사용자 표시 요약 }
+        createdAt: { type: string, format: date-time }
+        read: { type: boolean }
+    Place:
+      type: object
+      description: F003 PLACE-001 item과 동일(placeId, source, name, category, tourApiCategory, address, latitude, longitude, imageUrl, recommendedStayMinutes, rating, userRatingCount, businessStatus, regularOpeningHours, currentOpeningHours, googleAttributions)
+      required: [placeId, source, sourcePlaceId, name, category, latitude, longitude, recommendedStayMinutes]
+      additionalProperties: true
+      properties:
+        placeId: { type: string, pattern: '^(tourapi|google):.+$' }
+        name: { type: string }
+        category: { type: string, enum: [NATURE, HISTORY_CULTURE, FOOD, CAFE, SHOPPING, OTHER] }
+        latitude: { type: number }
+        longitude: { type: number }
+        rating: { type: [number, 'null'] }
+        userRatingCount: { type: [integer, 'null'] }
+        googleAttributions: { type: [array, 'null'], items: { type: string } }
+    ScoreBreakdown:
+      type: object
+      description: 점수에 실제로 쓰인 변수만 포함(0~1 정규화 값). 제외된 변수 키는 없다.
+      properties:
+        distance: { type: number, minimum: 0, maximum: 1 }
+        rating: { type: number, minimum: 0, maximum: 1 }
+        congestion: { type: number, minimum: 0, maximum: 1 }
+        weather: { type: number, minimum: 0, maximum: 1 }
+    AlternativeCandidate:
+      type: object
+      required: [rank, candidateId, place, distanceMeters, adjustedRating, score, displayScore, scoreBreakdown, operatingStatus, closesAt, reasons]
+      properties:
+        rank: { type: integer, minimum: 1, maximum: 10 }
+        candidateId:
+          type: string
+          description: 감지·장소·평가 시각을 담은 서명 토큰(15분). F010 REPL-001 요청에 그대로 전달한다.
+        place: { $ref: '#/components/schemas/Place' }
+        distanceMeters: { type: integer, minimum: 0 }
+        adjustedRating: { type: [number, 'null'], description: 베이지안 보정 평점. 평점 없으면 null }
+        score: { type: number, minimum: 0, maximum: 100, description: 정렬용 원점수 }
+        displayScore: { type: integer, minimum: 0, maximum: 100 }
+        scoreBreakdown: { $ref: '#/components/schemas/ScoreBreakdown' }
+        operatingStatus: { $ref: '#/components/schemas/OperatingStatus' }
+        closesAt: { type: [string, 'null'], format: date-time }
+        reasons:
+          type: array
+          description: 추천 근거 코드(화면이 문구로 변환). 예 INDOOR, NOT_CROWDED, NO_RAIN_RISK, CLOSER, OPEN_AT_ETA
+          items: { type: string }
+    AlternativeListData:
+      type: object
+      required: [detectionId, originPlaceId, eta, searchRadiusMeters, categoryMatchLevel, evaluatedAt, items]
+      properties:
+        detectionId: { type: string, format: uuid }
+        originPlaceId: { type: string }
+        eta: { type: string, format: date-time, description: 기존 장소 도착 예정 시각(후보 평가 기준) }
+        searchRadiusMeters: { type: integer, enum: [500, 1000, 2000] }
+        categoryMatchLevel:
+          type: string
+          enum: [SMALL, MIDDLE, LARGE, NONE]
+          description: 후보를 찾은 분류 비교 단계. 후보 없음이면 NONE
+        evaluatedAt: { type: string, format: date-time }
+        items:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/AlternativeCandidate' }
+    AlternativeSearchItem:
+      type: object
+      required: [place, distanceMeters, operatingStatus, visitable, inSchedule]
+      properties:
+        place: { $ref: '#/components/schemas/Place' }
+        distanceMeters: { type: [integer, 'null'], description: 좌표가 없으면 null }
+        operatingStatus: { $ref: '#/components/schemas/OperatingStatus' }
+        visitable: { type: boolean, description: operatingStatus가 CLOSED가 아니고 inSchedule이 아니면 true }
+        inSchedule: { type: boolean, description: 기존 장소 자신 또는 같은 날짜 일정에 이미 포함 }
+    ResponseMeta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string }
+    PaginatedMeta:
+      allOf:
+        - $ref: '#/components/schemas/ResponseMeta'
+        - type: object
+          required: [pagination]
+          properties:
+            pagination:
+              type: object
+              required: [nextCursor, hasNext]
+              properties:
+                nextCursor: { type: [string, 'null'] }
+                hasNext: { type: boolean }
+    ErrorEnvelope:
+      type: object
+      required: [success, error, meta]
+      properties:
+        success: { const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [INVALID_REQUEST, INVALID_CURSOR, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, DETECTION_NOT_FOUND, DETECTION_NOT_ACTIVE, TOUR_API_RATE_LIMITED, TOUR_API_FAILED, TOUR_API_TIMEOUT]
+            message: { type: string }
+            details: { type: [object, 'null'], additionalProperties: true }
+        meta: { $ref: '#/components/schemas/ResponseMeta' }
