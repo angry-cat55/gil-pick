@@ -280,7 +280,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T035 [P] api-spec·er-schema 동기화 in docs/design/api-spec.md, docs/design/er-schema.md
+- [x] T035 [P] api-spec·er-schema 동기화 in docs/design/api-spec.md, docs/design/er-schema.md
   - 영역: BE
   - 담당: ts
   - 교차 확인: jy
@@ -296,7 +296,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: jy
   - 선행: T024, T025, T032
   - 검증: 후보 있음·후보 없음·추천 실패·처리된 감지 × (360dp 기본, 360dp fontScale 2.0) 8장 + 배너 2장을 ATD `captureToImage`로 저장, 360dp·2.0 잘림·가로 스크롤 없음, 터치 48dp 확인. `AlternativeMap` 실제 마커는 `gilpick_api36_play`+Naver 키로 확인해 screenshot을 PR에 첨부
-- [ ] T038 quickstart Backend 검증 실행 in specs/009-alternative-places/quickstart.md
+- [x] T038 quickstart Backend 검증 실행 in specs/009-alternative-places/quickstart.md
   - 영역: BE
   - 담당: ts
   - 선행: T017, T021, T030, T034, T035
