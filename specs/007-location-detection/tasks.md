@@ -284,7 +284,7 @@ description: "F007 위치 기반 감지 구현 task 목록"
   - 담당: ts
   - 선행: T032
   - 검증: quickstart Backend 명령 전체 통과, `api-spec.md` PROG-003·004·005와 PROG-001 응답 확장 갱신, `compileall`, `git diff --check`, 공개 함수 docstring(constitution 문서화 기준)
-- [ ] T036 Android F007 전체 자동 test·build와 AVD 검증 in android/app/src/test/java/com/gilpick/progress/, android/app/src/androidTest/java/com/gilpick/progress/
+- [x] T036 Android F007 전체 자동 test·build와 AVD 검증 in android/app/src/test/java/com/gilpick/progress/, android/app/src/androidTest/java/com/gilpick/progress/
   - 영역: FE
   - 담당: hs
   - 선행: T034

@@ -177,3 +177,47 @@ internal inline fun <reified T> envelopeJson(data: T): String =
 internal fun overviewJson(days: List<DayItineraryDto> = overviewDays()) = envelopeJson(ItineraryOverviewDto(tripId = PROGRESS_TRIP_ID, days = days))
 
 internal fun progressJson(progress: ProgressData = movingProgress()) = envelopeJson(progress)
+
+// --- F007 감지 상태(T036 screenshot용) ---
+
+/** 오후 2:33 KST 감지, 오후 2:38 자동 확정. [NOW_CANDIDATE]에서 4분 남았다. */
+internal const val CANDIDATE_DETECTED_AT = "2026-09-08T14:33:00+09:00"
+internal const val CANDIDATE_AUTO_FINALIZE_AT = "2026-09-08T14:38:00+09:00"
+internal const val CANDIDATE_TRANSITION_ID = "8a2918f7-e6d5-4c4b-8a29-18f7e6d5c4b3"
+
+/** 오후 2:34 KST. */
+internal val NOW_CANDIDATE: Instant = Instant.parse("2026-09-08T05:34:00Z")
+
+/** 오후 2:39 KST. 되돌리기 마감(오후 2:43)까지 240초 남았다. */
+internal val NOW_UNDOABLE: Instant = Instant.parse("2026-09-08T05:39:00Z")
+
+/** 오후 3:00 KST. 되돌리기 마감이 지났다. */
+internal val NOW_UNDO_EXPIRED: Instant = Instant.parse("2026-09-08T06:00:00Z")
+
+/** 북촌한옥마을(ITEM_B) 도착 후보. 6분 체류. */
+internal fun arrivalCandidate() = TransitionCandidateDto(
+    transitionId = CANDIDATE_TRANSITION_ID,
+    itemId = ITEM_B,
+    type = DetectionKind.ARRIVAL,
+    status = TransitionStatus.PENDING_CONFIRMATION,
+    detectedAt = CANDIDATE_DETECTED_AT,
+    autoFinalizeAt = CANDIDATE_AUTO_FINALIZE_AT,
+    allowedDecisions = listOf(TransitionDecision.CONFIRM, TransitionDecision.NOT_ARRIVED),
+    evidence = CandidateEvidenceDto(occurredAt = CANDIDATE_DETECTED_AT, accuracyMeters = 18.0, dwellMinutes = 6),
+)
+
+/** 북촌한옥마을(ITEM_B) 출발 후보. */
+internal fun departureCandidate() = arrivalCandidate().copy(
+    type = DetectionKind.DEPARTURE,
+    allowedDecisions = listOf(TransitionDecision.CONFIRM, TransitionDecision.STILL_HERE),
+    evidence = CandidateEvidenceDto(occurredAt = CANDIDATE_DETECTED_AT, accuracyMeters = 22.0, dwellMinutes = null),
+)
+
+/** 북촌한옥마을(ITEM_B) 도착이 오후 2:38에 자동 확정됐고 오후 2:43까지 되돌릴 수 있다. */
+internal fun arrivalUndoable() = UndoableTransitionDto(
+    transitionId = CANDIDATE_TRANSITION_ID,
+    itemId = ITEM_B,
+    type = UndoableKind.ARRIVAL,
+    confirmedAt = "2026-09-08T14:38:00+09:00",
+    undoDeadline = "2026-09-08T14:43:00+09:00",
+)
