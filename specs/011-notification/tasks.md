@@ -173,6 +173,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T010, T022
   - 검증: `run_variable_detection` cycle의 `session.begin()` 커밋 직후, 새 `detection_id`에 대응하는 미발송 알림에 `NotificationDispatchService.send_one`을 1회 시도(실패해도 다음 dispatch tick이 재시도). 감지 루프 예외 격리 유지
+  - 교차 계약 review: F008 담당 (`api/app/jobs/variable_detection.py` 수정)
 - [ ] T024 [US2] 장소 변경 제안 생성·발송 검증 in api/tests/unit/test_notification_service.py, api/tests/unit/test_notification_dispatch.py
   - 영역: BE
   - 담당: ts
@@ -203,7 +204,9 @@ description: "Task list for F011 알림"
   - 영역: BE
   - 담당: ts
   - 선행: T010, T026
-  - 검증: `tick`이 `IN_PROGRESS` `trip_days`마다 `DetectionService(session).finalize_due_candidates(day)`(idempotent) 호출로 만료 후보를 제때 자동 확정하고, `next_prompt_at <= now`·도착 질문 ≤1회인 후보에 `prompt_seq=2` 행 생성. 교차 계약 review: F006/F007 담당(자동 확정 기록 시점이 "다음 요청"에서 "마감 후 ~30초"로 앞당겨짐, 되돌리기 창은 불변)
+  - 검증: `tick`이 `IN_PROGRESS` `trip_days`마다 `DetectionService(session).finalize_due_candidates(day)`(idempotent) 호출로 만료 후보를 제때 자동 확정하고, `next_prompt_at <= now`·도착 질문 ≤1회인 후보에 `prompt_seq=2` 행 생성.
+  - 교차 계약 review: **F006/F007 담당의 blocking review**. 자동 확정 기록 시점이 "다음 요청"에서 "마감 후 ~30초"로 앞당겨진다(되돌리기 창은 `auto_finalize_at` 기준이라 불변).
+  - review 미승인 시 대안: dispatch는 `finalize_due_candidates`를 호출하지 않고 자동 확정·재질문 알림을 F006/F007의 지연 확정(다음 요청 시)에 맡긴다. 그 경우 `ARRIVAL_AUTO_CONFIRMED`·`DEPARTURE_AUTO_CONFIRMED`·재질문 유형은 SC-012(30초) 대상에서 제외하고 spec Success Criteria에 예외를 기록한다.
 - [ ] T028 [US3] 확인 알림 즉시 발송 in api/app/api/v1/progress.py
   - 영역: BE
   - 담당: ts
@@ -328,7 +331,7 @@ description: "Task list for F011 알림"
   - 영역: BE
   - 담당: ts
   - 선행: T012, T006
-  - 검증: data-model.md 5절 목록 — api-spec 2절(NOTI-001·002·DEV-001·002 `[x]`, NOTI-003 행 신설)·9절(NOTI-001 `type` 값·선택 식별자 필드·90일 문구, NOTI-003 신설, DEV-001 `404` 명시, PREF는 F012 표시 유지), er-schema 1절(알림 90일 보존)·9.1(`type` CHECK·`dedup_key`·`sent_at` 의미)·10절(`notification_type` enum 행)·12절(`ix_notifications_pending`·`fcm_token` partial unique 반영). 같은 PR에 포함
+  - 검증: data-model.md 5절 목록 — api-spec 2절(NOTI-001·002·DEV-001·002 `[x]`, NOTI-003 행 신설)·9절(NOTI-001 `type` 값·선택 식별자 필드·90일 문구, NOTI-003 신설, DEV-001 `404` 명시, PREF는 F012 표시 유지), er-schema 1절(알림 90일 보존)·9.1(`type` CHECK·`dedup_key`·`sent_at` 의미)·10절(`notification_type` enum 행)·12절(`ix_notifications_pending`·`fcm_token` partial unique 반영). 같은 PR에 포함. 설정 필드명(`replacement_suggestion_enabled` ↔ `placeChangeSuggestionNotificationEnabled`) 통일은 F011 범위 밖 — F012 PREF 계약 작업에서 처리하므로 이 task에서 건드리지 않는다
 - [ ] T043 [P] 요구사항·기능 명세 동기화 in docs/planning/requirements.md, docs/planning/functional-spec.md
   - 영역: BE
   - 담당: ts

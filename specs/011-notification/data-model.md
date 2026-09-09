@@ -156,4 +156,5 @@ Content(items: List<DetectionListItemUi>, sort: TIME | RISK)
   - 10절 enum 표: `notification_type` 행 추가.
   - 12절: `notifications` 인덱스에 `ix_notifications_pending` 추가, `device_sessions` partial unique `fcm_token` 실제 생성 반영.
 - `docs/planning/requirements.md` NOTI-01 / `docs/planning/functional-spec.md` 6절: 전달 목표 30초·재시도·포그라운드 미표시·90일 보존을 반영(spec Clarifications 2026-09-10와 일치).
+- 설정 필드명(`users.replacement_suggestion_enabled` ↔ API `placeChangeSuggestionNotificationEnabled`) 통일은 **F011 범위 밖**이다. F011은 DB 컬럼만 읽고, 표기 정합은 F012의 `PREF-001`·`PREF-002` 계약 작업에서 처리한다.
 - `docs/planning/mvp-features.md`: F011 상태 `SPEC → READY`는 검증된 tasks 문서 PR에서.
