@@ -42,6 +42,30 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 **Visual Validation**: `AlternativeScreenshotTest` 4상태 × 2배율 8장 + `ActiveTravelScreenshotTest` 배너 2장(ATD `captureToImage`; 다이얼로그·시트는 inline content로 캡처). 실기기/`gilpick_api36_play` 실서버 절차는 quickstart AND 5. 적용하지 않는 상태: 직접 검색 화면의 `empty`는 F003 `EmptyState` 재사용(새 표현 없음), 배너의 `loading`·`error`는 없음(실패 = 숨김)
 
+### Figma 대조 결과 (T003, 2026-09-09)
+
+Figma Make `AlternativePlacesScreen.tsx`(`hasResults` true = `alternativePlaces`, false = `alternativesEmpty`)와 `ActiveTravelScreen.tsx`(변수 경고 배너)를 2026-09-09 재조회했다. **저장소 사본 `docs/design/figma-make/src/screens/*.tsx`와 차이 없음.** 아래는 spec이 요구하지만 Figma에 없는 상태 표현과, Figma에 있지만 F009가 쓰지 않는 요소다. Figma 변경 요청은 없다(모두 코드에서 spec 기준으로 처리, Figma 시각 형식은 그대로 따른다).
+
+| 요소 | Figma | F009 구현 | 근거 |
+|---|---|---|---|
+| 후보 근거 `이동 시간 N분 증가`·`현재보다 8분 가까워요` | 있음(`benefit` 고정 문구) | 표시하지 않음. `reasons` code(`INDOOR`·`NOT_CROWDED`·`NO_RAIN_RISK`·`CLOSER`·`OPEN_AT_ETA`)만 `AlternativeLabels`로 문구화, 모르는 code는 생략 | UI-003, F010 범위 |
+| `운영시간 확인 불가`(`operatingStatus=UNKNOWN`) | 없음(`18:00 마감`·`종일 개방`만) | 마감 자리에 `운영시간 확인 불가` 문구(`muted`) | UI-003 |
+| 평점 없음(`adjustedRating=null`) | 없음(항상 `★4.x`) | 평점 항목 생략(`카테고리 · 거리`만) | UI-003 |
+| 폐점 임박(`CLOSING_SOON`) | 색(`#F97316`)만 | `warning` 색 + `마감 임박` 문구 병기(색 단독 금지) | UI-003·UI-008 |
+| 1위 후보 | 배경 `#F0F6FF` + `TOP` 배지 | 그대로 + contentDescription `1위 …` | UI-003·UI-008 |
+| 후보 점수 `displayScore` | 없음 | 표시하지 않음(정렬 순서로만 드러남). F010이 필요하면 `SelectedAlternative.displayScore`로 전달 | UI-003 목록에 없음 |
+| 선택 버튼 `경로 비교`·`비교` | 있음 | 라벨 그대로, 동작은 `onSelectPlace(SelectedAlternative)`로 F010에 전달(일정 미변경) | UI-005, FR-023 |
+| 직접 검색 `방문 불가`·`이미 일정에 있음` | 없음(`MapSearchScreen`은 F003 검색과 동일) | F003 `PlaceRow` 하단 slot에 `기존 장소에서 820m` + 상태 문구, 행 비활성(문구+흐림 병기), `visitable=false`면 선택 불가 | UI-007·UI-008 |
+| 직접 검색 거리 없음(`distanceMeters=null`) | 없음 | 거리 문구 생략 | UI-007 |
+| 추천 실패 `error`(`다시 시도하기`·돌아가기) | 없음 | ui-guidelines 9절 `ErrorScreen` 형식, `route`/`progress` 오류 composable 재사용, 기존 일정 유지 | UI-006 |
+| 처리된 감지(`409 DETECTION_NOT_ACTIVE`) | 없음 | 안내 문구 + `진행 화면으로` 버튼 | UI-006 |
+| `loading` | 없음 | 1초 초과 시에만 대기 표시 | UI-006 |
+| 거절 요청 중·실패 | 없음 | `기존 일정 그대로 진행` 비활성(`dismissPending`) + 실패 시 오류 표시 후 화면 유지(`dismissError`) | UI-005 |
+| 배너 `N분 전 감지` | 있음(`5분 전 감지` 고정) | `createdAt` 기준 경과 시간, F006 매분 `now` tick 재사용 | UI-001 |
+| 배너 감지 여럿 | 단일 배너 | `eta` 가장 이른 `ACTIVE` 1건만, 나머지는 F011 감지 목록 | UI-001 |
+| 감지 요약 부제·변수 칩(`🌧 오후 강수`·`👥 매우 혼잡`·`⏰ 마감 임박`) | 고정 문구 3개 | 부제는 DETECT-002 `reason` 그대로. 칩은 F008 `variables` 중 위험 판정(`crowded`·`atRisk`·`closingSoon`)된 변수만 Figma 이모지·문구로 표시(0~3개) | UI-002 |
+| 배너·화면 상단 아이콘 | 경고 삼각형 고정 | `primaryType`과 무관하게 Figma 아이콘 유지 | UI-001·UI-002 |
+
 ## Constitution Check
 
 *GATE: Phase 0 전 평가 및 Phase 1 후 재평가.*

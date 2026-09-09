@@ -38,7 +38,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 담당: ts
   - 선행: 없음
   - 검증: 반경 사다리 `(500, 1000, 2000)`, 가중치 `distance 0.35 / rating 0.30 / congestion 0.20 / weather 0.15`, 혼잡 점수표 `RELAXED 1.0 / NORMAL 0.75 / SLIGHTLY_CROWDED 0.5 / crowded 0.0`, 베이지안 `m` 기본 20·후보 5개 미만 조건, `MAX_CANDIDATES=10`, `OPERATING_CHECK_LIMIT=20`, `CANDIDATE_TTL_MINUTES=15`, TourAPI `numOfRows=100`를 이 모듈에서만 읽는다. `api/tests/unit/test_alternative_scoring.py`(T012)에서 값 접근 확인. 근거는 research.md R3·R4·R5
-- [ ] T003 [P] Figma 기준 확인과 부족 요소 기록 in specs/009-alternative-places/plan.md
+- [x] T003 [P] Figma 기준 확인과 부족 요소 기록 in specs/009-alternative-places/plan.md
   - 영역: FE
   - 담당: jy
   - 선행: 없음
@@ -84,12 +84,12 @@ description: "F009 대체 장소 추천 구현 task 목록"
   - 교차 확인: jh
   - 선행: T001
   - 검증: `DetectionListItem`에 `eta`·`reason` 추가, `status` query 필터(선택), `_owned_detection`을 `owned_detection`으로 공개해 ALT·DETECT-004가 재사용. 기존 계약 test가 통과하고 필터·필드 test 추가(quickstart BE 9)
-- [ ] T010 [P] Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/com/gilpick/alternative/AlternativeApi.kt, android/app/src/test/java/com/gilpick/alternative/AlternativeApiTest.kt
+- [x] T010 [P] Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/com/gilpick/alternative/AlternativeApi.kt, android/app/src/test/java/com/gilpick/alternative/AlternativeApiTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T001
   - 검증: `DetectionListItemDto`(`eta`·`reason` 포함)·`DetectionDetailDto`·`AlternativeCandidateDto`·`AlternativeListDto`·`AlternativeSearchItemDto`·`DismissResultDto`·`SelectedAlternative`와 `AlternativeService`(DETECT-001 `status` 파라미터, DETECT-002, DETECT-004, ALT-001, ALT-002), `createAlternativeRetrofit`(`ProgressApi` 패턴, 인증 인터셉터 재사용). 계약 예시 JSON 역직렬화 test, `place`는 F003 `PlaceDto` 재사용
-- [ ] T011 [P] Android AlternativeRepository in android/app/src/main/java/com/gilpick/alternative/AlternativeRepository.kt, android/app/src/test/java/com/gilpick/alternative/AlternativeRepositoryTest.kt
+- [x] T011 [P] Android AlternativeRepository in android/app/src/main/java/com/gilpick/alternative/AlternativeRepository.kt, android/app/src/test/java/com/gilpick/alternative/AlternativeRepositoryTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T010
