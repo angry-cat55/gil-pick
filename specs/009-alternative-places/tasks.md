@@ -220,7 +220,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] ALT-002 계약 test in api/tests/contract/test_alternatives_contract.py
+- [x] T028 [P] [US3] ALT-002 계약 test in api/tests/contract/test_alternatives_contract.py
   - 영역: BE
   - 담당: ts
   - 선행: T014
@@ -233,7 +233,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] AlternativeService.search와 ALT-002 endpoint in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py
+- [x] T030 [US3] AlternativeService.search와 ALT-002 endpoint in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py
   - 영역: BE
   - 담당: ts
   - 선행: T028, T017
