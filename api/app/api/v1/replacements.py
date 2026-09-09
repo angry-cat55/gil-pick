@@ -1,0 +1,107 @@
+"""변경 경로 미리보기 생성·폐기 API."""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import AsyncIterator
+from typing import Annotated
+
+import httpx2
+from fastapi import APIRouter, Depends, Header, Path, Request, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.dependencies import get_current_principal
+from app.api.errors import AppError, success_response
+from app.clients.google_places import GooglePlacesClient
+from app.clients.odsay import OdsayClient
+from app.clients.tmap import TmapClient
+from app.clients.tour_api import TourApiClient
+from app.core.config import Settings, get_settings
+from app.core.security import AuthPrincipal
+from app.db import get_session
+from app.schemas.auth import ErrorEnvelope
+from app.schemas.replacement import CreatePreviewRequest, RoutePreviewEnvelope
+from app.services.detection.operating_hours_source import OperatingHoursSource
+from app.services.place import PlaceService
+from app.services.replacement import ReplacementService
+from app.services.route import RouteCalculationService
+
+router = APIRouter(tags=["replacements"])
+
+
+async def get_replacement_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AsyncIterator[ReplacementService]:
+    """장소·경로 Provider 연결을 한 미리보기 요청 안에서 공유한다."""
+    async with httpx2.AsyncClient(timeout=settings.route_calculation_deadline_seconds) as client:
+        google = GooglePlacesClient(settings, client)
+        yield ReplacementService(
+            session,
+            calculator=RouteCalculationService(
+                tmap=TmapClient(settings, client), odsay=OdsayClient(settings, client),
+                concurrency=settings.route_provider_concurrency,
+                deadline_seconds=settings.route_calculation_deadline_seconds,
+            ),
+            place_service=PlaceService(
+                TourApiClient(settings, client), google,
+                cursor_secret=settings.jwt_signing_secret.get_secret_value(),
+            ),
+            operating_hours_source=OperatingHoursSource(settings, google),
+            candidate_secret=settings.jwt_signing_secret.get_secret_value(),
+        )
+
+
+@router.post(
+    "/detections/{detectionId}/route-previews",
+    operation_id="createRoutePreview",
+    response_model=RoutePreviewEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope}, 401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope}, 404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope}, 502: {"model": ErrorEnvelope},
+        504: {"model": ErrorEnvelope},
+    },
+)
+async def create_route_preview(
+    payload: CreatePreviewRequest,
+    request: Request,
+    detection_id: Annotated[uuid.UUID, Path(alias="detectionId")],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=255)],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[ReplacementService, Depends(get_replacement_service)],
+) -> JSONResponse:
+    """소유한 ACTIVE 감지의 대체 경로를 실제 일정과 분리해 계산한다."""
+    try:
+        data = await service.create_preview(
+            detection_id=detection_id, user_id=principal.user_id,
+            payload=payload, idempotency_key=idempotency_key,
+        )
+    except AppError as exc:
+        if exc.status_code == 403 and exc.code == "DETECTION_FORBIDDEN":
+            raise AppError(403, "TRIP_FORBIDDEN", exc.message) from exc
+        raise
+    return success_response(request, data)
+
+
+@router.post(
+    "/route-previews/{previewId}/reject",
+    operation_id="rejectRoutePreview",
+    status_code=204,
+    responses={
+        401: {"model": ErrorEnvelope}, 403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope}, 409: {"model": ErrorEnvelope},
+    },
+)
+async def reject_route_preview(
+    preview_id: Annotated[uuid.UUID, Path(alias="previewId")],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[ReplacementService, Depends(get_replacement_service)],
+) -> Response:
+    """미리보기만 폐기하고 일정·경로·감지 결과는 유지한다."""
+    await service.reject_preview(preview_id=preview_id, user_id=principal.user_id)
+    return Response(status_code=204)
+
+
+__all__ = ["get_replacement_service", "router"]

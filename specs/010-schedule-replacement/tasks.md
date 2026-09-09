@@ -98,12 +98,12 @@ description: "F010 일정 변경 구현 task 목록"
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] REPL-001·REPL-003 계약 test in api/tests/contract/test_replacement_contract.py
+- [x] T009 [P] [US1] REPL-001·REPL-003 계약 test in api/tests/contract/test_replacement_contract.py
   - 영역: BE
   - 담당: jh
   - 선행: T006
   - 검증: 요청·응답 필드명과 타입이 `replacements.openapi.yaml`과 일치하고 `comparison` 네 항목이 모두 `{before, after}` 형태다. 오류 코드 집합(`INVALID_CANDIDATE`·`DETECTION_NOT_ACTIVE`·`ITEM_ALREADY_VISITED`·`PLACE_ALREADY_IN_SCHEDULE`·`DAY_NOT_IN_PROGRESS`·`ROUTE_PROVIDER_ERROR`·`ROUTE_PROVIDER_TIMEOUT`)이 계약과 같다
-- [ ] T010 [P] [US1] 미리보기 무결성 integration test in api/tests/integration/test_replacement_flow.py
+- [x] T010 [P] [US1] 미리보기 무결성 integration test in api/tests/integration/test_replacement_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
@@ -116,17 +116,17 @@ description: "F010 일정 변경 구현 task 목록"
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] 미리보기 생성 서비스 in api/app/services/replacement.py
+- [x] T012 [US1] 미리보기 생성 서비스 in api/app/services/replacement.py
   - 영역: BE
   - 담당: jh
   - 선행: T002, T005, T006, T009, T010
   - 검증: T009·T010 통과. 감지 결과·대상 항목·대체 장소를 검증하고(FR-003) F009 `verify_candidate_token`으로 `candidateId`를 확인한다(FR-004). **경로를 이 시점에 계산해** `route_payload`와 `comparison`을 저장한다(research 2절). 대체 장소가 `places`에 없으면 F004 `_upsert_places`와 같은 방식으로 저장한다. 같은 감지 결과의 기존 `PENDING`을 `SUPERSEDED`로 내린 뒤 삽입한다(FR-006). `expires_at = now + PREVIEW_TTL_MINUTES`
-- [ ] T013 [US1] 비교 항목 생성 in api/app/services/replacement.py
+- [x] T013 [US1] 비교 항목 생성 in api/app/services/replacement.py
   - 영역: BE
   - 담당: jh
   - 선행: T012
   - 검증: data-model 2.1의 네 항목을 만든다. 기존 값은 **저장된 값**(활성 `routes`, `itinerary_items.estimated_arrival_at`)에서 읽고 새로 계산하지 않는다(research 8절). `closesAt`은 F008 `services/detection/operating_hours.py` 조회를 재사용하고, 실패하면 그 항목만 `null`로 두고 나머지를 제공한다(constitution IV). 값을 지어내지 않음을 unit test로 고정
-- [ ] T014 [US1] REPL-001·REPL-003 라우터 in api/app/api/v1/replacements.py, api/app/main.py
+- [x] T014 [US1] REPL-001·REPL-003 라우터 in api/app/api/v1/replacements.py, api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T012, T013
