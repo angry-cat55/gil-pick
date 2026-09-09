@@ -635,7 +635,10 @@ private fun DetectionOffBanner(
             modifier = Modifier.padding(top = spacing.space1),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2), modifier = Modifier.padding(top = spacing.space1)) {
-            TextAction(label = stringResource(R.string.detection_off_enable), onClick = onEnable)
+            // 정확도 부족은 사용자가 권한으로 풀 수 있는 문제가 아니다. 켜는 행동을 주지 않는다.
+            if (reason == DetectionOffReason.PermissionMissing) {
+                TextAction(label = stringResource(R.string.detection_off_enable), onClick = onEnable)
+            }
             TextAction(label = stringResource(R.string.detection_off_dismiss), onClick = onDismiss)
         }
     }
@@ -645,12 +648,14 @@ private fun DetectionOffBanner(
 private val DetectionOffReason.causeRes: Int
     get() = when (this) {
         DetectionOffReason.PermissionMissing -> R.string.detection_off_permission
+        DetectionOffReason.AccuracyLow -> R.string.detection_off_accuracy
     }
 
 /** 켜는 방법과 켜지 않아도 된다는 안내. */
 private val DetectionOffReason.howToRes: Int
     get() = when (this) {
         DetectionOffReason.PermissionMissing -> R.string.detection_off_permission_how
+        DetectionOffReason.AccuracyLow -> R.string.detection_off_accuracy_how
     }
 
 @Composable
@@ -1073,7 +1078,7 @@ private fun ItemList(
                     last = index == rows.lastIndex,
                     started = content.viewingStarted,
                     showTime = content.isToday,
-                    autoProcessed = content.isToday && row.item.itemId == content.autoProcessedItemId,
+                    autoProcessed = content.isToday && row.item.itemId in content.autoProcessedItemIds,
                     onClick = onRowClick?.let { click -> { click(row) } },
                 )
             }

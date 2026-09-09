@@ -64,7 +64,20 @@ sealed interface ProgressUiState {
          * 지난 날짜에는 감지 자체가 없으므로 안내도 뜻이 없다.
          */
         val visibleDetectionNotice: DetectionOffReason?
-            get() = detectionOff?.takeIf { isToday && !detectionNoticeDismissed }
+            get() = detectionCause?.takeIf { isToday && !detectionNoticeDismissed }
+
+        /**
+         * 자동 감지가 지금 동작하지 않는 원인.
+         *
+         * 권한이 먼저다. 권한이 없으면 이벤트 자체가 올라가지 않아 정확도는 따질 것도 없다.
+         * 정확도 부족은 서버가 최신 위치 이벤트를 거절한 이유로 알 수 있다(#312 계약).
+         */
+        private val detectionCause: DetectionOffReason?
+            get() = detectionOff ?: DetectionOffReason.AccuracyLow.takeIf { lowAccuracyRejected }
+
+        /** 오늘 장소 중 최신 위치 이벤트가 정확도 미달로 거절된 것이 있다. */
+        private val lowAccuracyRejected: Boolean
+            get() = progress.items.any { it.eventRejectionReason == EventRejectionReason.LOW_ACCURACY }
 
         /**
          * 지금 확인 시트를 띄울 후보. 오늘을 보고 있고 사용자가 닫지 않았을 때만이다(UI-007).
@@ -88,13 +101,17 @@ sealed interface ProgressUiState {
             }.orEmpty()
 
         /**
-         * 자동으로 처리된 장소(UI-004).
+         * 자동으로 처리된 장소들(UI-004).
          *
-         * 지금 계약에서 "자동으로 바뀌었다"를 알 수 있는 유일한 값이 되돌릴 수 있는 전환이다.
-         * 되돌릴 수 있는 시간이 지나면 표시도 사라진다. 그 뒤에도 남기려면 서버가 항목별
-         * 처리 출처를 함께 내려줘야 한다.
+         * 항목별 [ProgressItemDto.processingSource]로 판단한다(#312 계약). 되돌릴 수 있는
+         * 시간이 지나 [ProgressData.undoable]이 사라져도 표시는 남는다. 사용자가 확인 시트에
+         * 답해 확정된 것은 `MANUAL`이라 표시하지 않는다.
          */
-        val autoProcessedItemId: String? get() = progress.undoable?.itemId
+        val autoProcessedItemIds: Set<String>
+            get() = progress.items
+                .filter { it.processingSource == ProgressProcessingSource.AUTO }
+                .map { it.itemId }
+                .toSet()
         /** 진행 현황의 날짜(오늘, KST). */
         val today: LocalDate get() = LocalDate.parse(progress.date)
 
@@ -188,12 +205,14 @@ data class DecisionFailure(val decision: TransitionDecision, val error: Detectio
 /**
  * 자동 감지가 꺼진 원인(UI-005·FR-025).
  *
- * 앱이 스스로 알 수 있는 원인만 담는다. 정확도 부족은 서버가 이벤트를 거절하며 판정하는데
- * PROG-001 응답에 그 사실이 실려 오지 않아 지금 계약으로는 화면에서 구분할 수 없다.
+ * 권한은 앱이 직접 판정하고, 정확도 부족은 서버가 준 최신 이벤트 거절 이유로 안다(#312 계약).
  */
 enum class DetectionOffReason {
     /** 백그라운드 위치 권한이 없다. 앱이 지오펜스를 걸 수 없다. */
     PermissionMissing,
+
+    /** 위치 정확도가 기준에 못 미쳐 서버가 최신 이벤트를 판정에 쓰지 않았다. */
+    AccuracyLow,
 }
 
 /**

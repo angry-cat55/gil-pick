@@ -340,6 +340,70 @@ class ProgressViewModelTest {
         assertEquals(progressService.updateCalls[0].first, progressService.updateCalls[1].first)
     }
 
+    // --- #313: 처리 출처와 이벤트 거절 이유 ---
+
+    @Test
+    fun `자동 처리 표시는 항목별 처리 출처로 판단한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(withSources(auto = P_ITEM_A, manual = P_ITEM_B)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        // 사용자가 확인 시트에 답해 확정된 것(MANUAL)과 이력이 없는 것(null)은 표시하지 않는다.
+        assertEquals(setOf(P_ITEM_A), content.autoProcessedItemIds)
+    }
+
+    @Test
+    fun `되돌릴 수 없게 된 뒤에도 자동 처리 표시가 남는다`() = viewModelTest { viewModel ->
+        // undoable이 사라져도 표시는 처리 출처에서 오므로 유지된다(#313 완료 조건).
+        progressService.onGet = { progressOk(withSources(auto = P_ITEM_A, manual = null).copy(undoable = null)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertNull(content.progress.undoable)
+        assertEquals(setOf(P_ITEM_A), content.autoProcessedItemIds)
+    }
+
+    @Test
+    fun `정확도 미달로 거절되면 자동 감지 꺼짐을 안내한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(withRejection(EventRejectionReason.LOW_ACCURACY)) }
+
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DetectionOffReason.AccuracyLow, content.visibleDetectionNotice)
+    }
+
+    @Test
+    fun `정확도 밖의 거절 이유는 안내하지 않는다`() = viewModelTest { viewModel ->
+        // 감지 일시 중지 같은 정상 상태까지 문제처럼 알리지 않는다(UI-005는 두 원인만 정한다).
+        progressService.onGet = { progressOk(withRejection(EventRejectionReason.DETECTION_PAUSED)) }
+
+        viewModel.load()
+        runCurrent()
+
+        assertNull((viewModel.state.value as ProgressUiState.Content).visibleDetectionNotice)
+    }
+
+    @Test
+    fun `권한 없음이 정확도 부족보다 먼저다`() = viewModelTest { viewModel ->
+        // 권한이 없으면 이벤트 자체가 올라가지 않는다. 사용자가 먼저 풀 수 있는 원인을 보인다.
+        backgroundPermission = false
+        progressService.onGet = { progressOk(withRejection(EventRejectionReason.LOW_ACCURACY)) }
+
+        viewModel.load()
+        runCurrent()
+
+        assertEquals(
+            DetectionOffReason.PermissionMissing,
+            (viewModel.state.value as ProgressUiState.Content).visibleDetectionNotice,
+        )
+    }
+
     // --- T033: 백그라운드 권한과 자동 감지 ---
 
     @Test
@@ -577,6 +641,24 @@ class ProgressViewModelTest {
             ),
         ),
     )
+
+    /** 항목별 처리 출처를 지정한 진행 현황. */
+    private fun withSources(auto: String?, manual: String?) = inProgress().let { data ->
+        data.copy(
+            items = data.items.map { item ->
+                when (item.itemId) {
+                    auto -> item.copy(processingSource = ProgressProcessingSource.AUTO)
+                    manual -> item.copy(processingSource = ProgressProcessingSource.MANUAL)
+                    else -> item
+                }
+            },
+        )
+    }
+
+    /** 첫 장소의 최신 위치 이벤트가 거절된 진행 현황. */
+    private fun withRejection(reason: EventRejectionReason) = inProgress().let { data ->
+        data.copy(items = data.items.map { if (it.itemId == P_ITEM_A) it.copy(eventRejectionReason = reason) else it })
+    }
 
     /** 서버가 준 감지 대상 하나. 앱은 목록을 그대로 등록만 한다(research 4절). */
     private fun detectionTarget() = DetectionTargetDto(
