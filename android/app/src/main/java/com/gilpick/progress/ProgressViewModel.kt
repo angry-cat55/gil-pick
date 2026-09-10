@@ -11,6 +11,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gilpick.BuildConfig
 import com.gilpick.alternative.AlternativeRepository
+import com.gilpick.replacement.ReplacementError
+import com.gilpick.replacement.ReplacementRepository
+import com.gilpick.replacement.toReplacementError
 import com.gilpick.alternative.DetectionStatus
 import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthRepository
@@ -61,6 +64,7 @@ class ProgressViewModel(
     private val geofenceManager: GeofenceManager? = null,
     private val hasBackgroundPermission: () -> Boolean = { true },
     private val alternativeRepository: AlternativeRepository? = null,
+    private val replacementRepository: ReplacementRepository? = null,
 ) : ViewModel() {
 
     /** 진행 현황을 조회하는 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다. */
@@ -296,6 +300,50 @@ class ProgressViewModel(
         }
     }
 
+    /**
+     * 승인으로 바뀐 장소를 승인 전으로 되돌린다(F010 REPL-004, T031).
+     *
+     * 되돌릴 수 있는지는 서버가 판정한다. 앱은 남은 시간을 표시만 하고 만료를 스스로 결정하지
+     * 않는다(F010 FR-015). 성공하면 진행을 다시 조회해 일정·경로·감지 대상을 함께 맞춘다 —
+     * 되돌리기는 셋을 하나의 transaction으로 바꾸므로 응답만 반영하면 화면이 어긋난다.
+     *
+     * 실패해도 토스트를 지우지 않고 원인만 남긴다. 되돌릴 수 없게 된 두 원인은 다시 조회해
+     * 토스트가 사라지게 한다(F010 UI-007).
+     */
+    fun undoReplacement() {
+        val content = _state.value as? ProgressUiState.Content ?: return
+        val undo = content.progress.undoableReplacement ?: return
+        val repository = replacementRepository ?: return
+        if (content.replacementUndoPending) return
+
+        _state.value = content.copy(replacementUndoPending = true, replacementUndoError = null)
+        viewModelScope.launch {
+            when (val result = repository.undoReplacement(undo.replacementId)) {
+                is AuthResult.Success -> {
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)
+                            ?.copy(replacementUndoPending = false, replacementUndoError = null)
+                            ?: current
+                    }
+                    load()
+                }
+
+                is AuthResult.Failure -> {
+                    val error = result.error.toReplacementError()
+                    _state.update { current ->
+                        (current as? ProgressUiState.Content)
+                            ?.copy(replacementUndoPending = false, replacementUndoError = error)
+                            ?: current
+                    }
+                    // 여기서 바로 다시 조회하지 않는다. `load()`가 Content를 새로 만들면서 방금 담은
+                    // 원인을 지워 버려, 되돌릴 수 없게 된 이유와 일정 편집 안내를 사용자가 볼 수
+                    // 없게 되기 때문이다(FR-019·UI-007). 토스트는 만료 시각에 맞춘 재조회와 매분
+                    // 갱신이 걷어 간다 — 그때까지 원인이 남아 있어야 안내가 제구실을 한다.
+                }
+            }
+        }
+    }
+
     /** 확인 시트를 닫는다. 후보는 살아 있고 수동 진행을 계속할 수 있다(UI-007). */
     fun dismissCandidate() {
         _state.update { state ->
@@ -413,6 +461,7 @@ class ProgressViewModel(
             geofenceManager: GeofenceManager? = null,
             hasBackgroundPermission: () -> Boolean = { true },
             alternativeRepository: AlternativeRepository? = null,
+            replacementRepository: ReplacementRepository? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ProgressViewModel(
@@ -423,6 +472,7 @@ class ProgressViewModel(
                     geofenceManager = geofenceManager,
                     hasBackgroundPermission = hasBackgroundPermission,
                     alternativeRepository = alternativeRepository,
+                    replacementRepository = replacementRepository,
                 )
             }
         }

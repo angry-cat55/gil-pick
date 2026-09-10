@@ -564,6 +564,13 @@
     <string name="replacement_action_retry">다시 시도</string>
     <string name="replacement_approve_failed">변경하지 못했어요</string>
 
+    <!-- F010 진행 화면 되돌리기 토스트(UI-006·UI-007). F007 자동 확정 토스트와 같은 자리·같은 형식이다. -->
+    <string name="replacement_undo_toast">장소가 %1$s(으)로 변경되었습니다</string>
+    <string name="replacement_undo_expired">되돌릴 수 있는 시간이 지났어요.</string>
+    <string name="replacement_undo_follow_up">그 뒤에 일정이 또 바뀌었어요.</string>
+    <string name="replacement_undo_failed">지금은 되돌릴 수 없어요.</string>
+    <string name="replacement_undo_edit_hint">일정 편집에서 바꿀 수 있어요.</string>
+
     <!-- F011 감지 목록 (US6, Figma VariableMonitorScreen) -->
     <string name="monitor_loading">감지 결과를 불러오는 중</string>
     <string name="monitor_banner_title">방문이 어려울 수 있어요</string>

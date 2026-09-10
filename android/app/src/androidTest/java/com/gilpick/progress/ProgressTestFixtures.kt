@@ -197,6 +197,22 @@ internal val NOW_UNDOABLE: Instant = Instant.parse("2026-09-08T05:39:00Z")
 /** 오후 3:00 KST. 되돌리기 마감이 지났다. */
 internal val NOW_UNDO_EXPIRED: Instant = Instant.parse("2026-09-08T06:00:00Z")
 
+// --- F010 장소 변경 되돌리기(T026) ---
+
+/**
+ * 인사동거리(ITEM_C)를 창덕궁으로 바꾼 승인. 오후 2:39:20까지 되돌릴 수 있다.
+ *
+ * [NOW_UNDOABLE](오후 2:39)에서 20초 남아 F007 자동 확정(240초)보다 짧다. 두 되돌리기가 동시에
+ * 가능할 때 짧은 쪽을 먼저 보이는 우선순위를 확인하는 데 쓴다(F010 UI-006a).
+ */
+internal fun placeReplacementUndo() = UndoableReplacementDto(
+    replacementId = "6e5d4c3b-2a1f-4e0d-9c8b-7a6f5e4d3c2b",
+    itemId = ITEM_C,
+    originalPlaceName = "인사동거리",
+    newPlaceName = "창덕궁",
+    undoExpiresAt = "2026-09-08T14:39:20+09:00",
+)
+
 /** 북촌한옥마을(ITEM_B) 도착 후보. 6분 체류. */
 internal fun arrivalCandidate() = TransitionCandidateDto(
     transitionId = CANDIDATE_TRANSITION_ID,

@@ -106,6 +106,7 @@ data class StartLocationDto(
  *   `contracts/detection.openapi.yaml`이다. 서버가 아직 내려주지 않으면 빈 목록이다.
  * @property pendingCandidate F007 확장. 답을 기다리는 도착·출발 후보. 없으면 `null`.
  * @property undoable F007 확장. 아직 되돌릴 수 있는 자동 확정. 없으면 `null`.
+ * @property undoableReplacement F010 확장. 아직 되돌릴 수 있는 장소 변경. 없으면 `null`.
  */
 @Serializable
 data class ProgressData(
@@ -124,6 +125,29 @@ data class ProgressData(
     val detectionTargets: List<DetectionTargetDto> = emptyList(),
     val pendingCandidate: TransitionCandidateDto? = null,
     val undoable: UndoableTransitionDto? = null,
+    // F010 확장. 서버 구현(#350) 전에도 F006 응답을 그대로 파싱할 수 있도록 기본값을 둔다.
+    val undoableReplacement: UndoableReplacementDto? = null,
+)
+
+/**
+ * 아직 되돌릴 수 있는 장소 변경. F010 REPL-002 승인 뒤 PROG-001 응답에 함께 실려 온다.
+ *
+ * 정의는 F010 `contracts/replacements.openapi.yaml`의 `UndoableReplacement`다. 되돌릴 수 있는
+ * 세 조건(미되돌림·미만료·승인 이후 일정 불변)을 서버가 판정해 만족할 때만 싣는다. F007
+ * [UndoableTransitionDto]와 **동시에 실릴 수 있고**, 그때 무엇을 먼저 보일지는 화면이 정한다(F010 UI-006a).
+ *
+ * @property originalPlaceName 되돌리면 돌아갈 장소. 안내 문구에 쓴다.
+ * @property newPlaceName 지금 바뀌어 있는 장소. 안내 문구에 쓴다(F010 UI-006).
+ * @property undoExpiresAt 되돌릴 수 있는 마지막 시각. 앱은 남은 시간 표시에만 쓰고 만료 판정은
+ *   서버가 한다(F010 FR-015).
+ */
+@Serializable
+data class UndoableReplacementDto(
+    val replacementId: String,
+    val itemId: String,
+    val originalPlaceName: String,
+    val newPlaceName: String,
+    val undoExpiresAt: String,
 )
 
 /**

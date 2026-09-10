@@ -216,7 +216,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: T005
   - 검증: quickstart BE 7~9. 되돌리기 후 `place_id` 원복·`schedule_version` +1·승인 전 경로 재활성(SC-005), 2회 요청 시 일정 불변(FR-017), 거절 2가지에서 일정 불변(SC-006). **감지 결과 복귀 두 갈래를 모두** 확인: 충돌 없으면 `ACTIVE` 복귀·`resolved_at` null·`detectionRestored=true`, 같은 `fingerprint`의 `ACTIVE`가 이미 있으면 되돌린 쪽 `INVALIDATED`·`detectionRestored=false`이고 **`uq_detections_active_fingerprint` 위반 없이 성공**(research 5절)
-- [ ] T026 [P] [US3] 되돌리기 토스트와 우선순위 UI test in android/app/src/androidTest/java/com/gilpick/progress/ReplacementUndoTest.kt
+- [x] T026 [P] [US3] 되돌리기 토스트와 우선순위 UI test in android/app/src/androidTest/java/com/gilpick/progress/ReplacementUndoTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T003
@@ -241,13 +241,13 @@ description: "F010 일정 변경 구현 task 목록"
   - review: jy
   - 선행: T027
   - 검증: T024 통과. 되돌릴 수 있는 조건 3가지를 만족하는 `place_replacements` 행이 있으면 `undoableReplacement`로 싣고 없으면 `null`이다. F007 `undoable`과 **동시에 실릴 수 있다**. 필드가 없던 기존 응답과의 호환을 test로 고정. **F006 소유 파일이므로 `jy` review**
-- [ ] T030 [US3] 진행 화면 되돌리기 상태와 우선순위 in android/app/src/main/java/com/gilpick/progress/ProgressApi.kt, android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/UndoToast.kt
+- [x] T030 [US3] 진행 화면 되돌리기 상태와 우선순위 in android/app/src/main/java/com/gilpick/progress/ProgressApi.kt, android/app/src/main/java/com/gilpick/progress/ProgressUiState.kt, android/app/src/main/java/com/gilpick/progress/UndoToast.kt
   - 영역: FE
   - 담당: hs
   - review: jy
   - 선행: T003, T026, T029
   - 검증: T026 통과. `ProgressData`에 `undoableReplacement`를 기본값 `null`로 추가해 기존 응답 호환을 유지한다. data-model 4.2의 세 필드와 **표시 우선순위 판단**을 `ProgressUiState.Content`의 파생값으로 둔다. `UndoToast`에 장소 변경 문구를 더하되 같은 composable을 공유한다. **F006 소유 파일이므로 `jy` review**
-- [ ] T031 [US3] 진행 화면 되돌리기 실행 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
+- [x] T031 [US3] 진행 화면 되돌리기 실행 in android/app/src/main/java/com/gilpick/progress/ProgressViewModel.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt
   - 영역: FE
   - 담당: hs
   - review: jy

@@ -1,5 +1,6 @@
 package com.gilpick.progress
 
+import com.gilpick.replacement.ReplacementError
 import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
@@ -44,6 +45,8 @@ sealed interface ProgressUiState {
      * @property detectionOff 자동 감지가 꺼진 원인. `null`이면 켜져 있다(UI-005).
      * @property detectionNoticeDismissed 사용자가 꺼짐 안내를 닫았다. 안내를 따르지 않아도 진행은 계속된다(FR-025).
      * @property activeDetections F008 변수 감지 중 사용자 결정 전(`ACTIVE`)인 것(DETECT-001). 조회 실패면 빈 목록이다(F009 data-model §3.3).
+     * @property replacementUndoPending F010 장소 변경을 되돌리는 중. 행동을 잠근다(F010 UI-007).
+     * @property replacementUndoError F010 마지막 장소 변경 되돌리기 실패. 토스트에 원인을 보인다.
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -60,6 +63,8 @@ sealed interface ProgressUiState {
         val detectionOff: DetectionOffReason? = null,
         val detectionNoticeDismissed: Boolean = false,
         val activeDetections: List<DetectionListItemDto> = emptyList(),
+        val replacementUndoPending: Boolean = false,
+        val replacementUndoError: ReplacementError? = null,
     ) : ProgressUiState {
 
         /**
@@ -104,8 +109,25 @@ sealed interface ProgressUiState {
                 todayRows.firstOrNull { it.item.itemId == candidate.itemId }?.item?.place?.name
             }.orEmpty()
 
-        /** 지금 되돌리기 토스트를 띄울 자동 확정. 오늘을 보고 있을 때만이다. */
-        val visibleUndoable: UndoableTransitionDto? get() = progress.undoable?.takeIf { isToday }
+        /**
+         * 지금 되돌리기 토스트를 띄울 장소 변경(F010 UI-006). 오늘을 보고 있을 때만이다.
+         *
+         * 서버가 되돌릴 수 있는 동안만 실어 주므로(F010 T029) 여기서 만료를 판정하지 않는다.
+         * 남은 시간이 0이 된 뒤에도 **무엇이 바뀌었는지는 계속 보이고** 행동만 사라진다(F010 UI-006).
+         */
+        val visibleReplacementUndo: UndoableReplacementDto?
+            get() = progress.undoableReplacement?.takeIf { isToday }
+
+        /**
+         * 지금 되돌리기 토스트를 띄울 자동 확정. 오늘을 보고 있을 때만이다.
+         *
+         * **표시 우선순위(F010 UI-006a)**: 되돌리기 표시 지점은 하나뿐이라 두 되돌리기가 동시에
+         * 가능하면 겹쳐 보이지 않게 골라야 한다. 남은 시간이 짧은 장소 변경(30초)을 먼저 보이고,
+         * 그것이 사라진 뒤에 자동 확정(5분)이 남은 시간만큼 이어서 보인다. 그래야 사용자가 두
+         * 되돌리기를 모두 쓸 수 있다.
+         */
+        val visibleUndoable: UndoableTransitionDto?
+            get() = progress.undoable?.takeIf { isToday && visibleReplacementUndo == null }
 
         /** 되돌리기 토스트가 가리키는 장소명. */
         val undoablePlaceName: String

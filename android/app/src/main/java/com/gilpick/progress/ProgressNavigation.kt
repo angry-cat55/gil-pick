@@ -23,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
+import com.gilpick.replacement.ReplacementRepository
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.ItineraryEditViewModel
 import com.gilpick.itinerary.ItineraryRepository
@@ -57,6 +58,7 @@ data class ActiveTravelRoute(
  * @param repository 진행 데이터 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param itineraryRepository 일정 개요 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param alternativeRepository F009 배너용 감지 목록 접근 지점을 만든다. `null`을 돌려주면 배너를 조회하지 않는다.
+ * @param replacementRepository F010 장소 변경 되돌리기 접근 지점을 만든다. `null`을 돌려주면 되돌리기를 보내지 않는다.
  * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.progressGraph(
@@ -65,6 +67,7 @@ fun NavGraphBuilder.progressGraph(
     repository: (Context) -> ProgressRepository = ProgressViewModel::defaultRepository,
     itineraryRepository: (Context) -> ItineraryRepository = ItineraryEditViewModel::defaultRepository,
     alternativeRepository: (Context) -> AlternativeRepository? = AlternativeRepository::default,
+    replacementRepository: (Context) -> ReplacementRepository? = ReplacementRepository::default,
     onNotifications: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
         RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f)
@@ -86,6 +89,7 @@ fun NavGraphBuilder.progressGraph(
                 ),
                 hasBackgroundPermission = { ProgressViewModel.hasBackgroundLocationPermission(context) },
                 alternativeRepository = alternativeRepository(context),
+                replacementRepository = replacementRepository(context),
             )
         }
         val viewModel: ProgressViewModel = viewModel(factory = factory)
@@ -123,6 +127,7 @@ fun NavGraphBuilder.progressGraph(
             onRetryDecision = viewModel::retryDecision,
             onDismissCandidate = viewModel::dismissCandidate,
             onUndo = viewModel::undo,
+            onUndoReplacement = viewModel::undoReplacement,
             onEnableDetection = { requestBackgroundLocation(context, backgroundLauncher) },
             onDismissDetectionNotice = viewModel::dismissDetectionNotice,
             // F009 배너 → 그 감지의 대체 장소 화면. 돌아오면 위 재개 조회가 배너를 다시 맞춘다(거절 후 소멸).
