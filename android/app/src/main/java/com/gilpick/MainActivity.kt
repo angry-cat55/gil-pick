@@ -1,11 +1,16 @@
 package com.gilpick
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gilpick.auth.AuthResult
 import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
@@ -53,6 +59,7 @@ import com.gilpick.trip.TripFormScreen
 import com.gilpick.trip.TripFormViewModel
 import com.gilpick.trip.TripListScreen
 import com.gilpick.trip.TripListViewModel
+import com.gilpick.trip.TripRepository
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.Serializable
 
@@ -81,10 +88,15 @@ class MainActivity : ComponentActivity() {
      */
     private var awaitingKakaoAuth = false
 
+    /** Android 13+ 알림 권한 결과. 거부해도 다른 기능은 그대로다(FR-020)라 결과를 쓰지 않는다. */
+    private val requestNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel.restore()
         createNotificationChannel()
+        askNotificationPermission()
         handleAppLink(intent)
         handleNotificationTap(intent)
 
@@ -121,6 +133,16 @@ class MainActivity : ComponentActivity() {
             NotificationManager.IMPORTANCE_HIGH,
         ).apply { description = getString(R.string.notification_channel_description) }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
+    /**
+     * Android 13+는 `POST_NOTIFICATIONS` 런타임 권한이 없으면 채널 알림이 표시되지 않는다(F011).
+     * 시스템이 두 번 거부 뒤에는 대화상자를 다시 띄우지 않으므로 매 진입에 불러도 된다.
+     */
+    private fun askNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     /** 푸시 알림 탭 extras를 대상으로 옮긴다. 알림 탭이 아닌 intent는 기존 대상을 건드리지 않는다. */
@@ -248,14 +270,15 @@ private fun TripRoute(
     onNotificationConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
 
-    // F011 푸시 알림 탭. NavHost가 준비된 뒤 유형별 화면으로 가고, 도착한 화면이 서버 상태를
-    // 다시 조회한다(FR-019). 대상을 특정할 수 없으면 알림 목록으로 간다.
+    // F011 푸시 알림 탭(T025·T030). NavHost가 준비된 뒤 유형별 화면으로 가고, 도착한 화면이 재개 조회로
+    // 서버 상태를 다시 받는다(FR-019, `LifecycleResumeEffect`). 대상을 특정할 수 없으면 알림 목록으로 간다.
     LaunchedEffect(pendingNotification) {
         val target = pendingNotification ?: return@LaunchedEffect
         when (val route = target.route) {
             is NotificationTarget.Alternative -> navController.navigate(AlternativePlacesRoute(route.detectionId, route.tripId))
-            is NotificationTarget.Progress -> navController.navigate(ActiveTravelRoute(route.tripId, route.tripName))
+            is NotificationTarget.Progress -> navController.navigate(ActiveTravelRoute(route.tripId, tripName(context, route.tripId)))
             null -> navController.navigate(NotificationListRoute)
         }
         onNotificationConsumed()
@@ -442,6 +465,13 @@ private fun TripRoute(
         )
     }
 }
+
+/**
+ * 진행 화면 헤더 여행명. 푸시 payload에는 없어(FR-006) 여행을 조회한다. 실패하면 빈 이름으로 가되
+ * 진행 화면이 자기 조회에서 같은 원인(오프라인·세션 만료)을 안내한다.
+ */
+private suspend fun tripName(context: Context, tripId: String): String =
+    (TripRepository.default(context).getTrip(tripId) as? AuthResult.Success)?.value?.name ?: ""
 
 /**
  * F010 변경 경로 미리보기 진입 지점.

@@ -1,10 +1,19 @@
 package com.gilpick.trip
 
+import android.content.Context
+import com.gilpick.BuildConfig
+import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthError
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
+import com.gilpick.auth.AuthService
+import com.gilpick.auth.AuthSessionStore
+import com.gilpick.auth.SessionRevocationWorker
+import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.auth.toAuthResult
 import com.gilpick.auth.toEmptyAuthResult
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -203,6 +212,25 @@ class TripRepository(
             }
         } catch (e: IOException) {
             AuthResult.Failure(AuthError.Offline(e))
+        }
+    }
+
+    companion object {
+        /** 실제 서버를 향한 repository. F009 `AlternativeRepository.default`와 같은 조립이다. */
+        fun default(context: Context): TripRepository {
+            val appContext = context.applicationContext
+            val auth = AuthRepository(
+                store = AuthSessionStore.create(appContext),
+                api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
+                appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
+                scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
+            )
+            return TripRepository(
+                api = createTripRetrofit(BuildConfig.API_BASE_URL).create(TripService::class.java),
+                auth = auth,
+            )
         }
     }
 }
