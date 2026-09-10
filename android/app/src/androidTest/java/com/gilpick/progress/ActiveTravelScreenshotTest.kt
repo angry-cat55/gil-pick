@@ -221,6 +221,28 @@ class ActiveTravelScreenshotTest {
         Narrow { Screen(content().copy(activeDetections = listOf(laterDetection(), insadongDetection()))) }
     }
 
+    // ---- F010 T036: 장소 변경 되돌리기(UI-006·UI-006a·UI-010) ----
+
+    @Test
+    fun 장소_변경_되돌리기_가능() = capture("replacement_undo_toast") { Screen(replacementUndoContent(NOW_UNDOABLE)) }
+
+    @Test
+    fun 장소_변경_되돌리기_가능_360dp_최대_글자배율() = capture("replacement_undo_toast_360dp_fontscale2") {
+        Narrow { Screen(replacementUndoContent(NOW_UNDOABLE)) }
+    }
+
+    @Test
+    fun 장소_변경_되돌리기_만료() = capture("replacement_undo_expired") { Screen(replacementUndoContent(NOW_UNDO_EXPIRED)) }
+
+    @Test
+    fun 장소_변경_되돌리기_만료_360dp_최대_글자배율() = capture("replacement_undo_expired_360dp_fontscale2") {
+        Narrow { Screen(replacementUndoContent(NOW_UNDO_EXPIRED)) }
+    }
+
+    /** 장소 변경을 승인한 직후. 자동 확정 되돌리기도 살아 있어 장소 변경 쪽이 먼저 보인다(UI-006a). */
+    private fun replacementUndoContent(now: java.time.Instant) =
+        content(progress = movingProgress().copy(undoable = arrivalUndoable(), undoableReplacement = placeReplacementUndo()), now = now)
+
     /** 북촌한옥마을 도착이 자동 확정된 직후의 화면. 토스트와 목록 행의 `자동 처리` 표시가 함께 보인다. */
     private fun undoableContent(now: java.time.Instant) =
         content(progress = arrivedProgress().copy(undoable = arrivalUndoable()), now = now)
