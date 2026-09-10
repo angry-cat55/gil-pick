@@ -161,10 +161,10 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | DETECT-004 | 변수 감지 | 감지 거절 (기존 일정 그대로 진행) | [ ] | [X] | POST | `/api/v1/detections/{detectionId}/dismiss` |
 | ALT-001 | 대체 장소 | 추천 후보 조회 | [ ] | [X] | GET | `/api/v1/detections/{detectionId}/alternatives` |
 | ALT-002 | 대체 장소 | 대체 장소 직접 검색 | [ ] | [X] | GET | `/api/v1/detections/{detectionId}/alternatives/search` |
-| REPL-001 | 일정 변경 | 대체 경로 미리보기 생성 | [ ] | [ ] | POST | `/api/v1/detections/{detectionId}/route-previews` |
-| REPL-002 | 일정 변경 | 대체 장소 승인 | [ ] | [ ] | POST | `/api/v1/route-previews/{previewId}/approve` |
-| REPL-003 | 일정 변경 | 대체 장소 거절 | [ ] | [ ] | POST | `/api/v1/route-previews/{previewId}/reject` |
-| REPL-004 | 일정 변경 | 대체 장소 변경 되돌리기 | [ ] | [ ] | POST | `/api/v1/replacements/{replacementId}/undo` |
+| REPL-001 | 일정 변경 | 대체 경로 미리보기 생성 | [ ] | [X] | POST | `/api/v1/detections/{detectionId}/route-previews` |
+| REPL-002 | 일정 변경 | 대체 장소 승인 | [ ] | [X] | POST | `/api/v1/route-previews/{previewId}/approve` |
+| REPL-003 | 일정 변경 | 대체 장소 거절 | [ ] | [X] | POST | `/api/v1/route-previews/{previewId}/reject` |
+| REPL-004 | 일정 변경 | 대체 장소 변경 되돌리기 | [ ] | [X] | POST | `/api/v1/replacements/{replacementId}/undo` |
 | NOTI-001 | 알림 | 알림 목록 조회 | [ ] | [X] | GET | `/api/v1/notifications` |
 | NOTI-002 | 알림 | 알림 읽음 처리 | [ ] | [X] | PATCH | `/api/v1/notifications/{notificationId}/read` |
 | NOTI-003 | 알림 | 모든 알림 읽음 처리 | [ ] | [X] | PATCH | `/api/v1/notifications/read-all` |
@@ -1081,7 +1081,14 @@ Response `200`:
       }
     ],
     "pendingCandidate": null,
-    "undoable": null
+    "undoable": null,
+    "undoableReplacement": {
+      "replacementId": "uuid",
+      "itemId": "uuid",
+      "originalPlaceName": "기존 장소",
+      "newPlaceName": "대체 장소",
+      "undoExpiresAt": "2026-08-22T12:00:30+09:00"
+    }
   },
   "meta": {
     "requestId": "uuid"
@@ -1090,7 +1097,7 @@ Response `200`:
 ```
 
 - `detectionTargets`는 저장하지 않고 날짜 상태와 `progress_transitions` 이력에서 매 조회마다 계산한다. `EN_ROUTE` 항목의 `ARRIVAL` 하나와 `ARRIVED` 항목의 `DEPARTURE` 하나만 담기며, 질문 횟수 상한·재질문/재개 대기·`아직 머무는 중`·되돌리기 2회 중단에 걸린 대상은 빠진다. 당일이 완료되면 빈 배열이다.
-- `pendingCandidate`는 지금 확인을 기다리는 후보(PROG-003이 만든 것), `undoable`은 무응답 자동 확정 뒤 되돌리기 창(기본 5분)이 아직 열린 전환이다. 둘 다 서버가 채우며 앱이 추정하지 않는다.
+- `pendingCandidate`는 지금 확인을 기다리는 후보(PROG-003이 만든 것), `undoable`은 무응답 자동 확정 뒤 되돌리기 창(기본 5분)이 아직 열린 전환이다. `undoableReplacement`는 승인 후 30초 안이고 후속 일정 변경이 없는 최근 장소 변경이다. 셋 모두 서버가 채우며 앱이 추정하지 않는다.
 - 각 `items[].processingSource`는 현재 상태를 사용자가 처리했거나 확인했으면 `MANUAL`, 무응답 자동 확정이면 `AUTO`다. 처리 이력이 없으면 `null`이며, `undoable`이 만료되어 `null`이 된 뒤에도 현재 상태가 바뀌지 않았다면 `AUTO`를 유지한다.
 - 각 `items[].eventRejectionReason`은 서버 수신 시각 기준 최신 위치 이벤트가 거절됐을 때 그 이유를 반환한다. 이벤트 이력이 없거나 이후 정상 이벤트가 수락되면 `null`이다.
 - 이 조회는 응답을 만들기 전에 만료된 무응답 후보를 먼저 자동 확정한다(지연 확정). 따라서 `items`와 `progressVersion`은 확정이 반영된 값으로 내려간다.
@@ -1718,8 +1725,9 @@ Request Body:
 
 ```json
 {
-  "alternativePlaceId": "tourapi:123",
-  "itineraryVersion": 8
+  "placeId": "tourapi:123",
+  "candidateId": "signed-token-or-null",
+  "scheduleVersion": 8
 }
 ```
 
@@ -1731,17 +1739,36 @@ Response `200`:
   "data": {
     "previewId": "uuid",
     "detectionId": "uuid",
-    "originalItemId": "uuid",
+    "tripId": "uuid",
+    "date": "2026-08-22",
+    "itemId": "uuid",
+    "originalPlace": {
+      "placeId": "tourapi:100",
+      "name": "기존 장소",
+      "category": "OTHER",
+      "latitude": 37.57,
+      "longitude": 126.97
+    },
     "alternativePlace": {
       "placeId": "tourapi:123",
-      "name": "대체 장소"
+      "name": "대체 장소",
+      "category": "OTHER",
+      "latitude": 37.59,
+      "longitude": 126.99
+    },
+    "detectionReason": "도착 시각에 비가 예보돼요",
+    "comparison": {
+      "totalDurationSeconds": {"before": 3200, "after": 3480},
+      "totalDistanceMeters": {"before": 7000, "after": 7400},
+      "estimatedArrivalAt": {"before": "2026-08-22T13:00:00+09:00", "after": "2026-08-22T13:08:00+09:00"},
+      "closesAt": {"before": null, "after": "2026-08-22T18:00:00+09:00"}
     },
     "route": {
-      "totalDurationMinutes": 58,
+      "totalDurationSeconds": 3480,
       "totalDistanceMeters": 7400,
       "segments": []
     },
-    "itineraryVersion": 8,
+    "scheduleVersion": 8,
     "expiresAt": "2026-08-22T12:10:00+09:00"
   },
   "meta": {
@@ -1752,8 +1779,10 @@ Response `200`:
 
 - 후보 선택만으로 일정을 변경하지 않는다.
 - 미리보기 생성 후 사용자 승인 전까지 실제 일정과 경로는 유지한다.
+- `candidateId`가 있으면 F009 발급 token을 검증하고, 직접 검색 선택은 `null`로 보낸다.
+- 비교 네 항목은 모두 `{before, after}`이며 확보하지 못한 값은 `null`이다.
 
-주요 오류: `403`, `404`, `409 VERSION_CONFLICT`, `422`, `502`, `504`
+주요 오류: `400 INVALID_REQUEST | INVALID_CANDIDATE`, `403 TRIP_FORBIDDEN`, `404 DETECTION_NOT_FOUND | PLACE_NOT_FOUND`, `409 DETECTION_NOT_ACTIVE | ITEM_ALREADY_VISITED | PLACE_ALREADY_IN_SCHEDULE | DAY_NOT_IN_PROGRESS`, `502 ROUTE_PROVIDER_ERROR`, `504 ROUTE_PROVIDER_TIMEOUT`
 
 ### REPL-002 대체 장소 승인
 
@@ -1772,9 +1801,12 @@ Response `200`:
     "replacementId": "uuid",
     "tripId": "uuid",
     "date": "2026-08-22",
-    "replacedItemId": "uuid",
+    "itemId": "uuid",
+    "originalPlaceId": "tourapi:100",
     "newPlaceId": "tourapi:123",
-    "itineraryVersion": 9,
+    "newPlaceName": "대체 장소",
+    "originalPlaceName": "기존 장소",
+    "scheduleVersion": 9,
     "routeStatus": "READY",
     "undoExpiresAt": "2026-08-22T12:00:30+09:00"
   },
@@ -1785,12 +1817,13 @@ Response `200`:
 ```
 
 정책:
-- 일정·경로·변경 이력을 하나의 승인 작업으로 저장
+- 미리보기에서 계산한 경로를 확정하므로 승인 transaction 안에서는 provider를 호출하지 않음
+- 일정·경로·변경 이력·감지 결과 `ACTIVE → RESOLVED`를 하나의 승인 작업으로 저장
 - 승인 후 30초까지 되돌리기 허용
 - 30초 경계 포함
 - 후속 일정 변경 발생 시 기존 되돌리기 비활성화
 
-주요 오류: `403`, `404`, `409 PREVIEW_EXPIRED`, `409 VERSION_CONFLICT`, `409 ALREADY_APPROVED`, `502`
+주요 오류: `403 TRIP_FORBIDDEN`, `404 PREVIEW_NOT_FOUND`, `409 PREVIEW_EXPIRED | PREVIEW_SUPERSEDED | PREVIEW_REJECTED | ALREADY_APPROVED | VERSION_CONFLICT | ITEM_ALREADY_VISITED | ALTERNATIVE_UNAVAILABLE | DETECTION_NOT_ACTIVE`
 
 ### REPL-003 대체 장소 거절
 
@@ -1802,7 +1835,7 @@ Response: `204 No Content`
 
 - 미리보기를 폐기하고 기존 일정과 경로는 변경하지 않는다.
 
-주요 오류: `403`, `404`, `409 ALREADY_APPROVED`
+주요 오류: `403 TRIP_FORBIDDEN`, `404 PREVIEW_NOT_FOUND`, `409 ALREADY_APPROVED`
 
 ### REPL-004 대체 장소 변경 되돌리기
 
@@ -1818,8 +1851,9 @@ Response `200`:
   "data": {
     "replacementId": "uuid",
     "restored": true,
-    "itineraryVersion": 10,
-    "routeStatus": "READY"
+    "scheduleVersion": 10,
+    "routeStatus": "READY",
+    "detectionRestored": true
   },
   "meta": {
     "requestId": "uuid"
@@ -1827,11 +1861,9 @@ Response `200`:
 }
 ```
 
-주요 오류:
-- `404`
-- `409 UNDO_EXPIRED`
-- `409 FOLLOW_UP_CHANGE_EXISTS`
-- `409 ALREADY_UNDONE`
+되돌리기는 장소·경로·ETA와 감지 결과를 한 transaction으로 복원한다. 같은 `fingerprint`의 새 `ACTIVE` 감지가 있으면 기존 감지는 `INVALIDATED`가 되고 `detectionRestored=false`다. 이미 되돌린 요청은 최초 결과를 그대로 반환한다.
+
+주요 오류: `403 TRIP_FORBIDDEN`, `404 REPLACEMENT_NOT_FOUND`, `409 UNDO_EXPIRED | FOLLOW_UP_CHANGE_EXISTS`
 
 ## 9. 알림·기기·사용자 설정
 

@@ -78,15 +78,10 @@ async def create_route_preview(
     service: Annotated[ReplacementService, Depends(get_replacement_service)],
 ) -> JSONResponse:
     """소유한 ACTIVE 감지의 대체 경로를 실제 일정과 분리해 계산한다."""
-    try:
-        data = await service.create_preview(
-            detection_id=detection_id, user_id=principal.user_id,
-            payload=payload, idempotency_key=idempotency_key,
-        )
-    except AppError as exc:
-        if exc.status_code == 403 and exc.code == "DETECTION_FORBIDDEN":
-            raise AppError(403, "TRIP_FORBIDDEN", exc.message) from exc
-        raise
+    data = await service.create_preview(
+        detection_id=detection_id, user_id=principal.user_id,
+        payload=payload, idempotency_key=idempotency_key,
+    )
     return success_response(request, data)
 
 

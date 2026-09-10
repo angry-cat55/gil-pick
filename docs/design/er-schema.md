@@ -40,7 +40,7 @@ MVP는 16개 테이블로 구성한다.
 | 진행 구간 | `progress_segments` | 계획 경로에 없는 시작·건너뛰기 구간의 이동시간 |
 | 변수 감지 | `detections` | 혼잡·날씨·운영시간 평가 사건 |
 | 경로 미리보기 | `route_previews` | 승인 전 대체 경로 임시 데이터 |
-| 장소 변경 | `replacements` | 승인된 장소·경로 변경과 되돌리기 |
+| 장소 변경 | `place_replacements` | 승인된 장소·경로 변경과 되돌리기 |
 | 알림 | `notifications` | 사용자 알림과 읽음 상태 |
 | 멱등성 | `idempotency_records` | 중복 생성·승인 요청 방지 |
 
@@ -437,40 +437,46 @@ erDiagram
 |---|---|---:|---|
 | `preview_id` | uuid | N | PK |
 | `detection_id` | uuid | N | FK → `detections.detection_id` |
-| `original_item_id` | uuid | N | FK → `itinerary_items.item_id` |
+| `trip_day_id` | uuid | N | FK → `trip_days.trip_day_id` |
+| `item_id` | uuid | N | FK → `itinerary_items.item_id` |
 | `original_place_id` | uuid | N | FK → `places.place_id` |
-| `replacement_place_id` | uuid | N | FK → `places.place_id` |
-| `base_route_id` | uuid | Y | FK → `routes.route_id` |
+| `alternative_place_id` | uuid | N | FK → `places.place_id` |
 | `schedule_version` | integer | N | 미리보기 기준 버전 |
-| `candidate_snapshot` | jsonb | N | 점수·거리·운영상태·추천 근거 |
-| `proposed_route` | jsonb | N | 승인 전 임시 경로와 비교값 |
-| `status` | varchar(20) | N | `OPEN`, `APPROVED`, `REJECTED`, `EXPIRED` |
+| `idempotency_key` | varchar(255) | N | REPL-001 멱등 키 |
+| `request_fingerprint` | varchar(64) | N | 같은 키의 다른 요청 탐지 |
+| `route_payload` | jsonb | N | 승인 전 계산을 끝낸 대체 경로 |
+| `total_duration_seconds` | integer | N | 대체 경로 총 이동 시간 |
+| `total_distance_meters` | integer | N | 대체 경로 총 이동 거리 |
+| `provider` | varchar(20) | N | 경로 제공자 |
+| `comparison` | jsonb | N | 네 비교 항목의 이전·이후 값 |
+| `response_snapshot` | jsonb | N | REPL-001 최초 응답 |
+| `status` | varchar(20) | N | `PENDING`, `APPROVED`, `REJECTED`, `SUPERSEDED` |
 | `expires_at` | timestamptz | N | 미리보기 만료시각 |
-| `decided_at` | timestamptz | Y | 승인·거절 시각 |
 | `created_at` | timestamptz | N | 생성 시각 |
 
 미리보기 생성만으로 `itinerary_items`와 활성 `routes`는 변경하지 않는다.
 
-### 8.3 `replacements`
+### 8.3 `place_replacements`
 
 | 컬럼 | 타입 | NULL | 설명 |
 |---|---|---:|---|
 | `replacement_id` | uuid | N | PK |
 | `preview_id` | uuid | N | UNIQUE FK → `route_previews.preview_id` |
+| `detection_id` | uuid | N | FK → `detections.detection_id` |
+| `trip_day_id` | uuid | N | FK → `trip_days.trip_day_id` |
 | `item_id` | uuid | N | FK → `itinerary_items.item_id` |
 | `original_place_id` | uuid | N | FK → `places.place_id` |
-| `replacement_place_id` | uuid | N | FK → `places.place_id` |
-| `item_before` | jsonb | N | 장소·체류시간·상태 복구 스냅샷 |
-| `old_route_id` | uuid | Y | FK → `routes.route_id` |
-| `new_route_id` | uuid | N | FK → `routes.route_id` |
-| `schedule_version_before` | integer | N | 승인 전 버전 |
-| `schedule_version_after` | integer | N | 승인 후 버전 |
-| `status` | varchar(20) | N | `ACTIVE`, `UNDONE` |
+| `new_place_id` | uuid | N | FK → `places.place_id` |
+| `before_schedule_version` | integer | N | 승인 전 버전 |
+| `approved_schedule_version` | integer | N | 승인 후 버전 |
 | `approved_at` | timestamptz | N | 승인 시각 |
 | `undo_expires_at` | timestamptz | N | 승인 후 30초 |
+| `idempotency_key` | varchar(255) | N | REPL-002 멱등 키 |
+| `response_snapshot` | jsonb | N | 최초 승인 응답과 최초 되돌리기 결과 |
 | `undone_at` | timestamptz | Y | 되돌린 시각 |
+| `undo_schedule_version` | integer | Y | 되돌리기로 오른 일정 버전 |
 
-승인은 preview 검증, item 변경, 새 route 생성·활성화, 기존 route 비활성화, replacement 저장, 일정 버전 증가를 한 트랜잭션으로 처리한다. 승인 뒤 다른 일정 변경이 발생하면 `schedule_version` 불일치로 되돌리기를 거부한다.
+승인은 preview 검증, item 장소 변경, 새 route 생성·활성화, 기존 route 비활성화, `place_replacements` 저장, 일정 버전 증가를 한 트랜잭션으로 처리한다. 승인 뒤 다른 일정 변경이 발생하면 `schedule_version` 불일치로 되돌리기를 거부한다.
 
 ## 9. 알림·멱등성
 
@@ -531,8 +537,7 @@ FCM 기기별 전달 이력은 저장하지 않는다. 전송 중 무효 Token�
 | `transition_decision` | `CONFIRM`, `NOT_ARRIVED`, `STILL_HERE` |
 | `detection_type` | `CONGESTION`, `WEATHER`, `OPERATING_HOURS` |
 | `detection_status` | `ACTIVE`, `RESOLVED`, `DISMISSED`, `INVALIDATED` |
-| `preview_status` | `OPEN`, `APPROVED`, `REJECTED`, `EXPIRED` |
-| `replacement_status` | `ACTIVE`, `UNDONE` |
+| `preview_status` | `PENDING`, `APPROVED`, `REJECTED`, `SUPERSEDED` |
 | `notification_type` | `PLACE_CHANGE_SUGGESTION`, `ARRIVAL_CHECK`, `DEPARTURE_CHECK`, `ARRIVAL_AUTO_CONFIRMED`, `DEPARTURE_AUTO_CONFIRMED` |
 
 enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부담을 줄인다.
@@ -561,10 +566,10 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 ### 대체 장소 승인
 
 1. preview 만료, 상태, 일정 버전, 후보 운영상태를 재검증한다.
-2. 기존 item의 상태는 유지하면서 장소와 필요한 체류시간을 변경한다.
-3. `proposed_route`를 새 `routes` 행으로 만들고 활성화한다.
+2. 기존 item의 상태·순서·체류시간·이동수단은 유지하면서 장소만 변경한다.
+3. 미리보기의 `route_payload`를 새 `routes` 행으로 만들고 활성화한다.
 4. 기존 route를 `HISTORICAL`로 변경한다.
-5. `replacements`를 만들고 `schedule_version`을 증가시킨다.
+5. `place_replacements`를 만들고 `schedule_version`을 증가시킨다.
 
 ## 12. 인덱스
 
@@ -581,8 +586,8 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `progress_transitions` | unique `(trip_day_id, idempotency_key)`, `(trip_day_id, status, detected_at)`, `(auto_finalize_at)` for pending rows |
 | `progress_segments` | partial unique `(trip_day_id, from_item_id, to_item_id)` where `from_item_id is not null`, partial unique `(trip_day_id, to_item_id)` where `from_item_id is null` |
 | `detections` | active fingerprint partial unique, `(trip_day_id, status, detected_at)` |
-| `route_previews` | `(status, expires_at)`, `(original_item_id, created_at)` |
-| `replacements` | unique `(preview_id)`, `(item_id, approved_at)` |
+| `route_previews` | unique `(detection_id, idempotency_key)`, active pending unique `(detection_id)`, `(detection_id, created_at desc)` |
+| `place_replacements` | unique `(preview_id)`, `(trip_day_id, approved_at desc)` |
 | `notifications` | `(user_id, read_at, created_at desc)`, `(created_at)`, unique `(user_id, dedup_key)` where `dedup_key is not null`, `(created_at)` where `sent_at is null` |
 | `idempotency_records` | unique `(user_id, scope, idempotency_key)`, `(expires_at)` |
 
@@ -598,7 +603,10 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | DETECT-001·002·003 | `detections`, `trip_days`, `itinerary_items`, `places` (읽기) |
 | DETECT-004 | `detections` (`status`·`resolved_at` 쓰기) |
 | ALT-001·ALT-002 | `detections`, `itinerary_items`, `places` (읽기 전용, 후보 저장 없음) |
-| REPL | `route_previews`, `replacements`, `routes`, `itinerary_items` |
+| REPL-001 | `detections`, `trip_days`, `itinerary_items`, `places`, `routes`(읽기), `route_previews` |
+| REPL-002 | `route_previews`, `place_replacements`, `routes`, `trip_days`, `itinerary_items`, `detections` |
+| REPL-003 | `route_previews` |
+| REPL-004 | `place_replacements`, `routes`, `trip_days`, `itinerary_items`, `detections` |
 | NOTI | `notifications`, `device_sessions` |
 
 ## 14. 초안에서 제외한 테이블
