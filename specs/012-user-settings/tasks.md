@@ -18,7 +18,7 @@
 
 **Purpose**: 구현 정본과 환경 입력을 먼저 확정한다.
 
-- [ ] T001 Figma Make 원본과 저장소 사본에서 다중 알림 토글·감지 기준·초기화를 제거하고 단일 장소 변경 제안 알림 토글로 동기화 in docs/design/figma-make/src/screens/SettingsScreen.tsx
+- [x] T001 Figma Make 원본과 저장소 사본에서 다중 알림 토글·감지 기준·초기화를 제거하고 단일 장소 변경 제안 알림 토글로 동기화 in docs/design/figma-make/src/screens/SettingsScreen.tsx
   - 영역: FE
   - 담당: hs
   - 선행: 없음
@@ -38,7 +38,7 @@
 
 **⚠️ CRITICAL**: 이 단계가 끝나야 사용자 스토리 구현을 시작한다.
 
-- [ ] T003 [P] Android 설정 API DTO·오류 code·Retrofit interface의 계약 test 작성 in android/app/src/test/java/com/gilpick/settings/SettingsApiTest.kt
+- [x] T003 [P] Android 설정 API DTO·오류 code·Retrofit interface의 계약 test 작성 in android/app/src/test/java/com/gilpick/settings/SettingsApiTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: 없음
@@ -56,7 +56,7 @@
   - 선행: T004
   - 검증: T004 통과 및 `specs/012-user-settings/contracts/preferences.openapi.yaml`과 field·required 조건 일치
 
-- [ ] T006 Android 설정 API DTO·Retrofit interface 구현 in android/app/src/main/java/com/gilpick/settings/SettingsApi.kt
+- [x] T006 Android 설정 API DTO·Retrofit interface 구현 in android/app/src/main/java/com/gilpick/settings/SettingsApi.kt
   - 영역: FE
   - 담당: hs
   - 선행: T003
@@ -86,7 +86,7 @@
   - 선행: T005
   - 검증: 200/400/401 공통 envelope, 다른 사용자 row 불변, 재조회·동시 변경 test가 구현 전 실패
 
-- [ ] T009 [P] [US1] 설정 repository와 빠른 연속 선택 ViewModel unit test 작성 in android/app/src/test/java/com/gilpick/settings/SettingsRepositoryTest.kt and android/app/src/test/java/com/gilpick/settings/SettingsViewModelTest.kt
+- [x] T009 [P] [US1] 설정 repository와 빠른 연속 선택 ViewModel unit test 작성 in android/app/src/test/java/com/gilpick/settings/SettingsRepositoryTest.kt and android/app/src/test/java/com/gilpick/settings/SettingsViewModelTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T006
@@ -110,25 +110,25 @@
   - 선행: T011
   - 검증: OFF 뒤 새 장소 변경 제안 미생성, detection 계속 생성, 도착·출발 확인 계속 생성, 재활성화 뒤 누락분 미소급 test 통과
 
-- [ ] T013 [US1] 인증된 PREF 호출과 서버 정본 mapping을 구현 in android/app/src/main/java/com/gilpick/settings/SettingsRepository.kt
+- [x] T013 [US1] 인증된 PREF 호출과 서버 정본 mapping을 구현 in android/app/src/main/java/com/gilpick/settings/SettingsRepository.kt
   - 영역: FE
   - 담당: hs
   - 선행: T006, T009
   - 검증: GET/PATCH가 F001 `withAuthorizedCall`의 401 refresh/replay를 재사용하고 repository 관련 T009가 통과하며 public repository 함수에 필요한 KDoc이 있는지 확인
 
-- [ ] T014 [US1] loading·content·error와 단일 in-flight·마지막 희망값 상태 전이를 구현 in android/app/src/main/java/com/gilpick/settings/SettingsUiState.kt and android/app/src/main/java/com/gilpick/settings/SettingsViewModel.kt
+- [x] T014 [US1] loading·content·error와 단일 in-flight·마지막 희망값 상태 전이를 구현 in android/app/src/main/java/com/gilpick/settings/SettingsUiState.kt and android/app/src/main/java/com/gilpick/settings/SettingsViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T013
   - 검증: ViewModel 관련 T009 통과, 조회 1초 초과 전에는 loading을 노출하지 않고 실패 시 마지막 성공값과 재시도를 유지하며 public 상태 변경 함수에 필요한 KDoc이 있는지 확인
 
-- [ ] T015 [US1] 단일 장소 변경 제안 알림 설정 영역과 상태별 UI 구현 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt
+- [x] T015 [US1] 단일 장소 변경 제안 알림 설정 영역과 상태별 UI 구현 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T001, T014
   - 검증: content·지연 loading·error·저장 중 상태 확인, empty 미적용, 48×48dp·8dp·색 외 상태 전달·최대 글자 크기 기준 충족
 
-- [ ] T016 [US1] 설정 변경 성공·실패·연속 선택 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsPreferenceTest.kt
+- [x] T016 [US1] 설정 변경 성공·실패·연속 선택 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsPreferenceTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T015
