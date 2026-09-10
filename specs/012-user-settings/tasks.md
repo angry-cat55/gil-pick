@@ -18,7 +18,7 @@
 
 **Purpose**: 구현 정본과 환경 입력을 먼저 확정한다.
 
-- [ ] T001 Figma Make 원본과 저장소 사본에서 다중 알림 토글·감지 기준·초기화를 제거하고 단일 장소 변경 제안 알림 토글로 동기화 in docs/design/figma-make/src/screens/SettingsScreen.tsx
+- [x] T001 Figma Make 원본과 저장소 사본에서 다중 알림 토글·감지 기준·초기화를 제거하고 단일 장소 변경 제안 알림 토글로 동기화 in docs/design/figma-make/src/screens/SettingsScreen.tsx
   - 영역: FE
   - 담당: hs
   - 선행: 없음
