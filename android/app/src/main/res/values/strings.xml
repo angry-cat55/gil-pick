@@ -495,4 +495,15 @@
     <string name="alternative_search_empty_hint">띄어쓰기나 철자를 확인해 주세요</string>
     <string name="alternative_search_from_origin">기존 장소에서 %1$s</string>
     <string name="alternative_in_schedule">이미 일정에 있음</string>
+
+    <!-- F011 알림 -->
+    <string name="notification_channel_name">여행 알림</string>
+    <string name="notification_channel_description">도착·출발 확인과 장소 변경 제안을 알려요</string>
+    <string name="notification_list_title">알림</string>
+    <string name="notification_monitor_title">변수 감지</string>
+    <string name="notification_group_today">오늘</string>
+    <string name="notification_group_yesterday">어제</string>
+    <string name="notification_group_earlier">그 이전</string>
+    <string name="notification_time_just_now">방금</string>
+    <string name="notification_time_minutes_ago">%1$d분 전</string>
 </resources>

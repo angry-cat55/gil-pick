@@ -1,5 +1,7 @@
 package com.gilpick
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,6 +13,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
@@ -20,11 +24,17 @@ import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
+import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.SelectedAlternative
 import com.gilpick.alternative.alternativeGraph
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.itineraryGraph
 import com.gilpick.itinerary.returnAddToSchedule
+import com.gilpick.notification.GilpickMessagingService
+import com.gilpick.notification.NotificationListRoute
+import com.gilpick.notification.NotificationTarget
+import com.gilpick.notification.PendingNotificationTarget
+import com.gilpick.notification.notificationGraph
 import com.gilpick.place.PlaceDetailRoute
 import com.gilpick.place.placeGraph
 import com.gilpick.progress.ActiveTravelRoute
@@ -49,11 +59,19 @@ import kotlinx.serialization.Serializable
 /**
  * 앱의 단일 Activity entrypoint.
  *
- * `singleTask`이므로 인증 완료 App Link는 새 Activity가 아니라 [onNewIntent]로 도착한다.
+ * `singleTask`이므로 인증 완료 App Link와 푸시 알림 탭은 새 Activity가 아니라 [onNewIntent]로 도착한다.
  */
 class MainActivity : ComponentActivity() {
 
     private val viewModel: AuthViewModel by viewModels { AuthViewModel.factory(this) }
+
+    /**
+     * 아직 이동하지 않은 푸시 알림 탭 대상(F011, data-model.md 4.3).
+     *
+     * 로그인 전에 탭하면 인증이 끝나 `NavHost`가 생길 때까지 들고 있다가 이동한다. 이동한 뒤
+     * 비우므로 화면 재생성으로 같은 intent가 다시 와도 두 번 가지 않는다.
+     */
+    private var pendingNotification by mutableStateOf<PendingNotificationTarget?>(null)
 
     /**
      * Custom Tab을 열어 두고 결과를 기다리는 중인지 여부.
@@ -66,7 +84,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewModel.restore()
+        createNotificationChannel()
         handleAppLink(intent)
+        handleNotificationTap(intent)
 
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
@@ -77,6 +97,8 @@ class MainActivity : ComponentActivity() {
                 onRetryRefresh = viewModel::retryRefresh,
                 onLogout = viewModel::logout,
                 onSessionExpired = viewModel::onSessionExpired,
+                pendingNotification = pendingNotification,
+                onNotificationConsumed = { pendingNotification = null },
             )
         }
     }
@@ -85,6 +107,25 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleAppLink(intent)
+        handleNotificationTap(intent)
+    }
+
+    /**
+     * F011 알림 채널. Android 8 이상은 채널 없이 알림을 표시할 수 없어 첫 진입에 만든다.
+     * 이미 있으면 시스템이 무시하므로 매번 불러도 된다.
+     */
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            GilpickMessagingService.CHANNEL_ID,
+            getString(R.string.notification_channel_name),
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply { description = getString(R.string.notification_channel_description) }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
+    /** 푸시 알림 탭 extras를 대상으로 옮긴다. 알림 탭이 아닌 intent는 기존 대상을 건드리지 않는다. */
+    private fun handleNotificationTap(intent: Intent?) {
+        PendingNotificationTarget.fromIntent(intent)?.let { pendingNotification = it }
     }
 
     override fun onResume() {
@@ -127,6 +168,8 @@ class MainActivity : ComponentActivity() {
  * @param onRetryRefresh 통신 장애로 중단된 로그인 상태 갱신을 다시 시도한다.
  * @param onLogout 현재 기기에서 로그아웃한다.
  * @param onSessionExpired 보호 기능 호출에서 자격이 무효로 확정됐다. 로그인 화면으로 돌린다.
+ * @param pendingNotification 아직 이동하지 않은 푸시 알림 탭 대상. 로그인 뒤 `NavHost`가 처리한다.
+ * @param onNotificationConsumed [pendingNotification]으로 이동을 마쳤다. 호출자가 대상을 비운다.
  */
 @Composable
 fun GilpickApp(
@@ -137,11 +180,13 @@ fun GilpickApp(
     onRetryRefresh: () -> Unit = {},
     onLogout: () -> Unit = {},
     onSessionExpired: () -> Unit = {},
+    pendingNotification: PendingNotificationTarget? = null,
+    onNotificationConsumed: () -> Unit = {},
 ) {
     // 테마를 여기서 적용해 화면과 test·preview가 같은 토큰 위에서 동작하게 한다.
     GilpickTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            AuthRoute(state, onKakaoLogin, onRetry, modifier, onRetryRefresh, onLogout, onSessionExpired)
+            AuthRoute(state, onKakaoLogin, onRetry, modifier, onRetryRefresh, onLogout, onSessionExpired, pendingNotification, onNotificationConsumed)
         }
     }
 }
@@ -156,9 +201,17 @@ private fun AuthRoute(
     onRetryRefresh: () -> Unit,
     onLogout: () -> Unit,
     onSessionExpired: () -> Unit,
+    pendingNotification: PendingNotificationTarget?,
+    onNotificationConsumed: () -> Unit,
 ) {
     when (state) {
-        is AuthUiState.Authenticated -> TripRoute(modifier = modifier, onLogout = onLogout, onSessionExpired = onSessionExpired)
+        is AuthUiState.Authenticated -> TripRoute(
+            modifier = modifier,
+            onLogout = onLogout,
+            onSessionExpired = onSessionExpired,
+            pendingNotification = pendingNotification,
+            onNotificationConsumed = onNotificationConsumed,
+        )
 
         // 통신 장애로 갱신이 중단된 상태다. session은 유지한 채 보호 기능만 막는다.
         is AuthUiState.RefreshOffline -> RefreshOfflineScreen(
@@ -187,8 +240,26 @@ private fun AuthRoute(
  * 검사하지 못한다.
  */
 @Composable
-private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired: () -> Unit) {
+private fun TripRoute(
+    modifier: Modifier,
+    onLogout: () -> Unit,
+    onSessionExpired: () -> Unit,
+    pendingNotification: PendingNotificationTarget?,
+    onNotificationConsumed: () -> Unit,
+) {
     val navController = rememberNavController()
+
+    // F011 푸시 알림 탭. NavHost가 준비된 뒤 유형별 화면으로 가고, 도착한 화면이 서버 상태를
+    // 다시 조회한다(FR-019). 대상을 특정할 수 없으면 알림 목록으로 간다.
+    LaunchedEffect(pendingNotification) {
+        val target = pendingNotification ?: return@LaunchedEffect
+        when (val route = target.route) {
+            is NotificationTarget.Alternative -> navController.navigate(AlternativePlacesRoute(route.detectionId, route.tripId))
+            is NotificationTarget.Progress -> navController.navigate(ActiveTravelRoute(route.tripId, route.tripName))
+            null -> navController.navigate(NotificationListRoute)
+        }
+        onNotificationConsumed()
+    }
 
     NavHost(
         navController = navController,
@@ -351,6 +422,15 @@ private fun TripRoute(modifier: Modifier, onLogout: () -> Unit, onSessionExpired
             onSessionExpired = onSessionExpired,
             onSelectPlace = ::openRoutePreview,
             onDismissed = { navController.popBackStack() },
+        )
+
+        // F011 알림 목록·감지 목록. destination 정의는 com.gilpick.notification이 소유한다. 알림 탭은
+        // 유형에 따라 위 alternativeGraph·progressGraph로 간다. 헤더 벨 진입점은 T036이 붙인다.
+        notificationGraph(
+            navController,
+            onSessionExpired = onSessionExpired,
+            onOpenDetection = { detectionId, tripId -> navController.navigate(AlternativePlacesRoute(detectionId, tripId)) },
+            onOpenProgress = { tripId, tripName -> navController.navigate(ActiveTravelRoute(tripId, tripName)) },
         )
 
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
