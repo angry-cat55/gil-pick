@@ -109,7 +109,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: T005
   - 검증: quickstart BE 1~3. 미리보기 생성 전후로 `schedule_version`·`itinerary_items.place_id`·활성 `routes`·`detections.status`가 하나도 바뀌지 않는다(FR-001, SC-002). 후보 식별자 검증 4가지(정상·다른 감지 결과·만료·`candidateId` 없이 직접 검색)와 `SUPERSEDED`·`PREVIEW_EXPIRED` 판정 포함
-- [ ] T011 [P] [US1] 미리보기 화면 UI test in android/app/src/androidTest/java/com/gilpick/replacement/RoutePreviewScreenTest.kt
+- [x] T011 [P] [US1] 미리보기 화면 UI test in android/app/src/androidTest/java/com/gilpick/replacement/RoutePreviewScreenTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T003
@@ -132,17 +132,17 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: T012, T013
   - 검증: T009 통과. 인증과 여행 소유권을 검증하고(FR-021) `Idempotency-Key`를 F006 저장소로 처리한다(research 6절). REPL-003은 `PENDING`·`SUPERSEDED`·`REJECTED` 어디에 요청해도 `204`이고 `APPROVED`에는 `409 ALREADY_APPROVED`다. 경로 계산 실패는 `502`/`504`로 나가고 일정을 바꾸지 않는다(FR-007)
-- [ ] T015 [US1] 미리보기 화면 상태와 ViewModel in android/app/src/main/java/com/gilpick/replacement/PreviewUiState.kt, android/app/src/main/java/com/gilpick/replacement/PreviewViewModel.kt, android/app/src/test/java/com/gilpick/replacement/PreviewViewModelTest.kt
+- [x] T015 [US1] 미리보기 화면 상태와 ViewModel in android/app/src/main/java/com/gilpick/replacement/PreviewUiState.kt, android/app/src/main/java/com/gilpick/replacement/PreviewViewModel.kt, android/app/src/test/java/com/gilpick/replacement/PreviewViewModelTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T008
   - 검증: data-model 4.1의 `Loading`(1초 지연)·`Error`·`Content`. `empty`는 두지 않는다. 미리보기 생성 실패가 원인별로 구분되고 `다시 시도`가 같은 요청을 같은 `Idempotency-Key`로 재전송하는지 확인
-- [ ] T016 [US1] 미리보기 화면 in android/app/src/main/java/com/gilpick/replacement/RoutePreviewScreen.kt
+- [x] T016 [US1] 미리보기 화면 in android/app/src/main/java/com/gilpick/replacement/RoutePreviewScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T003, T011, T015
   - 검증: T011 통과. Figma `RoutePreviewScreen` 대조. `com.gilpick.ui.theme` token만 쓰고 색·간격·타이포 값을 화면 코드에 직접 쓰지 않는다. 지도는 F005 `RouteMap`을 재사용하고 기존·변경 두 경로를 함께 그린다
-- [ ] T017 [US1] 미리보기 navigation과 F009 연결 in android/app/src/main/java/com/gilpick/replacement/ReplacementNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T017 [US1] 미리보기 navigation과 F009 연결 in android/app/src/main/java/com/gilpick/replacement/ReplacementNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: hs
   - 선행: T016, F009 T026(`AlternativeNavigation.kt`)

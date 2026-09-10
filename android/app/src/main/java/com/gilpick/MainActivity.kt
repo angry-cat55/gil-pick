@@ -29,7 +29,6 @@ import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
 import com.gilpick.auth.RefreshOfflineScreen
 import com.gilpick.alternative.AlternativePlacesRoute
-import com.gilpick.alternative.SelectedAlternative
 import com.gilpick.alternative.alternativeGraph
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.itineraryGraph
@@ -40,6 +39,8 @@ import com.gilpick.notification.NotificationTarget
 import com.gilpick.notification.PendingNotificationTarget
 import com.gilpick.notification.notificationGraph
 import com.gilpick.notification.tripNameOf
+import com.gilpick.replacement.RoutePreviewRoute
+import com.gilpick.replacement.replacementGraph
 import com.gilpick.place.PlaceDetailRoute
 import com.gilpick.place.placeGraph
 import com.gilpick.progress.ActiveTravelRoute
@@ -442,9 +443,23 @@ private fun TripRoute(
         alternativeGraph(
             navController,
             onSessionExpired = onSessionExpired,
-            onSelectPlace = ::openRoutePreview,
+            // 추천 후보와 직접 검색 양쪽 모두 같은 미리보기 화면으로 들어간다. F009는 고른 값만
+            // 넘기고 일정을 바꾸지 않으므로(F009 FR-015) 여기서 처음으로 F010 흐름이 시작된다.
+            onSelectPlace = { selected ->
+                navController.navigate(
+                    RoutePreviewRoute(
+                        detectionId = selected.detectionId,
+                        placeId = selected.placeId,
+                        candidateId = selected.candidateId,
+                    ),
+                )
+            },
             onDismissed = { navController.popBackStack() },
         )
+
+        // F010 변경 경로 미리보기. destination 정의는 com.gilpick.replacement가 소유한다. 위
+        // alternativeGraph의 후보 선택이 이 route로 들어오고, `다른 후보 보기`는 그 자리로 돌아간다.
+        replacementGraph(navController, onSessionExpired = onSessionExpired)
 
         // F011 알림 목록·감지 목록. destination 정의는 com.gilpick.notification이 소유한다. 알림 탭은
         // 유형에 따라 위 alternativeGraph·progressGraph로 간다. 헤더 벨 진입점은 여행 목록·progressGraph의 onNotifications다.
@@ -464,19 +479,6 @@ private fun TripRoute(
         )
     }
 }
-
-/**
- * 진행 화면 헤더 여행명. 푸시 payload에는 없어(FR-006) 여행을 조회한다. 실패하면 빈 이름으로 가되
- * 진행 화면이 자기 조회에서 같은 원인(오프라인·세션 만료)을 안내한다.
- */
-/**
- * F010 변경 경로 미리보기 진입 지점.
- *
- * F009는 후보·직접 검색에서 고른 장소를 [SelectedAlternative]로 여기까지만 전달하고 일정을 바꾸지
- * 않는다(F009 FR-015). F010이 미리보기 화면을 붙일 때 이 함수 본문을 그 route 이동으로 바꾼다.
- */
-@Suppress("UNUSED_PARAMETER")
-private fun openRoutePreview(selected: SelectedAlternative) = Unit
 
 /** 여행 목록. 로그인 후 첫 화면이다. */
 @Serializable

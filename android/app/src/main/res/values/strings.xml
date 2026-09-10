@@ -521,4 +521,39 @@
     <string name="notification_error_session">로그인 상태가 만료됐어요. 다시 로그인해 주세요.</string>
     <string name="notification_error_unexpected">지금은 알림을 불러올 수 없어요. 잠시 후 다시 시도해 주세요.</string>
     <string name="notification_open_bell">알림 보기</string>
+
+    <!-- F010 일정 변경: 변경 경로 미리보기 -->
+    <string name="replacement_preview_title">경로 비교</string>
+    <string name="replacement_back">뒤로 가기</string>
+    <string name="replacement_loading">비교를 만드는 중</string>
+    <string name="replacement_map_description">기존 경로와 변경 경로를 함께 보여 주는 지도</string>
+    <string name="replacement_legend_original">기존</string>
+    <string name="replacement_legend_changed">변경</string>
+    <string name="replacement_change_badge">경로 변경</string>
+    <string name="replacement_change_summary">%1$s → %2$s</string>
+    <string name="replacement_row_duration">이동 시간</string>
+    <string name="replacement_row_distance">이동 거리</string>
+    <string name="replacement_row_arrival">도착 예정</string>
+    <string name="replacement_row_closes">마감 시간</string>
+    <string name="replacement_value_unknown">정보 없음</string>
+    <string name="replacement_better">나아짐</string>
+    <string name="replacement_worse">나빠짐</string>
+    <string name="replacement_row_description">%1$s 기존 %2$s에서 변경 후 %3$s</string>
+    <string name="replacement_approve">변경 승인</string>
+    <string name="replacement_other_candidates">다른 후보 보기</string>
+    <string name="replacement_error_title">비교를 만들 수 없어요</string>
+    <string name="replacement_schedule_kept">기존 일정은 그대로예요</string>
+    <string name="replacement_retry">다시 시도하기</string>
+    <string name="replacement_error_route">경로를 계산하지 못했어요</string>
+    <string name="replacement_error_network">연결이 불안정해요</string>
+    <string name="replacement_error_schedule_changed">이 날짜 일정이 바뀌었어요</string>
+    <string name="replacement_error_expired">비교한 지 오래됐어요</string>
+    <string name="replacement_error_superseded">더 최근에 만든 비교가 있어요</string>
+    <string name="replacement_error_already_approved">이미 승인한 변경이에요</string>
+    <string name="replacement_error_already_visited">이미 그 장소에 도착해서 바꿀 수 없어요</string>
+    <string name="replacement_error_alternative_unavailable">고른 장소를 지금은 방문할 수 없어요</string>
+    <string name="replacement_error_detection_not_active">이 감지는 이미 처리됐어요</string>
+    <string name="replacement_error_undo_expired">되돌릴 수 있는 시간이 지났어요</string>
+    <string name="replacement_error_follow_up">그 뒤에 일정이 또 바뀌었어요</string>
+    <string name="replacement_error_unexpected">잠시 후 다시 시도해 주세요</string>
 </resources>

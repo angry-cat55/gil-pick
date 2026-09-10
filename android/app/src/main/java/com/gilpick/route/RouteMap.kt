@@ -64,6 +64,10 @@ import com.naver.maps.map.overlay.PathOverlay
  * 구분하지 않도록 같은 정보를 구간 목록이 문구로 제공한다.
  *
  * @param route 그릴 경로. 마커는 [RouteDto.markers] 순서 번호로, 구간은 [RouteDto.segments]의 geometry로 그린다.
+ * @param baseRoute 비교 대상으로 함께 그릴 기존 경로. 기본값 `null`이면 [route] 하나만 그려 이 인자가
+ *   없던 때와 같다. 값이 있으면 [route] **아래에** 옅은 색 선으로 깔고 카메라 범위에 포함한다. F010
+ *   변경 경로 미리보기가 기존 경로와 바뀔 경로를 함께 보이는 데 쓴다(F010 UI-001). 색만으로 구분되지
+ *   않도록 어느 쪽이 기존인지는 화면이 문구 범례로 함께 알린다.
  * @param marks 진행 표시. 기본값 [RouteMarks.NONE]은 계획만 그린다.
  * @param sheetFraction 하단 sheet가 덮는 화면 높이 비율. 그만큼 content padding을 둬 카메라·로고가 sheet 아래에 숨지 않게 한다(UI-009).
  */
@@ -71,6 +75,7 @@ import com.naver.maps.map.overlay.PathOverlay
 fun RouteMap(
     route: RouteDto,
     modifier: Modifier = Modifier,
+    baseRoute: RouteDto? = null,
     marks: RouteMarks = RouteMarks.NONE,
     sheetFraction: Float = 0.45f,
 ) {
@@ -88,7 +93,7 @@ fun RouteMap(
     NaverMapHost(
         modifier = modifier,
         description = description,
-        drawKey = route to marks,
+        drawKey = Triple(route, baseRoute, marks),
         onDispose = { overlays.clear() },
     ) { map, size ->
         val bottomPadding = (size.height * sheetFraction).toInt()
@@ -96,6 +101,8 @@ fun RouteMap(
         overlays.show(
             map = map,
             route = route,
+            baseRoute = baseRoute,
+            basePathColor = faintColor,
             marks = marks,
             markerIcon = { marker ->
                 when (marks.statuses[marker.itemId]) {
@@ -239,6 +246,8 @@ private class RouteOverlays {
     fun show(
         map: NaverMap,
         route: RouteDto,
+        baseRoute: RouteDto?,
+        basePathColor: Int,
         marks: RouteMarks,
         markerIcon: (RouteMarkerDto) -> OverlayImage,
         startIcon: () -> OverlayImage,
@@ -249,6 +258,20 @@ private class RouteOverlays {
     ) {
         clear()
         val bounds = LatLngBounds.Builder()
+        // 기존 경로를 먼저 깔아 변경 경로가 위에 오게 한다. 마커는 변경 경로 것만 둬서 같은
+        // 장소에 두 마커가 겹치지 않게 한다(F010 UI-001).
+        baseRoute?.segments?.forEach { segment ->
+            val coords = segment.geometry.coordinates.map { LatLng(it.latitude, it.longitude) }
+            coords.forEach { bounds.include(it) }
+            if (coords.size < 2) return@forEach
+            paths += PathOverlay().apply {
+                this.coords = coords
+                color = basePathColor
+                outlineColor = AndroidColor.TRANSPARENT
+                width = pathWidthPx
+                this.map = map
+            }
+        }
         marks.start?.let { start ->
             val position = LatLng(start.latitude, start.longitude)
             bounds.include(position)
@@ -288,7 +311,8 @@ private class RouteOverlays {
                 this.map = map
             }
         }
-        if (route.markers.size == 1 && marks.start == null) {
+        // 기존 경로를 함께 그릴 때는 한 장소로 확대하지 않는다. 두 경로가 모두 보여야 비교가 된다.
+        if (route.markers.size == 1 && marks.start == null && baseRoute == null) {
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(route.markers[0].latitude, route.markers[0].longitude), SINGLE_PLACE_ZOOM))
         } else if (route.markers.isNotEmpty()) {
             map.moveCamera(CameraUpdate.fitBounds(bounds.build(), boundsPaddingPx))
