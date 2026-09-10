@@ -77,12 +77,12 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: 없음
   - 검증: `contracts/replacements.openapi.yaml`의 `CreatePreviewRequest`·`RoutePreview`·`Replacement`·`ReplacementUndoResult`·`UndoableReplacement`·`ComparisonValue`를 그대로 옮긴다. `ApiModel`의 `to_camel` alias를 따르고 일정 version 필드는 `schedule_version`(직렬화 시 `scheduleVersion`)이다. `ComparisonValue`의 `before`/`after`가 `null`을 받는다
-- [ ] T007 [P] Android 변경 API 계층 in android/app/src/main/java/com/gilpick/replacement/ReplacementApi.kt, android/app/src/test/java/com/gilpick/replacement/ReplacementApiTest.kt
+- [x] T007 [P] Android 변경 API 계층 in android/app/src/main/java/com/gilpick/replacement/ReplacementApi.kt, android/app/src/test/java/com/gilpick/replacement/ReplacementApiTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: 없음
   - 검증: 계약의 DTO와 오류 코드를 enum으로 옮기고 Retrofit `ReplacementService`(REPL-001~004)를 정의한다. MockWebServer로 네 경로·`Idempotency-Key` 헤더 전달·`comparison`의 `null` 값 파싱·오류 코드 분류를 확인. 서버가 아직 없어도 계약 JSON으로 검증한다
-- [ ] T008 Android 변경 repository in android/app/src/main/java/com/gilpick/replacement/ReplacementRepository.kt, android/app/src/test/java/com/gilpick/replacement/ReplacementRepositoryTest.kt
+- [x] T008 Android 변경 repository in android/app/src/main/java/com/gilpick/replacement/ReplacementRepository.kt, android/app/src/test/java/com/gilpick/replacement/ReplacementRepositoryTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T007
