@@ -122,13 +122,13 @@
   - 선행: T013
   - 검증: ViewModel 관련 T009 통과, 조회 1초 초과 전에는 loading을 노출하지 않고 실패 시 마지막 성공값과 재시도를 유지하며 public 상태 변경 함수에 필요한 KDoc이 있는지 확인
 
-- [ ] T015 [US1] 단일 장소 변경 제안 알림 설정 영역과 상태별 UI 구현 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt
+- [x] T015 [US1] 단일 장소 변경 제안 알림 설정 영역과 상태별 UI 구현 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T001, T014
   - 검증: content·지연 loading·error·저장 중 상태 확인, empty 미적용, 48×48dp·8dp·색 외 상태 전달·최대 글자 크기 기준 충족
 
-- [ ] T016 [US1] 설정 변경 성공·실패·연속 선택 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsPreferenceTest.kt
+- [x] T016 [US1] 설정 변경 성공·실패·연속 선택 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsPreferenceTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T015
