@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -41,6 +42,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import com.gilpick.R
+import com.gilpick.notification.IconBoxButton
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.TripCard
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -80,6 +82,7 @@ fun TripListScreen(
     onTripClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     onLogout: () -> Unit = {},
+    onNotifications: () -> Unit = {},
 ) {
     val spacing = LocalGilpickSpacing.current
 
@@ -89,7 +92,7 @@ fun TripListScreen(
             .padding(horizontal = spacing.space5),
         verticalArrangement = Arrangement.spacedBy(spacing.space4),
     ) {
-        Header(onCreateTrip = onCreateTrip, onLogout = onLogout)
+        Header(onCreateTrip = onCreateTrip, onLogout = onLogout, onNotifications = onNotifications)
         SearchField(query = state.query, onQueryChange = onQueryChange)
         StatusFilters(selected = state.statusFilter, onSelect = onStatusFilterChange)
 
@@ -120,9 +123,9 @@ fun TripListScreen(
     }
 }
 
-/** 화면 제목과 주요 행동. */
+/** 화면 제목과 주요 행동. 오른쪽 끝의 알림 벨은 F011 알림 목록 진입점이다(Figma `MyTripsScreen` 헤더). */
 @Composable
-private fun Header(onCreateTrip: () -> Unit, onLogout: () -> Unit) {
+private fun Header(onCreateTrip: () -> Unit, onLogout: () -> Unit, onNotifications: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
 
     Row(
@@ -146,6 +149,14 @@ private fun Header(onCreateTrip: () -> Unit, onLogout: () -> Unit) {
             TextButton(onClick = onLogout, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
                 Text(stringResource(R.string.logout))
             }
+            IconBoxButton(
+                icon = R.drawable.ic_lucide_bell,
+                contentDescription = stringResource(R.string.notification_open_bell),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = onNotifications,
+                box = BELL_BOX,
+                modifier = Modifier.testTag(TAG_NOTIFICATIONS),
+            )
         }
     }
 }
@@ -544,6 +555,12 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val MIN_FIELD_HEIGHT = Dp(56f)
 private val MIN_TOUCH = Dp(48f)
+
+/** Figma `MyTripsScreen` 알림 버튼 상자(40dp). */
+private val BELL_BOX = Dp(40f)
+
+/** 헤더 알림 벨 test tag. */
+const val TAG_NOTIFICATIONS = "trips_notifications"
 
 /** LazyColumn이 같은 종류의 항목끼리 layout을 재사용하도록 구분한다. */
 private const val GROUP_HEADER_TYPE = "group-header"

@@ -232,12 +232,12 @@ description: "Task list for F011 알림"
 
 **Independent Test**: quickstart AND 1 + AND 2 + BE 5 — 오늘/어제 그룹 최신순, 안 읽음 표식, 탭 시 읽음 + 대상 이동, "모두 읽음", 빈·오류 상태, 대상 삭제 시 안내.
 
-- [ ] T031 [US4] NotificationListViewModel in android/app/src/main/java/com/gilpick/notification/NotificationListViewModel.kt
+- [x] T031 [US4] NotificationListViewModel in android/app/src/main/java/com/gilpick/notification/NotificationListViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T014, T015
   - 검증: NOTI-001 조회 → `NotifGroup` 그룹핑(KST), 안 읽음 분류, 탭 시 NOTI-002 + `onOpen(target)`, "모두 읽음" NOTI-003, 재조회 중 기존 목록 유지, 오류·세션 만료 매핑. `NotificationListViewModelTest`
-- [ ] T032 [US4] NotificationListScreen·Row in android/app/src/main/java/com/gilpick/notification/NotificationListScreen.kt, NotificationRow.kt
+- [x] T032 [US4] NotificationListScreen·Row in android/app/src/main/java/com/gilpick/notification/NotificationListScreen.kt, NotificationRow.kt
   - 영역: FE
   - 담당: jy
   - 선행: T031
@@ -247,12 +247,12 @@ description: "Task list for F011 알림"
     - `error`: 조회 실패 — `다시 시도하기` + 돌아가기
     - `content`: 날짜 그룹·최신순, 안 읽음 `surfaceTint` 배경 + `groupDot` 점(색 단독 금지), 제목·본문·상대 시각
     - 접근성: 행·아이콘 버튼 터치 48dp·간격 8dp, "모두 읽음"·뒤로 가기 `contentDescription`, 360dp·fontScale 2.0에서 잘림 없음
-- [ ] T033 [US4] 알림 목록 화면 상태·이동 test in android/app/src/androidTest/java/com/gilpick/notification/NotificationListScreenTest.kt, NotificationNavigationTest.kt
+- [x] T033 [US4] 알림 목록 화면 상태·이동 test in android/app/src/androidTest/java/com/gilpick/notification/NotificationListScreenTest.kt, NotificationNavigationTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T032
   - 검증: quickstart AND 1.1~1.4, AND 2.1~2.3 — 그룹·안 읽음·상태 전환·모두 읽음, 유형별 탭 목적지, 대상 없음(여행 논리 삭제) 안내, 3탭 이하 도달(SC-009)
-- [ ] T034 [P] [US4] 알림 목록 screenshot test in android/app/src/androidTest/java/com/gilpick/notification/NotificationsScreenshotTest.kt
+- [x] T034 [P] [US4] 알림 목록 screenshot test in android/app/src/androidTest/java/com/gilpick/notification/NotificationsScreenshotTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T032
@@ -262,7 +262,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T012
   - 검증: quickstart BE 5.1~5.6 — 90일 필터·`read` 필터·cursor, NOTI-002 멱등·`403`/`404`, NOTI-003 `{updated}`, 대상 논리 삭제·무효화 후에도 `200`(FR-016), 타인 알림 격리(SC-007)
-- [ ] T036 [US4] 알림 진입점(벨) in android/app/src/main/java/com/gilpick/trip/TripListScreen.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T036 [US4] 알림 진입점(벨) in android/app/src/main/java/com/gilpick/trip/TripListScreen.kt, android/app/src/main/java/com/gilpick/progress/ActiveTravelScreen.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T032

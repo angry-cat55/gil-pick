@@ -98,3 +98,13 @@ fun List<NotificationItemDto>.toGroups(now: Instant): List<NotifGroup> =
     groupBy { dateBucket(it.createdAt, now) }
         .toSortedMap()
         .map { (bucket, items) -> NotifGroup(bucket = bucket, items = items.map { it.toUi() }) }
+
+/** 목록 조회 실패 원인 문구(`error` 상태 본문). */
+val NotificationError.messageRes: Int
+    @StringRes get() = when (this) {
+        NotificationError.Network -> R.string.notification_error_network
+        NotificationError.NotFound -> R.string.notification_error_not_found
+        NotificationError.Forbidden -> R.string.notification_error_forbidden
+        NotificationError.SessionExpired -> R.string.notification_error_session
+        NotificationError.Unexpected -> R.string.notification_error_unexpected
+    }
