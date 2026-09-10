@@ -22,6 +22,8 @@ import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.toItineraryError
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import com.gilpick.trip.KST
 import java.time.Clock
 import java.time.LocalDate
@@ -446,6 +448,8 @@ class ProgressViewModel(
                 api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
                 appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                 scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
             )
             return ProgressRepository(
                 api = createProgressRetrofit(BuildConfig.API_BASE_URL).create(ProgressService::class.java),

@@ -21,6 +21,8 @@ import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.RouteStatus
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.itinerary.toItineraryError
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import com.gilpick.progress.CurrentLocationProvider
 import com.gilpick.progress.DayStatus
 import com.gilpick.progress.DeviceLocationProvider
@@ -501,6 +503,8 @@ class TripDetailViewModel(
                             .create(AuthService::class.java),
                         appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                         scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                        syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                        clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
                     )
                     TripDetailViewModel(
                         repository = TripRepository(

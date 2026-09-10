@@ -13,6 +13,8 @@ import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.auth.AuthResult
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.auth.toAuthResult
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -132,6 +134,8 @@ class DetectionRepository(
                 api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
                 appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                 scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
             )
             return DetectionRepository(
                 api = createDetectionRetrofit(BuildConfig.API_BASE_URL).create(DetectionService::class.java),

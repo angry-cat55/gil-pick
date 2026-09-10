@@ -15,6 +15,8 @@ import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.SessionRevocationWorker
 import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.RouteStatus
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import com.gilpick.progress.ProgressRepository
 import com.gilpick.progress.toRouteMarks
 import java.time.LocalDate
@@ -151,6 +153,8 @@ class RouteViewModel(
                 api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
                 appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                 scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
             )
             return RouteRepository(
                 api = createRouteRetrofit(BuildConfig.API_BASE_URL).create(RouteService::class.java),

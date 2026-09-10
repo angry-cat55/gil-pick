@@ -70,6 +70,9 @@ sealed interface RefreshOutcome {
  *   취소되어도 진행 중인 갱신이 함께 끊기지 않도록 화면 수명주기와 분리한다.
  * @property scheduleRevocation 오프라인 로그아웃의 서버 폐기를 예약한다. Context가
  *   필요한 WorkManager 호출을 밖으로 밀어내 repository를 JVM에서 검증할 수 있게 한다.
+ * @property syncPushToken 로그인·갱신으로 Token pair가 바뀐 뒤 이 기기의 푸시 토큰 등록을
+ *   예약한다(F011 FR-020). 실패해도 로그인 상태에는 영향이 없다.
+ * @property clearPushToken 로그아웃 뒤 이 기기의 푸시 토큰 해제를 예약한다(F011 FR-020).
  */
 class AuthRepository(
     private val store: AuthSessionStore,
@@ -77,6 +80,8 @@ class AuthRepository(
     private val appLinkHandler: AuthAppLinkHandler,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     private val scheduleRevocation: (String) -> Unit = {},
+    private val syncPushToken: () -> Unit = {},
+    private val clearPushToken: () -> Unit = {},
 ) {
 
     private val mutex = Mutex()
@@ -138,6 +143,7 @@ class AuthRepository(
             accessExpiresAtEpochSeconds = accessExpiresAtEpochSeconds,
             refreshExpiresAtEpochSeconds = refreshExpiresAtEpochSeconds,
         )
+        syncPushToken()
         AuthUiState.Authenticated(userId, nickname, profileImageUrl).also { _state.value = it }
     }
 
@@ -292,6 +298,7 @@ class AuthRepository(
             }
         }
         operationId?.let(scheduleRevocation)
+        clearPushToken()
         return AuthUiState.SignedOut
     }
 
