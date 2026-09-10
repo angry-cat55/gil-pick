@@ -32,12 +32,12 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: 없음
   - 검증: `jwt.encode({}, private_key, algorithm="RS256")`가 동작하는지 확인. 실패하면 `pyjwt[crypto]`만 추가하고 `firebase-admin`은 추가하지 않는다. `uv.lock` 갱신 여부를 PR에 기록
-- [ ] T003 [P] FCM Gradle 배선 in android/build.gradle.kts, android/app/build.gradle.kts, android/.gitignore
+- [x] T003 [P] FCM Gradle 배선 in android/build.gradle.kts, android/app/build.gradle.kts, android/.gitignore
   - 영역: FE
   - 담당: jy
   - 선행: 없음
   - 검증: `com.google.gms.google-services` 플러그인 classpath·id, `firebase-bom` + `com.google.firebase:firebase-messaging`, `apply(plugin = "com.google.gms.google-services")`, `.gitignore`에 `android/app/google-services.json`. `google-services.json`은 G001 Firebase 프로젝트에서 주입(placeholder로 `:app:assembleDebug` 통과 확인, PR에 미포함)
-- [ ] T004 [P] 알림 권한·messaging service 등록 in android/app/src/main/AndroidManifest.xml
+- [x] T004 [P] 알림 권한·messaging service 등록 in android/app/src/main/AndroidManifest.xml
   - 영역: FE
   - 담당: jy
   - 선행: T003
@@ -101,17 +101,17 @@ description: "Task list for F011 알림"
 
 ### Android 골격
 
-- [ ] T014 [P] NotificationApi·Repository in android/app/src/main/java/com/gilpick/notification/NotificationApi.kt, NotificationRepository.kt
+- [x] T014 [P] NotificationApi·Repository in android/app/src/main/java/com/gilpick/notification/NotificationApi.kt, NotificationRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T012
   - 검증: `createNotificationRetrofit` + `NotificationService`(NOTI-001/002/003·DEV-001/002, `@Header("Authorization")`), `@Serializable` DTO, `NotificationRepository(api, auth)` + `.default(context)` + `AuthError.toNotificationError()`·`NotificationErrorCodes`. `NotificationRepositoryTest`(mockwebserver3, 401 재시도·매핑)
-- [ ] T015 [P] 상태 모델·라벨·navigation 골격 in android/app/src/main/java/com/gilpick/notification/NotificationUiState.kt, NotificationLabels.kt, NotificationNavigation.kt
+- [x] T015 [P] 상태 모델·라벨·navigation 골격 in android/app/src/main/java/com/gilpick/notification/NotificationUiState.kt, NotificationLabels.kt, NotificationNavigation.kt
   - 영역: FE
   - 담당: jy
   - 선행: 없음
   - 검증: `NotificationUiState`(Loading/Empty/Error/Content, `NotifGroup`·`NotifItemUi`·`target`), `NotificationLabels`(KST `오늘`/`어제`/`그 이전` 버킷·상대 시각·유형→아이콘·목적지), `NotificationNavigation`(`NotificationListRoute`·`VariableMonitorRoute`·`notificationGraph(navController, onSessionExpired, onOpenDetection, onOpenProgress)` stub)
-- [ ] T016 알림 채널·딥링크 골격 in android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T016 알림 채널·딥링크 골격 in android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T004, T015

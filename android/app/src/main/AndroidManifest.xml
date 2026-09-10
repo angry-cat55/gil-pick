@@ -14,6 +14,8 @@
       F006 수동 진행은 그대로 둔다(spec FR-024, research.md 8절).
     -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- F011 푸시 알림 표시. Android 13 이상은 런타임 권한이며 거부해도 앱 기능은 그대로다(FR-020). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -39,6 +41,18 @@
         <receiver
             android:name=".progress.GeofenceReceiver"
             android:exported="false" />
+
+        <!--
+          F011 FCM 수신 지점. 새 토큰과 data 메시지를 받는다. Firebase가 프로세스를 깨워
+          전달하므로 앱이 실행 중이 아니어도 동작한다. 앱 안에서만 쓰이므로 외부에 노출하지 않는다.
+        -->
+        <service
+            android:name=".notification.GilpickMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".MainActivity"

@@ -52,6 +52,16 @@ val hasReleaseSigning: Boolean = listOf(
  */
 val debugKeystorePath: String? = providers.gradleProperty("GILPICK_DEBUG_KEYSTORE_PATH").orNull
 
+/**
+ * F011 FCM 설정 파일. G001 Firebase 프로젝트에서 받아 `app/google-services.json`에 두며 저장소에는
+ * 넣지 않는다(.gitignore). 파일이 없어도 debug 빌드·test는 그대로 돌아가야 하므로 있을 때만
+ * google-services 플러그인을 적용한다. 없으면 Firebase가 초기화되지 않아 푸시만 오지 않고
+ * 나머지 화면은 정상 동작한다(F005 지도 키와 같은 방식).
+ */
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.gilpick"
 
@@ -157,6 +167,10 @@ dependencies {
 
     // F006 진행 시작 시 FusedLocationProviderClient로 현재 위치를 1회 얻는다(research.md 결정 7).
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // F011 푸시 알림 수신·기기 토큰. BOM이 firebase 계열 버전을 맞춘다(research R11).
+    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
+    implementation("com.google.firebase:firebase-messaging")
 
     implementation("androidx.browser:browser:1.10.0")
     implementation("androidx.datastore:datastore:1.2.1")

@@ -5,5 +5,8 @@ build/
 # 머신 종속 SDK 경로. commit하지 않는다.
 local.properties
 
+# F011 Firebase 설정. G001 Firebase 프로젝트에서 각자 주입한다. commit하지 않는다.
+app/google-services.json
+
 # wrapper jar는 gradlew 실행에 필요하므로 상위 무시 규칙에서 되살린다.
 !gradle/wrapper/gradle-wrapper.jar
