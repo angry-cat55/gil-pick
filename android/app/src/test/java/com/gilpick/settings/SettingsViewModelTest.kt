@@ -239,6 +239,81 @@ class SettingsViewModelTest {
         advanceUntilIdle()
     }
 
+    // --- 정책 문서(T019) ---
+
+    @Test
+    fun `정책 문서를 열면 고른 문서가 전달되고 성공하면 남는 상태가 없다`() = runTest {
+        // FR-008. 연 뒤는 브라우저 화면이라 앱이 추적할 것이 없다.
+        val opened = mutableListOf<PolicyDocument>()
+        val viewModel = loaded(initial = true)
+
+        viewModel.openPolicy(PolicyDocument.PRIVACY_POLICY) { opened += it; null }
+
+        assertEquals(listOf(PolicyDocument.PRIVACY_POLICY), opened)
+        assertNull(viewModel.state.value.policyOpenError)
+    }
+
+    @Test
+    fun `열기에 실패하면 원인을 남기고 설정 값은 건드리지 않는다`() = runTest {
+        // UI-004. 정책과 설정은 서로 독립이다.
+        val viewModel = loaded(initial = true)
+
+        viewModel.openPolicy(PolicyDocument.TERMS_OF_SERVICE) { PolicyOpenFailure.UrlMissing }
+
+        assertEquals(PolicyOpenFailure.UrlMissing, viewModel.state.value.policyOpenError)
+        assertEquals(PreferencePhase.Content(value = true, isSaving = false), viewModel.state.value.preference)
+    }
+
+    @Test
+    fun `재시도는 마지막으로 고른 문서를 다시 연다`() = runTest {
+        val opened = mutableListOf<PolicyDocument>()
+        val viewModel = loaded(initial = true)
+        viewModel.openPolicy(PolicyDocument.TERMS_OF_SERVICE) { opened += it; PolicyOpenFailure.LauncherUnavailable }
+
+        viewModel.retryPolicy { opened += it; null }
+
+        assertEquals(listOf(PolicyDocument.TERMS_OF_SERVICE, PolicyDocument.TERMS_OF_SERVICE), opened)
+        assertNull(viewModel.state.value.policyOpenError)
+    }
+
+    @Test
+    fun `연 적이 없으면 재시도가 아무것도 하지 않는다`() = runTest {
+        val opened = mutableListOf<PolicyDocument>()
+        val viewModel = loaded(initial = true)
+
+        viewModel.retryPolicy { opened += it; null }
+
+        assertTrue(opened.isEmpty())
+    }
+
+    @Test
+    fun `안내를 닫아도 설정 상태는 그대로다`() = runTest {
+        val viewModel = loaded(initial = true)
+        viewModel.openPolicy(PolicyDocument.PRIVACY_POLICY) { PolicyOpenFailure.UrlNotHttps }
+
+        viewModel.dismissPolicyError()
+
+        assertNull(viewModel.state.value.policyOpenError)
+        assertEquals(PreferencePhase.Content(value = true, isSaving = false), viewModel.state.value.preference)
+    }
+
+    @Test
+    fun `설정이 실패한 상태에서도 정책 문서를 열 수 있다`() = runTest {
+        // UI-004. 설정 통신 실패가 독립 행동을 막으면 안 된다.
+        service.onUpdate = { preferenceFailure(SettingsErrorCodes.INVALID_REQUEST, httpStatus = 500) }
+        val viewModel = loaded(initial = true)
+        viewModel.setPlaceChangeSuggestionEnabled(false)
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.preference is PreferencePhase.Error)
+
+        val opened = mutableListOf<PolicyDocument>()
+        viewModel.openPolicy(PolicyDocument.PRIVACY_POLICY) { opened += it; null }
+
+        assertEquals(listOf(PolicyDocument.PRIVACY_POLICY), opened)
+        // 정책을 열어도 설정 실패 상태는 그대로 남는다.
+        assertTrue(viewModel.state.value.preference is PreferencePhase.Error)
+    }
+
     /** 첫 조회까지 끝난 ViewModel. `init`이 부르는 조회가 끝난 뒤를 돌려준다. */
     private suspend fun loaded(initial: Boolean): SettingsViewModel {
         service.onGet = { preferenceOk(initial) }

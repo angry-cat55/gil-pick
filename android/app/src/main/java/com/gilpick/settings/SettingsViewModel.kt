@@ -58,6 +58,9 @@ class SettingsViewModel(
     /** 진행 중인 저장. 이것이 살아 있으면 새 요청을 만들지 않는다. */
     private var saveJob: Job? = null
 
+    /** 마지막으로 열려고 한 정책 문서. 재시도가 같은 문서를 다시 연다. */
+    private var lastPolicyDocument: PolicyDocument? = null
+
     init {
         load()
     }
@@ -132,6 +135,34 @@ class SettingsViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * 정책 문서를 연다(FR-007).
+     *
+     * 여는 동작은 기기 기능이라 [PolicyDocumentLauncher]가 하고, ViewModel은 **실패만** 들고
+     * 있는다. 성공하면 남길 상태가 없다 — 그 뒤는 브라우저 화면이고 앱은 아무것도 추적하지
+     * 않는다(FR-008).
+     *
+     * 설정 저장과 서로 막지 않는다. 설정이 저장 중이거나 실패한 상태에서도 문서를 열 수 있다(UI-004).
+     *
+     * @param launch 문서를 여는 동작. 화면이 `Context`를 쥔 launcher를 넘긴다. ViewModel이
+     *   `Context`를 들고 있지 않도록 값이 아니라 인자로 받는다.
+     */
+    fun openPolicy(document: PolicyDocument, launch: (PolicyDocument) -> PolicyOpenFailure?) {
+        lastPolicyDocument = document
+        _state.update { it.copy(policyOpenError = launch(document)) }
+    }
+
+    /** 열기에 실패한 문서를 다시 연다(FR-008). 마지막으로 고른 문서를 그대로 쓴다. */
+    fun retryPolicy(launch: (PolicyDocument) -> PolicyOpenFailure?) {
+        val document = lastPolicyDocument ?: return
+        openPolicy(document, launch)
+    }
+
+    /** 정책 열기 실패 안내를 닫는다. 설정 상태는 건드리지 않는다. */
+    fun dismissPolicyError() {
+        _state.update { it.copy(policyOpenError = null) }
     }
 
     private fun confirm(value: Boolean) {

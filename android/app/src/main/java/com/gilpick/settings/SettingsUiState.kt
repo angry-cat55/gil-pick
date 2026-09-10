@@ -47,11 +47,13 @@ sealed interface PreferencePhase {
 /**
  * 설정 화면 상태(data-model 3 `SettingsUiState`).
  *
- * 계정·앱 정보와 정책 문서 열기 실패는 각각 #402·#400이 채운다. 이 Issue(#399)는 설정 영역만
- * 다루므로 [preference] 하나로 시작한다.
+ * 계정·앱 정보는 #402가 채운다.
  *
  * @property preference 알림 설정 영역의 상태.
+ * @property policyOpenError 정책 문서를 열지 못한 이유. 평상시는 `null`이다(FR-008).
+ *   설정 조회·변경과 **독립**이라 설정이 실패한 상태에서도 정책 문서는 열 수 있고, 그 반대도 같다.
  */
 data class SettingsUiState(
     val preference: PreferencePhase = PreferencePhase.Loading,
+    val policyOpenError: PolicyOpenFailure? = null,
 )

@@ -20,6 +20,17 @@ val apiBaseUrl: String = providers.gradleProperty("GILPICK_API_BASE_URL").get()
 val naverMapsClientId: String = providers.gradleProperty("GILPICK_NAVER_MAPS_CLIENT_ID").orNull.orEmpty()
 
 /**
+ * F012 설정 화면이 Custom Tabs로 여는 정책 문서 위치.
+ *
+ * 승인된 문서 URL은 환경마다 다르고 확정 시점도 저장소 밖이라 `~/.gradle/gradle.properties`나
+ * `-P`로 주입한다. 값이 없어도 build·test가 그대로 돌아가야 하므로 빈 값을 허용한다. 빈 값이면
+ * 앱이 문서를 열지 않고 "지금은 열 수 없다"고 안내한다(F012 FR-008). 지어낸 URL을 기본값으로
+ * 두면 사용자를 잘못된 문서로 보내므로 기본값을 주지 않는다.
+ */
+val privacyPolicyUrl: String = providers.gradleProperty("GILPICK_PRIVACY_POLICY_URL").orNull.orEmpty()
+val termsOfServiceUrl: String = providers.gradleProperty("GILPICK_TERMS_OF_SERVICE_URL").orNull.orEmpty()
+
+/**
  * 제출용 release 서명 정보.
  *
  * App Link 검증은 APK 서명 인증서의 SHA-256 fingerprint를 `assetlinks.json`과 대조하므로,
@@ -85,6 +96,8 @@ android {
         manifestPlaceholders["naverMapsClientId"] = naverMapsClientId
         buildConfigField("String", "APP_LINK_HOST", "\"$appLinkHost\"")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "PRIVACY_POLICY_URL", "\"$privacyPolicyUrl\"")
+        buildConfigField("String", "TERMS_OF_SERVICE_URL", "\"$termsOfServiceUrl\"")
     }
 
     signingConfigs {

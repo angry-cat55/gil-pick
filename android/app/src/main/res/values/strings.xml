@@ -620,4 +620,14 @@
     <string name="settings_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
     <string name="settings_error_session">로그인 상태가 만료됐어요.</string>
     <string name="settings_error_unexpected">잠시 후 다시 시도해 주세요.</string>
+
+    <!-- F012 정책 문서(FR-007·FR-008). 앱 안에 본문을 두지 않고 승인된 HTTPS 문서를 연다. -->
+    <string name="settings_app_section">앱 정보</string>
+    <string name="settings_privacy_policy">개인정보처리방침</string>
+    <string name="settings_terms_of_service">이용약관</string>
+    <string name="settings_policy_open_failed">문서를 열 수 없어요</string>
+    <string name="settings_policy_error_missing">문서 위치가 아직 준비되지 않았어요.</string>
+    <string name="settings_policy_error_not_https">안전하지 않은 주소라 열지 않았어요.</string>
+    <string name="settings_policy_error_unavailable">문서를 열 브라우저를 찾지 못했어요.</string>
+    <string name="settings_policy_dismiss">닫기</string>
 </resources>
