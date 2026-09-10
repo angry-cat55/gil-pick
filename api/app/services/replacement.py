@@ -563,7 +563,6 @@ class ReplacementService:
             current_distance=current.total_distance_meters if current else None,
             progress_durations={(item.from_item_id, item.to_item_id): item.duration_seconds for item in progress},
         )
-        await self.session.rollback()
         return context
 
     async def _load_place(self, public_id: str) -> _PlaceSnapshot:
@@ -579,10 +578,7 @@ class ReplacementService:
             select(Place, func.ST_Y(point), func.ST_X(point)).where(column == provider_id)
         )).one_or_none()
         if row is not None:
-            snapshot = _place_snapshot(*row)
-            await self.session.rollback()
-            return snapshot
-        await self.session.rollback()
+            return _place_snapshot(*row)
         detail = await self.place_service.get_place(public_id)
         if detail.latitude is None or detail.longitude is None:
             raise AppError(404, "PLACE_NOT_FOUND", "좌표가 있는 장소를 찾을 수 없습니다.")
