@@ -3,6 +3,7 @@ package com.gilpick.replacement
 import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -15,6 +16,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.gilpick.alternative.AlternativeRepository
+import com.gilpick.progress.ActiveTravelRoute
 import com.gilpick.route.RouteRepository
 import com.gilpick.route.RouteViewModel
 import kotlinx.coroutines.launch
@@ -43,6 +45,9 @@ data class RoutePreviewRoute(
  *
  * 진입점은 F009 `alternativeGraph(onSelectPlace)`다. 추천 후보와 직접 검색 **양쪽 모두** 이 route로
  * 들어오고 `candidateId` 유무만 다르다.
+ *
+ * 승인이 끝나면 진행 화면으로 돌아간다(T023). 되돌리기 안내는 진행 화면이 PROG-001의
+ * `undoableReplacement`로 받아 보이므로(T029) 값을 들고 가지 않는다. 그 표시는 T030(#351)이 붙인다.
  *
  * `다른 후보 보기`는 REPL-003으로 미리보기를 폐기한 뒤 뒤로 간다(UI-003). 폐기 결과를 기다리지
  * 않고 화면을 닫는다. 폐기는 대상 상태로 결과가 정해지는 자연 멱등이라 실패해도 사용자가 할 일이
@@ -82,7 +87,18 @@ fun NavGraphBuilder.replacementGraph(
         }
         val viewModel: PreviewViewModel = viewModel(factory = factory)
         val state by viewModel.state.collectAsStateWithLifecycle()
+        val approved by viewModel.approved.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
+
+        // 승인 성공은 한 번만 처리한다. ViewModel이 값을 되돌리지 않으므로 재구성돼도 다시 가지 않는다.
+        // 승인된 미리보기는 폐기하지 않는다(계약상 `409 ALREADY_APPROVED`).
+        LaunchedEffect(approved) {
+            if (approved == null) return@LaunchedEffect
+            // 진행 화면이 back stack에 없을 수 있다. F011 푸시로 대체 장소 화면에 바로 들어온 경우다.
+            if (!navController.popBackStack(ActiveTravelRoute::class, inclusive = false)) {
+                navController.popBackStack()
+            }
+        }
 
         // 미리보기를 만든 뒤 화면을 떠나면 그 미리보기를 폐기한다. 뒤로 가기와 `다른 후보 보기`가
         // 같은 자리로 돌아가므로 두 경로 모두 여기를 지난다.
@@ -97,8 +113,7 @@ fun NavGraphBuilder.replacementGraph(
             state = state,
             onBack = leave,
             onRetry = viewModel::load,
-            // 승인은 T023(#349)이 붙인다. 그전까지 이 화면은 비교만 보여 준다.
-            onApprove = {},
+            onApprove = viewModel::approve,
             onOtherCandidates = leave,
             onReauthenticate = onSessionExpired,
             map = map,

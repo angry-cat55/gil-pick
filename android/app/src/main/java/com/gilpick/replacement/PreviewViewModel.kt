@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -59,8 +60,21 @@ class PreviewViewModel(
     /** 화면이 관찰하는 현재 상태. */
     val state: StateFlow<PreviewUiState> = _state.asStateFlow()
 
+    private val _approved = MutableStateFlow<ReplacementDto?>(null)
+
+    /**
+     * 승인이 끝나 화면을 닫아야 한다. 끝나지 않았으면 `null`이다.
+     *
+     * 값을 되돌리지 않으므로 재구성돼도 이동이 두 번 일어나지 않는다. F009 `AlternativeViewModel`의
+     * `dismissed`와 같은 방식이다.
+     */
+    val approved: StateFlow<ReplacementDto?> = _approved.asStateFlow()
+
     /** 진행 중인 조회. `다시 시도` 연타로 요청이 겹치지 않게 한다. */
     private var job: Job? = null
+
+    /** 진행 중인 승인. 승인 연타로 요청이 겹치지 않게 한다. */
+    private var approveJob: Job? = null
 
     init {
         load()
@@ -74,9 +88,35 @@ class PreviewViewModel(
      */
     fun load() {
         if (job?.isActive == true) return
+        approveJob?.cancel()
         _state.value = PreviewUiState.Loading
         job = viewModelScope.launch {
             _state.value = build()
+        }
+    }
+
+    /**
+     * 미리보기를 승인해 일정·경로·이력을 함께 바꾼다(REPL-002).
+     *
+     * 처리 중에는 [PreviewUiState.Content.approving]이 켜져 화면이 행동을 잠근다(UI-005). 실패는
+     * 보던 비교를 지우지 않고 [PreviewUiState.Content.approveFailure]로만 남는다 — 원인에 따라
+     * 사용자가 이 화면에서 바로 다음 행동을 고르기 때문이다.
+     *
+     * 승인 전에는 아무것도 바뀌지 않고, 재검증에서 하나라도 어긋나면 서버가 전체를 되돌린다(FR-010).
+     */
+    fun approve() {
+        val content = _state.value as? PreviewUiState.Content ?: return
+        if (approveJob?.isActive == true) return
+        _state.value = content.copy(approving = true, approveFailure = null)
+        approveJob = viewModelScope.launch {
+            when (val result = replacements.approvePreview(content.preview.previewId)) {
+                is AuthResult.Success -> _approved.value = result.value
+                is AuthResult.Failure -> _state.update { current ->
+                    (current as? PreviewUiState.Content)
+                        ?.copy(approving = false, approveFailure = result.error.toReplacementError())
+                        ?: current
+                }
+            }
         }
     }
 

@@ -98,7 +98,7 @@ fun RoutePreviewScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Header(onBack = onBack)
+        Header(onBack = onBack, enabled = !state.isApproving)
         when (state) {
             PreviewUiState.Loading -> DelayedLoading()
             is PreviewUiState.Error -> ErrorState(
@@ -111,6 +111,7 @@ fun RoutePreviewScreen(
             is PreviewUiState.Content -> ContentState(
                 content = state,
                 onApprove = onApprove,
+                onRecreate = onRetry,
                 onOtherCandidates = onOtherCandidates,
                 map = map,
             )
@@ -120,7 +121,7 @@ fun RoutePreviewScreen(
 
 /** 상단 바. Figma의 뒤로 버튼과 `경로 비교` 제목이다. */
 @Composable
-private fun Header(onBack: () -> Unit) {
+private fun Header(onBack: () -> Unit, enabled: Boolean = true) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
 
@@ -137,7 +138,7 @@ private fun Header(onBack: () -> Unit) {
             modifier = Modifier
                 .size(MIN_TOUCH)
                 .clip(RoundedCornerShape(radius.md))
-                .clickable(onClick = onBack)
+                .clickable(enabled = enabled, onClick = onBack)
                 .testTag(TAG_BACK),
             contentAlignment = Alignment.Center,
         ) {
@@ -223,6 +224,7 @@ private fun ErrorState(
 private fun ContentState(
     content: PreviewUiState.Content,
     onApprove: () -> Unit,
+    onRecreate: () -> Unit,
     onOtherCandidates: () -> Unit,
     map: @Composable (PreviewUiState.Content, Modifier) -> Unit,
 ) {
@@ -245,8 +247,20 @@ private fun ContentState(
             Legend(modifier = Modifier.align(Alignment.TopEnd).padding(spacing.space3))
         }
         Summary(content = content, modifier = Modifier.padding(spacing.space4))
+        content.approveFailure?.let { failure ->
+            ApproveFailure(
+                failure = failure,
+                placeName = content.preview.alternativePlace.name,
+                modifier = Modifier.padding(horizontal = spacing.space4),
+            )
+        }
         Spacer(modifier = Modifier.height(spacing.space4))
-        Actions(onApprove = onApprove, onOtherCandidates = onOtherCandidates)
+        Actions(
+            content = content,
+            onApprove = onApprove,
+            onRecreate = onRecreate,
+            onOtherCandidates = onOtherCandidates,
+        )
     }
 }
 
@@ -442,10 +456,24 @@ private fun ComparisonRow(label: String, before: String?, after: String?, better
     }
 }
 
-/** `변경 승인`과 `다른 후보 보기`(UI-003). 둘 다 48dp 이상이고 8dp 이상 떨어진다(UI-008). */
+/**
+ * 아래쪽 두 행동(UI-003·UI-005).
+ *
+ * 평소에는 `변경 승인` + `다른 후보 보기`다. 승인 중에는 `변경 승인`이 진행 표시로 바뀌고 두 행동이
+ * 모두 잠긴다. 승인이 실패하면 `변경 승인` 자리를 **원인별 다음 행동**이 대신한다(Figma 승인 실패
+ * 상태). `다른 후보 보기`는 실패 상태에서도 계속 보인다.
+ *
+ * 둘 다 48dp 이상이고 8dp 이상 떨어진다(UI-008).
+ */
 @Composable
-private fun Actions(onApprove: () -> Unit, onOtherCandidates: () -> Unit) {
+private fun Actions(
+    content: PreviewUiState.Content,
+    onApprove: () -> Unit,
+    onRecreate: () -> Unit,
+    onOtherCandidates: () -> Unit,
+) {
     val spacing = LocalGilpickSpacing.current
+    val action = content.approveFailure?.approveAction
 
     Column(
         modifier = Modifier
@@ -455,22 +483,101 @@ private fun Actions(onApprove: () -> Unit, onOtherCandidates: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(spacing.space2),
     ) {
         Button(
-            onClick = onApprove,
+            onClick = when (action) {
+                ApproveAction.Recreate -> onRecreate
+                ApproveAction.Candidates -> onOtherCandidates
+                ApproveAction.Retry, null -> onApprove
+            },
+            enabled = !content.approving,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = PRIMARY_BUTTON_HEIGHT)
                 .testTag(TAG_APPROVE),
         ) {
-            Text(stringResource(R.string.replacement_approve))
+            if (content.approving) {
+                CircularProgressIndicator(
+                    strokeWidth = SPINNER_STROKE,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(SPINNER_SIZE),
+                )
+                Spacer(modifier = Modifier.width(spacing.space2))
+            }
+            Text(
+                stringResource(
+                    when {
+                        content.approving -> R.string.replacement_approving
+                        action == ApproveAction.Recreate -> R.string.replacement_action_recreate
+                        action == ApproveAction.Candidates -> R.string.replacement_action_candidates
+                        action == ApproveAction.Retry -> R.string.replacement_action_retry
+                        else -> R.string.replacement_approve
+                    },
+                ),
+            )
         }
         OutlinedButton(
             onClick = onOtherCandidates,
+            enabled = !content.approving,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = MIN_TOUCH)
                 .testTag(TAG_OTHER_CANDIDATES),
         ) {
             Text(stringResource(R.string.replacement_other_candidates))
+        }
+    }
+}
+
+/**
+ * 승인 실패 안내(UI-005).
+ *
+ * 원인 문구와 **기존 일정이 그대로임**을 함께 알린다. 색만으로 알리지 않도록 경고 아이콘과 문구를
+ * 함께 둔다(가이드라인 10절). 다음 행동은 [Actions]가 원인에 맞춰 보인다.
+ *
+ * @param placeName 대체 장소 이름. `방문할 수 없음` 안내에 어떤 장소인지 넣는다.
+ */
+@Composable
+private fun ApproveFailure(failure: ReplacementError, placeName: String, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val message = if (failure == ReplacementError.AlternativeUnavailable) {
+        stringResource(R.string.replacement_error_alternative_unavailable, placeName)
+    } else {
+        stringResource(failure.messageRes)
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(radius.lg))
+            .background(colors.warningContainer)
+            .padding(spacing.space4)
+            .testTag(TAG_APPROVE_FAILURE),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_triangle_alert),
+            contentDescription = null,
+            tint = colors.warning,
+            modifier = Modifier.size(FAILURE_ICON),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.space1)) {
+            Text(
+                text = stringResource(R.string.replacement_approve_failed),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.replacement_schedule_kept),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.muted,
+            )
         }
     }
 }
@@ -491,6 +598,46 @@ internal fun PreviewMap(content: PreviewUiState.Content, modifier: Modifier = Mo
         sheetFraction = 0f,
     )
 }
+
+/**
+ * 승인 실패 뒤 사용자가 할 수 있는 다음 행동(UI-005, quickstart FE 4).
+ *
+ * 원인마다 달라야 한다(SC-007). 이 화면에서 바로 고칠 수 있으면 [Recreate], 이 후보로는 더 이상
+ * 안 되면 [Candidates], 같은 요청을 그대로 다시 보내면 되면 [Retry]다.
+ */
+private enum class ApproveAction { Recreate, Candidates, Retry }
+
+/**
+ * 승인 실패 원인을 다음 행동으로 옮긴다.
+ *
+ * 명세가 정한 다섯 가지는 quickstart FE 4의 표 그대로다. 나머지 원인은 명세에 없어 성격이 같은
+ * 쪽에 붙였다. 미리보기가 낡은 경우는 [Recreate], 이 감지·후보로 더 진행할 수 없는 경우는
+ * [Candidates], 그 밖에는 [Retry]다.
+ */
+private val ReplacementError.approveAction: ApproveAction
+    get() = when (this) {
+        ReplacementError.ScheduleChanged, ReplacementError.PreviewExpired -> ApproveAction.Recreate
+        ReplacementError.AlreadyVisited, ReplacementError.AlternativeUnavailable -> ApproveAction.Candidates
+        ReplacementError.Network -> ApproveAction.Retry
+
+        // 명세 밖 원인. 미리보기가 밀려났으면 다시 만들고, 감지·승인이 이미 끝났으면 후보 목록으로
+        // 돌아가야 이 화면에서 벗어날 수 있다.
+        ReplacementError.PreviewSuperseded -> ApproveAction.Recreate
+        ReplacementError.AlreadyApproved,
+        ReplacementError.DetectionNotActive,
+        ReplacementError.SessionExpired,
+        -> ApproveAction.Candidates
+
+        ReplacementError.UndoExpired,
+        ReplacementError.FollowUpChangeExists,
+        is ReplacementError.RouteUnavailable,
+        ReplacementError.Unexpected,
+        -> ApproveAction.Retry
+    }
+
+/** 승인 처리 중인지. 승인 중에는 뒤로 가기까지 잠근다(Figma 승인 진행 중 상태). */
+private val PreviewUiState.isApproving: Boolean
+    get() = (this as? PreviewUiState.Content)?.approving == true
 
 /** 값이 작아질수록 좋은 항목(이동 시간·거리)의 나아짐 판정. 값이 없거나 같으면 강조하지 않는다. */
 private fun isBetter(before: Int?, after: Int?): Boolean? =
@@ -521,6 +668,7 @@ internal const val TAG_OTHER_CANDIDATES = "preview_other_candidates"
 internal const val TAG_MAP_SLOT = "preview_map"
 internal const val TAG_CHANGE_SUMMARY = "preview_change_summary"
 internal const val TAG_REASON = "preview_reason"
+internal const val TAG_APPROVE_FAILURE = "preview_approve_failure"
 
 /** 나아짐·나빠짐을 색 없이도 알리는 기호(UI-002). */
 private const val BETTER_MARK = " ↓"
@@ -534,3 +682,6 @@ private val ROW_MIN_HEIGHT: Dp = 44.dp
 private val ROW_LABEL_WIDTH: Dp = 72.dp
 private val LEGEND_SWATCH_WIDTH: Dp = 16.dp
 private val LEGEND_SWATCH_HEIGHT: Dp = 2.dp
+private val SPINNER_SIZE: Dp = 16.dp
+private val SPINNER_STROKE: Dp = 2.dp
+private val FAILURE_ICON: Dp = 20.dp
