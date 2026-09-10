@@ -14,6 +14,8 @@ import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.auth.toAuthResult
 import com.gilpick.auth.toEmptyAuthResult
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import java.io.IOException
 import java.util.UUID
 import retrofit2.Response
@@ -136,6 +138,10 @@ class ReplacementRepository(
                 api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
                 appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                 scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                // F011. 이 경로로 만들어진 session에서도 토큰 갱신·로그아웃이 푸시 토큰 등록·해제를
+                // 예약해야 한다(F011 FR-020). 다른 repository의 `default`와 같은 조립이다.
+                syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
             )
             return ReplacementRepository(
                 api = createReplacementRetrofit(BuildConfig.API_BASE_URL).create(ReplacementService::class.java),
