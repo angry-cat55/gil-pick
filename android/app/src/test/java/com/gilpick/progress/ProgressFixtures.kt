@@ -109,3 +109,26 @@ internal fun inProgress(progressVersion: Int = 2): ProgressData = ProgressData(
         ),
     ),
 )
+
+// --- F010 장소 변경 되돌리기(T031) ---
+
+/** 승인으로 만들어진 되돌릴 수 있는 장소 변경. */
+internal const val REPLACEMENT_ID = "6e5d4c3b-2a1f-4e0d-9c8b-7a6f5e4d3c2b"
+
+/** 인사동거리를 창덕궁으로 바꾼 승인. 서버가 되돌릴 수 있는 동안만 실어 준다. */
+internal fun replacementUndo() = UndoableReplacementDto(
+    replacementId = REPLACEMENT_ID,
+    itemId = P_ITEM_C,
+    originalPlaceName = "인사동거리",
+    newPlaceName = "창덕궁",
+    undoExpiresAt = "2026-09-08T14:39:20+09:00",
+)
+
+/** 되돌릴 수 있는 F007 자동 확정. 장소 변경과 동시에 실릴 수 있다(F010 UI-006a). */
+internal fun autoUndoable() = UndoableTransitionDto(
+    transitionId = "8a2918f7-e6d5-4c4b-8a29-18f7e6d5c4b3",
+    itemId = P_ITEM_B,
+    type = UndoableKind.ARRIVAL,
+    confirmedAt = "2026-09-08T14:38:00+09:00",
+    undoDeadline = "2026-09-08T14:43:00+09:00",
+)

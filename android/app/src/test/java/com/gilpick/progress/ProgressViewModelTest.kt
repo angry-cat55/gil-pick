@@ -34,6 +34,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import com.gilpick.replacement.ReplacementError
+import com.gilpick.replacement.ReplacementErrorCodes
+import com.gilpick.replacement.undoFailure
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -74,6 +77,7 @@ class ProgressViewModelTest {
     private val progressService = FakeProgressService()
     private val itineraryService = FakeItineraryService()
     private val detectionService = FakeDetectionService()
+    private val replacementService = com.gilpick.replacement.FakeReplacementService()
     private val alternativeService = FakeAlternativeService()
 
     /** 대체 장소 repository 주입 여부. F009 배너 조회는 주입됐을 때만 한다(T020). */
@@ -777,6 +781,99 @@ class ProgressViewModelTest {
         }
     }
 
+    // --- F010 장소 변경 되돌리기(T031) ---
+
+    @Test
+    fun 장소_변경_되돌리기는_REPL_004를_보내고_성공하면_진행을_다시_조회한다() = viewModelTest { viewModel ->
+        // 되돌리기는 장소·경로·감지 대상을 한 transaction으로 바꾼다. 응답만 반영하면 화면이 어긋난다.
+        progressService.onGet = { progressOk(inProgress().copy(undoableReplacement = replacementUndo())) }
+        viewModel.load()
+        runCurrent()
+        val before = progressService.getCalls.size
+
+        viewModel.undoReplacement()
+        runCurrent()
+
+        assertEquals(listOf(REPLACEMENT_ID), replacementService.undoCalls)
+        assertTrue(progressService.getCalls.size > before)
+        assertNull((viewModel.state.value as ProgressUiState.Content).replacementUndoError)
+    }
+
+    @Test
+    fun 되돌리는_중에는_잠기고_연타로_요청이_겹치지_않는다() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(undoableReplacement = replacementUndo())) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.undoReplacement()
+        assertTrue((viewModel.state.value as ProgressUiState.Content).replacementUndoPending)
+        viewModel.undoReplacement()
+        runCurrent()
+
+        assertEquals(1, replacementService.undoCalls.size)
+    }
+
+    @Test
+    fun 되돌리기_실패는_토스트를_유지하고_원인만_남긴다() = viewModelTest { viewModel ->
+        // UI-007. 사용자가 원인과 일정 편집 안내를 볼 수 있어야 한다.
+        progressService.onGet = { progressOk(inProgress().copy(undoableReplacement = replacementUndo())) }
+        replacementService.onUndo = { undoFailure(ReplacementErrorCodes.UNDO_EXPIRED, httpStatus = 409) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.undoReplacement()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(false, content.replacementUndoPending)
+        assertEquals(ReplacementError.UndoExpired, content.replacementUndoError)
+    }
+
+    @Test
+    fun 되돌릴_수_없게_된_두_원인은_안내가_남도록_바로_재조회하지_않는다() = viewModelTest { viewModel ->
+        // FR-019·UI-007. 재조회하면 Content가 새로 만들어지며 원인이 지워져 안내가 사라진다.
+        // 토스트는 만료 시각 재조회와 매분 갱신이 걷어 간다.
+        progressService.onGet = { progressOk(inProgress().copy(undoableReplacement = replacementUndo())) }
+        replacementService.onUndo = { undoFailure(ReplacementErrorCodes.FOLLOW_UP_CHANGE_EXISTS, httpStatus = 409) }
+        viewModel.load()
+        runCurrent()
+        val before = progressService.getCalls.size
+
+        viewModel.undoReplacement()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(ReplacementError.FollowUpChangeExists, content.replacementUndoError)
+        assertEquals(before, progressService.getCalls.size)
+        // 안내가 보일 자리가 남아 있어야 원인을 읽을 수 있다.
+        assertNotNull(content.visibleReplacementUndo)
+    }
+
+    @Test
+    fun 되돌릴_수_있는_장소_변경이_없으면_요청을_보내지_않는다() = viewModelTest { viewModel ->
+        viewModel.load()
+        runCurrent()
+
+        viewModel.undoReplacement()
+        runCurrent()
+
+        assertTrue(replacementService.undoCalls.isEmpty())
+    }
+
+    @Test
+    fun 두_되돌리기가_동시에_가능하면_장소_변경을_먼저_보인다() = viewModelTest { viewModel ->
+        // UI-006a·SC-008. 표시 지점이 하나라 남은 시간이 짧은 쪽을 먼저 보여야 둘 다 쓸 수 있다.
+        progressService.onGet = {
+            progressOk(inProgress().copy(undoable = autoUndoable(), undoableReplacement = replacementUndo()))
+        }
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(REPLACEMENT_ID, content.visibleReplacementUndo!!.replacementId)
+        assertNull(content.visibleUndoable)
+    }
+
     private suspend fun newViewModel(): ProgressViewModel {
         val store = AuthSessionStore(
             AuthSessionStore.createDataStore(
@@ -810,6 +907,7 @@ class ProgressViewModelTest {
             geofenceManager = GeofenceManager(client = geofenceClient, session = geofenceSession),
             hasBackgroundPermission = { backgroundPermission },
             alternativeRepository = AlternativeRepository(api = alternativeService, auth = auth).takeIf { withAlternative },
+            replacementRepository = com.gilpick.replacement.ReplacementRepository(api = replacementService, auth = auth),
         )
     }
 }

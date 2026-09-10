@@ -121,6 +121,7 @@ fun ActiveTravelScreen(
     onRetryDecision: () -> Unit = {},
     onDismissCandidate: () -> Unit = {},
     onUndo: () -> Unit = {},
+    onUndoReplacement: () -> Unit = {},
     onEnableDetection: () -> Unit = {},
     onDismissDetectionNotice: () -> Unit = {},
     onOpenAlternatives: (detectionId: String) -> Unit = {},
@@ -155,6 +156,7 @@ fun ActiveTravelScreen(
                     onRetryDecision = onRetryDecision,
                     onDismissCandidate = onDismissCandidate,
                     onUndo = onUndo,
+                    onUndoReplacement = onUndoReplacement,
                     onEnableDetection = onEnableDetection,
                     onDismissDetectionNotice = onDismissDetectionNotice,
                     onOpenAlternatives = onOpenAlternatives,
@@ -480,6 +482,7 @@ private fun Content(
     onRetryDecision: () -> Unit,
     onDismissCandidate: () -> Unit,
     onUndo: () -> Unit,
+    onUndoReplacement: () -> Unit,
     onEnableDetection: () -> Unit,
     onDismissDetectionNotice: () -> Unit,
     onOpenAlternatives: (detectionId: String) -> Unit,
@@ -521,6 +524,18 @@ private fun Content(
         }
         content.actionError?.let { failure ->
             ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
+        }
+        // 장소 변경 직후의 되돌리기(F010 UI-006). 자동 확정 토스트와 같은 자리를 쓰고, 둘이 동시에
+        // 가능하면 남은 시간이 짧은 이쪽을 먼저 보인다(F010 UI-006a, ProgressUiState가 판단).
+        content.visibleReplacementUndo?.let { undo ->
+            ReplacementUndoToast(
+                undo = undo,
+                now = content.now,
+                submitting = content.replacementUndoPending,
+                error = content.replacementUndoError,
+                onUndo = onUndoReplacement,
+                modifier = Modifier.padding(top = spacing.space2),
+            )
         }
         // 자동 확정 직후의 되돌리기(UI-003). 되돌릴 수 있는 동안만 보인다.
         content.visibleUndoable?.let { undoable ->

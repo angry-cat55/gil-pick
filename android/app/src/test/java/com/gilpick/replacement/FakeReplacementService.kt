@@ -28,6 +28,11 @@ class FakeReplacementService : ReplacementService {
 
     var onApprove: suspend () -> Response<SuccessEnvelope<ReplacementDto>> = { approveOk(replacementJson()) }
 
+    /** 지금까지 도착한 되돌리기 요청의 replacementId. */
+    val undoCalls = mutableListOf<String>()
+
+    var onUndo: suspend () -> Response<SuccessEnvelope<ReplacementUndoResultDto>> = { undoOk(undoResultJson()) }
+
     override suspend fun createPreview(
         bearer: String,
         idempotencyKey: String,
@@ -55,8 +60,10 @@ class FakeReplacementService : ReplacementService {
     override suspend fun undoReplacement(
         bearer: String,
         replacementId: String,
-    ): Response<SuccessEnvelope<ReplacementUndoResultDto>> =
-        throw UnsupportedOperationException("되돌리기는 T031(#351)이 붙인다")
+    ): Response<SuccessEnvelope<ReplacementUndoResultDto>> {
+        undoCalls += replacementId
+        return onUndo()
+    }
 }
 
 private val fakeJson = Json { ignoreUnknownKeys = true }
@@ -74,6 +81,14 @@ fun approveFailure(code: String, httpStatus: Int, retryable: Boolean = false): R
         httpStatus,
         replacementErrorJson(code, retryable = retryable).toResponseBody("application/json".toMediaType()),
     )
+
+/** 되돌리기 성공 응답. */
+fun undoOk(body: String): Response<SuccessEnvelope<ReplacementUndoResultDto>> =
+    Response.success(fakeJson.decodeFromString(body))
+
+/** 되돌리기 실패 응답. */
+fun undoFailure(code: String, httpStatus: Int): Response<SuccessEnvelope<ReplacementUndoResultDto>> =
+    Response.error(httpStatus, replacementErrorJson(code).toResponseBody("application/json".toMediaType()))
 
 /** 계약이 정한 오류 응답. */
 fun failure(code: String, httpStatus: Int, retryable: Boolean = false): Response<SuccessEnvelope<RoutePreviewDto>> =
