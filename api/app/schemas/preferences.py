@@ -6,7 +6,6 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.auth import ApiModel, SuccessEnvelope
 
-
 StrictPreference = Annotated[bool, Field(strict=True)]
 
 
