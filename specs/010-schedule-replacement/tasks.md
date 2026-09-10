@@ -48,11 +48,12 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: 없음
   - 검증: `PREVIEW_TTL_MINUTES = 5`(research 7절), `UNDO_WINDOW_SECONDS = 30`(`docs/planning/requirements.md` REPL-02 확정값)을 이 모듈 상단에서만 읽는다. 두 값을 다른 파일에 중복해 쓰지 않는다. `api/tests/unit/test_replacement_rules.py`(T021)에서 값 접근 확인
-- [ ] T003 [P] Figma 부족 요소 3건 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/RoutePreviewScreen.tsx, docs/design/figma-make/src/screens/ActiveTravelScreen.tsx
+- [ ] T003 [P] Figma 부족 요소 2건 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/RoutePreviewScreen.tsx
   - 영역: FE
   - 담당: hs
   - 선행: 없음
-  - 검증: research 10절의 3건(`RoutePreviewScreen`의 **승인 진행 중·승인 실패** 상태, `ActiveTravelScreen`의 **장소 변경 되돌리기 토스트**, 비교 항목 **`정보 없음`** 표시)을 Owner가 Figma Make에 추가한 뒤 MCP로 원본을 다시 받아 사본을 갱신. 추가 전후 차이를 PR에 기록. 이미 있는 지도·기존/변경 범례·비교 표·`변경 승인`·`다른 후보 보기`는 그대로 둔다
+  - 검증: research 10절의 2건(`RoutePreviewScreen`의 **승인 진행 중·승인 실패** 상태, 비교 항목 **`정보 없음`** 표시)을 Owner가 Figma Make에 추가한 뒤 MCP로 원본을 다시 받아 사본을 갱신. 추가 전후 차이를 PR에 기록. 이미 있는 지도·기존/변경 범례·비교 표·`변경 승인`·`다른 후보 보기`는 그대로 둔다
+  - 정정(2026-09-10): 처음에는 `ActiveTravelScreen`의 장소 변경 되돌리기 토스트도 부족 요소로 적었으나 Figma 원본에 이미 있다(research 10절 정정). 그 파일은 이 task의 대상이 아니다
 
 ---
 
