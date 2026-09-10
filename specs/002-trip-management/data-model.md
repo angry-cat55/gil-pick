@@ -41,6 +41,7 @@ users 1 ------------------------------- N trips
 | `end_date >= start_date` | FR-001a |
 | `end_date - start_date <= 6` | FR-001, FR-011 |
 | 이름 중복 허용, unique 제약 없음 | FR-002 |
+| 같은 사용자의 `deleted_at IS NULL` 여행 기간은 양 끝 날짜를 포함해 서로 겹치지 않음 | FR-002a, FR-002b |
 | `status == COMPLETED`이면 `start_date`/`end_date` 수정 거부, 논리 삭제는 허용 | FR-010a, FR-014 |
 | `status == COMPLETED`가 아니어도 `name` 수정은 항상 허용 | FR-010 |
 | `PATCH` 요청은 조회 시점 `version`을 함께 받아 저장된 값과 다르면 거부 | FR-011a |
@@ -60,6 +61,14 @@ UPCOMING --start_date 도달--> IN_PROGRESS --end_date 경과--> COMPLETED
 - PK `(trip_id)`
 - `(user_id, deleted_at)` — 목록 조회, 소유권 검증
 - `(user_id, lower(name))` where `deleted_at IS NULL` — `docs/design/er-schema.md` 5절 인덱스와 동일, 이름 검색 보조
+
+### 기간 중복 방지 제약
+
+- PostgreSQL `btree_gist` 확장을 사용한다.
+- `EXCLUDE USING gist (user_id WITH =, daterange(start_date, end_date, '[]') WITH &&) WHERE (deleted_at IS NULL)` 제약 `ex_trips_user_active_period`를 둔다.
+- `[]` 범위이므로 기존 여행의 종료일과 다른 여행의 시작일이 같은 날이면 충돌하고, 종료일 다음 날부터 새 여행을 시작할 수 있다.
+- 다른 사용자의 여행과 논리 삭제된 여행은 제약 대상이 아니다.
+- migration은 기존 활성 여행의 겹침을 먼저 검사한다. 충돌 데이터가 있으면 어떤 여행도 임의 변경하지 않고 실패하여 운영자가 정리한 뒤 다시 적용한다.
 
 ### 생성 요청 멱등성 (FR-003)
 

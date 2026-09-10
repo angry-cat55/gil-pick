@@ -37,6 +37,20 @@
 
 **Alternatives considered**: last-write-wins — 기존 문서·아키텍처와 충돌해 제외.
 
-## 5. 열린 항목 (Backend 담당자 확인 필요)
+## 5. 사용자별 여행 기간 중복 방지
+
+**Decision**: 같은 사용자의 `deleted_at IS NULL` 여행 기간은 PostgreSQL `btree_gist` 확장과 partial GiST exclusion constraint로 겹치지 않게 강제한다. 범위는 `daterange(start_date, end_date, '[]')`로 양 끝 날짜를 포함한다. 생성·기간 수정에서 제약 위반은 공통 `409 TRIP_PERIOD_CONFLICT`로 매핑한다.
+
+**Rationale**: 서비스에서 충돌 여부를 먼저 조회하는 방식만으로는 서로 다른 요청이 동시에 검사한 뒤 모두 저장되는 경쟁 상태를 막지 못한다. DB exclusion constraint는 사용자별·삭제되지 않은 행만 대상으로 동시 요청까지 하나의 불변식으로 보장하며 별도 range 컬럼도 필요 없다. 생성 멱등 재요청은 기존 deterministic `trip_id` 결과를 먼저 확인하거나 자기 행을 충돌 검사에서 제외해 같은 요청이 자기 자신과 충돌하지 않게 한다.
+
+Migration은 기존 활성 여행의 겹침을 self join으로 사전 검사한다. 충돌이 있으면 여행을 임의 삭제·축소하지 않고 명시적으로 실패시켜 운영자가 정리한 뒤 다시 실행한다. `btree_gist` 확장 생성 권한도 배포 환경에서 사전 확인한다.
+
+**Alternatives considered**:
+
+- 애플리케이션 `SELECT`만 사용: 동시 생성·수정 경쟁을 막지 못해 제외한다.
+- 사용자별 advisory transaction lock과 충돌 조회: 모든 쓰기 경로가 잠금 규약을 따라야 해 DB 자체 불변식보다 취약하고 코드가 늘어나 제외한다.
+- 충돌 여행의 자동 삭제·기간 축소: 사용자 데이터를 임의 변경하므로 제외한다.
+
+## 6. 열린 항목 (Backend 담당자 확인 필요)
 
 - 2절의 "F002는 `trips`만 생성" 결정과 3절의 일정 관련 필드 생략은 2026-08-28 Backend 구현 과정에서 확정했으며, `docs/design/api-spec.md`에도 F002 현재 계약과 F004 이후 확장 시점을 동기화했다.

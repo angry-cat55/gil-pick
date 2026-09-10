@@ -11,7 +11,7 @@
 
 ## Backend 검증
 
-### 1. 여행 생성과 검증 (FR-001, FR-001a, FR-001b, FR-002, FR-003)
+### 1. 여행 생성과 검증 (FR-001, FR-001a, FR-001b, FR-002, FR-002a, FR-002b, FR-003)
 
 ```bash
 curl -X POST "$BASE_URL/api/v1/trips" \
@@ -27,6 +27,11 @@ curl -X POST "$BASE_URL/api/v1/trips" \
 - 기간 8일(`end - start > 6`) → `422 INVALID_TRIP_PERIOD`
 - 이름 공백만("   ") → `422` (trim 후 2자 미만)
 - 동일 이름으로 재생성 → `201` 성공(중복 허용)
+- 같은 사용자의 삭제되지 않은 여행과 하루라도 겹치는 기간 → `409 TRIP_PERIOD_CONFLICT`
+- 기존 종료일과 새 시작일이 같은 날 → `409 TRIP_PERIOD_CONFLICT`; 기존 종료일 다음 날 시작 → `201`
+- 다른 사용자의 같은 기간과 논리 삭제된 여행의 기간 → `201`
+- 같은 사용자의 겹치는 기간으로 동시 생성 요청 두 건 → 한 건만 `201`, 나머지는 `409 TRIP_PERIOD_CONFLICT`
+- 같은 `Idempotency-Key` 재전송 → 기간 제약에 자기 자신이 걸리지 않고 최초 `201` 결과와 같은 `tripId` 반환
 
 ### 2. 목록·검색·필터 (FR-004~FR-009)
 
@@ -50,7 +55,7 @@ curl "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <B_ACCESS_TOKEN
 - 사용자 B(비소유자): `403`
 - 논리 삭제된 `tripId`로 사용자 A 조회: `404`
 
-### 4. 수정 — 이름·기간·버전 충돌·완료 잠금 (FR-010, FR-010a, FR-011, FR-011a, FR-012, FR-013)
+### 4. 수정 — 이름·기간·버전 충돌·완료 잠금 (FR-002a, FR-002b, FR-010, FR-010a, FR-011, FR-011a, FR-012, FR-013)
 
 ```bash
 curl -X PATCH "$BASE_URL/api/v1/trips/<tripId>" \
@@ -62,6 +67,8 @@ curl -X PATCH "$BASE_URL/api/v1/trips/<tripId>" \
 - 오래된 `version`으로 재요청 → `409 VERSION_CONFLICT`
 - 완료(`COMPLETED`) 상태 여행에 `startDate`/`endDate` 포함 요청 → `409 TRIP_LOCKED`
 - 완료 상태 여행에 `name`만 요청 → `200`
+- 자기 기간을 유지하는 수정 → 기간 충돌 없이 `200`
+- 같은 사용자의 다른 삭제되지 않은 여행과 겹치도록 기간 수정 → `409 TRIP_PERIOD_CONFLICT`, 기존 기간·일정·`version` 유지
 - 기간 축소로 범위 밖 일정이 있는 여행에 `confirmDeleteOutOfRangeItems` 없이 요청 → `409 CONFIRMATION_REQUIRED`, `details.deletedItemCount` 확인 후 `confirmDeleteOutOfRangeItems: true`로 재요청 → `200`
   - F002 시점에는 `trip_days`/`itinerary_items`가 없어 `deletedItemCount`는 항상 0이다([data-model.md](data-model.md) "범위 밖" 참고). F004 이후 재검증한다.
 
@@ -79,6 +86,7 @@ curl -X DELETE "$BASE_URL/api/v1/trips/<tripId>" -H "Authorization: Bearer <A_AC
 ## Android 검증
 
 - 여행 생성 화면에서 이름·기간 유효성 오류(길이, 기간 초과, 시작일>종료일)가 즉시 표시되는지 확인
+- 생성·수정 응답이 `409 TRIP_PERIOD_CONFLICT`이면 입력값을 유지하고 다른 기간을 선택하라는 안내를 표시하는지 확인
 - 여행 목록 화면에서 검색어·상태 필터·무한 스크롤 동작 확인, 다른 계정으로 로그인 시 목록이 섞이지 않는지 확인
 - 여행 상세에서 완료 상태 여행의 기간 수정 UI가 비활성화되고 이름 수정은 가능한지 확인
 - 기간 축소 시 삭제 예정 안내 다이얼로그가 뜨고, 취소하면 서버에 반영되지 않는지 확인
@@ -112,3 +120,14 @@ PR에는 실행 환경·절차·HTTP 상태·DB 상태 전이만 기록하며 Ac
 
 - Backend 검증에서는 실제 카카오 로그인으로 발급한 운영 Access Token을 외부 카카오 인증정보가 없는 로컬 환경이라 사용하지 않았다. JWT 검증 규칙과 사용자 분리는 F001 테스트와 로컬 검증 JWT로 확인했으며, 실제 계정 session의 refresh는 T048에서 위 Android 절에 따라 검증한다.
 - Android 확인 항목은 T048(Issue #108) 범위이므로 실행하지 않았다.
+
+## 기간 중복 금지 정책 추가 검증 (2026-09-10 문서 갱신)
+
+이 절은 기존 실행 결과와 구분한 후속 검증 계획이다. 구현 전이므로 아직 실행하지 않았다.
+
+1. Migration 전에 같은 사용자의 삭제되지 않은 여행 중 겹치는 기간을 탐지하고, 충돌 데이터가 있으면 자동 수정 없이 upgrade가 실패하는지 확인한다.
+2. 충돌 데이터를 정리한 뒤 `btree_gist`와 `ex_trips_user_active_period` 제약이 적용되는지 확인한다.
+3. 같은 사용자에 대해 부분 중첩·완전 포함·같은 날 경계는 `409 TRIP_PERIOD_CONFLICT`, 종료일 다음 날 시작은 성공하는지 확인한다.
+4. 다른 사용자 동일 기간과 논리 삭제된 여행의 기간 재사용은 성공하는지 확인한다.
+5. 서로 겹치는 생성 또는 기간 수정 요청을 두 transaction에서 동시에 실행해 성공 결과가 최대 한 건인지 확인한다.
+6. 생성 멱등 재전송, 수정 `VERSION_CONFLICT`, 기간 축소 `CONFIRMATION_REQUIRED`의 기존 우선순위와 응답이 회귀하지 않는지 확인한다.

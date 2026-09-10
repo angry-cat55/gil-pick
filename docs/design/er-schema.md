@@ -173,6 +173,7 @@ erDiagram
 
 - `CHECK(char_length(name) BETWEEN 2 AND 30)`
 - `CHECK(end_date - start_date BETWEEN 0 AND 6)`
+- `btree_gist`와 partial exclusion constraint `EXCLUDE USING gist (user_id WITH =, daterange(start_date, end_date, '[]') WITH &&) WHERE (deleted_at IS NULL)`로 같은 사용자의 삭제되지 않은 여행 기간 중복을 금지한다. 양 끝 날짜를 포함하므로 기존 종료일과 새 시작일이 같은 날이면 충돌이다.
 - 목록 상태는 저장하지 않고 KST 날짜와 여행 기간으로 계산한다.
 - 기간 축소는 사용자 확인 후 범위 밖 `trip_days`를 삭제한다.
 
@@ -577,7 +578,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 |---|---|
 | `users` | unique `(social_provider, social_subject)` |
 | `device_sessions` | unique `(user_id, client_device_id)`, `uq_device_sessions_fcm_token` unique `(fcm_token)` where `fcm_token is not null and revoked_at is null` |
-| `trips` | `(user_id, deleted_at)` 및 `(user_id, lower(name))` where `deleted_at is null` |
+| `trips` | `(user_id, deleted_at)` 및 `(user_id, lower(name))` where `deleted_at is null`; `ex_trips_user_active_period` exclusion constraint |
 | `trip_days` | unique `(trip_id, visit_date)`, unique `(trip_id, day_number)` |
 | `itinerary_items` | unique `(trip_day_id, sequence)`, `(trip_day_id, status, sequence)` |
 | `places` | partial unique `(tour_content_id)`, partial unique `(google_place_id)`, GiST `(location)` |
