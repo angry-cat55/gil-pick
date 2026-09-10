@@ -3,7 +3,6 @@ package com.gilpick
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -25,7 +24,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.gilpick.auth.AuthResult
 import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.AuthViewModel
 import com.gilpick.auth.LoginScreen
@@ -40,6 +38,7 @@ import com.gilpick.notification.NotificationListRoute
 import com.gilpick.notification.NotificationTarget
 import com.gilpick.notification.PendingNotificationTarget
 import com.gilpick.notification.notificationGraph
+import com.gilpick.notification.tripNameOf
 import com.gilpick.replacement.RoutePreviewRoute
 import com.gilpick.replacement.replacementGraph
 import com.gilpick.place.PlaceDetailRoute
@@ -60,7 +59,6 @@ import com.gilpick.trip.TripFormScreen
 import com.gilpick.trip.TripFormViewModel
 import com.gilpick.trip.TripListScreen
 import com.gilpick.trip.TripListViewModel
-import com.gilpick.trip.TripRepository
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.Serializable
 
@@ -279,7 +277,7 @@ private fun TripRoute(
         val target = pendingNotification ?: return@LaunchedEffect
         when (val route = target.route) {
             is NotificationTarget.Alternative -> navController.navigate(AlternativePlacesRoute(route.detectionId, route.tripId))
-            is NotificationTarget.Progress -> navController.navigate(ActiveTravelRoute(route.tripId, tripName(context, route.tripId)))
+            is NotificationTarget.Progress -> navController.navigate(ActiveTravelRoute(route.tripId, tripNameOf(context, route.tripId)))
             null -> navController.navigate(NotificationListRoute)
         }
         onNotificationConsumed()
@@ -308,6 +306,7 @@ private fun TripRoute(
                 onCreateTrip = { navController.navigate(TripFormRoute) },
                 onTripClick = { tripId -> navController.navigate(TripDetailRoute(tripId)) },
                 onLogout = onLogout,
+                onNotifications = { navController.navigate(NotificationListRoute) },
             )
         }
 
@@ -437,7 +436,7 @@ private fun TripRoute(
         // F006 진행 화면. destination 정의는 com.gilpick.progress가 소유한다. 여행 상세의
         // `오늘 여행 시작`·`여행 진행 화면으로`가 이 route로 들어오고, `장소 추가`·`경로 보기`는
         // 위 itineraryGraph·routeGraph로 간다.
-        progressGraph(navController, onSessionExpired = onSessionExpired)
+        progressGraph(navController, onSessionExpired = onSessionExpired, onNotifications = { navController.navigate(NotificationListRoute) })
 
         // F009 대체 장소. destination 정의는 com.gilpick.alternative가 소유한다. 진행 화면의 변수 경고
         // 배너가 이 route로 들어오고, `기존 일정 그대로 진행`은 진행 화면으로 돌아간다.
@@ -463,7 +462,7 @@ private fun TripRoute(
         replacementGraph(navController, onSessionExpired = onSessionExpired)
 
         // F011 알림 목록·감지 목록. destination 정의는 com.gilpick.notification이 소유한다. 알림 탭은
-        // 유형에 따라 위 alternativeGraph·progressGraph로 간다. 헤더 벨 진입점은 T036이 붙인다.
+        // 유형에 따라 위 alternativeGraph·progressGraph로 간다. 헤더 벨 진입점은 여행 목록·progressGraph의 onNotifications다.
         notificationGraph(
             navController,
             onSessionExpired = onSessionExpired,
@@ -480,13 +479,6 @@ private fun TripRoute(
         )
     }
 }
-
-/**
- * 진행 화면 헤더 여행명. 푸시 payload에는 없어(FR-006) 여행을 조회한다. 실패하면 빈 이름으로 가되
- * 진행 화면이 자기 조회에서 같은 원인(오프라인·세션 만료)을 안내한다.
- */
-private suspend fun tripName(context: Context, tripId: String): String =
-    (TripRepository.default(context).getTrip(tripId) as? AuthResult.Success)?.value?.name ?: ""
 
 /** 여행 목록. 로그인 후 첫 화면이다. */
 @Serializable

@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
+import com.gilpick.notification.IconBoxButton
 import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
@@ -96,6 +97,7 @@ import kotlinx.coroutines.delay
  * @param onSelectDate 날짜 진행 표시의 점을 눌러 그 날짜를 본다(US4).
  * @param onReturnToToday `오늘로 돌아가기`(UI-005).
  * @param onOpenAlternatives F009 변수 경고 배너 탭. 그 감지의 대체 장소 화면으로 간다(F009 FR-028).
+ * @param onNotifications 헤더 알림 벨. F011 알림 목록으로 간다.
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -122,6 +124,7 @@ fun ActiveTravelScreen(
     onEnableDetection: () -> Unit = {},
     onDismissDetectionNotice: () -> Unit = {},
     onOpenAlternatives: (detectionId: String) -> Unit = {},
+    onNotifications: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -132,7 +135,7 @@ fun ActiveTravelScreen(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding(),
     ) {
-        Header(state = state, tripName = tripName, onSelectDate = onSelectDate, onReturnToToday = onReturnToToday)
+        Header(state = state, tripName = tripName, onSelectDate = onSelectDate, onReturnToToday = onReturnToToday, onNotifications = onNotifications)
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
                 ProgressUiState.Loading -> Loading()
@@ -163,11 +166,17 @@ fun ActiveTravelScreen(
 }
 
 /**
- * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시. 내용이 없으면 여행명만 보인다.
+ * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시, 오른쪽 알림 벨(F011). 내용이 없으면 여행명만 보인다.
  * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
  */
 @Composable
-private fun Header(state: ProgressUiState, tripName: String, onSelectDate: (LocalDate) -> Unit, onReturnToToday: () -> Unit) {
+private fun Header(
+    state: ProgressUiState,
+    tripName: String,
+    onSelectDate: (LocalDate) -> Unit,
+    onReturnToToday: () -> Unit,
+    onNotifications: () -> Unit,
+) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val radius = LocalGilpickRadius.current
@@ -197,6 +206,14 @@ private fun Header(state: ProgressUiState, tripName: String, onSelectDate: (Loca
                     modifier = Modifier.testTag(TAG_DAY_SUMMARY),
                 )
             }
+            Spacer(modifier = Modifier.weight(1f))
+            IconBoxButton(
+                icon = R.drawable.ic_lucide_bell,
+                contentDescription = stringResource(R.string.notification_open_bell),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = onNotifications,
+                modifier = Modifier.testTag(TAG_NOTIFICATIONS),
+            )
         }
         Text(
             text = tripName,
@@ -1385,6 +1402,9 @@ private fun AddPlaceButton(onAddPlace: () -> Unit, modifier: Modifier = Modifier
 
 /** UI test가 찾는 tag. */
 internal const val TAG_DAY_SUMMARY = "progress_day_summary"
+
+/** 헤더 알림 벨(F011). */
+internal const val TAG_NOTIFICATIONS = "progress_notifications"
 internal const val TAG_CARD_NEXT = "progress_card_next"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"
 internal const val TAG_CARD_ALL_DONE = "progress_card_all_done"

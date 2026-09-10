@@ -65,6 +65,7 @@ fun NavGraphBuilder.progressGraph(
     repository: (Context) -> ProgressRepository = ProgressViewModel::defaultRepository,
     itineraryRepository: (Context) -> ItineraryRepository = ItineraryEditViewModel::defaultRepository,
     alternativeRepository: (Context) -> AlternativeRepository? = AlternativeRepository::default,
+    onNotifications: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
         RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f)
     },
@@ -126,6 +127,7 @@ fun NavGraphBuilder.progressGraph(
             onDismissDetectionNotice = viewModel::dismissDetectionNotice,
             // F009 배너 → 그 감지의 대체 장소 화면. 돌아오면 위 재개 조회가 배너를 다시 맞춘다(거절 후 소멸).
             onOpenAlternatives = { detectionId -> navController.navigate(AlternativePlacesRoute(detectionId, route.tripId)) },
+            onNotifications = onNotifications,
             map = map,
         )
     }
