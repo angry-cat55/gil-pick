@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gilpick.BuildConfig
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -102,6 +104,8 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                                 .create(AuthService::class.java),
                             appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                             scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                            syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                            clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
                         ),
                     )
                 }

@@ -191,7 +191,7 @@ class PlayServicesGeofenceClient(context: Context) : GeofenceClient {
 }
 
 /** Play Services `Task`를 coroutine으로 기다린다. 실패는 예외로 던져 호출자가 다루게 한다. */
-private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
+internal suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
     suspendCancellableCoroutine { continuation ->
         addOnSuccessListener { continuation.resume(it) }
         addOnFailureListener { continuation.resumeWithException(it) }

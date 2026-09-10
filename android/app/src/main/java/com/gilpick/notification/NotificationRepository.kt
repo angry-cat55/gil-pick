@@ -93,6 +93,8 @@ class NotificationRepository(
                 api = createAuthRetrofit(BuildConfig.API_BASE_URL).create(AuthService::class.java),
                 appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                 scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
             )
             return NotificationRepository(
                 api = createNotificationRetrofit(BuildConfig.API_BASE_URL).create(NotificationService::class.java),

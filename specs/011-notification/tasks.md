@@ -137,17 +137,17 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T012, T017
   - 검증: quickstart BE 6.1~6.7 — 등록·재등록 멱등, 같은 토큰 다른 세션 이동(partial unique), 활성 세션 없음 `404 DEVICE_SESSION_NOT_FOUND`, DEV-002 `204`, 타인 `deviceId` `403`/`404`
-- [ ] T019 [P] [US1] FCM 토큰 durable worker in android/app/src/main/java/com/gilpick/notification/FcmTokenSyncWorker.kt, FcmTokenClearWorker.kt
+- [x] T019 [P] [US1] FCM 토큰 durable worker in android/app/src/main/java/com/gilpick/notification/FcmTokenSyncWorker.kt, FcmTokenClearWorker.kt
   - 영역: FE
   - 담당: jy
   - 선행: T014
   - 검증: `FcmTokenSyncWorker`(현재 FCM 토큰 조회 → DEV-001, `SessionRevocationWorker` 패턴: unique work·`BackoffPolicy.EXPONENTIAL`·`NetworkType.CONNECTED`), `FcmTokenClearWorker`(DEV-002 + `FirebaseMessaging.deleteToken()` best-effort). `FcmTokenSyncWorkerTest`
-- [ ] T020 [US1] 인증 흐름에 토큰 등록·해제 hook in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt
+- [x] T020 [US1] 인증 흐름에 토큰 등록·해제 hook in android/app/src/main/java/com/gilpick/auth/AuthRepository.kt
   - 영역: FE
   - 담당: jy
   - 선행: T019
   - 검증: `onSignedIn` 성공 후·`performRefresh` 성공 후 `FcmTokenSyncWorker.enqueue(context)`(FR-020), `logout()`에서 `FcmTokenClearWorker.enqueue(context)`. 푸시 권한 없음·토큰 실패가 로그인·다른 기능을 막지 않음(quickstart AND 4.3). 교차 계약 review: F001 담당(`AuthRepository`는 F001 소유)
-- [ ] T021 [US1] onNewToken 연결 in android/app/src/main/java/com/gilpick/notification/GilpickMessagingService.kt
+- [x] T021 [US1] onNewToken 연결 in android/app/src/main/java/com/gilpick/notification/GilpickMessagingService.kt
   - 영역: FE
   - 담당: jy
   - 선행: T004, T019

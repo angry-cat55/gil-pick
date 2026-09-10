@@ -15,6 +15,8 @@ import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.SessionRevocationWorker
 import com.gilpick.auth.createAuthRetrofit
+import com.gilpick.notification.FcmTokenClearWorker
+import com.gilpick.notification.FcmTokenSyncWorker
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -454,6 +456,8 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                             .create(AuthService::class.java),
                         appLinkHandler = AuthAppLinkHandler(BuildConfig.APP_LINK_HOST),
                         scheduleRevocation = SessionRevocationWorker.scheduler(appContext),
+                        syncPushToken = { FcmTokenSyncWorker.enqueue(appContext) },
+                        clearPushToken = { FcmTokenClearWorker.enqueue(appContext) },
                     )
                     TripFormViewModel(
                         TripRepository(
