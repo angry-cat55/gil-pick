@@ -48,7 +48,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: 없음
   - 검증: `PREVIEW_TTL_MINUTES = 5`(research 7절), `UNDO_WINDOW_SECONDS = 30`(`docs/planning/requirements.md` REPL-02 확정값)을 이 모듈 상단에서만 읽는다. 두 값을 다른 파일에 중복해 쓰지 않는다. `api/tests/unit/test_replacement_rules.py`(T021)에서 값 접근 확인
-- [ ] T003 [P] Figma 부족 요소 2건 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/RoutePreviewScreen.tsx
+- [x] T003 [P] Figma 부족 요소 2건 반영과 저장소 사본 갱신 in docs/design/figma-make/src/screens/RoutePreviewScreen.tsx
   - 영역: FE
   - 담당: hs
   - 선행: 없음
