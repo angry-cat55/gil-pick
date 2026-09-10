@@ -116,3 +116,44 @@ data class PendingNotificationTarget(
         }
     }
 }
+
+/**
+ * FCM data-only payload(research R11). 서버 `dispatch.py`가 `type`·`notificationId`·`tripId`·선택 식별자·
+ * `title`·`body`만 담는다(FR-006). [PendingNotificationTarget]의 거울로, 시스템 알림과 탭 extras를 만든다.
+ *
+ * @property id 시스템 알림·PendingIntent 식별자. 알림마다 달라야 서로 덮어쓰지 않는다.
+ * @property type 계약 밖 값이면 `null`. 알림은 띄우되 탭하면 알림 목록으로 간다.
+ * @property extras 탭 intent extras. [PendingNotificationTarget.fromExtras]가 그대로 읽는다.
+ */
+data class PushNotification(
+    val id: Int,
+    val type: NotificationType?,
+    val title: String,
+    val body: String,
+    val extras: Map<String, String>,
+) {
+    companion object {
+        private val EXTRA_KEYS = mapOf(
+            "type" to PendingNotificationTarget.EXTRA_TYPE,
+            "tripId" to PendingNotificationTarget.EXTRA_TRIP_ID,
+            "tripDayId" to PendingNotificationTarget.EXTRA_TRIP_DAY_ID,
+            "itemId" to PendingNotificationTarget.EXTRA_ITEM_ID,
+            "detectionId" to PendingNotificationTarget.EXTRA_DETECTION_ID,
+            "transitionId" to PendingNotificationTarget.EXTRA_TRANSITION_ID,
+        )
+
+        /** `type`·`title`·`body` 중 하나라도 없으면 우리 계약이 아니므로 `null`이다. */
+        fun fromData(data: Map<String, String>): PushNotification? {
+            val rawType = data["type"] ?: return null
+            val title = data["title"] ?: return null
+            val body = data["body"] ?: return null
+            return PushNotification(
+                id = (data["notificationId"] ?: rawType).hashCode(),
+                type = NotificationType.entries.firstOrNull { it.name == rawType },
+                title = title,
+                body = body,
+                extras = EXTRA_KEYS.mapNotNull { (from, to) -> data[from]?.let { to to it } }.toMap(),
+            )
+        }
+    }
+}

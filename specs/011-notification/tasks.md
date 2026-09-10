@@ -179,7 +179,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T022, T023
   - 검증: quickstart BE 1.1~1.4, BE 3.1·3.6 — 최초 INSERT만 1행(`dedup_key='detection:{id}'`), 갱신 시 무생성, payload에 좌표·평점·토큰 없음, FCM 실패가 감지 transaction을 롤백하지 않음
-- [ ] T025 [US2] onMessageReceived + 대체 장소 딥링크 in android/app/src/main/java/com/gilpick/notification/GilpickMessagingService.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T025 [US2] onMessageReceived + 대체 장소 딥링크 in android/app/src/main/java/com/gilpick/notification/GilpickMessagingService.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T016, T021
@@ -216,7 +216,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T026, T027, T028
   - 검증: quickstart BE 2.1~2.6, BE 3 — 유형·`dedup_key`·`transition_id`·`item_id`, 최대 2회 재질문, `아직 머무는 중`·당일 완료 후 미생성(SC-011), 설정 off여도 진행 알림 전달(SC-003), COMPOSITE 자동 확정 1건
-- [ ] T030 [US3] 진행 화면 딥링크 in android/app/src/main/java/com/gilpick/notification/GilpickMessagingService.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
+- [x] T030 [US3] 진행 화면 딥링크 in android/app/src/main/java/com/gilpick/notification/GilpickMessagingService.kt, android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: jy
   - 선행: T025
