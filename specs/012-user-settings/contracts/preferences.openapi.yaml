@@ -1,0 +1,139 @@
+openapi: 3.1.0
+info:
+  title: 길픽 사용자 설정 API
+  version: 0.1.0
+  description: F012 장소 변경 제안 알림 단일 설정 계약
+servers:
+  - url: /api/v1
+paths:
+  /users/me/preferences:
+    get:
+      operationId: getMyPreferences
+      summary: 현재 사용자의 설정 조회
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 저장된 설정
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: updateMyPreferences
+      summary: 현재 사용자의 설정 수정
+      description: 서버가 마지막으로 성공 처리한 절대값이 최종 상태가 된다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePreferenceRequest'
+      responses:
+        '200':
+          description: 저장에 성공한 설정
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PreferenceData:
+      type: object
+      additionalProperties: false
+      required:
+        - placeChangeSuggestionNotificationEnabled
+      properties:
+        placeChangeSuggestionNotificationEnabled:
+          type: boolean
+    UpdatePreferenceRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - placeChangeSuggestionNotificationEnabled
+      properties:
+        placeChangeSuggestionNotificationEnabled:
+          type: boolean
+    PreferenceResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - success
+        - data
+        - meta
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/PreferenceData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - success
+        - error
+        - meta
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - retryable
+        - details
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+    ResponseMeta:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+  responses:
+    BadRequest:
+      description: 요청 body가 계약을 만족하지 않음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Access Token이 없거나 유효하지 않음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
