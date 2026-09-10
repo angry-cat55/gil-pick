@@ -170,7 +170,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: T005
   - 검증: quickstart BE 4~6. 승인 후 여섯 가지(`place_id` 교체, `item_id`·`sequence`·`planned_stay_minutes`·`transport_mode_to_next` 유지, `schedule_version` +1, 새 version 활성 `routes`와 이전 `HISTORICAL`, `place_replacements` 삽입과 `undo_expires_at`, `detections` `RESOLVED`)를 모두 확인. 재검증 5가지 각각에서 **일정이 하나도 바뀌지 않음**을 함께 확인(SC-007). 같은 `Idempotency-Key` 2회 요청 시 이력 1건·version 1회 상승·같은 응답(FR-011, SC-003)
-- [ ] T020 [P] [US2] 승인 UI test in android/app/src/androidTest/java/com/gilpick/replacement/RoutePreviewApproveTest.kt
+- [x] T020 [P] [US2] 승인 UI test in android/app/src/androidTest/java/com/gilpick/replacement/RoutePreviewApproveTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T003
@@ -188,7 +188,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: T021
   - 검증: T018 통과. 소유권 검증과 `Idempotency-Key` 처리. 같은 키 재요청은 저장된 `response_snapshot`을 그대로 반환하고 다른 키의 재승인은 `409 ALREADY_APPROVED`다
-- [ ] T023 [US2] 승인 연결과 실패 안내 in android/app/src/main/java/com/gilpick/replacement/PreviewViewModel.kt, android/app/src/main/java/com/gilpick/replacement/RoutePreviewScreen.kt
+- [x] T023 [US2] 승인 연결과 실패 안내 in android/app/src/main/java/com/gilpick/replacement/PreviewViewModel.kt, android/app/src/main/java/com/gilpick/replacement/RoutePreviewScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T016, T020

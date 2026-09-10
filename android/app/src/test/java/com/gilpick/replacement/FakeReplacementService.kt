@@ -21,7 +21,12 @@ class FakeReplacementService : ReplacementService {
     /** 지금까지 도착한 폐기 요청의 previewId. */
     val rejectCalls = mutableListOf<String>()
 
+    /** 지금까지 도착한 승인 요청의 `(Idempotency-Key, previewId)`. */
+    val approveCalls = mutableListOf<Pair<String, String>>()
+
     var onCreatePreview: suspend () -> Response<SuccessEnvelope<RoutePreviewDto>> = { ok(routePreviewJson()) }
+
+    var onApprove: suspend () -> Response<SuccessEnvelope<ReplacementDto>> = { approveOk(replacementJson()) }
 
     override suspend fun createPreview(
         bearer: String,
@@ -37,8 +42,10 @@ class FakeReplacementService : ReplacementService {
         bearer: String,
         idempotencyKey: String,
         previewId: String,
-    ): Response<SuccessEnvelope<ReplacementDto>> =
-        throw UnsupportedOperationException("승인 연결은 T023(#349)이 붙인다")
+    ): Response<SuccessEnvelope<ReplacementDto>> {
+        approveCalls += idempotencyKey to previewId
+        return onApprove()
+    }
 
     override suspend fun rejectPreview(bearer: String, previewId: String): Response<Unit> {
         rejectCalls += previewId
@@ -56,6 +63,17 @@ private val fakeJson = Json { ignoreUnknownKeys = true }
 
 /** 계약 JSON을 성공 응답으로 만든다. DTO를 직접 조립하지 않아 계약과 어긋나면 파싱에서 드러난다. */
 fun ok(body: String): Response<SuccessEnvelope<RoutePreviewDto>> = Response.success(fakeJson.decodeFromString(body))
+
+/** 승인 성공 응답. 계약 JSON을 그대로 역직렬화한다. */
+fun approveOk(body: String): Response<SuccessEnvelope<ReplacementDto>> =
+    Response.success(fakeJson.decodeFromString(body))
+
+/** 승인 실패 응답. */
+fun approveFailure(code: String, httpStatus: Int, retryable: Boolean = false): Response<SuccessEnvelope<ReplacementDto>> =
+    Response.error(
+        httpStatus,
+        replacementErrorJson(code, retryable = retryable).toResponseBody("application/json".toMediaType()),
+    )
 
 /** 계약이 정한 오류 응답. */
 fun failure(code: String, httpStatus: Int, retryable: Boolean = false): Response<SuccessEnvelope<RoutePreviewDto>> =

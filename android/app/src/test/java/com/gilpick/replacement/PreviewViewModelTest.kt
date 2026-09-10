@@ -206,6 +206,128 @@ class PreviewViewModelTest {
         assertEquals(1, replacementService.previewCalls.size)
     }
 
+    // --- 승인(T023) ---
+
+    @Test
+    fun 승인은_보던_미리보기를_그대로_확정하고_끝나면_결과를_알린다() = runTest {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.approve()
+        advanceUntilIdle()
+
+        assertEquals(REPL_PREVIEW_ID, replacementService.approveCalls.single().second)
+        assertEquals(REPL_REPLACEMENT_ID, viewModel.approved.value!!.replacementId)
+        assertEquals("창덕궁", viewModel.approved.value!!.newPlaceName)
+    }
+
+    @Test
+    fun 승인_중에는_approving이_켜지고_보던_비교는_그대로다() = runTest {
+        // UI-005. 화면이 이 값으로 행동을 잠근다.
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.approve()
+
+        val content = viewModel.state.value as PreviewUiState.Content
+        assertTrue(content.approving)
+        assertEquals(REPL_PREVIEW_ID, content.preview.previewId)
+    }
+
+    @Test
+    fun 승인_연타로_요청이_겹치지_않는다() = runTest {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.approve()
+        viewModel.approve()
+        advanceUntilIdle()
+
+        assertEquals(1, replacementService.approveCalls.size)
+    }
+
+    @Test
+    fun 승인_실패는_보던_비교를_지우지_않고_원인만_남긴다() = runTest {
+        // 원인에 따라 사용자가 이 화면에서 바로 다음 행동을 고른다(UI-005).
+        replacementService.onApprove = { approveFailure(ReplacementErrorCodes.VERSION_CONFLICT, httpStatus = 409) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.approve()
+        advanceUntilIdle()
+
+        val content = viewModel.state.value as PreviewUiState.Content
+        assertEquals(false, content.approving)
+        assertEquals(ReplacementError.ScheduleChanged, content.approveFailure)
+        assertEquals(REPL_PREVIEW_ID, content.preview.previewId)
+        assertNull(viewModel.approved.value)
+    }
+
+    @Test
+    fun 승인_실패_다섯_원인이_서로_다르게_분류된다() = runTest {
+        // SC-007. 화면이 원인별로 다른 다음 행동을 고를 수 있어야 한다.
+        val cases = listOf(
+            ReplacementErrorCodes.VERSION_CONFLICT to ReplacementError.ScheduleChanged,
+            ReplacementErrorCodes.PREVIEW_EXPIRED to ReplacementError.PreviewExpired,
+            ReplacementErrorCodes.ITEM_ALREADY_VISITED to ReplacementError.AlreadyVisited,
+            ReplacementErrorCodes.ALTERNATIVE_UNAVAILABLE to ReplacementError.AlternativeUnavailable,
+        )
+        cases.forEach { (code, expected) ->
+            replacementService.onApprove = { approveFailure(code, httpStatus = 409) }
+            val viewModel = newViewModel()
+            advanceUntilIdle()
+            viewModel.approve()
+            advanceUntilIdle()
+            assertEquals(expected, (viewModel.state.value as PreviewUiState.Content).approveFailure)
+        }
+    }
+
+    @Test
+    fun 다시_시도는_같은_미리보기를_같은_Idempotency_Key로_다시_승인한다() = runTest {
+        // FR-011·SC-003. 중복 승인이 일정을 두 번 바꾸면 안 된다.
+        replacementService.onApprove = { approveFailure("INTERNAL_ERROR", httpStatus = 500) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.approve()
+        advanceUntilIdle()
+
+        replacementService.onApprove = { approveOk(replacementJson()) }
+        viewModel.approve()
+        advanceUntilIdle()
+
+        assertEquals(replacementService.approveCalls[0], replacementService.approveCalls[1])
+        assertEquals(REPL_REPLACEMENT_ID, viewModel.approved.value!!.replacementId)
+    }
+
+    @Test
+    fun 다시_만들기는_승인_실패를_지우고_새_미리보기를_만든다() = runTest {
+        replacementService.onApprove = { approveFailure(ReplacementErrorCodes.PREVIEW_EXPIRED, httpStatus = 409) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.approve()
+        advanceUntilIdle()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        val content = viewModel.state.value as PreviewUiState.Content
+        assertNull(content.approveFailure)
+        assertEquals(false, content.approving)
+        assertEquals(2, replacementService.previewCalls.size)
+    }
+
+    @Test
+    fun 비교를_보기_전에는_승인을_보내지_않는다() = runTest {
+        replacementService.onCreatePreview = { failure("INTERNAL_ERROR", httpStatus = 500) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.approve()
+        advanceUntilIdle()
+
+        assertTrue(replacementService.approveCalls.isEmpty())
+    }
+
     private fun readyDayRoute(scheduleVersion: Int = REPL_SCHEDULE_VERSION) =
         dayRoute(RouteStatus.READY, route = readyRoute(scheduleVersion = scheduleVersion), scheduleVersion = scheduleVersion)
 
