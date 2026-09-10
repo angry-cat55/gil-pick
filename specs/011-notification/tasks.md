@@ -299,12 +299,12 @@ description: "Task list for F011 알림"
 
 **Independent Test**: quickstart AND 5 — `ACTIVE` 감지 3건 목록·정렬 토글·"대체 장소 보기" 이동·빈 상태.
 
-- [ ] T039 [P] [US6] VariableMonitorViewModel in android/app/src/main/java/com/gilpick/notification/VariableMonitorViewModel.kt
+- [x] T039 [P] [US6] VariableMonitorViewModel in android/app/src/main/java/com/gilpick/notification/VariableMonitorViewModel.kt
   - 영역: FE
   - 담당: jy
   - 선행: T015
   - 검증: `com.gilpick.alternative.AlternativeRepository.listDetections(tripId, status = ACTIVE)` 재사용(읽기 전용), `sort` = TIME|RISK, `Content`/`Empty`/`Error`, "대체 장소 보기" → `onOpenDetection(detectionId, tripId)`. `VariableMonitorViewModelTest`. 교차 계약 review: F009 담당(jy)
-- [ ] T040 [US6] VariableMonitorScreen in android/app/src/main/java/com/gilpick/notification/VariableMonitorScreen.kt, android/app/src/main/java/com/gilpick/notification/NotificationNavigation.kt
+- [x] T040 [US6] VariableMonitorScreen in android/app/src/main/java/com/gilpick/notification/VariableMonitorScreen.kt, android/app/src/main/java/com/gilpick/notification/NotificationNavigation.kt
   - 영역: FE
   - 담당: jy
   - 선행: T039
@@ -314,7 +314,7 @@ description: "Task list for F011 알림"
     - `error`: F009 오류 형식 재사용
     - 접근성: 터치 48dp·간격 8dp, 360dp·fontScale 2.0 잘림 없음
     - `notificationGraph`에 `VariableMonitorRoute` 배선, "대체 장소 보기" → `AlternativePlacesRoute`
-- [ ] T041 [US6] 감지 목록 화면 test·screenshot in android/app/src/androidTest/java/com/gilpick/notification/VariableMonitorScreenTest.kt, VariableMonitorScreenshotTest.kt
+- [x] T041 [US6] 감지 목록 화면 test·screenshot in android/app/src/androidTest/java/com/gilpick/notification/VariableMonitorScreenTest.kt, VariableMonitorScreenshotTest.kt
   - 영역: FE
   - 담당: jy
   - 선행: T040

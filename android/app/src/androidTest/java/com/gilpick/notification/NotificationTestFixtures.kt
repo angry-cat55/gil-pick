@@ -1,5 +1,16 @@
 package com.gilpick.notification
 
+import com.gilpick.alternative.CongestionLevel
+import com.gilpick.alternative.CongestionSensitivity
+import com.gilpick.alternative.CongestionVerdictDto
+import com.gilpick.alternative.DetectionListItemDto
+import com.gilpick.alternative.DetectionStatus
+import com.gilpick.alternative.DetectionType
+import com.gilpick.alternative.OperatingHoursVerdictDto
+import com.gilpick.alternative.PrecipitationType
+import com.gilpick.alternative.UnavailableReason
+import com.gilpick.alternative.VariableVerdictsDto
+import com.gilpick.alternative.WeatherVerdictDto
 import java.time.Instant
 
 /** F011 알림 목록 계측 test 고정값. 시각은 [NOW] 기준으로 `오늘`·`어제`가 갈린다. */
@@ -76,3 +87,73 @@ internal fun notificationErrorJson(code: String) = """
     {"success": false, "error": {"code": "$code", "message": "진단용 설명", "retryable": false},
      "meta": {"requestId": "$NOTIF_REQUEST_ID"}}
 """.trimIndent()
+
+/* ---- 감지 목록(US6) ---- */
+
+internal const val MONITOR_DETECTION_1 = "aaaaaaaa-1111-4111-8111-111111111111"
+internal const val MONITOR_DETECTION_2 = "aaaaaaaa-2222-4222-8222-222222222222"
+internal const val MONITOR_DETECTION_3 = "aaaaaaaa-3333-4333-8333-333333333333"
+
+/**
+ * `ACTIVE` 감지 3건(Figma 예시). 경복궁은 혼잡·강수 위험, 창덕궁 후원은 마감 임박, 남산서울타워는
+ * 운영시간 제외(`HOURS_UNKNOWN`)다. 시간순 = 창덕궁 후원·경복궁·남산서울타워, 위험순 = 경복궁·남산서울타워·창덕궁 후원.
+ */
+internal fun monitorDetections(): List<DetectionUi> = listOf(
+    DetectionUi(
+        item = DetectionListItemDto(
+            detectionId = MONITOR_DETECTION_1,
+            itemId = "bbbbbbbb-1111-4111-8111-111111111111",
+            placeName = "경복궁",
+            primaryType = DetectionType.CONGESTION,
+            status = DetectionStatus.ACTIVE,
+            totalRiskScore = 78,
+            eta = "2026-09-10T14:00:00+09:00",
+            reason = "오늘 오후 방문이 어려울 수 있어요",
+            createdAt = "2026-09-10T14:52:00+09:00",
+            read = false,
+        ),
+        variables = VariableVerdictsDto(
+            congestion = CongestionVerdictDto(available = true, level = CongestionLevel.CROWDED, sensitivity = CongestionSensitivity.MEDIUM, crowded = true),
+            weather = WeatherVerdictDto(available = true, precipitationProbability = 80, precipitationMmPerHour = 3.5, precipitationType = PrecipitationType.RAIN, atRisk = true),
+            operatingHours = OperatingHoursVerdictDto(available = true, closesAt = "2026-09-10T18:00:00+09:00", closingSoon = false),
+        ),
+    ),
+    DetectionUi(
+        item = DetectionListItemDto(
+            detectionId = MONITOR_DETECTION_2,
+            itemId = "bbbbbbbb-2222-4222-8222-222222222222",
+            placeName = "창덕궁 후원",
+            primaryType = DetectionType.OPERATING_HOURS,
+            status = DetectionStatus.ACTIVE,
+            totalRiskScore = 40,
+            eta = "2026-09-10T11:30:00+09:00",
+            reason = "오늘 오전 방문이 어려울 수 있어요",
+            createdAt = "2026-09-10T14:39:00+09:00",
+            read = false,
+        ),
+        variables = VariableVerdictsDto(
+            congestion = CongestionVerdictDto(available = true, level = CongestionLevel.SLIGHTLY_CROWDED, sensitivity = CongestionSensitivity.MEDIUM, crowded = false),
+            weather = WeatherVerdictDto(available = true, precipitationProbability = 10, precipitationMmPerHour = 0.0, precipitationType = PrecipitationType.NONE, atRisk = false),
+            operatingHours = OperatingHoursVerdictDto(available = true, closesAt = "2026-09-10T11:45:00+09:00", closingSoon = true),
+        ),
+    ),
+    DetectionUi(
+        item = DetectionListItemDto(
+            detectionId = MONITOR_DETECTION_3,
+            itemId = "bbbbbbbb-3333-4333-8333-333333333333",
+            placeName = "남산서울타워",
+            primaryType = DetectionType.WEATHER,
+            status = DetectionStatus.ACTIVE,
+            totalRiskScore = 70,
+            eta = "2026-09-10T18:30:00+09:00",
+            reason = "오늘 저녁 방문이 어려울 수 있어요",
+            createdAt = "2026-09-10T14:26:00+09:00",
+            read = true,
+        ),
+        variables = VariableVerdictsDto(
+            congestion = CongestionVerdictDto(available = true, level = CongestionLevel.NORMAL, sensitivity = CongestionSensitivity.MEDIUM, crowded = false),
+            weather = WeatherVerdictDto(available = true, precipitationProbability = 70, precipitationMmPerHour = 1.2, precipitationType = PrecipitationType.SHOWER, atRisk = true),
+            operatingHours = OperatingHoursVerdictDto(available = false, unavailableReason = UnavailableReason.HOURS_UNKNOWN),
+        ),
+    ),
+)

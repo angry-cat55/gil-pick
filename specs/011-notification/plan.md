@@ -59,6 +59,9 @@ Android는 새 패키지 `com.gilpick.notification`에 알림 목록 화면(Figm
 | `VariableMonitorScreen` "대체 장소 보기" | 있음 | `onOpenDetection(detectionId, tripId)` → `AlternativePlacesRoute` | UI-008 |
 | `VariableMonitorScreen` 정렬 토글 | `시간순`/`위험순` | 그대로 | UI-008 |
 | 감지 목록 변수 제외 항목 | `infoNote` 문구 | DETECT-002 값 그대로, 없는 값 안 지어냄 | UI-008 |
+| 감지 목록 변수별 수준(`details`) | 변수명 + `아주 높음`/`경계` 등 3단계 색 | DETECT-001 항목에는 변수별 판정이 없어 항목마다 DETECT-002를 병렬 조회하고, 값은 계약 enum·수치(`혼잡`, `비 확률 80%`, `18:00 마감`) 그대로 표시. 위험 판정(`crowded`·`atRisk`·`closingSoon`)만 `error` 색. 상세 조회 실패 카드는 판정 줄 없이 안내 문구 | UI-008, T039 구현 결정(2026-09-10) |
+| 감지 목록 정렬 기준 | `시간순`/`위험순` 라벨만 | 시간순 = `eta` 이른 순, 위험순 = `totalRiskScore` 높은 순(동점은 `eta`) | T039 구현 결정(2026-09-10) |
+| 감지 목록 `여행 진행 화면으로`·뒤로 가기 | 둘 다 `onBack` | 둘 다 `popBackStack`(진입점이 진행 화면·알림이라 되돌아감). 카드 시각·`대체 장소 보기` 행은 `FlowRow`(360dp/2.0에서 글자 단위 꺾임 방지) | T040 구현 결정(2026-09-10) |
 
 ## Constitution Check
 
