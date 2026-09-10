@@ -126,7 +126,7 @@ class ReplacementService:
             existing, owner_id = existing_row
             if owner_id != user_id:
                 raise AppError(
-                    403, "DETECTION_FORBIDDEN",
+                    403, "TRIP_FORBIDDEN",
                     "다른 사용자의 감지 결과에는 접근할 수 없습니다.",
                 )
             if existing.request_fingerprint != fingerprint:
@@ -537,7 +537,7 @@ class ReplacementService:
             raise AppError(404, "DETECTION_NOT_FOUND", "감지 결과를 찾을 수 없습니다.")
         detection, day, owner_id = row
         if owner_id != user_id:
-            raise AppError(403, "DETECTION_FORBIDDEN", "다른 사용자의 감지 결과에는 접근할 수 없습니다.")
+            raise AppError(403, "TRIP_FORBIDDEN", "다른 사용자의 여행에는 접근할 수 없습니다.")
         rows = (await self.session.execute(
             select(ItineraryItem, Place, func.ST_Y(point), func.ST_X(point))
             .join(Place, Place.place_id == ItineraryItem.place_id)
@@ -637,7 +637,7 @@ class ReplacementService:
             raise AppError(404, "DETECTION_NOT_FOUND", "감지 결과를 찾을 수 없습니다.")
         detection, day, item, owner_id = row
         if owner_id != user_id:
-            raise AppError(403, "DETECTION_FORBIDDEN", "다른 사용자의 감지 결과에는 접근할 수 없습니다.")
+            raise AppError(403, "TRIP_FORBIDDEN", "다른 사용자의 여행에는 접근할 수 없습니다.")
         refreshed = replace(
             context, day_status=day.status, schedule_version=day.schedule_version,
             detection_status=detection.status, target=_replace_item_state(context.target, item),

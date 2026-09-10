@@ -2,15 +2,24 @@
 
 import asyncio
 import os
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import httpx2
 import pytest
 from geoalchemy2 import WKTElement
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.errors import AppError
+from app.api.dependencies import get_current_principal
+from app.api.v1.replacements import get_replacement_service
+from app.clients.odsay import OdsayClient
+from app.clients.tmap import TmapClient
+from app.core.config import Settings
+from app.core.security import AuthPrincipal
+from app.main import app
 from app.models.auth import User
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, Place, TripDay
@@ -24,7 +33,7 @@ from app.services.detection.operating_hours_source import BusinessStatus, Operat
 from app.services import replacement as replacement_module
 from app.services.replacement import PREVIEW_TTL_MINUTES, UNDO_WINDOW_SECONDS, ReplacementService
 from app.services.progress import ProgressService
-from app.services.route import RouteCalculationResult
+from app.services.route import RouteCalculationResult, RouteCalculationService
 
 pytestmark = pytest.mark.asyncio
 SECRET = "replacement-preview-test-secret-value"
@@ -760,4 +769,168 @@ async def test_undo_replacement_keeps_newer_active_detection_on_fingerprint_coll
             assert original.status == "INVALIDATED"
             assert newer.status == "ACTIVE"
     finally:
+        await engine.dispose()
+
+
+async def test_replacement_operations_enforce_ownership_without_mutation() -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        seeded = await _seed(factory)
+        other_user_id = uuid.uuid4()
+        payload = CreatePreviewRequest(
+            place_id=seeded["alternative_public_id"], schedule_version=1
+        )
+        async with factory() as session:
+            with pytest.raises(AppError, match="TRIP_FORBIDDEN"):
+                await _service(session, seeded["now"]).create_preview(
+                    detection_id=seeded["detection_id"], user_id=other_user_id,
+                    payload=payload, idempotency_key="forbidden-preview",
+                )
+            await session.rollback()
+            assert await session.scalar(
+                select(func.count()).select_from(RoutePreviewModel).where(
+                    RoutePreviewModel.detection_id == seeded["detection_id"]
+                )
+            ) == 0
+
+            preview = await _create_preview(session, seeded)
+            with pytest.raises(AppError, match="TRIP_FORBIDDEN"):
+                await _service(session, seeded["now"]).reject_preview(
+                    preview_id=preview.preview_id, user_id=other_user_id
+                )
+            await session.rollback()
+            assert (await session.get(RoutePreviewModel, preview.preview_id)).status == "PENDING"
+
+            with pytest.raises(AppError, match="TRIP_FORBIDDEN"):
+                await _service(session, seeded["now"]).approve_preview(
+                    preview_id=preview.preview_id, user_id=other_user_id,
+                    idempotency_key="forbidden-approval",
+                )
+            await session.rollback()
+            day = await session.get(TripDay, seeded["trip_day_id"])
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            assert day.schedule_version == 1
+            assert item.place_id == seeded["original_place_id"]
+            assert await session.scalar(
+                select(func.count()).select_from(PlaceReplacement).where(
+                    PlaceReplacement.preview_id == preview.preview_id
+                )
+            ) == 0
+
+            approved = await _service(session, seeded["now"]).approve_preview(
+                preview_id=preview.preview_id, user_id=seeded["user_id"],
+                idempotency_key="approval",
+            )
+            await session.commit()
+            with pytest.raises(AppError, match="TRIP_FORBIDDEN"):
+                await _service(session, seeded["now"]).undo_replacement(
+                    replacement_id=approved.replacement_id, user_id=other_user_id
+                )
+            await session.rollback()
+            day = await session.get(TripDay, seeded["trip_day_id"])
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            replacement = await session.get(PlaceReplacement, approved.replacement_id)
+            assert day.schedule_version == 2
+            assert item.place_id == seeded["alternative_place_id"]
+            assert replacement.undone_at is None
+    finally:
+        await engine.dispose()
+
+
+async def test_approval_updates_progress_detection_target_place() -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        seeded = await _seed(factory)
+        async with factory() as session:
+            item = await session.get(ItineraryItem, seeded["item_id"])
+            item.status = "EN_ROUTE"
+            await session.commit()
+            before = (await ProgressService(session).get_day(
+                trip_id=seeded["trip_id"], visit_date=seeded["date"]
+            )).detection_targets
+            assert len(before) == 1
+
+            preview = await _create_preview(session, seeded)
+            await _service(session, seeded["now"]).approve_preview(
+                preview_id=preview.preview_id, user_id=seeded["user_id"],
+                idempotency_key="approval",
+            )
+            await session.commit()
+            after = (await ProgressService(session).get_day(
+                trip_id=seeded["trip_id"], visit_date=seeded["date"]
+            )).detection_targets
+
+            assert len(after) == 1
+            assert after[0].item_id == before[0].item_id == seeded["item_id"]
+            assert after[0].geofence_id == before[0].geofence_id
+            assert (after[0].latitude, after[0].longitude) == (37.59, 126.99)
+            assert (before[0].latitude, before[0].longitude) == (37.57, 126.97)
+            assert after[0].radius_meters == before[0].radius_meters
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.skipif(
+    os.getenv("RUN_ROUTE_PROVIDER_SMOKE") != "1",
+    reason="RUN_ROUTE_PROVIDER_SMOKE=1인 명시적 live 검증에서만 실행",
+)
+async def test_create_preview_with_live_provider_responds_within_three_seconds() -> None:
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    settings = Settings()
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    tmap = TmapClient(settings)
+    odsay = OdsayClient(settings)
+    try:
+        seeded = await _seed(factory)
+        async with factory() as session:
+            service = ReplacementService(
+                session,
+                calculator=RouteCalculationService(
+                    tmap=tmap,
+                    odsay=odsay,
+                    concurrency=settings.route_provider_concurrency,
+                    deadline_seconds=settings.route_calculation_deadline_seconds,
+                ),
+                place_service=_Unused(),
+                operating_hours_source=_Unused(),
+                candidate_secret=SECRET,
+                now=lambda: seeded["now"],
+            )
+            app.dependency_overrides[get_current_principal] = lambda: AuthPrincipal(
+                user_id=seeded["user_id"], session_id=uuid.uuid4(), token_id=uuid.uuid4()
+            )
+            app.dependency_overrides[get_replacement_service] = lambda: service
+            try:
+                async with httpx2.AsyncClient(
+                    transport=httpx2.ASGITransport(app=app), base_url="http://testserver"
+                ) as client:
+                    started = time.perf_counter()
+                    response = await client.post(
+                        f"/api/v1/detections/{seeded['detection_id']}/route-previews",
+                        headers={"Idempotency-Key": f"live-{uuid.uuid4()}"},
+                        json={
+                            "placeId": seeded["alternative_public_id"],
+                            "scheduleVersion": 1,
+                        },
+                    )
+                    elapsed = time.perf_counter() - started
+            finally:
+                app.dependency_overrides.clear()
+            print(f"REPL-001 live 응답 시간: {elapsed:.3f}초")
+            assert response.status_code == 200
+            assert elapsed <= 3, f"REPL-001 응답 시간: {elapsed:.3f}초"
+    finally:
+        await tmap.close()
+        await odsay.close()
         await engine.dispose()

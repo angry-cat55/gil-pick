@@ -119,6 +119,13 @@
 - **재개**: 날짜가 `COMPLETED` → `IN_PROGRESS`(`detection_active=true`)로 복귀하면 다음 평가에서 새 `ACTIVE` 행이 생길 수 있다. `INVALIDATED` 행은 재사용하지 않는다.
 - **읽음**: `read_at` 갱신은 다른 상태 전이와 독립. 어느 `status`에서도 가능.
 
+**F010 되돌리기 전이**:
+
+- `RESOLVED → ACTIVE`: 장소 변경을 되돌릴 때 같은 `fingerprint`의 다른 `ACTIVE` 행이 없으면 원래 감지를 복귀시키고 `resolved_at`을 비운다.
+- `RESOLVED → INVALIDATED`: 같은 `fingerprint`의 새 `ACTIVE` 행이 이미 있으면 unique 제약을 지키기 위해 원래 감지를 종료하고 새 행을 유지한다.
+
+두 전이는 F010이 하나의 되돌리기 transaction 안에서 수행하며, F008의 주기 평가가 직접 일으키지 않는다.
+
 ---
 
 ## 5. 읽기 전용 의존 데이터 (신규 저장 없음)

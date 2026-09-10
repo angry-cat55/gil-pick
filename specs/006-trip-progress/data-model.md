@@ -98,6 +98,20 @@ Item:     PLANNED → EN_ROUTE → ARRIVED → COMPLETED
 
 파생 규칙 표는 `research.md` 결정 3을 따른다.
 
+## F010 진행 응답 확장
+
+PROG-001 `ProgressData`는 기존 F007 자동 확정 되돌리기 `undoable`과 별도로 `undoableReplacement`를 반환한다. 승인 후 30초 안이고 후속 일정 변경이 없으며 아직 되돌리지 않은 최근 장소 변경이 없으면 `null`이다.
+
+| 필드 | 형식 | 규칙 |
+|---|---|---|
+| `replacementId` | uuid | 장소 변경 이력 식별자 |
+| `itemId` | uuid | 장소가 바뀐 일정 항목. 승인 전후 동일 |
+| `originalPlaceName` | string | 되돌리기 안내의 원래 장소명 |
+| `newPlaceName` | string | 되돌리기 안내의 변경 장소명 |
+| `undoExpiresAt` | timestamptz | 서버가 판정하는 되돌리기 만료 시각 |
+
+Android `ProgressUiState.Content`는 `replacementUndo`, `replacementUndoPending`, `replacementUndoError`를 추가한다. 같은 표시 지점에서는 만료가 빠른 장소 변경 되돌리기를 F007 자동 확정 되돌리기보다 먼저 보여 준다.
+
 ## 문서 동기화
 
 - `docs/design/er-schema.md`: `trip_days.progress_version`, `progress_transitions.progress_version_after`·`idempotency_key`, `progress_segments` 절 추가.

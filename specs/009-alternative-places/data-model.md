@@ -24,6 +24,8 @@ ACTIVE --DETECT-004 dismiss--> DISMISSED   (resolved_at = now, 멱등: 비-ACTIV
 
 `RESOLVED`(F010 승인)·`INVALIDATED`(F008 종료)는 F009가 만들지 않는다. 거절 후 같은 장소의 재감지 여부는 F008 `fingerprint` 규칙(ACTIVE partial unique)에 따르며 F009는 정의하지 않는다.
 
+F010 되돌리기는 `RESOLVED → ACTIVE`로 원래 감지를 후보 조회 대상에 복귀시킨다. 같은 `fingerprint`의 새 `ACTIVE` 감지가 이미 있으면 원래 행은 `RESOLVED → INVALIDATED`가 되고 새 행이 후보 조회 대상으로 남는다. F009는 이 전이를 수행하지 않고 결과 상태만 읽는다.
+
 ### 1.2 읽기만 하는 테이블
 
 | 테이블 | 용도 |

@@ -58,14 +58,18 @@ def test_detection_migration_round_trip() -> None:
             "eta", "score", "reason", "evaluation_snapshot", "fingerprint",
             "detected_at", "last_evaluated_at", "read_at", "resolved_at",
         }
-        assert {"ck_detections_score", "ck_detections_primary_type", "ck_detections_status"} <= schema["constraints"]
+        assert {"ck_detections_score", "ck_detections_primary_type", "ck_detections_status"} <= set(
+            schema["constraints"]
+        )
         assert "ON DELETE CASCADE" in schema["constraints"]["detections_trip_day_id_fkey"]
         assert "ON DELETE CASCADE" in schema["constraints"]["detections_item_id_fkey"]
         active_index = schema["indexes"]["uq_detections_active_fingerprint"]
         assert "CREATE UNIQUE INDEX" in active_index
         assert "WHERE" in active_index and "ACTIVE" in active_index
-        assert {"ix_detections_day_status_detected", "ix_detections_item"} <= schema["indexes"]
+        assert {"ix_detections_day_status_detected", "ix_detections_item"} <= set(
+            schema["indexes"]
+        )
         command.downgrade(config, "007_create_progress_events")
         assert asyncio.run(_table_exists(database_url)) is False
     finally:
-        command.upgrade(config, "008_create_detections")
+        command.upgrade(config, "head")

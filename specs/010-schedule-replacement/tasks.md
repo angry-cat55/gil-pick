@@ -259,23 +259,23 @@ description: "F010 일정 변경 구현 task 목록"
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T032 [P] 소유권과 권한 test in api/tests/integration/test_replacement_flow.py
+- [x] T032 [P] 소유권과 권한 test in api/tests/integration/test_replacement_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T028
   - 검증: quickstart BE 10. 다른 사용자 token으로 REPL-001~004를 호출해 모두 `403 TRIP_FORBIDDEN`이고 대상 데이터가 바뀌지 않는다(FR-021, constitution V)
-- [ ] T033 [P] 자동 감지 대상 연동 확인 in api/tests/integration/test_replacement_flow.py
+- [x] T033 [P] 자동 감지 대상 연동 확인 in api/tests/integration/test_replacement_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T021
-  - 검증: quickstart FE 6의 서버 쪽. 승인 후 PROG-001의 `detectionTargets`가 바뀐 장소를 따르고 없어진 장소의 대상이 빠진다(FR-013). `item_id`가 유지되므로 `geofenceId`의 항목 부분은 같고 좌표·반경이 바뀐다
-- [ ] T034 계약·ERD·명세 문서 동기화 in docs/design/api-spec.md, docs/design/er-schema.md, docs/planning/functional-spec.md, specs/008-variable-detection/, specs/009-alternative-places/data-model.md, specs/006-trip-progress/data-model.md
+  - 검증: quickstart FE 6의 서버 쪽. 승인 후 PROG-001의 `detectionTargets`가 바뀐 장소를 따르고 없어진 장소의 대상이 빠진다(FR-013). `item_id`와 감지 종류가 유지되므로 `geofenceId`와 정책 반경은 같고 좌표가 바뀐다
+- [x] T034 계약·ERD·명세 문서 동기화 in docs/design/api-spec.md, docs/design/er-schema.md, docs/planning/functional-spec.md, specs/008-variable-detection/, specs/009-alternative-places/data-model.md, specs/006-trip-progress/data-model.md
   - 영역: 통합
   - 담당: jh
   - 교차 확인: hs, ts, jy
   - 선행: T001, T027, T029
   - 검증: data-model 5절의 5건을 반영한다. 구현 중 이 Feature의 `spec.md`와 설계가 어긋나면 같은 PR에서 `spec.md`도 함께 고친다(constitution II). (1) api-spec 2절 구현 현황 REPL-001~004와 8절 REPL 절 갱신, **`itineraryVersion` → `scheduleVersion`**. (2) er-schema에 두 테이블과 API 매핑 추가. (3) F008·F009 감지 결과 상태 전이에 `RESOLVED → ACTIVE`·`RESOLVED → INVALIDATED` 추가. (4) F006 data-model에 PROG-001 `undoableReplacement`와 `ProgressUiState.Content` 확장. (5) functional-spec 5.3에 경로 계산을 미리보기 시점에 끝낸다는 순서 반영
-- [ ] T035 Backend 전체 검증 in api/tests/
+- [x] T035 Backend 전체 검증 in api/tests/
   - 영역: BE
   - 담당: jh
   - 선행: T032, T033
