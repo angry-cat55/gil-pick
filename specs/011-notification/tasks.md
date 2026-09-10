@@ -341,7 +341,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T010, T013
   - 검증: 알림 생성·전달마다 request id·유형·대상 id·기기 수·전달 결과 요약 log, 토큰 원문·정밀 위치·본문 개인정보 미기록(FR-024, constitution V). `SensitiveDataFilter` 통과 확인
-- [ ] T045 전체 자동 검증 실행 in specs/011-notification/quickstart.md 자동 검증
+- [x] T045 전체 자동 검증 실행 in specs/011-notification/quickstart.md 자동 검증
   - 영역: 통합
   - 담당: ts
   - 선행: Phase 3~8 완료

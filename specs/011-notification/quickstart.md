@@ -145,3 +145,19 @@ gradlew.bat --offline :app:connectedDebugAndroidTest \
 4. 도착 지오펜스 DWELL을 발생(또는 `progress/events` 호출) → 도착 확인 알림 도착 → 탭 → 진행 화면.
 5. 설정 컬럼을 `false`로 두고 3을 반복 → 장소 변경 제안 알림이 오지 않고, 도착 확인 알림은 여전히 오는지 확인한다.
 6. 로그아웃 → 그 기기로 이후 알림이 오지 않는지 확인한다.
+
+## 실행 결과 (2026-09-11, Issue #376)
+
+### 자동 검증
+
+- Backend: 전용 PostgreSQL·PostGIS DB에 `alembic upgrade head` 적용 후 위 pytest 대상 9개 파일 실행 — **61 passed**.
+- Android unit·build: `gradlew.bat :app:testDebugUnitTest :app:assembleDebug` — **BUILD SUCCESSFUL**.
+- Android instrumentation: `gilpick_api36_play`에서 `gradlew.bat :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.notification` — **38 tests, 0 failed**.
+- Android test compile에서 Compose test API deprecation warning이 있었으나 실패는 없었다. 이번 검증 Issue 범위에서는 동작 변경 없이 후속 migration 대상으로 남긴다.
+
+### 미실행 검증
+
+- T038 설정 off 실수신 확인과 T046 실서버·실 FCM 1~6은 G001 자격이 없어 실행하지 못했다.
+- 확인된 누락 환경: `android/app/google-services.json`, Backend `FCM_PROJECT_ID`·`FCM_SERVICE_ACCOUNT_JSON`.
+- 환경 준비는 Issue #407에 기록했으며, T038·T046은 **blocked by #407**이다.
+- 실 FCM 검증 전이므로 F011 상태는 `IN_PROGRESS`를 유지하며 T047 `VERIFY` 전이는 수행하지 않았다.
