@@ -148,11 +148,12 @@ Google 장소의 최신 운영 상태는 승인 transaction을 시작하기 전�
 
 ## 10. Figma에 없는 화면 상태
 
-**Decision**: Figma Make `Design UI from Reference`에 세 가지를 추가한 뒤 저장소 사본을 갱신한다.
+**Decision**: Figma Make `Design UI from Reference`에 두 가지를 추가한 뒤 저장소 사본을 갱신한다.
 
 1. `RoutePreviewScreen`의 **승인 진행 중·승인 실패** 상태 — 지금은 `변경 승인` 버튼에서 끝난다.
-2. `ActiveTravelScreen`의 **장소 변경 되돌리기 토스트** — F007 자동 확정 토스트만 있고 장소 변경 문구가 없다.
-3. `RoutePreviewScreen`의 **비교 항목 `정보 없음`** 표시 — 값을 확보하지 못한 항목의 모양.
+2. `RoutePreviewScreen`의 **비교 항목 `정보 없음`** 표시 — 값을 확보하지 못한 항목의 모양.
+
+**정정(2026-09-10)**: 처음에는 `ActiveTravelScreen`의 **장소 변경 되돌리기 토스트**도 없다고 적었으나 사실과 달랐다. Figma 원본에 `msg: "장소가 창덕궁으로 변경되었습니다"` + 남은 초 + `되돌리기`로 이미 있고, 최초 커밋 `1ed8448`(Figma Make 정본 채택)부터 존재한다. 오히려 Figma의 기본 문구가 장소 변경 쪽이고 F007이 이 토스트 모양을 가져다 자동 확정 문구로 구현했다(`progress/UndoToast.kt`). 따라서 T030은 새 모양을 만들지 않고 같은 composable에 장소 변경 문구를 더한다.
 
 **Rationale**: AGENTS.md 6절에 따라 Figma가 모양의 정본이고, 없는 화면을 코드에서 임의로 만들지 않는다. F007 T003과 같은 방식으로 사람이 Figma에 추가한 뒤 MCP로 원본을 받아 사본을 갱신한다.
 
