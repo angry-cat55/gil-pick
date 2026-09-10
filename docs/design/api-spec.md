@@ -461,6 +461,7 @@ Request Body:
 - 같은 이름 허용
 - 최대 여행 기간 7일
 - `startDate <= endDate`
+- 같은 사용자의 삭제되지 않은 여행과 날짜가 하루라도 겹치지 않아야 함
 
 Response `201`:
 
@@ -483,7 +484,7 @@ Response `201`:
 }
 ```
 
-주요 오류: `400`, `401`, `422 INVALID_TRIP_PERIOD`
+주요 오류: `400`, `401`, `409 TRIP_PERIOD_CONFLICT`, `422 INVALID_TRIP_PERIOD`
 
 ### TRIP-003 여행 상세 조회
 
@@ -532,6 +533,7 @@ Request Body:
 - 여행 기간 축소로 범위 밖 일정이 삭제되는 경우 사용자 확인이 필요하다.
 - 확인 화면에는 삭제될 일정 개수를 표시한다.
 - 여행 상태가 `COMPLETED`이면 `name`만 수정할 수 있다. `startDate`/`endDate` 변경은 `409 TRIP_LOCKED`로 거부한다.
+- 변경한 기간이 같은 사용자의 다른 삭제되지 않은 여행과 하루라도 겹치면 `409 TRIP_PERIOD_CONFLICT`로 거부하며 기존 기간과 일정은 유지한다.
 
 Response `200`:
 
@@ -576,7 +578,7 @@ Response `200`:
 
 `deletedItemCount`는 새 기간 밖 `itinerary_items`의 실제 개수이며 1 이상일 때만 확인 오류에 포함된다.
 
-주요 오류: `400`, `401 INVALID_ACCESS_TOKEN`, `403`, `404`, `409 VERSION_CONFLICT`, `409 CONFIRMATION_REQUIRED`, `409 TRIP_LOCKED`, `422`
+주요 오류: `400`, `401 INVALID_ACCESS_TOKEN`, `403`, `404`, `409 VERSION_CONFLICT`, `409 CONFIRMATION_REQUIRED`, `409 TRIP_LOCKED`, `409 TRIP_PERIOD_CONFLICT`, `422`
 
 ### TRIP-005 여행 삭제
 

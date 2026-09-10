@@ -371,6 +371,40 @@
 
 ---
 
+## Phase 9: 사용자별 여행 기간 중복 금지 정책
+
+**Purpose**: 같은 사용자의 삭제되지 않은 여행 기간이 겹치지 않도록 DB·API·Android 계약을 확장하고, 오늘 날짜 기준 `여행 중` 여행을 최대 한 건으로 보장한다.
+
+- [ ] T050 [FR-002a] 사용자별 활성 여행 기간 exclusion migration과 ORM 제약 반영 in `api/migrations/versions/012_prevent_overlapping_trip_periods.py`, `api/app/models/trip.py`
+  - 영역: BE
+  - 담당: 미정
+  - 선행: 없음
+  - 검증: 기존 충돌 데이터 사전 검사 후 자동 수정 없이 실패, 충돌이 없으면 `btree_gist`와 `ex_trips_user_active_period` 적용, downgrade에서 제약 제거
+- [ ] T051 [US1] [US4] [FR-002a] [FR-002b] 여행 생성·기간 수정의 `TRIP_PERIOD_CONFLICT` 처리 구현 in `api/app/services/trip.py`, `api/app/api/errors.py`
+  - 영역: BE
+  - 담당: 미정
+  - 선행: T050
+  - 검증: 같은 사용자 부분 중첩·포함·같은 날 경계는 `409`, 종료 다음 날·다른 사용자·논리 삭제 기간은 성공, 충돌 실패 시 기존 데이터 불변, 생성 멱등 재전송은 최초 결과 반환
+- [ ] T052 [P] [US1] [US4] [FR-002a] [FR-002b] 기간 중복 계약·service·동시성 회귀 테스트 구현 in `api/tests/contract/test_trip_contract.py`, `api/tests/unit/test_trip_service.py`, `api/tests/integration/test_trip_flow.py`, `api/tests/integration/test_migrations.py`
+  - 영역: BE
+  - 담당: 미정
+  - 선행: T050, T051
+  - 검증: `contracts/trips.openapi.yaml`과 runtime 계약 일치, 동시 생성·수정 성공 최대 한 건, `VERSION_CONFLICT`·`CONFIRMATION_REQUIRED`·멱등성 회귀 통과
+- [ ] T053 [P] [US1] [US4] [FR-002a] Android 기간 충돌 오류 매핑과 생성·수정 안내 구현 in `android/app/src/main/java/com/gilpick/trip/TripApi.kt`, `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`, `android/app/src/main/java/com/gilpick/trip/TripFormViewModel.kt`, `android/app/src/main/java/com/gilpick/trip/TripFormScreen.kt`
+  - 영역: FE
+  - 담당: 미정
+  - 선행: T051
+  - 검증: `409 TRIP_PERIOD_CONFLICT`에서 입력값 유지, 다른 기간 선택 안내, 재시도 가능; repository·ViewModel unit test와 생성·수정 UI test 통과
+- [ ] T054 [SC-007] 기간 비중복 종단간 검증과 정본 문서 구현 상태 동기화 in `specs/002-trip-management/quickstart.md`, `docs/design/api-spec.md`, `docs/design/er-schema.md`
+  - 영역: 통합
+  - 담당: 미정
+  - 선행: T052, T053
+  - 검증: quickstart의 기간 중복 정책 시나리오 전체 실행, 전체 Backend·Android 회귀 통과, TRIP-002·TRIP-004 구현 상태와 DB 제약을 실제 결과에 맞게 기록
+
+**Checkpoint**: 같은 사용자의 삭제되지 않은 여행 기간은 단일·동시 요청 모두에서 겹치지 않고, Android가 충돌을 복구 가능한 오류로 안내한다.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -381,6 +415,7 @@
   - US1(P1) → US2(P1) → US3(P2) → US4(P2) → US5(P3) 순으로 우선순위가 있지만, US3~US5는 US1(생성)·US2(목록)가 만든 데이터·화면 진입점에 의존하므로 실질적으로 순차 진행이 자연스럽다.
   - US4·US5는 각각 T025(상세 조회 서비스)에 의존한다.
 - **Polish (Phase 8)**: 구현하기로 한 모든 user story 완료 후
+- **기간 중복 정책 (Phase 9)**: 기존 F002 완료 후 추가된 후속 범위. T050 → T051 → T052·T053 → T054 순서로 진행한다.
 
 ### Parallel Opportunities
 
