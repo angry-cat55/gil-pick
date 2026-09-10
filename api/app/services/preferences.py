@@ -27,14 +27,13 @@ class PreferencesService:
         Returns:
             현재 저장된 알림 설정값.
         """
-        return bool(
-            await self.session.scalar(
-                select(User.replacement_suggestion_enabled).where(
-                    User.user_id == user_id,
-                    User.deleted_at.is_(None),
-                )
+        result = await self.session.execute(
+            select(User.replacement_suggestion_enabled).where(
+                User.user_id == user_id,
+                User.deleted_at.is_(None),
             )
         )
+        return bool(result.scalar_one())
 
     async def update(self, user_id: uuid.UUID, enabled: bool) -> bool:
         """인증 사용자의 알림 설정을 단일 SQL로 원자적으로 갱신한다.

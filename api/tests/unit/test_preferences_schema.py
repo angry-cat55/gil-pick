@@ -22,6 +22,10 @@ def test_update_request_rejects_missing_and_extra_fields() -> None:
             placeChangeSuggestionNotificationEnabled=True,
             unexpected=True,
         )
+    with pytest.raises(ValidationError):
+        UpdatePreferenceRequest(
+            place_change_suggestion_notification_enabled=True,
+        )
 
 
 def test_preference_data_serializes_camel_case() -> None:

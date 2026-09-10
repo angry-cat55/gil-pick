@@ -13,12 +13,13 @@ from app.services.preferences import PreferencesService
 
 @pytest.mark.asyncio
 async def test_get_returns_stored_value() -> None:
+    result = SimpleNamespace(scalar_one=lambda: False)
     session = SimpleNamespace(
-        scalar=AsyncMock(return_value=False),
+        execute=AsyncMock(return_value=result),
     )
 
     assert await PreferencesService(session).get(uuid4()) is False
-    session.scalar.assert_awaited_once()
+    session.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
