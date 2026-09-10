@@ -1,17 +1,27 @@
 package com.gilpick.notification
 
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.gilpick.R
+import com.gilpick.auth.AuthResult
+import com.gilpick.trip.TripRepository
 import kotlinx.serialization.Serializable
 
 /** 알림 목록 화면 route(T019). 여행 목록·진행 화면 헤더의 알림 벨과 대상 없는 푸시 탭이 연다. */
@@ -27,29 +37,65 @@ data object NotificationListRoute
 data class VariableMonitorRoute(val tripId: String)
 
 /**
- * 알림 destination을 app navigation graph에 등록한다(T015 골격).
+ * 알림 destination을 app navigation graph에 등록한다(T015 골격, T032 알림 목록).
  *
- * 화면 본문은 T019(알림 목록)·T039(감지 목록)가 채운다. 지금은 route와 콜백 계약만 고정한다.
+ * 감지 목록 화면 본문은 T039가 채운다.
  *
  * @param navController 뒤로 가기에 쓴다.
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
  * @param onOpenDetection 장소 변경 제안 알림 탭·감지 목록의 `대체 장소 보기`. `AlternativePlacesRoute`로 간다.
  * @param onOpenProgress 도착·출발·자동 처리 알림 탭. `ActiveTravelRoute`로 간다.
+ * @param repository 알림 데이터 접근. UI test가 MockWebServer를 향한 repository로 바꿔 끼운다.
+ * @param tripName 진행 알림 목적지 헤더의 여행명 조회. 기본은 F002 `TripRepository`다.
  */
-@Suppress("UNUSED_PARAMETER")
 fun NavGraphBuilder.notificationGraph(
     navController: NavController,
     onSessionExpired: () -> Unit,
     onOpenDetection: (detectionId: String, tripId: String) -> Unit,
     onOpenProgress: (tripId: String, tripName: String) -> Unit,
+    repository: (Context) -> NotificationRepository = NotificationRepository::default,
+    tripName: suspend (Context, tripId: String) -> String = ::tripNameOf,
 ) {
-    composable<NotificationListRoute> {
-        Placeholder(R.string.notification_list_title)
+    composable<NotificationListRoute> { entry ->
+        val context = LocalContext.current
+        val factory = remember(entry) {
+            NotificationListViewModel.factory(repository = repository(context), tripName = { tripName(context, it) })
+        }
+        val viewModel: NotificationListViewModel = viewModel(factory = factory)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        val open by viewModel.open.collectAsStateWithLifecycle()
+
+        // 대상 화면에서 돌아올 때마다 다시 조회한다. 그 사이 서버에서 읽음·새 알림이 바뀌었을 수 있다.
+        LifecycleResumeEffect(Unit) {
+            viewModel.load()
+            onPauseOrDispose {}
+        }
+
+        LaunchedEffect(open) {
+            when (val target = open ?: return@LaunchedEffect) {
+                is NotificationTarget.Alternative -> onOpenDetection(target.detectionId, target.tripId)
+                is NotificationTarget.Progress -> onOpenProgress(target.tripId, target.tripName)
+            }
+            viewModel.consumeOpen()
+        }
+
+        NotificationListScreen(
+            state = state,
+            onBack = { navController.popBackStack() },
+            onRetry = viewModel::load,
+            onOpen = viewModel::open,
+            onMarkAllRead = viewModel::markAllRead,
+            onReauthenticate = onSessionExpired,
+        )
     }
     composable<VariableMonitorRoute> {
         Placeholder(R.string.notification_monitor_title)
     }
 }
+
+/** 여행명을 F002 여행 조회로 받는다. 실패하면 빈 문자열이다. 푸시 딥링크(`MainActivity`)와 알림 목록 탭이 함께 쓴다. */
+suspend fun tripNameOf(context: Context, tripId: String): String =
+    (TripRepository.default(context).getTrip(tripId) as? AuthResult.Success)?.value?.name ?: ""
 
 /** 화면이 붙기 전 자리 표시. 제목만 가운데에 둔다. */
 @Composable
