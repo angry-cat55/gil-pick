@@ -16,6 +16,7 @@ from app.api.v1.devices import router as devices_router
 from app.api.v1.itinerary import router as itinerary_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.places import router as places_router
+from app.api.v1.preferences import router as preferences_router
 from app.api.v1.progress import item_router as progress_item_router
 from app.api.v1.progress import router as progress_router
 from app.api.v1.progress import transition_router as progress_transition_router
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
     application.include_router(itinerary_router, prefix="/api/v1")
     application.include_router(notifications_router, prefix="/api/v1")
     application.include_router(places_router, prefix="/api/v1")
+    application.include_router(preferences_router, prefix="/api/v1")
     application.include_router(progress_router, prefix="/api/v1")
     application.include_router(progress_item_router, prefix="/api/v1")
     application.include_router(progress_transition_router, prefix="/api/v1")

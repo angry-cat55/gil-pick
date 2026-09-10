@@ -170,8 +170,8 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | NOTI-003 | 알림 | 모든 알림 읽음 처리 | [ ] | [X] | PATCH | `/api/v1/notifications/read-all` |
 | DEV-001 | 기기 | FCM 토큰 등록·갱신 | [ ] | [X] | PUT | `/api/v1/devices/fcm-token` |
 | DEV-002 | 기기 | FCM 토큰 해제 | [ ] | [X] | DELETE | `/api/v1/devices/{deviceId}/fcm-token` |
-| PREF-001 | 사용자 설정 | 설정 조회 | [ ] | [ ] | GET | `/api/v1/users/me/preferences` |
-| PREF-002 | 사용자 설정 | 설정 수정 | [ ] | [ ] | PATCH | `/api/v1/users/me/preferences` |
+| PREF-001 | 사용자 설정 | 설정 조회 | [ ] | [X] | GET | `/api/v1/users/me/preferences` |
+| PREF-002 | 사용자 설정 | 설정 수정 | [ ] | [X] | PATCH | `/api/v1/users/me/preferences` |
 
 ## 3. 인증·사용자
 
@@ -1999,6 +1999,7 @@ Response: `204 No Content`
 `GET /api/v1/users/me/preferences`
 
 MVP에서는 장소 변경 제안 알림 전체 ON/OFF만 앱 설정으로 제공한다. 혼잡·날씨·운영시간 임계값 직접 조절 및 설정 초기화는 MVP에서 제외한다.
+기존 `users.replacement_suggestion_enabled`를 직접 사용하므로 별도 DB migration은 필요하지 않다.
 
 Response `200`:
 

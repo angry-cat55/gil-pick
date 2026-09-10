@@ -44,13 +44,13 @@
   - 선행: 없음
   - 검증: `preferences.openapi.yaml`의 camelCase field, GET/PATCH path, 공통 envelope와 malformed 응답 test가 구현 전 실패
 
-- [ ] T004 [P] Backend 설정 request·response schema validation test 작성 in api/tests/unit/test_preferences_schema.py
+- [X] T004 [P] Backend 설정 request·response schema validation test 작성 in api/tests/unit/test_preferences_schema.py
   - 영역: BE
   - 담당: jh
   - 선행: 없음
   - 검증: required strict boolean과 extra field 거부, camelCase 직렬화 test가 구현 전 실패
 
-- [ ] T005 Backend 설정 request·response schema 구현 in api/app/schemas/preferences.py
+- [X] T005 Backend 설정 request·response schema 구현 in api/app/schemas/preferences.py
   - 영역: BE
   - 담당: jh
   - 선행: T004
@@ -74,13 +74,13 @@
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] 설정 조회·원자적 갱신 service unit test 작성 in api/tests/unit/test_preferences_service.py
+- [X] T007 [P] [US1] 설정 조회·원자적 갱신 service unit test 작성 in api/tests/unit/test_preferences_service.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
   - 검증: 기본·저장값 조회, 동일값 재시도, `UPDATE ... RETURNING`, 겹친 요청의 마지막 성공값 test가 구현 전 실패
 
-- [ ] T008 [P] [US1] 인증·입력 오류·GET/PATCH 종단 API integration test 작성 in api/tests/integration/test_preferences_flow.py
+- [X] T008 [P] [US1] 인증·입력 오류·GET/PATCH 종단 API integration test 작성 in api/tests/integration/test_preferences_flow.py
   - 영역: BE
   - 담당: jh
   - 선행: T005
@@ -92,19 +92,19 @@
   - 선행: T006
   - 검증: 초기 조회, 단일 in-flight와 마지막 희망값 합산, 성공 확정, 실패 rollback, 늦은 응답 무시 test가 구현 전 실패
 
-- [ ] T010 [US1] 설정 조회·갱신 service와 request ID 기반 최소 log 구현 in api/app/services/preferences.py
+- [X] T010 [US1] 설정 조회·갱신 service와 request ID 기반 최소 log 구현 in api/app/services/preferences.py
   - 영역: BE
   - 담당: jh
   - 선행: T007
   - 검증: T007 통과, 인증 user row만 조회·갱신하고 Token·user ID·설정값을 log에 남기지 않으며 public service 함수에 Constitution 형식의 Google-style docstring이 있는지 확인
 
-- [ ] T011 [US1] PREF router를 구현하고 API app에 등록 in api/app/api/v1/preferences.py and api/app/main.py
+- [X] T011 [US1] PREF router를 구현하고 API app에 등록 in api/app/api/v1/preferences.py and api/app/main.py
   - 영역: BE
   - 담당: jh
   - 선행: T008, T010
   - 검증: T008 통과, 생성 OpenAPI가 feature 계약의 path·status·schema와 일치하고 endpoint에 Constitution 형식의 Google-style docstring이 있는지 확인
 
-- [ ] T012 [US1] 알림 설정 OFF·재활성화·도착출발 알림 독립성 회귀 test 보강 in api/tests/unit/test_notification_service.py and api/tests/integration/test_notification_detection_hook.py
+- [X] T012 [US1] 알림 설정 OFF·재활성화·도착출발 알림 독립성 회귀 test 보강 in api/tests/unit/test_notification_service.py and api/tests/integration/test_notification_detection_hook.py
   - 영역: BE
   - 담당: jh
   - 선행: T011
@@ -232,7 +232,7 @@
 
 **Purpose**: 계약·최상위 탐색·adaptive UI와 전체 회귀를 최종 검증한다.
 
-- [ ] T025 [P] PREF 구현 계약을 공용 API 문서와 feature OpenAPI에 대조·동기화 in docs/design/api-spec.md and specs/012-user-settings/contracts/preferences.openapi.yaml
+- [X] T025 [P] PREF 구현 계약을 공용 API 문서와 feature OpenAPI에 대조·동기화 in docs/design/api-spec.md and specs/012-user-settings/contracts/preferences.openapi.yaml
   - 영역: BE
   - 담당: jh
   - 선행: T011
@@ -250,7 +250,7 @@
   - 선행: T026
   - 검증: 360dp, phone/tablet 세로·가로, 시스템 최대 글자 크기, system/navigation bar inset에서 잘림·겹침·가로 scroll·접근 불가 0건이고 승인 Figma와 content screenshot 일치
 
-- [ ] T028 Backend 전체 정적 분석·관련 회귀·계약 검증 실행 using specs/012-user-settings/quickstart.md
+- [X] T028 Backend 전체 정적 분석·관련 회귀·계약 검증 실행 using specs/012-user-settings/quickstart.md
   - 영역: BE
   - 담당: jh
   - 선행: T012, T025
