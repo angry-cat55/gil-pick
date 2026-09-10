@@ -2,24 +2,18 @@ package com.gilpick.notification
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.gilpick.R
+import androidx.navigation.toRoute
+import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.auth.AuthResult
 import com.gilpick.trip.TripRepository
 import kotlinx.serialization.Serializable
@@ -37,9 +31,7 @@ data object NotificationListRoute
 data class VariableMonitorRoute(val tripId: String)
 
 /**
- * 알림 destination을 app navigation graph에 등록한다(T015 골격, T032 알림 목록).
- *
- * 감지 목록 화면 본문은 T039가 채운다.
+ * 알림 destination을 app navigation graph에 등록한다(T015 골격, T032 알림 목록, T040 감지 목록).
  *
  * @param navController 뒤로 가기에 쓴다.
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
@@ -47,6 +39,7 @@ data class VariableMonitorRoute(val tripId: String)
  * @param onOpenProgress 도착·출발·자동 처리 알림 탭. `ActiveTravelRoute`로 간다.
  * @param repository 알림 데이터 접근. UI test가 MockWebServer를 향한 repository로 바꿔 끼운다.
  * @param tripName 진행 알림 목적지 헤더의 여행명 조회. 기본은 F002 `TripRepository`다.
+ * @param alternativeRepository 감지 목록 데이터 접근(F009 읽기 재사용). UI test가 바꿔 끼운다.
  */
 fun NavGraphBuilder.notificationGraph(
     navController: NavController,
@@ -55,6 +48,7 @@ fun NavGraphBuilder.notificationGraph(
     onOpenProgress: (tripId: String, tripName: String) -> Unit,
     repository: (Context) -> NotificationRepository = NotificationRepository::default,
     tripName: suspend (Context, tripId: String) -> String = ::tripNameOf,
+    alternativeRepository: (Context) -> AlternativeRepository = AlternativeRepository::default,
 ) {
     composable<NotificationListRoute> { entry ->
         val context = LocalContext.current
@@ -88,22 +82,33 @@ fun NavGraphBuilder.notificationGraph(
             onReauthenticate = onSessionExpired,
         )
     }
-    composable<VariableMonitorRoute> {
-        Placeholder(R.string.notification_monitor_title)
+    composable<VariableMonitorRoute> { entry ->
+        val route = entry.toRoute<VariableMonitorRoute>()
+        val context = LocalContext.current
+        val factory = remember(entry) { VariableMonitorViewModel.factory(tripId = route.tripId, repository = alternativeRepository(context)) }
+        val viewModel: VariableMonitorViewModel = viewModel(factory = factory)
+        val state by viewModel.state.collectAsStateWithLifecycle()
+
+        // 대체 장소 화면에서 돌아올 때마다 다시 조회한다. 그 사이 감지가 처리됐을 수 있다.
+        LifecycleResumeEffect(Unit) {
+            viewModel.load()
+            onPauseOrDispose {}
+        }
+
+        VariableMonitorScreen(
+            state = state,
+            onBack = { navController.popBackStack() },
+            onRetry = viewModel::load,
+            onToggleSort = viewModel::toggleSort,
+            onOpenDetection = { detectionId -> onOpenDetection(detectionId, route.tripId) },
+            onReauthenticate = onSessionExpired,
+        )
     }
 }
 
 /** 여행명을 F002 여행 조회로 받는다. 실패하면 빈 문자열이다. 푸시 딥링크(`MainActivity`)와 알림 목록 탭이 함께 쓴다. */
 suspend fun tripNameOf(context: Context, tripId: String): String =
     (TripRepository.default(context).getTrip(tripId) as? AuthResult.Success)?.value?.name ?: ""
-
-/** 화면이 붙기 전 자리 표시. 제목만 가운데에 둔다. */
-@Composable
-private fun Placeholder(titleRes: Int) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = stringResource(titleRes))
-    }
-}
 
 /**
  * 시스템 알림 탭으로 전달된 대상(data-model.md 4.3).

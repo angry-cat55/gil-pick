@@ -1,5 +1,9 @@
 package com.gilpick.notification
 
+import com.gilpick.alternative.AlternativeError
+import com.gilpick.alternative.DetectionListItemDto
+import com.gilpick.alternative.VariableVerdictsDto
+
 /**
  * 알림 목록 화면의 표시 상태(data-model.md 4.1, spec UI-004).
  *
@@ -70,3 +74,57 @@ sealed interface NotificationTarget {
      */
     data class Progress(val tripId: String, val tripName: String = "") : NotificationTarget
 }
+
+/**
+ * 감지 목록 화면의 표시 상태(data-model.md 4.2, spec UI-008).
+ *
+ * 데이터는 F009 `AlternativeRepository`를 읽기로만 쓴다. `Empty`는 `ACTIVE` 감지 0(Figma `hasAlerts=false`)이다.
+ */
+sealed interface VariableMonitorUiState {
+    /** 조회 중. 화면은 1초를 넘길 때만 대기 표시를 띄운다. */
+    data object Loading : VariableMonitorUiState
+
+    /** `ACTIVE` 감지가 없다. */
+    data object Empty : VariableMonitorUiState
+
+    /**
+     * 목록을 보여줄 수 없다. 오류 원인·문구는 F009 형식 그대로다.
+     *
+     * @property retryable `다시 시도`를 보일지.
+     */
+    data class Error(val error: AlternativeError, val retryable: Boolean) : VariableMonitorUiState
+
+    /**
+     * `ACTIVE` 감지 목록.
+     *
+     * @property items 서버가 준 순서 그대로. 화면은 [sorted]를 그린다.
+     * @property sort 현재 정렬. 시간순은 방문 예정 시각(`eta`)이 이른 순, 위험순은 `totalRiskScore`가 높은 순이다.
+     * @property refreshing 재조회 중. 기존 목록을 그대로 두고 조용히 갱신한다.
+     */
+    data class Content(
+        val items: List<DetectionUi>,
+        val sort: DetectionSort = DetectionSort.TIME,
+        val refreshing: Boolean = false,
+    ) : VariableMonitorUiState {
+        /** [sort]를 적용한 목록. 같은 값끼리는 방문 예정 시각이 이른 순이다. */
+        val sorted: List<DetectionUi>
+            get() = when (sort) {
+                DetectionSort.TIME -> items.sortedBy { it.item.eta }
+                DetectionSort.RISK -> items.sortedWith(compareByDescending<DetectionUi> { it.item.totalRiskScore }.thenBy { it.item.eta })
+            }
+    }
+}
+
+/** 감지 목록 정렬 기준(Figma `시간순`/`위험순`). */
+enum class DetectionSort { TIME, RISK }
+
+/**
+ * 감지 카드 하나.
+ *
+ * @property item DETECT-001 항목(장소명·요약·방문 예정 시각·감지 시각).
+ * @property variables DETECT-002의 변수별 판정. 상세 조회에 실패하면 `null`이고 카드는 판정 줄을 비운다(없는 값을 지어내지 않는다).
+ */
+data class DetectionUi(
+    val item: DetectionListItemDto,
+    val variables: VariableVerdictsDto?,
+)

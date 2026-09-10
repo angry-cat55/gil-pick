@@ -563,4 +563,41 @@
     <string name="replacement_action_candidates">후보 목록으로</string>
     <string name="replacement_action_retry">다시 시도</string>
     <string name="replacement_approve_failed">변경하지 못했어요</string>
+
+    <!-- F011 감지 목록 (US6, Figma VariableMonitorScreen) -->
+    <string name="monitor_loading">감지 결과를 불러오는 중</string>
+    <string name="monitor_banner_title">방문이 어려울 수 있어요</string>
+    <string name="monitor_banner_body">남은 일정 %1$d곳에서 변수 감지</string>
+    <string name="monitor_count">감지 %1$d건</string>
+    <string name="monitor_sort_time">시간순</string>
+    <string name="monitor_sort_risk">위험순</string>
+    <string name="monitor_sort_toggle">정렬 기준 %1$s, %2$s으로 바꾸기</string>
+    <string name="monitor_variable_congestion">혼잡도</string>
+    <string name="monitor_variable_weather">강수 예보</string>
+    <string name="monitor_variable_hours">운영 종료</string>
+    <string name="monitor_congestion_relaxed">여유</string>
+    <string name="monitor_congestion_normal">보통</string>
+    <string name="monitor_congestion_slightly_crowded">약간 혼잡</string>
+    <string name="monitor_congestion_crowded">혼잡</string>
+    <string name="monitor_weather_probability">확률 %1$d%%</string>
+    <string name="monitor_weather_rain">비</string>
+    <string name="monitor_weather_rain_snow">비/눈</string>
+    <string name="monitor_weather_snow">눈</string>
+    <string name="monitor_weather_shower">소나기</string>
+    <string name="monitor_weather_none">강수 없음</string>
+    <string name="monitor_value_unknown">정보 없음</string>
+    <string name="monitor_excluded_no_forecast">강수 예보가 없어 이 변수는 제외했습니다.</string>
+    <string name="monitor_excluded_not_in_area">%1$s 지원 지역이 아니라 이 변수는 제외했습니다.</string>
+    <string name="monitor_excluded_hours_unknown">운영 시간 정보를 불러오지 못해 이 변수는 제외했습니다.</string>
+    <string name="monitor_excluded_indoor">실내 장소라 강수 예보는 제외했습니다.</string>
+    <string name="monitor_excluded_timeout">%1$s 정보를 제때 받지 못해 이 변수는 제외했습니다.</string>
+    <string name="monitor_excluded_unknown">%1$s 정보를 불러오지 못해 이 변수는 제외했습니다.</string>
+    <string name="monitor_variables_unavailable">변수별 판정을 불러오지 못했어요.</string>
+    <string name="monitor_visit_at">%1$s 방문 예정</string>
+    <string name="monitor_detected_ago">%1$s 감지</string>
+    <string name="monitor_open_alternatives">대체 장소 보기</string>
+    <string name="monitor_empty_title">모든 일정이 예정대로예요</string>
+    <string name="monitor_empty_body">10분마다 다시 확인하고,\n변수가 생기면 바로 알려드릴게요.</string>
+    <string name="monitor_error_title">감지 결과를 불러올 수 없어요</string>
+    <string name="monitor_to_progress">여행 진행 화면으로</string>
 </resources>

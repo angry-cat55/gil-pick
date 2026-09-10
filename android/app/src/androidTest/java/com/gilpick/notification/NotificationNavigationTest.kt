@@ -64,6 +64,7 @@ import org.junit.Test
 
 /**
  * T033: 알림 목록 → 유형별 목적지, 읽음 요청, 대상 없음 안내, 진행 화면 벨 진입점 검증(quickstart AND 2.1~2.3, AND 7.2).
+ * T041: 감지 목록 `대체 장소 보기` → `AlternativePlacesRoute` 배선도 여기서 본다.
  *
  * `MainActivity.kt`의 배선을 그대로 옮겨 [notificationGraph]·[progressGraph]·[alternativeGraph]를 한 NavHost에
  * 둔다. 알림·여행·개요·진행 현황·감지·후보는 [MockWebServer]가 준다. 지도는 SDK 인증이 필요해 자리 표시로
@@ -203,6 +204,22 @@ class NotificationNavigationTest {
         awaitList()
     }
 
+    @Test
+    fun 감지_목록의_대체_장소_보기는_그_감지의_대체_장소_화면을_연다() {
+        setGraph(start = VariableMonitorRoute(PROGRESS_TRIP_ID))
+        composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithTag(TAG_MONITOR_OPEN_PREFIX + NOTIF_DETECTION_ID).fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.onNodeWithTag(TAG_MONITOR_OPEN_PREFIX + NOTIF_DETECTION_ID).performClick()
+
+        composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithTag(TAG_CANDIDATE_PREFIX + "1").fetchSemanticsNodes().isNotEmpty() }
+        composeRule.runOnIdle {
+            assertEquals(
+                AlternativePlacesRoute(NOTIF_DETECTION_ID, PROGRESS_TRIP_ID),
+                navController.currentBackStackEntry?.toRoute<AlternativePlacesRoute>(),
+            )
+        }
+    }
+
     private fun awaitList() {
         composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithTag(TAG_ROW_PREFIX + NOTIF_SUGGESTION_ID).fetchSemanticsNodes().isNotEmpty() }
     }
@@ -220,6 +237,7 @@ class NotificationNavigationTest {
                         onOpenProgress = { tripId, tripName -> navController.navigate(ActiveTravelRoute(tripId, tripName)) },
                         repository = { notificationRepository },
                         tripName = { _, tripId -> tripNameFromServer(tripId) },
+                        alternativeRepository = { alternativeRepository },
                     )
                     progressGraph(
                         navController,
