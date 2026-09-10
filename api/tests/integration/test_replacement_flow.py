@@ -19,6 +19,7 @@ from app.clients.odsay import OdsayClient
 from app.clients.tmap import TmapClient
 from app.core.config import Settings
 from app.core.security import AuthPrincipal
+from app.db import transaction_session
 from app.main import app
 from app.models.auth import User
 from app.models.detection import Detection
@@ -211,6 +212,28 @@ async def test_create_preview_preserves_schedule_route_and_detection_and_superse
                 await _service(session, seeded["now"]).reject_preview(
                     preview_id=previews[0].preview_id, user_id=seeded["user_id"]
                 )
+    finally:
+        await engine.dispose()
+
+
+async def test_create_preview_uses_request_transaction_session() -> None:
+    """요청 transaction 안에서도 미리보기 생성 후속 쿼리를 계속 수행한다."""
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        seeded = await _seed(factory)
+        payload = CreatePreviewRequest(
+            place_id=seeded["alternative_public_id"], schedule_version=1
+        )
+        async with transaction_session(factory) as session:
+            preview = await _service(session, seeded["now"]).create_preview(
+                detection_id=seeded["detection_id"], user_id=seeded["user_id"],
+                payload=payload, idempotency_key="request-transaction",
+            )
+            assert await session.get(RoutePreviewModel, preview.preview_id) is not None
     finally:
         await engine.dispose()
 
