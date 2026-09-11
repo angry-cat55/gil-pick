@@ -1,10 +1,11 @@
 # App Link 검증과 `assetlinks.json`
 
 카카오 인증이 끝나고 돌아오는 링크를 브라우저가 아니라 길픽 앱이 받게 하려면, Android가
-도메인 소유권을 검증해야 한다. 이 디렉터리의 `assetlinks.json`은 그 검증에 쓰이는 파일의
-골격이다.
+도메인 소유권을 검증해야 한다. 이 디렉터리의 `.well-known/assetlinks.json`은 그 검증에 쓰이는
+파일이다.
 
-`https://$ANDROID_APP_LINK_HOST/.well-known/assetlinks.json`로 배포한다.
+이 `web/` 디렉터리가 Cloudflare Pages(`gilpick.pages.dev`) 업로드 원본이다. 폴더째로 올리면
+`/.well-known/assetlinks.json`과 F012 정책 문서 `/privacy/`, `/terms/`가 함께 배포된다.
 
 ## 왜 필요한가
 

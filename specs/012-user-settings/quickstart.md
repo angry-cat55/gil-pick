@@ -57,6 +57,19 @@ cd android
 6. Custom Tab 실행 뒤 offline·HTTP·문서 로딩 오류는 브라우저가 표시하며 앱 오류 상태 검증 대상이 아님을 확인한다.
 7. 정상 네트워크에서 각 정책 문서를 5회 열어 모두 선택 후 3초 이내에 표시되는지 수동 측정한다.
 
+### 측정 기록 (2026-09-11, jy)
+
+- 환경: emulator `gilpick_api36_play`(API 36, Chrome Custom Tab), `android/gradle.properties`의 `https://gilpick.pages.dev/privacy/`·`/terms/`, Wi-Fi 정상 네트워크.
+- 방법: 정책 섹션에서 행을 탭한 시각부터 Custom Tab에 문서 본문이 그려진 시각까지(기기 내 `screencap` 폴링, 해상도 약 0.3초). 매회 뒤로 가기로 설정 화면 복귀를 확인했다.
+
+| 문서 | 1 | 2 | 3 | 4 | 5 | 판정 |
+|---|---|---|---|---|---|---|
+| 개인정보처리방침 | 1.32s | 1.59s | 0.93s | 0.88s | 1.34s | 3초 이내 |
+| 이용약관 | 1.58s | 0.87s | 0.87s | 1.75s | 0.92s | 3초 이내 |
+
+- 두 문서가 서로 다른 제목(`길픽 개인정보처리방침`, `길픽 이용약관`)으로 열리고, 복귀 후 정책 항목이 그대로 남는다.
+- 자동 test(빈 URL·HTTP URL·실행 실패·재시도)는 `SettingsPolicyTest` 10개로 별도 검증한다.
+
 ## 5. UI·접근성·adaptive 검증
 
 동기화된 Figma `SettingsScreen`을 기준으로 screenshot을 비교한다.
