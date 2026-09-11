@@ -281,7 +281,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: jh
   - 선행: T032, T033
   - 검증: quickstart BE 1~10 전체 수행. `uv run pytest` 전체 통과와 `uv run alembic upgrade head`·`downgrade` 확인. **REPL-001 응답 시간을 측정해 3초 이내인지 기록한다(SC-001)** — 경로 provider 호출을 포함하므로 실제 값 확인이 필요하다. 실행한 명령과 결과를 PR에 기록하고 미실행 항목은 이유를 남긴다
-- [ ] T036 Android 전체 검증과 접근성·적응형·screenshot in android/app/src/androidTest/java/com/gilpick/replacement/, android/app/src/androidTest/java/com/gilpick/progress/
+- [x] T036 Android 전체 검증과 접근성·적응형·screenshot in android/app/src/androidTest/java/com/gilpick/replacement/, android/app/src/androidTest/java/com/gilpick/progress/
   - 영역: FE
   - 담당: hs
   - 선행: T017, T023, T031

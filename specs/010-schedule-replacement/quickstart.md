@@ -168,3 +168,76 @@ cd android && ./gradlew :app:testDebugUnitTest
 3. `변경 승인` → 진행 화면에 바뀐 장소와 되돌리기 안내가 보이는지 확인.
 4. 되돌리기를 눌러 원래 장소와 배너가 함께 돌아오는지 확인.
 5. 다시 승인하고 30초를 기다려 되돌리기가 사라지는지, 일정 편집으로 바꿀 수 있음이 안내되는지 확인.
+
+## Android 검증 기록 (#353 T036)
+
+2026-09-10, `main` 096a6b3, jy 수행(원 담당 hs). AVD `gilpick_api36`(ATD, 계측·screenshot)과 `gilpick_api36_play`(API 36, 실서버). 로컬 API: docker postgres + `alembic upgrade head`(011) + uvicorn 127.0.0.1:8005 → `adb reverse tcp:8000 tcp:8005`, 실제 TourAPI·Google·TMAP 키.
+
+| 항목 | 결과 |
+|---|---|
+| `testDebugUnitTest` | 539 통과 |
+| `connectedDebugAndroidTest` `com.gilpick.replacement` | 32 통과 (ReplacementNavigationTest 4 · RoutePreviewScreenTest 9 · RoutePreviewApproveTest 10 · RoutePreviewScreenshotTest 9) |
+| `connectedDebugAndroidTest` `com.gilpick.progress` | 128 통과 (ActiveTravelScreenshotTest 50 · ReplacementUndoTest 11 · UndoToastTest 8 외) |
+| FE 7-1 48dp | `RoutePreviewScreenTest`·`RoutePreviewApproveTest`·`ReplacementUndoTest`의 `assertHeightIsAtLeast(48.dp)`(뒤로·승인·다른 후보 보기·다시 시도·다시 로그인·실패 다음 행동·되돌리기) |
+| FE 7-2 360dp + 2.0 | `replacement_*_360dp_fontscale2.png` 7장. 항목명은 두 줄로 접히고 이전·이후 값과 `변경 승인`·`다른 후보 보기`·`되돌리기`·실패 문구 모두 잘림 없음. 실패 블록과 행동은 첫 화면 아래라 스크롤해 찍음 |
+| FE 7-3 screenshot 5장 | `replacement_preview_content`·`replacement_preview_error`·`replacement_approve_failed`·`replacement_undo_toast`·`replacement_undo_expired`(+`_360dp_fontscale2`, `no_closes_at`, `approving`, `approve_failed_unavailable`, `preview_actions`) — `/sdcard/Android/data/com.gilpick/files/screenshots/` |
+
+FE 2·3·4·5(표시·상태·승인 실패 5원인·되돌리기·우선순위·실패 안내)는 위 계측 test로 확인했다. 실서버는 다음과 같다.
+
+- **BE 버그 #394**(2026-09-10): REPL-001이 `500 INTERNAL_ERROR`(`InvalidRequestError: Can't operate on closed transaction`, `replacement.py`의 `session.rollback()` × 3). 앱은 `비교를 만들 수 없어요 · 잠시 후 다시 시도해 주세요 · 기존 일정은 그대로예요 · 다시 시도하기 · 다른 후보 보기`로 정상 처리(FE 3 `error`). 9/10 실서버 항목은 로컬에서 그 세 줄만 비활성화한 서버로 진행했고, PR #404 머지 뒤 아래 "재검증" 절에서 패치 없는 `main`으로 같은 흐름을 다시 확인했다.
+- FE 1: 진행 화면 배너(`명동 카페거리 카페 도착 예정 시각에 영업이 끝나요 + 매우 혼잡`) → 대체 장소 후보 2곳 → `경로 비교` → 미리보기. REPL-001 200(1.0초). `다시 시도하기`로 REPL-003 폐기 후 재생성도 확인.
+- FE 2 실서버: Naver 지도에 기존(회색)·변경(파랑) 경로 + `기존`·`변경` 범례, `명동 카페거리 카페 → 더 스팟 패뷸러스`, 감지 이유, 이동 시간 `26분 → 29분 ↑`(접근성 문구 `…나빠짐`), 이동 거리 `1.9km → 2.1km ↑`, 도착 예정 `17:45 → 17:49`, 마감 시간 `정보 없음 → 정보 없음`(closesAt null).
+- FE 4·5-1: `변경 승인` → REPL-002 200 → 진행 화면. 일정 2번 항목이 같은 `itemId`로 `더 스팟 패뷸러스`, 배너에서 그 감지가 빠짐, `다음 장소`가 새 장소.
+- FE 5-2·5-3: 토스트 `장소가 더 스팟 패뷸러스(으)로 변경되었습니다 · N초 · 되돌리기`(F007 토스트와 같은 자리·형식) → `되돌리기` → REPL-004 200 → 원래 장소·배너(`ACTIVE`) 복귀, DB `undone_at` 기록.
+- FE 5-5·5-6: 재승인 후 서버 만료(30초) 뒤 `되돌리기` → `409 UNDO_EXPIRED` → `되돌릴 수 있는 시간이 지났어요. 일정 편집에서 바꿀 수 있어요.`, 일정 그대로. 재조회 후 PROG-001 `undoableReplacement=null`이라 토스트 본문은 사라진다.
+- FE 6: 1번 도착·출발 처리로 2번을 감지 대상으로 만든 뒤 승인 → PROG-001 `detectionTargets`가 같은 `geofenceId`(`{itemId}:ARRIVAL`)로 새 좌표(37.5624, 126.9826)를 주고 앱이 승인 직후 진행을 재조회. 지오펜스 실제 재등록은 `GeofenceManager.sync`(값이 바뀐 대상 재등록)와 unit test로 갈음.
+
+### 재검증 (2026-09-11, #404 반영)
+
+`main` c5e3bb1(#404 포함, `replacement.py`에 `rollback` 0곳) + 로컬 패치 없음. 같은 환경(docker postgres, uvicorn :8005, `gilpick_api36_play`, 실제 키). 여행 `F010 재검증`(2026-09-11, 명동 3곳, 2번 `명동 카페거리 카페`에 `OPERATING_HOURS` 감지 시드).
+
+API 직접 호출(`urllib`, `Idempotency-Key` 매번 새로):
+
+| 단계 | 결과 |
+|---|---|
+| REPL-001 `route-previews` `placeId=tourapi:2786072, scheduleVersion=1` | 200, 1초. 이동 시간 1546→1713초, 거리 1895→2121m |
+| REPL-002 `approve` | 200, `scheduleVersion` 2, 일정 2번이 `더 스팟 패뷸러스`, `undoExpiresAt` +30초 |
+| REPL-004 `undo` | 200, `restored=true`, `detectionRestored=true`, `scheduleVersion` 3, 2번 원복·감지 `ACTIVE` |
+| 재승인(`scheduleVersion=3`) 후 PROG-001 | `undoableReplacement`에 `replacementId`·`undoExpiresAt` |
+| 만료 뒤 `undo` | 409 `UNDO_EXPIRED` `되돌릴 수 있는 시간이 지났습니다.`, 일정은 새 장소 유지 |
+
+앱(quickstart "종단간 확인" 1~5단계):
+
+1. 진행 화면 배너 `명동 카페거리 카페 도착 예정 시각에 영업이 끝나요 + 매우 혼잡` → `대체 장소 보기` → 추천 후보 2곳.
+2. `경로 비교` → 미리보기(지도 기존·변경 경로, `26분 → 29분 ↑`, `1.9km → 2.1km ↑`, 마감 `정보 없음`). 첫 시도는 아래 **FE 버그 #410**으로 `error`, 감지 `eta`를 KST 낮으로 바꾸고 `다시 시도하기`로 통과.
+3. `변경 승인` → 진행 화면. 배너 소멸, 일정 2번 `더 스팟 패뷸러스`, 토스트 `장소가 더 스팟 패뷸러스(으)로 변경되었습니다 · 28초 · 되돌리기`(AVD 시계가 호스트와 일치해 30초부터 시작).
+4. `되돌리기` → 원래 장소·배너 복귀(`오후 2:00 도착 예정 · 3분 전 감지`).
+5. 재승인 → 30초 뒤 카운트다운·`되돌리기` 버튼이 사라지고 토스트 본문만 남음. 서버 만료 뒤 409 안내 문구(`…일정 편집에서 바꿀 수 있어요.`)는 기기 시계가 정확하면 앱에서 버튼이 먼저 사라져 누를 수 없고, 9/10 기록과 API 호출로 확인.
+
+SC-004(후보 선택 → 승인 완료 표시): **15.8초**(`대체 장소 보기` 화면에서 `경로 비교` 탭 00:21:55 → 토스트 표시 00:22:11).
+
+- **FE 버그 #410**(hs): `PreviewViewModel`이 `detection.eta`(UTC `Z`) 앞 10자를 날짜로 써 KST 00~09시 ETA면 전날 `days/{date}/route` 404 → `비교를 만들 수 없어요`. REPL-001은 호출되지 않는다. 자정 직후 검증이라 드러났고, 수정은 hs 판단.
+
+### 관찰 (수정 안 함)
+
+- 토스트 남은 시간은 기기 시계로 계산한다. AVD 시계가 호스트보다 37초 느려 `65초`부터 시작했고, 서버가 만료한 뒤에도 `10초`가 남아 있었다(그 덕에 위 `UNDO_EXPIRED`를 실서버로 볼 수 있었다). 응답 시각 기준 보정은 hs 판단.
+- 360dp·2.0에서 감지 이유·토스트 본문이 음절 단위로 접힌다(`매/우`, `창/덕궁(으)로`). F007 토스트와 같은 현상, 잘림은 아님.
+- 실서버 미리보기 `closesAt`은 TourAPI 장소라 양쪽 `정보 없음`. `마감 시간` 실제 값은 Google 장소 후보가 있어야 보인다.
+
+### 미실행
+
+- FE 5-4(자동 확정 되돌리기와 동시 표시)는 실서버에서 5분 무응답 자동 확정을 함께 만들지 않아 `ReplacementUndoTest`·screenshot(`replacement_undo_toast`는 두 되돌리기가 동시에 살아 있는 fixture)으로만 확인.
+- 승인 실패 5원인 실서버 유발(`VERSION_CONFLICT` 등)은 T037(#354) 범위로 두고 계측 test로만 확인.
+- `Pixel_9_Pro` AVD가 없어 같은 API 36 image로 수행. 실기기·TalkBack 낭독은 하지 않았다.
+
+실행 명령(요지):
+
+```
+android\gradlew.bat --offline -q :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.replacement
+ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.progress
+adb -s emulator-5556 shell am instrument -w -r -e class com.gilpick.replacement.RoutePreviewScreenshotTest,com.gilpick.progress.ActiveTravelScreenshotTest com.gilpick.test/androidx.test.runner.AndroidJUnitRunner
+adb -s emulator-5556 pull /sdcard/Android/data/com.gilpick/files/screenshots
+android\gradlew.bat --offline -q -PGILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/ :app:assembleDebug
+adb -s emulator-5554 reverse tcp:8000 tcp:8005
+```
