@@ -286,7 +286,7 @@ description: "F010 일정 변경 구현 task 목록"
   - 담당: hs
   - 선행: T017, T023, T031
   - 검증: quickstart FE 1~7 전체. `./gradlew :app:testDebugUnitTest`와 `connectedDebugAndroidTest`(`com.gilpick.replacement`·`com.gilpick.progress`) 통과. 모든 행동 48dp 이상·8dp 이상 간격(UI-008), 360dp + `font_scale 2.0`에서 비교 항목과 행동 문구 잘림 없음(UI-009), **screenshot 5장**(미리보기 `content`·`error`, 승인 실패, 승인 직후 되돌리기 가능, 되돌리기 만료)(UI-010). 확인 후 화면 설정을 원복한다
-- [ ] T037 종단간 확인 in specs/010-schedule-replacement/quickstart.md
+- [x] T037 종단간 확인 in specs/010-schedule-replacement/quickstart.md
   - 영역: 통합
   - 담당: hs
   - 교차 확인: jh
