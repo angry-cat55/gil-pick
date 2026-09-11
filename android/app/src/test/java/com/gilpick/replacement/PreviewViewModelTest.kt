@@ -2,6 +2,8 @@ package com.gilpick.replacement
 
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.alternative.FakeAlternativeService
+import com.gilpick.alternative.detectionDetailJson
+import com.gilpick.alternative.ok
 import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthSessionStore
@@ -87,6 +89,19 @@ class PreviewViewModelTest {
         // 감지 상세의 eta 2026-09-09T14:00:00+09:00 → 그 항목이 놓인 여행 날짜.
         assertEquals(listOf("2026-09-09"), routeService.getCalls)
         assertEquals(7, replacementService.previewCalls.single().second.scheduleVersion)
+    }
+
+    @Test
+    fun `eta가 UTC로 와도 KST 날짜의 경로를 조회한다`() = runTest {
+        // #410. 서버는 eta를 UTC instant로 준다. KST 00~09시 도착이면 UTC 날짜가 하루 앞서므로
+        // 문자열 앞 10자를 그대로 날짜로 쓰면 여행에 없는 날짜를 조회해 404가 난다.
+        detectionService.onGetDetection = { ok(detectionDetailJson(eta = "2026-09-10T16:23:32Z")) }
+
+        newViewModel()
+        advanceUntilIdle()
+
+        // 2026-09-10T16:23:32Z = KST 2026-09-11 01:23. 항목이 놓인 여행 날짜는 09-11이다.
+        assertEquals(listOf("2026-09-11"), routeService.getCalls)
     }
 
     @Test
