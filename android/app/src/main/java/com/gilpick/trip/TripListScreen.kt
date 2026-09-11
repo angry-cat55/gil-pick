@@ -69,7 +69,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * @param onLoadMore 다음 페이지를 요청한다.
  * @param onCreateTrip 여행 생성 화면으로 이동한다.
  * @param onTripClick 고른 여행의 상세 화면으로 이동한다.
- * @param onLogout 현재 기기에서 로그아웃한다.
+ * @param onNotifications F011 알림 목록으로 이동한다.
+ * @param onSettings F012 설정 화면으로 이동한다.
  */
 @Composable
 fun TripListScreen(
@@ -81,8 +82,8 @@ fun TripListScreen(
     onCreateTrip: () -> Unit,
     onTripClick: (String) -> Unit,
     modifier: Modifier = Modifier,
-    onLogout: () -> Unit = {},
     onNotifications: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) {
     val spacing = LocalGilpickSpacing.current
 
@@ -92,7 +93,7 @@ fun TripListScreen(
             .padding(horizontal = spacing.space5),
         verticalArrangement = Arrangement.spacedBy(spacing.space4),
     ) {
-        Header(onCreateTrip = onCreateTrip, onLogout = onLogout, onNotifications = onNotifications)
+        Header(onCreateTrip = onCreateTrip, onNotifications = onNotifications, onSettings = onSettings)
         SearchField(query = state.query, onQueryChange = onQueryChange)
         StatusFilters(selected = state.statusFilter, onSelect = onStatusFilterChange)
 
@@ -125,7 +126,7 @@ fun TripListScreen(
 
 /** 화면 제목과 주요 행동. 오른쪽 끝의 알림 벨은 F011 알림 목록 진입점이다(Figma `MyTripsScreen` 헤더). */
 @Composable
-private fun Header(onCreateTrip: () -> Unit, onLogout: () -> Unit, onNotifications: () -> Unit) {
+private fun Header(onCreateTrip: () -> Unit, onNotifications: () -> Unit, onSettings: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
 
     Row(
@@ -144,10 +145,10 @@ private fun Header(onCreateTrip: () -> Unit, onLogout: () -> Unit, onNotificatio
             TextButton(onClick = onCreateTrip, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
                 Text(stringResource(R.string.trips_create))
             }
-            // ponytail: 설정 화면(F012)이 생기기 전까지 로그아웃 진입점을 여기 둔다.
-            // F001의 빈 shell에 있던 것을 잃지 않기 위한 임시 자리다.
-            TextButton(onClick = onLogout, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.logout))
+            // ponytail: 최상위 설정 탭(F012 T026)이 생기기 전까지 설정 진입점을 여기 둔다.
+            // 로그아웃은 설정 화면으로 옮겼고(T022) 그 화면에 닿는 길을 잃지 않기 위한 임시 자리다.
+            TextButton(onClick = onSettings, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
+                Text(stringResource(R.string.settings_title))
             }
             IconBoxButton(
                 icon = R.drawable.ic_lucide_bell,

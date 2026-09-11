@@ -90,6 +90,8 @@ class AuthLogoutIntegrationTest {
         setContentWithRepository()
         composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
 
+        // 로그아웃 진입점은 F012 설정 화면에 있다(T022). 여행 목록의 임시 버튼은 설정으로만 간다.
+        composeRule.onNodeWithText(string(R.string.settings_title)).performClick()
         composeRule.onNodeWithText(string(R.string.logout)).performClick()
         composeRule.waitUntil(TIMEOUT_MS) { repository.state.value == AuthUiState.SignedOut }
 

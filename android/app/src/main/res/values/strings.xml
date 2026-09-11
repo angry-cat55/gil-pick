@@ -608,6 +608,9 @@
     <string name="monitor_error_title">감지 결과를 불러올 수 없어요</string>
     <string name="monitor_to_progress">여행 진행 화면으로</string>
 
+    <!-- F012 사용자 설정 -->
+    <string name="settings_title">설정</string>
+
     <!-- F012 사용자 설정: 장소 변경 제안 알림(UI-003·UI-004) -->
     <string name="settings_notification_section">알림 설정</string>
     <string name="settings_place_change_title">장소 변경 제안 알림</string>
