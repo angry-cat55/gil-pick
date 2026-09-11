@@ -51,18 +51,28 @@ data object SettingsRoute
  *
  * @param onLogout 현재 기기 로그아웃. 앱 전체 인증 상태를 가진 `AuthViewModel`로 이어진다.
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
+ * @param nickname·profileImageUrl 인증된 F001 session의 표시 정보(#402). 설정 화면은 이 값을
+ *   읽기만 하고 프로필 조회 API를 부르지 않는다(FR-013). 카카오 미동의면 비어 있다.
  * @param repository 설정 데이터 접근. UI test가 바꿔 끼운다.
  * @param launcher 정책 문서 Custom Tabs launcher. UI test가 바꿔 끼운다.
  */
 fun NavGraphBuilder.settingsGraph(
     onLogout: () -> Unit,
     onSessionExpired: () -> Unit,
+    nickname: String? = null,
+    profileImageUrl: String? = null,
     repository: (Context) -> SettingsRepository = SettingsRepository::default,
     launcher: (Context) -> PolicyDocumentLauncher = PolicyDocumentLauncher::default,
 ) {
     composable<SettingsRoute> { entry ->
         val context = LocalContext.current
-        val factory = remember(entry) { SettingsViewModel.factory(repository(context)) }
+        val factory = remember(entry) {
+            SettingsViewModel.factory(
+                repository = repository(context),
+                nickname = nickname,
+                profileImageUrl = profileImageUrl,
+            )
+        }
         val viewModel: SettingsViewModel = viewModel(factory = factory)
         val state by viewModel.state.collectAsStateWithLifecycle()
         val policyLauncher = remember { launcher(context) }
@@ -84,10 +94,10 @@ fun NavGraphBuilder.settingsGraph(
 }
 
 /**
- * 설정 화면 본문(Figma `SettingsScreen`). 알림 설정 → 앱 정보(정책 문서) → 로그아웃 순서다.
+ * 설정 화면 본문(Figma `SettingsScreen`). 계정 헤더 → 알림 설정 → 앱 정보(버전·정책 문서) →
+ * 로그아웃 순서다.
  *
- * 계정 헤더와 버전 행은 #402(T024)가 더한다. 전체가 세로 scroll이라 작은 화면과 가로 방향에서도
- * 로그아웃까지 닿는다(UI-006).
+ * 전체가 세로 scroll이라 작은 화면과 가로 방향에서도 로그아웃까지 닿는다(UI-006).
  *
  * @param onLogout 로그아웃 선택. 연속 선택은 첫 요청만 전달한다(Edge Cases).
  */
@@ -112,6 +122,11 @@ internal fun SettingsDestination(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState()),
     ) {
+        AccountSection(
+            nickname = state.nickname,
+            profileImageUrl = state.profileImageUrl,
+            isKakaoConnected = state.isKakaoConnected,
+        )
         Spacer(Modifier.height(spacing.space3))
         NotificationPreferenceSection(
             phase = state.preference,
@@ -122,6 +137,7 @@ internal fun SettingsDestination(
         )
         Spacer(Modifier.height(spacing.space3))
         PolicyDocumentSection(
+            versionName = state.versionName,
             openError = state.policyOpenError,
             onOpen = onOpenPolicy,
             onRetry = onRetryPolicy,

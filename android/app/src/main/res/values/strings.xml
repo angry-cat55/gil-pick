@@ -611,6 +611,14 @@
     <!-- F012 사용자 설정 -->
     <string name="settings_title">설정</string>
 
+    <!--
+      F012 계정·앱 정보(FR-009). F001 session이 준 값만 읽기 전용으로 보인다.
+      카카오 미동의로 비어 오는 값은 지어내지 않고 `정보 없음`으로 둔다(ui-guidelines 12절).
+    -->
+    <string name="settings_account_unknown">정보 없음</string>
+    <string name="settings_account_kakao_connected">카카오 연동</string>
+    <string name="settings_app_version">버전</string>
+
     <!-- F012 사용자 설정: 장소 변경 제안 알림(UI-003·UI-004) -->
     <string name="settings_notification_section">알림 설정</string>
     <string name="settings_place_change_title">장소 변경 제안 알림</string>

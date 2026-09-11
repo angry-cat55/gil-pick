@@ -7,13 +7,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,11 +42,104 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.BuildConfig
 import com.gilpick.R
+import com.gilpick.ui.component.RemoteImage
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import kotlinx.coroutines.delay
+
+/**
+ * 계정 헤더(spec US4, FR-009, Figma `SettingsScreen` 상단).
+ *
+ * F001 session이 준 값을 **읽기 전용**으로 보인다. 프로필 조회 API를 부르지도, 수정 수단을
+ * 두지도 않는다(FR-013).
+ *
+ * 닉네임과 프로필 이미지는 카카오 동의 항목이라 실제로 비어 올 수 있다. 그때 그럴듯한 이름을
+ * 채우면 사용자는 자기 계정이 아닌 것을 보게 되므로 `정보 없음`만 보인다(ui-guidelines 12절).
+ * 이미지가 없어도 [RemoteImage]가 같은 자리를 차지해 헤더 높이가 흔들리지 않는다.
+ *
+ * @param nickname session의 표시 이름. `null`이면 대체 표시로 바꾼다.
+ * @param profileImageUrl session의 profile image 주소. `null`이면 기본 avatar만 보인다.
+ * @param isKakaoConnected 연동 뱃지 표시 여부. 인증된 session의 존재가 곧 연동이다.
+ */
+@Composable
+fun AccountSection(
+    nickname: String?,
+    profileImageUrl: String?,
+    isKakaoConnected: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = LocalGilpickSpacing.current
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = spacing.space5, vertical = spacing.space5)
+            .testTag(TAG_ACCOUNT_SECTION),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RemoteImage(
+            url = profileImageUrl,
+            // 바로 옆에 닉네임이 있어 읽어 줄 내용이 겹친다. 장식으로 둔다(ui-guidelines 10절).
+            contentDescription = null,
+            shape = RoundedCornerShape(LocalGilpickRadius.current.lg),
+            fallbackIcon = Icons.Filled.Person,
+            fallbackIconSize = AVATAR_FALLBACK_ICON,
+            modifier = Modifier.size(AVATAR_SIZE),
+        )
+        Spacer(Modifier.width(spacing.space4))
+        Column {
+            Text(
+                text = nickname ?: stringResource(R.string.settings_account_unknown),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (isKakaoConnected) {
+                Spacer(Modifier.height(spacing.space1))
+                KakaoBadge()
+            }
+        }
+    }
+}
+
+/**
+ * 카카오 연동 뱃지.
+ *
+ * 노란 원은 브랜드 표시일 뿐이고 뜻은 옆 문구가 전한다. 색만으로 의미를 전달하지 않는다
+ * (ui-guidelines 10절).
+ */
+@Composable
+private fun KakaoBadge() {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(KAKAO_BADGE)
+                .clip(CircleShape)
+                .background(colors.kakao),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_kakao_bubble),
+                contentDescription = null,
+                tint = colors.onKakao,
+                modifier = Modifier.size(KAKAO_GLYPH),
+            )
+        }
+        Spacer(Modifier.width(spacing.space1))
+        Text(
+            text = stringResource(R.string.settings_account_kakao_connected),
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.muted,
+        )
+    }
+}
 
 /**
  * 설정 화면의 알림 설정 영역(`spec.md` US1, Figma `SettingsScreen`, T015).
@@ -327,6 +425,7 @@ fun PolicyDocumentSection(
     onRetry: () -> Unit,
     onDismissError: () -> Unit,
     modifier: Modifier = Modifier,
+    versionName: String = BuildConfig.VERSION_NAME,
 ) {
     val spacing = LocalGilpickSpacing.current
 
@@ -348,6 +447,7 @@ fun PolicyDocumentSection(
                 bottom = spacing.space2,
             ),
         )
+        VersionRow(versionName = versionName)
         PolicyRow(
             label = stringResource(R.string.settings_privacy_policy),
             tag = TAG_PRIVACY_POLICY,
@@ -361,6 +461,38 @@ fun PolicyDocumentSection(
         openError?.let { failure ->
             PolicyErrorBar(failure = failure, onRetry = onRetry, onDismiss = onDismissError)
         }
+    }
+}
+
+/**
+ * 앱 버전 한 줄(FR-009, Figma `SettingsScreen` 앱 정보 첫 행).
+ *
+ * 정책 문서 행과 달리 **누를 것이 없다.** 값을 읽는 행이라 clickable을 두지 않고, 그래서
+ * 48dp 터치 최소 크기도 적용 대상이 아니다. 높이만 정책 행과 맞춰 목록이 고르게 보인다.
+ */
+@Composable
+private fun VersionRow(versionName: String) {
+    val spacing = LocalGilpickSpacing.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = POLICY_ROW_HEIGHT)
+            .padding(horizontal = spacing.space5, vertical = spacing.space4)
+            .testTag(TAG_APP_VERSION),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.settings_app_version),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = versionName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = LocalGilpickColors.current.muted,
+        )
     }
 }
 
@@ -478,6 +610,8 @@ internal val SettingsError.messageRes: Int
         SettingsError.Unexpected -> R.string.settings_error_unexpected
     }
 
+internal const val TAG_ACCOUNT_SECTION = "settings_account_section"
+internal const val TAG_APP_VERSION = "settings_app_version"
 internal const val TAG_PREFERENCE_SECTION = "settings_preference_section"
 internal const val TAG_TOGGLE = "settings_toggle"
 internal const val TAG_SAVING_BADGE = "settings_saving_badge"
@@ -498,3 +632,7 @@ private val SPINNER_STROKE: Dp = 2.dp
 private val ERROR_ICON: Dp = 16.dp
 private val POLICY_ROW_HEIGHT: Dp = 56.dp
 private val POLICY_CHEVRON: Dp = 14.dp
+private val AVATAR_SIZE: Dp = 56.dp
+private val AVATAR_FALLBACK_ICON: Dp = 28.dp
+private val KAKAO_BADGE: Dp = 16.dp
+private val KAKAO_GLYPH: Dp = 10.dp

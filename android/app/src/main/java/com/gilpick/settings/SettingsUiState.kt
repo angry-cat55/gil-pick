@@ -1,5 +1,7 @@
 package com.gilpick.settings
 
+import com.gilpick.BuildConfig
+
 /**
  * 설정 화면의 알림 설정 영역 상태(data-model 3 `PreferencePhase`).
  *
@@ -47,13 +49,26 @@ sealed interface PreferencePhase {
 /**
  * 설정 화면 상태(data-model 3 `SettingsUiState`).
  *
- * 계정·앱 정보는 #402가 채운다.
+ * 계정·앱 정보는 **상태 전이가 없다**. F001 session과 설치본에서 한 번 읽어 그대로 보이는
+ * 읽기 전용 값이라 `loading`·`error`를 두지 않는다. 이 화면에서 상태를 갖는 것은 설정
+ * 영역([preference])과 정책 열기 실패([policyOpenError])뿐이다.
  *
+ * @property nickname F001 session의 표시 이름. 카카오 미동의면 `null`이고, 화면이 대체 표시로
+ *   바꾼다. 없는 값을 지어내지 않기 위해 여기서 기본 문구로 채우지 않는다(FR-009).
+ * @property profileImageUrl F001 session의 profile image 주소. 미동의면 `null`이다.
+ * @property isKakaoConnected 카카오 연동 상태. MVP 인증 provider가 카카오 하나뿐이라 인증된
+ *   session의 존재가 곧 연동이다. 이 표시를 위해 session에 provider field를 더하지 않는다
+ *   (plan Account Display).
+ * @property versionName 설치된 앱 버전. 사용자가 문의할 때 설치본을 식별하는 값이다.
  * @property preference 알림 설정 영역의 상태.
  * @property policyOpenError 정책 문서를 열지 못한 이유. 평상시는 `null`이다(FR-008).
  *   설정 조회·변경과 **독립**이라 설정이 실패한 상태에서도 정책 문서는 열 수 있고, 그 반대도 같다.
  */
 data class SettingsUiState(
+    val nickname: String? = null,
+    val profileImageUrl: String? = null,
+    val isKakaoConnected: Boolean = true,
+    val versionName: String = BuildConfig.VERSION_NAME,
     val preference: PreferencePhase = PreferencePhase.Loading,
     val policyOpenError: PolicyOpenFailure? = null,
 )
