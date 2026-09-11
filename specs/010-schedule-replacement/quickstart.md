@@ -241,3 +241,39 @@ adb -s emulator-5556 pull /sdcard/Android/data/com.gilpick/files/screenshots
 android\gradlew.bat --offline -q -PGILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/ :app:assembleDebug
 adb -s emulator-5554 reverse tcp:8000 tcp:8005
 ```
+
+## 종단간 확인 기록 (#354 T037)
+
+2026-09-11 21:11~21:16 KST, `main` f7f3315(#395·#404 포함, 로컬 패치 없음), jy 수행(원 담당 hs, 교차 확인 jh). docker postgres + uvicorn 127.0.0.1:8005(실제 TourAPI·Google·TMAP 키) → `adb reverse tcp:8000 tcp:8005`, AVD `gilpick_api36_play`(API 36, 창 표시, 시계는 호스트와 일치). 여행 `F010 종단간`(2026-09-11, 명동성당 → 명동 카페거리 카페 → 남산골한옥마을, 도보). 2번에 `OPERATING_HOURS` 감지를 DB로 시드(`eta` 22:15 KST, #410 회피). 세션은 `device_sessions` 시드 + 임시 계측 test로 앱에 주입(커밋 안 함).
+
+| 단계 | 앱 | 서버·DB |
+|---|---|---|
+| 1 | 진행 화면 배너 `명동 카페거리 카페 도착 예정 시각에 영업이 끝나요 + 매우 혼잡 · 오후 10:15 도착 예정 · 1분 전 감지` | `detections` `ACTIVE` |
+| 2 | `대체 장소 보기` → 추천 후보 2곳(`더 스팟 패뷸러스` TOP, `바캉스커피`) → `경로 비교` → 미리보기: 지도 `기존`·`변경` 범례, `명동 카페거리 카페 → 더 스팟 패뷸러스`, `26분 → 29분 ↑`, `1.9km → 2.1km ↑`, `22:15 → 22:19`, 마감 `정보 없음` | REPL-001 200 |
+| 3 | `변경 승인` → 진행 화면. 배너 소멸, 토스트 `장소가 더 스팟 패뷸러스(으)로 변경되었습니다 · 28초 · 되돌리기` | REPL-002 200, `approved_schedule_version` 2, `undo_expires_at` +30초 |
+| 4 | `되돌리기` → 배너(`명동 카페거리 카페 … 2분 전 감지`)와 원래 장소 복귀 | REPL-004 200, `undone_at` 기록, `scheduleVersion` 3, 일정 2번 `명동 카페거리 카페`, 감지 `ACTIVE` |
+| 5 | 재승인(같은 후보) → 30초 뒤(21:14:04) 카운트다운·`되돌리기` 사라지고 본문 `장소가 더 스팟 패뷸러스(으)로 변경되었습니다`만 남음. 일정 목록 2번 `더 스팟 패뷸러스 · 오후 10:19 도착 예정`. 화면을 나갔다 오면 토스트도 사라짐(PROG-001 `undoableReplacement=null`) | REPL-001/002 200, version 4, 감지 `RESOLVED`, 일정 2번 `더 스팟 패뷸러스` |
+
+**SC-004**: `경로 비교` 탭 21:11:33.6 → 서버 `approved_at` 21:11:54.3(20.7초) → 진행 화면 토스트 확인 21:11:57.9(**24.3초**, 1초 간격 polling 포함). 60초 이내.
+
+**일정 편집 안내(5단계 후반)**: 기기 시계가 정확하면 앱이 서버보다 먼저(남은 시간 < 1초) 버튼을 감춰 `409`를 앱에서 볼 수 없다. 3번 `남산골한옥마을`에 감지를 하나 더 시드해 `순정효황후윤씨친가`로 승인한 뒤 DB에서 `undo_expires_at`을 `now()+3초`로 당기고 `되돌리기` → `409 UNDO_EXPIRED` → 토스트 `되돌릴 수 있는 시간이 지났어요. 일정 편집에서 바꿀 수 있어요.`, 행동 없음, 일정 3번은 새 장소 유지.
+
+### 관찰 (수정 안 함)
+
+- 3번 미리보기 이동 거리가 `2.1km → 2.1km ↑`로 보이고 접근성 문구는 `…나빠짐`. 표시 단위(0.1km)로 반올림하면 같은데 원본 m가 달라 화살표가 붙는다. 표시 값이 같으면 화살표를 감출지는 hs 판단.
+- #410은 감지 `eta`를 KST 낮으로 시드해 회피했다. 미수정.
+
+### 미실행
+
+- 승인 실패 5원인(`VERSION_CONFLICT` 등) 실서버 유발은 T036 계측 test로 갈음.
+- 자동 감지(F008 실제 평가)로 감지를 만들지 않고 DB 시드로 대체했다. 위치 권한 없이 진행했다.
+
+실행 명령(요지):
+
+```
+android\gradlew.bat --offline -q -PGILPICK_API_BASE_URL=http://127.0.0.1:8000/api/v1/ :app:assembleDebug :app:assembleDebugAndroidTest
+adb -s emulator-5554 install -r -t app-debug.apk / app-debug-androidTest.apk
+adb -s emulator-5554 reverse tcp:8000 tcp:8005
+adb -s emulator-5554 shell uiautomator dump   # 화면 확인·탭 좌표
+docker exec gil-pick-postgres-1 psql -U gilpick -d gilpick -Atc "select approved_at, undo_expires_at, undone_at from place_replacements order by approved_at desc limit 1"
+```
