@@ -5,8 +5,9 @@
       "namespace": "android_app",
       "package_name": "com.gilpick",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_DEBUG_SHA256_FINGERPRINT",
-        "REPLACE_WITH_RELEASE_SHA256_FINGERPRINT"
+        "77:AD:5D:EC:26:A4:A0:CB:83:06:15:42:2C:C7:DA:C0:E2:36:AC:C4:6F:12:1D:AE:A3:4F:1E:4D:E7:93:86:BD",
+        "8F:33:E0:5D:5A:BF:5E:7D:CC:71:0A:FE:88:22:66:22:50:26:74:FA:7C:77:20:16:0D:08:89:42:5D:04:75:CF",
+        "0D:A0:8C:10:E9:E8:13:8C:83:28:3E:A9:B3:E5:DA:1A:16:16:94:22:85:56:7E:17:1F:DF:AC:B6:B8:17:6A:9B"
       ]
     }
   }
