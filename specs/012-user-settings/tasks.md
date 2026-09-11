@@ -216,7 +216,7 @@
 
 ### Tests for User Story 4
 
-- [ ] T023 [P] [US4] 계정 정보 mapping과 누락 대체 표시 UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsAccountInfoTest.kt
+- [X] T023 [P] [US4] 계정 정보 mapping과 누락 대체 표시 UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsAccountInfoTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T015
@@ -224,11 +224,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T024 [US4] F001 session 계정 정보와 BuildConfig.VERSION_NAME을 설정 상태·화면에 연결 in android/app/src/main/java/com/gilpick/settings/SettingsUiState.kt, android/app/src/main/java/com/gilpick/settings/SettingsViewModel.kt, and android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt
+- [X] T024 [US4] F001 session 계정 정보와 BuildConfig.VERSION_NAME을 설정 상태·화면에 연결 in android/app/src/main/java/com/gilpick/settings/SettingsUiState.kt, android/app/src/main/java/com/gilpick/settings/SettingsViewModel.kt, and android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T023
   - 검증: T023 통과, 인증 session 존재를 카카오 연동으로 표시하고 프로필 조회 API·session provider field·프로필 수정 기능을 추가하지 않으며 null 값을 지어내지 않는지 확인
+  - 구현 기록: 계정 헤더를 그리는 `SettingsDestination`과 ViewModel 조립이 SettingsNavigation.kt에 있어 그 파일과, session 값을 넘기는 MainActivity.kt를 함께 수정했다. 아바타 대체 아이콘을 고르려고 공용 `ui/component/RemoteImage.kt`에 기본값 있는 `fallbackIcon` 인자를 더했다(기존 호출부 동작 불변). T026이 같은 두 파일을 다루므로 소유권을 확인한다.
 
 **Checkpoint**: 모든 사용자 스토리가 개별 완료 조건을 충족한다.
 

@@ -230,6 +230,10 @@ private fun AuthRoute(
     when (state) {
         is AuthUiState.Authenticated -> TripRoute(
             modifier = modifier,
+            // 설정 화면의 계정 표시는 이미 손에 있는 session 값을 그대로 쓴다(#402, FR-009).
+            // 프로필 조회 API를 따로 두지 않기로 했으므로 여기가 유일한 출처다.
+            nickname = state.nickname,
+            profileImageUrl = state.profileImageUrl,
             onLogout = onLogout,
             onSessionExpired = onSessionExpired,
             pendingNotification = pendingNotification,
@@ -265,6 +269,8 @@ private fun AuthRoute(
 @Composable
 private fun TripRoute(
     modifier: Modifier,
+    nickname: String?,
+    profileImageUrl: String?,
     onLogout: () -> Unit,
     onSessionExpired: () -> Unit,
     pendingNotification: PendingNotificationTarget?,
@@ -474,7 +480,12 @@ private fun TripRoute(
 
         // F012 설정. destination 정의는 com.gilpick.settings가 소유한다. 로그아웃은 앱 전체 인증 상태를
         // 가진 AuthViewModel.logout으로만 이어진다(FR-010). 최상위 설정 탭 연결은 T026이 붙인다.
-        settingsGraph(onLogout = onLogout, onSessionExpired = onSessionExpired)
+        settingsGraph(
+            onLogout = onLogout,
+            onSessionExpired = onSessionExpired,
+            nickname = nickname,
+            profileImageUrl = profileImageUrl,
+        )
 
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
         // 등록만 한다. `일정에 추가` 결과는 편집 화면 entry로 돌려주고 검색·상세를 닫는다.

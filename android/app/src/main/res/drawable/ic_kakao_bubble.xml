@@ -1,0 +1,15 @@
+<!--
+  카카오 말풍선. Figma `SettingsScreen` 계정 헤더의 연동 뱃지에 쓴다.
+
+  카카오 브랜드 자산이라 앱 팔레트를 따르지 않는다. 색은 호출부가 `tint`로 지정한다.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="10dp"
+    android:height="10dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M10,2C5.03,2 1,5.13 1,9.005c0,2.49 1.55,4.66 3.91,5.915l-1,3.68a0.25,0.25 0,0 0,0.37 0.275L8.2,16.79c0.58,0.065 1,0.095 1.52,0.095C14.97,16.885 19,13.755 19,9.005S14.97,2 10,2z" />
+</vector>

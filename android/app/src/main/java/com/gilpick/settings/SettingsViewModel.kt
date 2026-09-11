@@ -39,9 +39,16 @@ import kotlinx.coroutines.launch
  */
 class SettingsViewModel(
     private val repository: SettingsRepository,
+    nickname: String? = null,
+    profileImageUrl: String? = null,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SettingsUiState())
+    // 계정 정보는 F001 session에서 한 번 받아 그대로 들고만 있는다. 이 화면이 프로필을 다시
+    // 조회하거나 고칠 수 없으므로(FR-013) 갱신 경로를 두지 않는다. 인증된 session이 없으면
+    // 설정 화면 자체에 닿을 수 없어 카카오 연동은 항상 참이다(plan Account Display).
+    private val _state = MutableStateFlow(
+        SettingsUiState(nickname = nickname, profileImageUrl = profileImageUrl),
+    )
 
     /** 화면이 관찰하는 현재 상태. */
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
@@ -178,9 +185,24 @@ class SettingsViewModel(
     }
 
     companion object {
-        /** 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다. */
-        fun factory(repository: SettingsRepository): ViewModelProvider.Factory = viewModelFactory {
-            initializer { SettingsViewModel(repository = repository) }
+        /**
+         * 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다.
+         *
+         * @param nickname·profileImageUrl 인증된 F001 session의 표시 정보. 비어 있을 수 있고,
+         *   그 경우 화면이 대체 표시로 바꾼다(FR-009).
+         */
+        fun factory(
+            repository: SettingsRepository,
+            nickname: String? = null,
+            profileImageUrl: String? = null,
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                SettingsViewModel(
+                    repository = repository,
+                    nickname = nickname,
+                    profileImageUrl = profileImageUrl,
+                )
+            }
         }
     }
 }
