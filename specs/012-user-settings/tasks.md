@@ -154,26 +154,29 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 [US2] 승인 URL 검증과 Custom Tabs launcher 구현 in android/app/src/main/java/com/gilpick/settings/PolicyDocumentLauncher.kt
+- [x] T018 [US2] 승인 URL 검증과 Custom Tabs launcher 구현 in android/app/src/main/java/com/gilpick/settings/PolicyDocumentLauncher.kt
   - 영역: FE
   - 담당: hs
   - 선행: T017, 제품·운영 담당자의 승인된 두 HTTPS URL 제공
-  - 진행(2026-09-11): 구현과 unit test는 완료. **승인된 HTTPS URL 2개가 아직 제공되지 않아 완료 처리하지 않는다.** URL은 저장소에 두지 않고 `GILPICK_PRIVACY_POLICY_URL`·`GILPICK_TERMS_OF_SERVICE_URL`로 주입한다
+  - 진행(2026-09-11): 구현과 unit test는 완료. 승인된 HTTPS URL 2개가 없어 보류했다
+  - 완료(2026-09-11, jy): 승인 URL을 `android/gradle.properties`에 확정(`https://gilpick.pages.dev/privacy/`, `/terms/`). 원본은 `web/privacy`, `web/terms`
   - 검증: T017 통과, URL·탐색 내용이 log에 남지 않고 실행 뒤 network·HTTP·문서 로딩 상태를 앱이 추적하지 않으며 별도 WebView·정책 화면을 만들지 않았고 public launcher 함수에 필요한 KDoc이 있는지 확인
 
-- [ ] T019 [US2] 정책 항목·열기 실패·재시도 상호작용을 설정 화면에 연결 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt and android/app/src/main/java/com/gilpick/settings/SettingsViewModel.kt
+- [x] T019 [US2] 정책 항목·열기 실패·재시도 상호작용을 설정 화면에 연결 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt and android/app/src/main/java/com/gilpick/settings/SettingsViewModel.kt
   - 영역: FE
   - 담당: hs
   - 선행: T015, T018
   - 검증: 설정 저장 상태와 독립적으로 두 정책 항목 사용 가능, 실패 시 화면·session 유지, 복귀 후 마지막 성공 설정 유지
   - 진행(2026-09-11): 구현과 자동 test는 완료. 선행 T018이 URL 대기 중이라 함께 보류한다
+  - 완료(2026-09-11, jy): T018 URL 확정으로 해소
 
-- [ ] T020 [US2] 정책 문서 진입·복귀·오류 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsPolicyTest.kt
+- [x] T020 [US2] 정책 문서 진입·복귀·오류 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsPolicyTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T019
   - 검증: Compose UI test로 문서 구분·복귀·빈 URL·HTTP URL·Custom Tab 실행 실패와 재시도를 검증하고, 실제 기기 또는 emulator에서 각 정책 문서 열기 5회가 모두 3초 이내인지 별도로 수동 측정
-  - 진행(2026-09-11): Compose UI test 10개 작성·통과. **수동 5회 3초 측정(SC-005)은 승인된 URL이 없어 미실행**이라 완료 처리하지 않는다
+  - 진행(2026-09-11): Compose UI test 10개 작성·통과. 수동 5회 3초 측정(SC-005)은 승인된 URL이 없어 미실행이었다
+  - 완료(2026-09-11, jy): emulator `gilpick_api36_play`(API 36, Chrome)에서 각 문서 5회 측정, 전부 0.87~1.75초로 3초 이내. 기록은 `quickstart.md` 4절
 
 **Checkpoint**: 정책 문서 기능은 PREF API 상태와 독립적으로 검증 가능하다.
 
