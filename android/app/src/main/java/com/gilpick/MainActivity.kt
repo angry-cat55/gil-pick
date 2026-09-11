@@ -47,6 +47,8 @@ import com.gilpick.progress.ActiveTravelRoute
 import com.gilpick.progress.progressGraph
 import com.gilpick.route.DayRouteRoute
 import com.gilpick.route.routeGraph
+import com.gilpick.settings.SettingsRoute
+import com.gilpick.settings.settingsGraph
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -305,8 +307,8 @@ private fun TripRoute(
                 onLoadMore = viewModel::loadMore,
                 onCreateTrip = { navController.navigate(TripFormRoute) },
                 onTripClick = { tripId -> navController.navigate(TripDetailRoute(tripId)) },
-                onLogout = onLogout,
                 onNotifications = { navController.navigate(NotificationListRoute) },
+                onSettings = { navController.navigate(SettingsRoute) },
             )
         }
 
@@ -469,6 +471,10 @@ private fun TripRoute(
             onOpenDetection = { detectionId, tripId -> navController.navigate(AlternativePlacesRoute(detectionId, tripId)) },
             onOpenProgress = { tripId, tripName -> navController.navigate(ActiveTravelRoute(tripId, tripName)) },
         )
+
+        // F012 설정. destination 정의는 com.gilpick.settings가 소유한다. 로그아웃은 앱 전체 인증 상태를
+        // 가진 AuthViewModel.logout으로만 이어진다(FR-010). 최상위 설정 탭 연결은 T026이 붙인다.
+        settingsGraph(onLogout = onLogout, onSessionExpired = onSessionExpired)
 
         // F003 장소 검색·상세. destination 정의는 com.gilpick.place가 소유하고 여기서는
         // 등록만 한다. `일정에 추가` 결과는 편집 화면 entry로 돌려주고 검색·상세를 닫는다.

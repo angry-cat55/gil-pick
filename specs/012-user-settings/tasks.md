@@ -190,7 +190,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T021 [P] [US3] 설정 화면 로그아웃과 최상위 인증 전환 UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsLogoutTest.kt
+- [x] T021 [P] [US3] 설정 화면 로그아웃과 최상위 인증 전환 UI test 작성 in android/app/src/androidTest/java/com/gilpick/settings/SettingsLogoutTest.kt
   - 영역: FE
   - 담당: hs
   - 선행: T015
@@ -198,7 +198,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] 설정 로그아웃을 F001 AuthViewModel 흐름에 연결하고 여행 목록의 임시 로그아웃 진입을 제거 in android/app/src/main/java/com/gilpick/settings/SettingsNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt, and android/app/src/main/java/com/gilpick/trip/TripListScreen.kt
+- [x] T022 [US3] 설정 로그아웃을 F001 AuthViewModel 흐름에 연결하고 여행 목록의 임시 로그아웃 진입을 제거 in android/app/src/main/java/com/gilpick/settings/SettingsNavigation.kt, android/app/src/main/java/com/gilpick/MainActivity.kt, and android/app/src/main/java/com/gilpick/trip/TripListScreen.kt
   - 영역: FE
   - 담당: hs
   - 선행: T021
