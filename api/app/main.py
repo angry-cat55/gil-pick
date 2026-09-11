@@ -93,6 +93,12 @@ def create_app() -> FastAPI:
     configure_logging()
     application = FastAPI(title="길픽 API", version="0.1.0", lifespan=lifespan)
     install_error_handling(application)
+
+    @application.get("/health", include_in_schema=False)
+    async def health() -> dict[str, str]:
+        """배포 환경의 HTTP 생존 여부를 반환한다."""
+        return {"status": "ok"}
+
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(alternatives_router, prefix="/api/v1")
     application.include_router(detections_router, prefix="/api/v1")
