@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -88,7 +91,7 @@ class AuthLogoutIntegrationTest {
     fun 오프라인_로그아웃은_즉시_보호_화면을_차단한다() {
         runBlocking { signIn(refreshToken = FIRST_REFRESH) }
         setContentWithRepository()
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
 
         // 로그아웃 진입점은 F012 설정 화면에 있다(T022). 여행 목록의 임시 버튼은 설정으로만 간다.
         composeRule.onNodeWithText(string(R.string.settings_title)).performClick()
@@ -96,7 +99,7 @@ class AuthLogoutIntegrationTest {
         composeRule.waitUntil(TIMEOUT_MS) { repository.state.value == AuthUiState.SignedOut }
 
         composeRule.onNodeWithText(string(R.string.login_kakao)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertDoesNotExist()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).assertCountEquals(0)
         // 로그인 화면 전환은 저장소 정리를 기다리지 않는다. network가 느려도 즉시
         // 로그아웃되어야 하기 때문이다. 저장소가 비는 것은 조금 뒤에 확정된다.
         composeRule.waitUntil(TIMEOUT_MS) { runBlocking { repository.currentSession() } == null }

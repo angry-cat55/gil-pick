@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -77,6 +78,8 @@ fun AccountSection(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            // 계정 헤더가 화면 맨 위라 status bar 아래로 내용을 내린다(UI-006). 흰 배경은 bar 뒤까지 이어진다(Figma).
+            .statusBarsPadding()
             .padding(horizontal = spacing.space5, vertical = spacing.space5)
             .testTag(TAG_ACCOUNT_SECTION),
         verticalAlignment = Alignment.CenterVertically,
