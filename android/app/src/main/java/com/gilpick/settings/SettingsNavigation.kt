@@ -38,7 +38,7 @@ import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import kotlinx.serialization.Serializable
 
-/** 설정 화면 route(F012). 최상위 설정 탭 연결과 선택 상태는 T026이 붙인다. */
+/** 설정 화면 route(F012). 진입점은 `MainActivity`의 하단 최상위 탭 `설정`이다(T026). */
 @Serializable
 data object SettingsRoute
 

@@ -22,14 +22,14 @@
 | F009 | 대체 장소 추천 | F003의 장소·Google 보강 계약을 재사용해 변동 조건에 맞는 대체 후보 추천 | F003, F008 | DONE | jy |
 | F010 | 일정 변경 | 대체 장소 미리보기·승인 후 일정과 경로 변경·되돌리기 | F004, F005, F009 | IN_PROGRESS | hs |
 | F011 | 알림 | 도착·출발 확인과 장소 변경 제안 알림 | F006, F007, F008 | IN_PROGRESS | ts |
-| F012 | 사용자 설정 | 장소 변경 제안 알림 설정과 정책 문서·로그아웃 진입 | F001 | IN_PROGRESS | jh |
+| F012 | 사용자 설정 | 장소 변경 제안 알림 설정과 정책 문서·로그아웃 진입 | F001 | VERIFY | jh |
 
 ### F012 상태 전이 기록
 
 - `SPEC`: 2026-09-10 spec 작성 시작. Owner `jh`. Figma의 개별 알림 3종·감지 기준·설정 초기화와 승인된 MVP의 단일 장소 변경 제안 알림 ON/OFF 범위 충돌을 확인했고, 사용자 결정으로 단일 ON/OFF만 F012에 포함했다. 구현 전 Figma 원본·저장소 사본 정합화가 필요하다.
 - `READY`: 2026-09-10 spec·clarify·plan·tasks·analyze 완료. Frontend `hs`, Backend `jh` 담당 합의를 반영했고, 검증된 명세 문서 PR에서 전이했다.
 - `IN_PROGRESS`: 2026-09-10 첫 구현 Issue #398(사용자 알림 설정 API와 F011 연동) PR에서 반영.
-- `VERIFY`: 전체 구현 완료 후 검증 PR에서 반영한다.
+- `VERIFY`: 2026-09-12 마지막 구현·검증 Issue #403(최상위 Settings 탭 T026, adaptive T027, Android 전체·종단간 검증 T029) PR에서 반영. T028 Backend 검증은 #398 PR에서 마쳤다.
 - `DONE`: F012 관련 PR이 모두 `main`에 병합된 뒤 반영한다.
 
 ### F011 상태 전이 기록
