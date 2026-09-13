@@ -86,15 +86,15 @@ async def _dispatch_progress_notifications(
         client = FcmClient(get_settings())
         try:
             async with session_factory() as session:
-                trip_day_id = await session.scalar(
-                    select(TripDay.trip_day_id).where(
-                        TripDay.trip_id == trip_id,
-                        TripDay.visit_date == visit_date,
-                    )
-                )
-                if trip_day_id is None:
-                    return
                 async with session.begin():
+                    trip_day_id = await session.scalar(
+                        select(TripDay.trip_day_id).where(
+                            TripDay.trip_id == trip_id,
+                            TripDay.visit_date == visit_date,
+                        )
+                    )
+                    if trip_day_id is None:
+                        return
                     notifications = list(
                         (
                             await session.scalars(

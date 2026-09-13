@@ -60,6 +60,7 @@ class _Session:
     def __init__(self, day_id, notifications):
         self._day_id = day_id
         self._notifications = notifications
+        self._transaction_active = False
 
     async def __aenter__(self):
         return self
@@ -68,9 +69,19 @@ class _Session:
         return None
 
     def begin(self):
-        return self
+        session = self
+
+        class Transaction:
+            async def __aenter__(self):
+                session._transaction_active = True
+
+            async def __aexit__(self, *args):
+                session._transaction_active = False
+
+        return Transaction()
 
     async def scalar(self, *_a, **_k):
+        assert self._transaction_active
         return self._day_id
 
     async def scalars(self, *_a, **_k):
