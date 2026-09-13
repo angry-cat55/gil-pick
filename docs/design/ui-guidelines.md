@@ -62,12 +62,19 @@ Figma에는 48dp 터치 영역도, 4.5:1 대비도, 오류 화면도 그려지�
 | `primaryContainer` | `#EBF2FF` | 선택된 카드 배경, 아이콘 배경, 지도 자리 표시 바탕 |
 | `primarySoft` | `#EFF6FF` | 안내 배너 배경 |
 | `primaryLight` | `#93C5FD` | 배너 안 출처 글자, 어두운 지도 위 강조 |
-| `success` | `#10B981` | 여행 중·운영 중·완료 글자, 완료 핀 |
+| `success` | `#10B981` | 여행 중·운영 중·완료 글자, 완료 핀, 성공 gradient 시작 |
+| `successDark` | `#059669` | 성공 gradient 끝(135°) — `ActiveTravelScreen` `도착했어요` |
 | `successContainer` | `#ECFDF5` | 상태 칩 배경 |
-| `warning` | `#F97316` | 변수 감지 아이콘·배지, 마감 임박 글자 |
-| `warningContainer` | `#FFF7ED` | 경고 배너 배경(gradient 끝 `#FFEDD5`, 테두리 `#FED7AA`) |
+| `warning` | `#F97316` | 변수 감지 아이콘·배지, 마감 임박 글자, 경고 gradient 시작 |
+| `warningDark` | `#EA580C` | 경고 gradient 끝(135°) — `RoutePreviewScreen` 승인 실패 다음 행동 버튼 |
+| `warningContainer` | `#FFF7ED` | 경고 배너·실패 안내 박스 배경(gradient 끝 `#FFEDD5`) |
+| `warningBorder` | `#FED7AA` | 경고 배너·실패 안내 박스 1dp 테두리 |
 | `onWarningContainer` | `#92400E` | 경고 배너 제목 (`#B45309`·`#C2410C`는 보조 문장) |
 | `amber` | `#F59E0B` | 낮은 위험 단계 글자 |
+| `caution` | `#D97706` | 권한 꺼짐 배너 아이콘·행동 글자 — `ActiveTravelScreen` |
+| `cautionContainer` | `#FFFBEB` | 권한 꺼짐 배너 배경 — `ActiveTravelScreen` |
+| `cautionBorder` | `#FDE68A` | 권한 꺼짐 배너 1dp 테두리 — `ActiveTravelScreen` |
+| `cautionSoft` | `#FEF3C7` | 권한 없이 잠기는 기능 아이콘 원 — `LocationPermissionScreen` |
 | `error` | `#EF4444` | 실패, 삭제, 입력 오류 |
 | `errorContainer` | `#FEF2F2` | 삭제 버튼·경고 카드 배경 (`#F87171`은 보조 문장) |
 | `star` | `#FBBF24` | 평점 `★` |
@@ -78,6 +85,18 @@ Figma에는 48dp 터치 영역도, 4.5:1 대비도, 오류 화면도 그려지�
 | `scrim` | `rgba(0,0,0,0.5)` | sheet·dialog 뒤 어둡게 (여행 중 화면은 0.4) |
 
 hero 사진 위 gradient는 `rgba(0,0,0,0.3) → transparent(50%) → rgba(0,0,0,0.5)`, 사진 위 원형 버튼은 `rgba(0,0,0,0.3)` + 흰 아이콘이다.
+
+### 버튼 gradient
+
+모든 gradient는 135°이고 라벨은 흰색이다. 화면당 강조 하나 원칙(2절)은 세 계열 모두에 적용한다.
+
+| 계열 | 시작 → 끝 | 쓰는 곳 (Figma 근거) |
+|---|---|---|
+| 주(파랑) | `primary #3B7BF8` → `primaryDark #2457C5` | 모든 주 CTA (`CreateTripScreen`, `ScheduleEditScreen`, `RoutePreviewScreen` `변경 승인` 등) |
+| 성공(초록) | `success #10B981` → `successDark #059669` | 도착 확정 행동 (`ActiveTravelScreen` 다음 장소 카드 `도착했어요`) |
+| 경고(주황) | `warning #F97316` → `warningDark #EA580C` | 실패 뒤 복구 행동 (`RoutePreviewScreen` 승인 실패 `다시 만들기`·`후보 목록으로`·`다시 시도`) |
+
+성공·경고 gradient 버튼에는 주버튼 그림자를 주지 않는다(Figma 두 버튼 모두 `boxShadow` 없음).
 
 ### 다크
 
@@ -106,10 +125,23 @@ WCAG 2.x 상대 휘도 공식으로 계산했다(2026-09-04). 본문 4.5:1, 컨�
 | `onWarningContainer` / `warningContainer` | 6.68:1 | 경고 배너 제목 | 통과 |
 | `error` / `surface` | 3.76:1 | 오류 글자, 삭제 | 14sp 600 이상에서만 쓴다 |
 | `onDarkMuted` / `dark` | 7.32:1 | 로그인 부제 | 통과 |
+| `surface` / `successDark` | 6.50:1 | 성공 gradient 오른쪽 | 통과 |
+| `surface` / `success` | 2.54:1 | 성공 gradient 왼쪽 | **미달**(15sp 700). 주 gradient와 같은 이유로 허용하되 문구가 의미를 전달한다 |
+| `surface` / `warningDark` | 3.56:1 | 경고 gradient 오른쪽 | **미달**(15sp 700). 문구가 의미를 전달한다 |
+| `onWarningContainer` / `cautionContainer` | 6.84:1 | 권한 꺼짐 배너 문장 | 통과 |
+| `caution` / `cautionContainer` | 3.07:1 | 권한 꺼짐 배너 `권한 허용` | **미달**(12sp 900). 행동 문구 자체로 뜻을 전달한다 |
 | `outlineVariant` / `surface` | 1.23:1 | 구분선, 카드 테두리 | 구분선 전용, 3:1 대상 아님 |
 | `onSurface` 40% / `surface` | — | 데모 상태 표시줄 | 앱에 쓰지 않는다 |
 
+새로 추가한 행(성공·경고 gradient, 권한 꺼짐 배너)은 2026-09-13 같은 공식으로 계산했다.
+
 컨트롤 경계는 Figma에서 색이 아니라 배경 차이(`#F4F6FB` 위 흰 카드, 흰 위 `#F4F6FB` 버튼)로 구분한다. 3:1을 만족하는 경계선이 필요하면 `onSurfaceVariant`(`#6B7280`, 흰 배경 대비 4.84:1)를 쓴다.
+
+> **[팀 결정 필요] 컨트롤 경계에 테두리를 쓸지**
+> 이 절은 "Figma처럼 배경 차이로 구분"한다고 적었다. 그런데 10절 표는 "배경 차이**나 2dp 테두리**", 10절 범위 표는 "컨트롤 경계 3:1 **유지**"라고 적었다. `#F4F6FB`와 `#FFFFFF`의 대비는 약 1.08:1이라 배경 차이만으로는 3:1을 만족할 수 없다. 그래서 두 문장이 서로 모순된다.
+> Figma가 테두리를 쓰는 곳은 선택 표시(`AddPlaceScreen`·`PlaceDetailScreen`·`ScheduleEditScreen` 이동 수단 카드 2dp), 입력창 포커스·오류(`CreateTripScreen`·`EditTripScreen` 2dp), 테두리형 보조 버튼(`AddPlaceScreen` `카테고리로 찾기`, `AlternativePlacesScreen` `기존 일정 그대로 진행`, 2dp `#E2E8F0`)뿐이다. 필터 칩·검색창·`#F4F6FB` 보조 버튼에는 테두리가 없다.
+> - 안 A: Figma대로 배경 차이만 쓴다. 10절의 "컨트롤 경계 3:1"을 "배경 차이 + 문구·아이콘 병기"로 고친다.
+> - 안 B: 3:1을 지킨다. Figma에 없는 곳에도 `onSurfaceVariant` 경계선을 더한다. 이 경우 12절-1 "모양은 Figma가 이긴다"의 예외로 기록한다.
 
 ### 지도 위 색 사용
 
@@ -175,18 +207,34 @@ Figma는 `Outfit`(숫자·라틴)과 `Noto Sans KR`(한글)을 쓴다. Android�
 | 요소 | 크기 |
 |---|---|
 | 터치 영역 | 최소 48 × 48dp (보이는 원·사각이 더 작아도 터치 영역은 48로 잡는다) |
-| 헤더 아이콘 버튼 | 36 × 36dp(`w-9`), 알림 버튼 40 |
+| 헤더 아이콘 버튼 | 36 × 36dp(`w-9`), 최상위 탭 헤더의 알림 버튼만 40. 모양과 사용 기준은 7절 "헤더 아이콘 버튼" |
 | hero 위 원형 버튼 | 36 × 36dp, 위 12~16 · 좌우 20 |
 | 주요 CTA 높이 | 52 ~ 54dp |
 | 보조 버튼 높이 | 46 ~ 50dp |
-| 입력창 높이 | 44dp(검색), 50dp(폼) |
+| 입력창 높이 | 44dp(검색), 50dp(폼). 모양과 상태는 7절 "입력창" |
+| 토글 | 48 × 24dp 트랙, 20dp thumb. 7절 "토글" |
 | 장소 썸네일 | 60 × 60dp(검색), 64(예정 여행), 56(지난 여행), 프로필 56 |
 | hero 사진 | 240dp(장소 상세), 180dp(여행 상세), 160dp(커버), 140dp(진행 중 카드) |
 | 지도 미리보기 | 130~190dp, 화면 지도 38~55% |
 | 체류 시간 ± 버튼 | 40 × 40dp 원 (dialog는 44) |
 | 진행 바 | 6dp 높이, 날짜 점 10dp |
 | 목록 그룹 헤더 점 | 8 × 8dp 원. 진행 중 `success`, 다가오는 `primary`, 지난 `faint` |
-| 빈 상태 아이콘 상자 | 64 × 64dp(`background`, 16dp 곡률) 안 28dp `faint` 아이콘. 빈 화면은 세로 중앙보다 살짝 위(하단 여백 60dp) |
+| 빈 상태 아이콘 상자 | 64 × 64dp(`background`, 16dp 곡률) 안 28dp `faint` 아이콘. 빈 화면은 세로 중앙보다 살짝 위(하단 여백 60dp). **Figma가 화면마다 크기가 달라 아래 [팀 결정 필요]** |
+
+> **[팀 결정 필요] 빈 상태·안내 아이콘 상자 크기를 하나로 통일할지**
+> Figma 실측값은 다음과 같다.
+>
+> | 크기·곡률 | 배경 / 아이콘 | Figma 화면 |
+> |---|---|---|
+> | 64dp, 16dp(`rounded-2xl`) | `background` / 28dp `faint` | `AddPlaceScreen` 검색 전·결과 없음 |
+> | 80dp, 24dp(`rounded-3xl`) | `background` / 34dp `faint`(stroke 1.6) | `MyTripsScreen` 여행 없음 |
+> | 80dp, 24dp | `successContainer` / 32dp `success` | `VariableMonitorScreen` 감지 없음 |
+> | 96dp, 24dp | `primaryContainer` / 44dp `primary`(stroke 1.8) | `LocationPermissionScreen` |
+> | 96dp, 24dp | `errorContainer` / 44dp `error`(stroke 1.8) | `ErrorScreen` |
+> | 56dp, 16dp | `successContainer` / 28dp `success` | `ActiveTravelScreen` 당일 완료 카드 |
+>
+> - 안 A: 64dp 하나로 통일한다(현재 문구). `MyTripsScreen`·`VariableMonitorScreen`은 Figma와 달라지므로 Figma도 고친다.
+> - 안 B: 쓰임새로 나눈다. 목록·검색 영역 안 빈 상태는 64dp, 화면 전체 빈 상태는 80dp, 전체 화면 안내·오류는 96dp, 카드 안은 56dp로 정한다. Figma를 그대로 둔다.
 | 터치 영역 간격 | 최소 8dp |
 
 ## 6. 곡률과 그림자
@@ -202,14 +250,54 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 | `radiusSheet` | 32dp | 선택 sheet 상단(`rounded-t-[32px]`), 로그인 카드 36 |
 | `radiusFull` | 50% | 원형 버튼, 핀, 상태 점, 지도 검색 칩, 진행 바 |
 
-| 그림자 | 값 | 용도 |
+### 버튼 곡률 규칙
+
+Figma 실측으로 확정한 규칙이다. 판단 기준은 **버튼 폭과 놓인 자리**다.
+
+| 규칙 | 곡률 | Figma 근거 |
+|---|---|---|
+| **R1. 화면·dialog·sheet 폭을 채우는 세로 버튼**(`w-full`, 46~54dp)은 주·보조를 가리지 않고 16dp | `radiusLg` | 하단 CTA: `CreateTripScreen`·`EditTripScreen`·`ScheduleEditScreen`·`RoutePreviewScreen`(54), `LocationPermissionScreen`·`ErrorScreen`(54 + 보조 48). dialog: `TripDetailScreen`·`EditTripScreen`·`ScheduleEditScreen` 취소 확인(52). 보조: `VariableMonitorScreen`(50·52), `RouteRecalculatingScreen`(52), `AlternativePlacesScreen`(50·52·48). 시트: `ActiveTravelScreen` 도착·출발 확인(52 + 48)·상태 수정 행(48) |
+| **R2. 빈 상태 가운데의 너비 자동 버튼**은 16dp | `radiusLg` | `MyTripsScreen` `첫 여행 만들기`(52), `AddPlaceScreen` `카테고리로 찾기`(44) |
+| **R3. 카드 안에서 가로로 나눈 행동 버튼**(`flex-1`)은 12dp | `radiusMd` | `ActiveTravelScreen` 다음 장소 카드 `도착했어요`·`건너뛰기`(48) |
+| **R4. 목록 행 끝·카드 머리의 작은 행동 버튼**(높이 ≤ 40dp)은 12dp | `radiusMd` | `AlternativePlacesScreen` `경로 비교`·`비교`(`px-4 py-2`), `MapSearchScreen` `선택`(32) |
+| **R5. 32dp 이하 아이콘·보조 행동**은 8dp | `radiusSm` | `AddPlaceScreen` `+`(32), `ScheduleEditScreen` 위·아래(28)·삭제(32), `SettingsScreen` 오류 `다시 시도`(32), `ActiveTravelScreen` 지도 `경로 보기`, `CreateTripScreen` 달력 이전·다음 달(32) |
+| **R6. 헤더 아이콘 버튼**(36·40dp)은 12dp, 사진·지도 위 버튼은 원형 | `radiusMd` / `radiusFull` | 7절 "헤더 아이콘 버튼" |
+
+R1~R6과 맞지 않는 Figma 예외가 아래 네 곳 있다. 이 예외를 규칙에 맞출지는 [팀 결정 필요]다.
+
+| 예외 | Figma 실측 | 규칙상 기대값 |
+|---|---|---|
+| `PlaceDetailScreen` 하단 고정 CTA(지도 48×52 + `일정에 추가` `flex-1` 52) | 12dp | R1과 R3 사이. 하단 고정인데 가로 분할이다 |
+| `ScheduleEditScreen` 체류 시간 **dialog**의 `취소`(1)·`적용`(2) 가로 분할(50) | 12dp | 같은 조합이 **sheet**(`ScheduleEditScreen` 이동 수단·`AddPlaceScreen`·`PlaceDetailScreen`)에서는 16dp |
+| `ActiveTravelScreen` `장소 추가` 점선 버튼(`w-full` 46) | 12dp | R1이면 16. 같은 버튼이 `ScheduleEditScreen`(50)에서는 16dp |
+| `SettingsScreen` `로그아웃`(`w-full` 48, 흰 블록 안) | 12dp | R1이면 16 |
+
+> **[팀 결정 필요] 카드·시트 안 버튼의 12 vs 16 규칙**
+> - 안 A(폭 기준, 위 R1~R5): 폭을 채우면 16, 가로로 나누거나 작으면 12. 위 예외 네 곳을 Figma에서 고친다.
+> - 안 B(행동 위계 기준): 1차 행동(gradient 주버튼)은 16, 2차 행동(`#F4F6FB`·테두리·글자형)은 12. Figma 전반을 다시 고쳐야 한다(`LocationPermissionScreen`·`ErrorScreen` 보조 버튼 등이 16이다).
+> - 안 C(자리 기준): 화면 하단 고정·dialog·sheet 안 버튼은 모두 16, 카드·목록 안 버튼은 12. `PlaceDetailScreen` CTA와 체류 시간 dialog를 16으로 고친다.
+
+### 그림자
+
+| 그림자 | 값 | 용도 (Figma 근거) |
 |---|---|---|
 | 카드 | `0 1px 4px rgba(0,0,0,0.06)` | 흰 카드 |
 | 플로팅 카드 | `0 4px 20px rgba(0,0,0,0.08)` | 다음 장소 카드 |
 | 주버튼 | `0 4px 16px rgba(59,123,248,0.3)` | gradient CTA |
 | FAB | `0 8px 28px rgba(59,123,248,0.5)` | 새 여행 만들기 |
-| sheet | `0 -4px 24px rgba(0,0,0,0.12)` | bottom sheet |
+| sheet(비모달, 지도 위) | `0 -4px 24px rgba(0,0,0,0.12)` | `MapSearchScreen` 결과 sheet |
+| sheet(지도 아래 겹침) | `0 -4px 20px rgba(0,0,0,0.08)` | `AlternativePlacesScreen` 후보 sheet |
+| 모달 bottom sheet | 그림자 없음. scrim만 쓴다 | `ActiveTravelScreen` 도착·출발·상태 시트, `AddPlaceScreen`·`PlaceDetailScreen`·`ScheduleEditScreen` 이동 수단 시트 |
+| dialog | `0 25px 50px -12px rgba(0,0,0,0.25)`(Tailwind `shadow-2xl`) + scrim `rgba(0,0,0,0.5)` | `TripDetailScreen` 삭제, `EditTripScreen` 저장·삭제, `ScheduleEditScreen` 체류 시간·취소 확인 |
+| 드롭다운 메뉴 | `0 8px 32px rgba(0,0,0,0.18)` | `TripDetailScreen` 더보기 메뉴 |
+| 목록 안 작은 주 행동 버튼 | `0 2px 8px rgba(59,123,248,0.3)` | `AlternativePlacesScreen` TOP 후보 `경로 비교` |
+| 달력 선택 원 | `0 2px 8px rgba(59,123,248,0.35)` | `CreateTripScreen` 시작·종료일 |
+| 지도 위 떠 있는 버튼 | `0 2px 8px rgba(0,0,0,0.15)` | `AlternativePlacesScreen` 뒤로 가기 |
+| 체류 시간 `−` 버튼 | `0 2px 6px rgba(0,0,0,0.08)`, dialog는 `0 2px 8px rgba(0,0,0,0.1)` | `PlaceDetailScreen`·`AddPlaceScreen` 시트 / `ScheduleEditScreen` dialog |
+| 체류 시간 dialog `+` 버튼 | `0 4px 12px rgba(59,123,248,0.3)` | `ScheduleEditScreen` |
 | 진행 중 여행 카드 | `0 0 0 2px #3B7BF8` + `0 2px 12px rgba(59,123,248,0.12)` | 강조 테두리 |
+
+- Figma 사본에는 Tailwind 버전 정보가 없다. `shadow-2xl`은 v3·v4 값이 같지만 `shadow-md`(`ActiveTravelScreen` `경로 보기`)와 `shadow-sm`(`SettingsScreen` 토글 thumb)은 버전마다 값이 달라 확정하지 않는다.
 
 - 목록 행은 카드로 감싸지 않는다. 흰 블록 안에서 1dp `background` 색 구분선(좌우 여백 16~20dp)으로 잇는다.
 - bottom sheet는 상단 모서리만 둥글게 하고 40 × 4dp `outlineVariant` handle을 둔다.
@@ -220,6 +308,126 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 공통 컴포넌트는 `com.gilpick.ui.component`에 두고 모든 feature가 재사용한다. 화면에서 Material 컴포넌트를 직접 조립하지 않는다.
 
 **각 컴포넌트가 어떻게 생겼는지는 이 문서가 정하지 않는다.** 모양의 정본은 Figma 소스이고, 실행 가능한 형태는 `com.gilpick.ui.component`의 구현이다. 컴포넌트를 새로 만들거나 고칠 때는 Figma 소스에서 모양을 읽고, 3절의 색 역할과 대비, 4~6절의 토큰, 10절의 접근성 최저선을 지켰는지 확인한다.
+
+아래 스펙 표는 Material 3 기본값으로 떨어지기 쉬운 컴포넌트에 대해 **Figma 실측값을 옮겨 적은 사본**이다(2026-09-13 실측). Figma와 다르면 Figma가 이긴다(12절).
+
+### 버튼 비활성 상태
+
+| 대상 | Figma 표현 | Figma 근거 |
+|---|---|---|
+| gradient 주버튼 | gradient 유지 + 전체 `opacity 40%`, 주버튼 그림자 제거 | `CreateTripScreen` `여행 만들고 일정 편집하기`, `EditTripScreen` `저장` |
+| gradient 주버튼 (조건 대기) | 배경을 `faint #CBD5E1` 단색으로 바꾸고 `opacity 40%`도 **함께** 적용, 그림자 없음 | `TripDetailScreen` `오늘 여행 시작`(여행 날짜가 아닐 때) |
+| 처리 중 주버튼 | gradient 유지 + `opacity 80%`, 라벨 앞 spinner | `RoutePreviewScreen` `변경하는 중` |
+| `#F4F6FB` 보조 버튼 | `opacity 40%` | `RoutePreviewScreen` `다른 후보 보기`(승인 중) |
+| 헤더 아이콘 버튼 | `opacity 40%` | `RoutePreviewScreen` 뒤로 가기(승인 중) |
+| 목록 행 안 작은 아이콘 버튼 | `opacity 30%` | `ScheduleEditScreen` 위·아래 이동(첫·마지막 행) |
+| 토글 | `opacity 50%` | `SettingsScreen`(저장 중·실패) |
+
+- 비활성도 색만으로 알리지 않는다. 비활성 이유를 문장으로 함께 둔다(`TripDetailScreen` "오늘은 여행 날짜가 아닙니다").
+
+> **[팀 결정 필요] 비활성 주버튼 표현을 하나로 통일할지**
+> `TripDetailScreen`만 `#CBD5E1` 배경 + `opacity 40%`이고, `CreateTripScreen`·`EditTripScreen`은 gradient + `opacity 40%`다.
+> - 안 A: 모두 gradient + `opacity 40%`로 통일한다. `TripDetailScreen`을 Figma에서 고친다.
+> - 안 B: 모두 `#CBD5E1` 단색으로 통일한다.
+> - 안 C: 의미로 나눈다. 입력이 부족해 누를 수 없으면 gradient + 40%, 시간·조건이 되어야 열리면 `#CBD5E1`. 이 경우 현재 Figma를 그대로 둔다.
+>
+> 결정할 때 참고: 흰 라벨과 `#CBD5E1`의 대비는 1.48:1, `opacity 40%` gradient는 흰 배경 위에서 더 낮아진다. 두 방식 모두 대비 기준을 넘지 못하므로 비활성 이유 문장 병기가 필수다.
+
+### 입력창
+
+| 항목 | 폼 입력창 | 검색 입력창 |
+|---|---|---|
+| Figma 근거 | `CreateTripScreen`·`EditTripScreen` 여행 이름 | `MyTripsScreen`·`AddPlaceScreen` |
+| 높이 · 곡률 | 50dp · `radiusMd` 12 | 44dp · `radiusMd` 12 |
+| 배경 | `background #F4F6FB` | `background #F4F6FB` |
+| 안쪽 여백 | 좌우 16 | 좌우 14, 앞 16dp `muted` 돋보기, 간격 8 |
+| 글자 | 16sp 600 `onSurface` | 14sp `onSurface`, placeholder `muted` |
+| 기본 테두리 | 2dp **투명**(자리만 차지해 포커스 시 크기가 변하지 않는다) | 없음 |
+| 포커스 | 2dp `primary #3B7BF8` | 테두리 없음 |
+| 오류 | 2dp `error #EF4444`. 포커스보다 우선 | 해당 없음 |
+| 오류 문구 | 입력창 아래 8dp, 12sp 500 `error`(예: "2~30자 사이로 입력해주세요") | 해당 없음 |
+| 라벨 | 입력창 위 카드 안, 11~12sp 700~900 `muted` 대문자 자간(`여행 이름`) | 없음(placeholder만) |
+| 지우기 | 해당 없음 | 값이 있으면 오른쪽 16dp `faint` `circle-x` (`AddPlaceScreen`) |
+
+- 폼 입력창은 흰 카드(`radiusLg`, `p-5`, 카드 그림자) 안에 라벨과 함께 둔다.
+- 떠오르는 라벨(M3 `OutlinedTextField`)과 외곽선은 Figma에 없다.
+- 지도 검색창만 예외다. 흰 96% 배경, 52dp, `radiusLg`, 그림자 `0 4px 20px rgba(0,0,0,0.12)`이고 뒤로 가기가 입력창 안에 있다(`MapSearchScreen`).
+
+### 날짜 선택
+
+기간 입력은 대화상자가 아니라 **카드 안 인라인 달력**이다(`CreateTripScreen`).
+
+| 요소 | 값 |
+|---|---|
+| 컨테이너 | 흰 카드, `radiusLg`, 카드 그림자, 안쪽 좌우 20·위아래 16 |
+| 라벨 | `여행 일정`, 12sp 700 `muted` 대문자 자간, 아래 16 |
+| 월 이동 | 좌우 32 × 32dp `background` 버튼(`radiusSm` 8), 14dp `onSurfaceVariant` chevron. 가운데 `2025년 8월` 15sp 700 |
+| 요일 머리 | 7열, 11sp 700 `muted`, `일`부터 시작 |
+| 날짜 칸 | 칸 높이 40dp, 보이는 버튼 36dp, 13sp 600. 기본 `onSurface`, `radiusSm` |
+| 시작·종료일 | 36dp **원**, 주 gradient(135°), 흰 글자, 그림자 `0 2px 8px rgba(59,123,248,0.35)` |
+| 범위 안 날짜 | 칸 전체 `primaryContainer #EBF2FF` 배경, 글자 `primary` 600 |
+| 시작·종료일 칸 | 범위 쪽 절반만 `#EBF2FF`로 채워 띠가 원에 이어진다(시작일은 오른쪽 절반, 종료일은 왼쪽 절반) |
+| 빈 칸 | 보이지 않고 누를 수 없다 |
+| 요약 줄 | 시작일을 고르면 카드 아래에 표시. 위 1dp `background` 선, `시작`·`종료` 10sp 700 `muted` 대문자와 값 14sp 900(`8/12`), 사이 1dp `outlineVariant` 선. 종료일 전에는 `—` |
+| 안내 | 카드 밖 아래 12sp `muted` 가운데 "최대 7일까지 설정할 수 있습니다" |
+| 선택 흐름 | 첫 탭 = 시작일(종료일 해제), 둘째 탭 = 종료일. 시작일보다 앞 날짜를 누르면 그 날짜가 새 시작일 |
+
+수정 화면의 기간 표시는 달력 대신 두 칸 입력이다(`EditTripScreen`).
+
+| 요소 | 값 |
+|---|---|
+| 칸 | 48dp, `radiusMd`, `background`, 좌우 16. 날짜 14sp 600 `onSurface` + 오른쪽 14dp `muted` 달력 아이콘. 두 칸 사이 `–` `muted` |
+| 기간 축소 상태 | 종료일 칸 배경 `errorContainer #FEF2F2`, 글자·아이콘 `error` |
+| 축소 경고 문구 | 아래 8dp, 12sp 500 `warning` "· 종료일을 줄이면 일부 일정이 삭제될 수 있어요" |
+
+- 달력의 표시 칸은 36dp지만 터치 영역 48dp를 지켜야 한다(10절). 칸 높이 40dp 안에서 겹치지 않게 확장하는 방법은 구현에서 정하고 PR에 기록한다.
+
+### 토글
+
+`SettingsScreen` 실측값이다. M3 `Switch`(52 × 32dp, 테두리 있음)와 모양이 다르다.
+
+| 항목 | 값 |
+|---|---|
+| 트랙 | 48 × 24dp, `radiusFull` |
+| 켜짐 트랙 | `primary #3B7BF8` |
+| 꺼짐 트랙 | `outlineVariant #E2E8F0` |
+| thumb | 20dp 흰 원, 위 2dp. 꺼짐 왼쪽 2dp, 켜짐 왼쪽 26dp. 그림자 `shadow-sm`(값 미확정, 6절) |
+| 비활성 | `opacity 50%` |
+| 불러오는 중 | thumb 대신 꺼짐 트랙 가운데 14dp `muted` spinner |
+| 저장 중 | 토글 비활성 + 제목 옆 `저장 중` 배지(10sp 700 `muted`, `background`, `radiusSm`) |
+| 설정 행 | 최소 72dp, 좌우 20·위아래 16, 제목 14sp 600 `onSurface`, 설명 12sp `muted`, 토글과 간격 16 |
+
+- 보이는 트랙은 24dp지만 터치 영역은 48dp로 넓힌다(10절).
+
+### 헤더 아이콘 버튼
+
+| 종류 | 크기 · 곡률 | 배경 / 아이콘 | Figma 근거 |
+|---|---|---|---|
+| 일반 헤더 버튼 | 36dp · `radiusMd` | `background #F4F6FB` / 18dp | `AddPlaceScreen`, `CreateTripScreen`, `EditTripScreen`, `ScheduleEditScreen`, `NotificationsScreen`, `VariableMonitorScreen`, `RoutePreviewScreen`, `ActiveTravelScreen`(알림·설정) |
+| 최상위 탭 헤더 버튼 | **40dp** · `radiusMd` | `background` / 20dp | `MyTripsScreen` 알림 벨(26sp Hero title 헤더) |
+| 경고 진입 버튼 | 36dp · `radiusMd` | `warningContainer #FFF7ED` / 18dp `warning` 경고 삼각형 | `ActiveTravelScreen` 변수 감지 |
+| 헤더 오른쪽 보조 행동 | 36dp · `radiusMd` | `background` / **16dp `muted`** | `NotificationsScreen` 모두 읽음, `ScheduleEditScreen` 되돌리기 |
+| 사진 위 버튼 | 36dp · 원형 | `rgba(0,0,0,0.3)` / 18dp 흰색 | `TripDetailScreen`, `PlaceDetailScreen` |
+| 어두운 화면 버튼 | 36dp · 원형 | 흰색 10% / 18dp 흰색 | `DayRouteScreen` |
+| 지도 위 떠 있는 버튼 | 40dp · 원형 | 흰색 90% + 그림자 `0 2px 8px rgba(0,0,0,0.15)` / 18dp `onSurface` | `AlternativePlacesScreen` |
+
+**40dp와 36dp 기준**: 26sp Hero title을 쓰는 최상위 탭 헤더(`MyTripsScreen`)는 40dp, 18~20sp 제목을 쓰는 하위 화면과 진행 화면 헤더는 36dp다. 지도 위 떠 있는 버튼도 40dp다.
+
+**뒤로 가기(←)와 닫기(✕) 구분**
+
+| 아이콘 | path (stroke 2.5. 크기·색은 위 종류 표를 따른다) | 쓰는 화면 | 기준 |
+|---|---|---|---|
+| ← 뒤로 가기 | `M19 12H5M12 19l-7-7 7-7` | `CreateTripScreen`, `AddPlaceScreen`, `NotificationsScreen`, `VariableMonitorScreen`, `RoutePreviewScreen`, `PlaceDetailScreen`, `TripDetailScreen`, `DayRouteScreen`, `AlternativePlacesScreen`, `MapSearchScreen` | 이전 화면으로 돌아가는 탐색 |
+| ✕ 닫기 | `M18 6L6 18M6 6l12 12` | `EditTripScreen`, `ScheduleEditScreen` | **기존 데이터를 고치는 편집 화면**. 나가면 변경을 버린다(`ScheduleEditScreen`은 누르면 "편집을 취소할까요?" dialog) |
+
+- 새 여행 만들기(`CreateTripScreen`)는 편집 흐름의 시작이지만 Figma가 ←를 쓴다. 아이콘은 Figma를 따른다.
+- 알림 벨의 새 알림 점은 `warning` 원이다. 40dp 버튼은 8dp(`MyTripsScreen`), 36dp 버튼은 6dp(`ActiveTravelScreen`)이고 위·오른쪽 6dp 안쪽에 둔다.
+- 모든 헤더 버튼의 터치 영역은 48dp로 넓힌다(10절).
+
+> **[팀 결정 필요] 헤더 아이콘 색 `#4B5563`**
+> `MyTripsScreen`·`ActiveTravelScreen`의 알림·설정 아이콘은 `#4B5563`인데 이 색은 3절 팔레트에 없다. 가장 가까운 토큰은 `onSurfaceVariant #6B7280`이다.
+> - 안 A: 팔레트에 `onSurfaceStrong #4B5563`으로 등록한다.
+> - 안 B: `onSurfaceVariant`로 대체하고 Figma를 고친다.
 
 ### 아이콘
 
@@ -286,10 +494,75 @@ Figma는 **lucide 계열 stroke 아이콘**을 인라인 SVG로 쓴다. Android�
 |---|---|
 | `loading` | 1초를 넘길 때만 대기 표시를 띄운다. 그 전에는 아무것도 표시하지 않는다 |
 | `empty` | Figma 빈 상태 형식: 64dp `background` 원각 사각 안 `faint` 아이콘, 15~18sp 700 제목, 13~14sp `muted` 설명, 다음 행동 버튼(테두리형 또는 gradient) |
-| `error` | Figma `ErrorScreen` 형식: 96dp `errorContainer` 아이콘, 24sp 제목, 원인 카드, 안내 배너, `다시 시도하기` 주버튼 + 돌아가기 보조 버튼 |
+| `error` | Figma `ErrorScreen` 형식: 96dp `errorContainer` 아이콘, 24sp 제목, 원인 카드, 안내 배너, `다시 시도하기` 주버튼 + 돌아가기 보조 버튼. 상세는 아래 "오류 화면" |
 | `content` | 실제 내용 |
 
 갱신 중 기존 내용을 유지할지 비울지는 화면마다 다르므로 해당 feature의 `spec.md`에서 정한다.
+
+### 오류 화면
+
+`ErrorScreen` 실측값이다. 화면 전체를 대신하는 오류에 쓴다. 화면 일부만 실패하면 아래 "실패 안내 박스"를 쓴다.
+
+| 요소 | 값 |
+|---|---|
+| 배치 | `background` 바탕, 가운데 정렬 본문 + 하단 고정 버튼 두 개(좌우 16, 아래 40, 버튼 간격 8) |
+| 아이콘 상자 | 96dp, `radiusXl` 24, `errorContainer #FEF2F2`, 44dp `error` 경고 삼각형(stroke 1.8), 아래 32 |
+| 제목 | 24sp 900 `onSurface` "문제가 발생했어요", 아래 8 |
+| 설명 | 14sp `muted`, 두 줄. 무엇이 실패했는지 + **기존 데이터가 그대로라는 사실** ("경로를 업데이트하지 못했어요. / 기존 일정과 도착 시각은 그대로 유지됩니다."), 아래 32 |
+| 원인 카드 | 흰 카드, `radiusLg`, 카드 그림자, 안쪽 20, 아래 16. 머리 `오류 정보` 11sp 900 `muted` 대문자 자간, 아래 12 |
+| 안내 배너 | `primaryContainer #EBF2FF`, `radiusLg`, 좌우 16·위아래 12. 14dp `primary` 정보 아이콘 + 12sp 500 `primaryDark #2457C5` 다음 행동 문장("인터넷 연결을 확인한 후 재시도해주세요") |
+| 주버튼 | `다시 시도하기`, 54dp, `radiusLg`, 주 gradient + 주버튼 그림자 |
+| 보조 버튼 | 돌아갈 곳을 적은 문구("여행 진행으로 돌아가기"), 48dp, `radiusLg`, `background`, 14sp 600 `onSurfaceVariant` |
+
+**원인 카드 3행** — 행 간격 12. 왼쪽 라벨 13sp `onSurfaceVariant`, 오른쪽 값 13sp 600 `onSurface`(Outfit).
+
+| 행 | 내용 | Figma 예시 | 정의 |
+|---|---|---|---|
+| 오류 코드 | 오류를 구분하는 식별자 | `ROUTE_TIMEOUT` | 대문자 snake_case 식별자. 어떤 값을 넣을지(API 오류 응답 `code` 등)와 **사용자에게 노출할지는 [팀 결정 필요]** |
+| 발생 시각 | 실패가 일어난 시각 | `오후 2:32` | 한국어 오전·오후 + `h:mm` |
+| 마지막 동작 | 실패한 사용자 행동이나 시스템 작업 | `경로 재계산` | 기술 용어가 아니라 사용자가 알아듣는 행동 이름(8절) |
+
+> **[팀 결정 필요] 원인 카드에 오류 코드를 노출할지**
+> - 안 A: Figma대로 노출한다. 문의 대응에 쓸 수 있지만 사용자에게 뜻이 없는 문자열이다.
+> - 안 B: 오류 코드 행을 빼고 발생 시각·마지막 동작 2행만 둔다. Figma를 고친다.
+> - 안 C: 원인 카드 자체를 빼고 설명·안내 배너로 원인을 전달한다. Figma를 고친다.
+>
+> 어느 쪽이든 서버 내부 메시지나 stack trace는 표시하지 않는다.
+
+> **[팀 결정 필요] 24sp 제목 역할**
+> `ErrorScreen`·`LocationPermissionScreen` 제목은 24sp 900인데 4절 타입 표에 24sp 역할이 없다. 4절은 "크기를 새로 만들지 않는다"고 정했다.
+> - 안 A: 4절에 `Status title 24/32sp 900`을 추가한다.
+> - 안 B: `Screen title 22sp`로 맞추고 Figma를 고친다.
+
+### 실패 안내 박스
+
+화면은 그대로 두고 **일부 작업만 실패했을 때** 그 자리에 두는 박스다. 경고 계열 색을 쓰며 기존 데이터가 그대로임을 함께 알린다. 두 형식이 있다.
+
+| 항목 | 블록형 | 인라인형 |
+|---|---|---|
+| Figma 근거 | `RoutePreviewScreen` 승인 실패 | `SettingsScreen` 설정 불러오기 실패 |
+| 쓰는 곳 | 화면의 주 작업이 실패해 다음 행동이 바뀔 때 | 섹션 하나가 실패하고 그 자리에서 다시 시도할 때 |
+| 배경 · 테두리 | `warningContainer #FFF7ED` · 1dp `warningBorder #FED7AA` | 같음 |
+| 곡률 · 여백 | `radiusLg` 16 · 16 | `radiusMd` 12 · 좌우 16·위아래 12 |
+| 아이콘 | **32dp `warning` 채움 상자(`radiusMd`)** 안 15dp 흰 경고 삼각형(stroke 2.5), 위 정렬 | 상자 없이 16dp `warning` 경고 삼각형 |
+| 제목 | 14sp 700 `onWarningContainer #92400E`, 원인 문장 | 12sp 600 `onWarningContainer`, 한 줄 |
+| 보조 문장 | 12sp `#B45309`, 기존 상태 유지("기존 일정은 그대로예요") | 없음 |
+| 행동 | 박스 밖 하단 CTA가 **경고 gradient** 버튼으로 바뀐다(3절) | 박스 오른쪽 32dp `warning` 채움 버튼, `radiusSm` 8, 좌우 12, 12sp 700 흰 글자 `다시 시도` |
+
+- 32dp 행동 버튼의 터치 영역은 48dp로 넓힌다(10절).
+
+### 권한 꺼짐 배너
+
+위치 권한이 없어 자동 기능이 꺼졌음을 알리는 배너다. 실패가 아니라 **사용자가 켤 수 있는 주의 상태**이므로 경고(주황)가 아니라 caution(amber) 계열을 쓴다(`ActiveTravelScreen`).
+
+| 요소 | 값 |
+|---|---|
+| 컨테이너 | `cautionContainer #FFFBEB`, 1dp `cautionBorder #FDE68A`, `radiusLg`, 좌우 16·위아래 12, 카드 좌우 여백 16 |
+| 아이콘 | 16dp `caution #D97706` 지도 핀 |
+| 문장 | 12sp 500 `onWarningContainer #92400E`, 한 줄 ("위치 권한이 없어 자동 감지가 꺼져 있어요") |
+| 행동 | 12sp 900 `caution` `권한 허용` |
+| 닫기 | 14dp `caution` ✕, 60% 투명 |
+| 위치 | 진행 화면 스크롤 영역 맨 위, 변수 경고 배너보다 앞 |
 
 ### 변수 경고
 
@@ -311,7 +584,7 @@ Figma 팔레트가 대비 기준을 여러 곳에서 넘지 못하므로(3절), 
 | 항목 | 기준 |
 |---|---|
 | 핵심 정보 글자 | `onSurface`(`#111827`)로 쓴다. `muted`·`faint`는 보조 정보 전용 |
-| 컨트롤 경계·의미 있는 선·아이콘 | 배경 차이나 2dp 테두리·아이콘 병기로 구분한다. 색 하나로 구분하지 않는다 |
+| 컨트롤 경계·의미 있는 선·아이콘 | 배경 차이나 2dp 테두리·아이콘 병기로 구분한다. 색 하나로 구분하지 않는다. **3절 문장과 모순, 3절 [팀 결정 필요] 참조** |
 | 최소 글자 크기 | 단독으로 의미를 전달하는 글자는 12sp 이상. 9~11sp는 칩·핀·섹션 라벨 |
 | 터치 영역 | 48 × 48dp 이상. 보이는 요소가 36~40dp여도 터치 영역은 48로 잡는다 |
 | 터치 영역 간격 | 8dp 이상 |
@@ -374,7 +647,7 @@ feature 패키지가 아니라 중립 위치에 둔다. 특정 feature가 소유
 
 **Material 3에 없는 값**
 
-`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successContainer`, `warning`·`warningContainer`·`onWarningContainer`, `star`, `dark`, `toast`와 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
+`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`와 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
 
 ```kotlin
 data class GilpickColors(val muted: Color, val faint: Color, val primaryDark: Color, /* … */ val success: Color)
@@ -433,3 +706,17 @@ val LocalGilpickColors = compositionLocalOf<GilpickColors> { error("GilpickTheme
 - 기능별 화면 요구사항: 각 feature의 `specs/<feature>/spec.md`
 - 적용 절차: `AGENTS.md` 9절, 10절
 - API 계약: `docs/design/api-spec.md`
+
+## 14. 팀 결정 필요 목록
+
+2026-09-13 Figma 실측 보강 때 확정하지 못한 항목이다. 결정하면 해당 절의 인용 블록을 결정 내용으로 바꾸고 이 목록에서 지운다. 3절에 새로 등록한 색 토큰(`successDark` 등)은 이 문서에만 있고 `Theme.kt`에는 아직 없다. 12절 "값을 바꿀 때"는 토큰과 표를 같은 PR에서 맞추도록 정했지만, 이번 보강은 **예외로 문서만 먼저 반영**한다(2026-09-13 결정). `Theme.kt` 토큰 추가는 공통 컴포넌트 작업(`GradientButton` 등) 단계에서 함께 한다. 그전까지 새 토큰 이름은 코드에서 쓰지 않는다.
+
+| # | 항목 | 위치 | 선택지 요약 |
+|---|---|---|---|
+| D1 | 컨트롤 경계에 테두리를 쓸지 (3절 "배경 차이" ↔ 10절 "2dp 테두리·3:1 유지" 모순) | 3절 검증된 대비, 10절 | A 배경 차이만 / B 3:1 경계선 추가 |
+| D2 | 비활성 주버튼 표현 통일 (`TripDetailScreen` `#CBD5E1`+40% ↔ `CreateTripScreen`·`EditTripScreen` gradient+40%) | 7절 버튼 비활성 상태 | A gradient+40% / B `#CBD5E1` / C 의미별 구분 |
+| D3 | 빈 상태·안내 아이콘 상자 크기 통일 (64·80·96·56dp) | 5절 | A 64dp 통일 / B 쓰임새별 64·80·96·56 |
+| D4 | 카드·시트 안 버튼 곡률 12 vs 16 규칙과 Figma 예외 4곳 | 6절 버튼 곡률 규칙 | A 폭 기준 / B 행동 위계 기준 / C 자리 기준 |
+| D5 | 오류 화면 원인 카드의 오류 코드 노출 여부와 값의 출처 | 9절 오류 화면 | A 노출 / B 코드 행 제외 / C 원인 카드 제외 |
+| D6 | 24sp 제목 역할 (`ErrorScreen`·`LocationPermissionScreen`)이 4절 타입 표에 없음 | 9절 오류 화면, 4절 | A `Status title 24` 추가 / B 22sp로 맞춤 |
+| D7 | 헤더 아이콘 색 `#4B5563`이 팔레트에 없음 (`MyTripsScreen`·`ActiveTravelScreen`) | 7절 헤더 아이콘 버튼 | A 토큰 등록 / B `onSurfaceVariant`로 대체 |
