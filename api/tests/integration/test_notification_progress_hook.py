@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import selectinload
 
+from app.api.v1 import progress as progress_api
 from app.clients.fcm import FcmSendResult
 from app.db import transaction_session
 from app.models.auth import DeviceSession, User
@@ -206,6 +207,31 @@ async def test_register_event_creates_transition_check_notification(
         assert row.item_id == seed["item_id"]
         assert row.dedup_key == f"transition:{result.candidate.transition_id}:{kind}"
         assert row.sent_at is None
+    finally:
+        await _cleanup(session_factory, seed["user_id"])
+
+
+@pytest.mark.asyncio
+async def test_immediate_dispatch_sends_notification_after_day_lookup(
+    session_factory, monkeypatch
+) -> None:
+    seed = await _seed(session_factory)
+    try:
+        result = await _register(session_factory, seed)
+        assert result.candidate is not None
+        stub = _StubFcm()
+        monkeypatch.setattr(progress_api, "FcmClient", lambda *_args, **_kwargs: stub)
+
+        await progress_api._dispatch_progress_notifications(
+            session_factory,
+            trip_id=seed["trip_id"],
+            visit_date=seed["now"].date(),
+        )
+
+        rows = await _notifications(session_factory, seed["user_id"])
+        assert len(rows) == 1
+        assert rows[0].sent_at is not None
+        assert stub.calls == 1
     finally:
         await _cleanup(session_factory, seed["user_id"])
 
