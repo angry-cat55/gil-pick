@@ -272,11 +272,15 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 | `ActiveTravelScreen` `장소 추가` 점선 버튼(`w-full` 46) | 12dp | 폭을 채움 → 16 | **Figma 수정 필요**: 16dp로 변경 |
 | `SettingsScreen` `로그아웃`(`w-full` 48) | 12dp | 폭을 채움 → 16 | **Figma 수정 필요**: 16dp로 변경 |
 
-같은 규칙으로 보면 예외 목록 밖에서도 어긋나는 곳이 있다.
+같은 규칙으로 보면 예외 목록 밖에서도 어긋나는 곳이 있다. 이 버튼들도 **12dp로 변경하기로 확정**했다(2026-09-13).
 
 | 대상 | Figma 실측 | 폭 기준 판정 | 조치 |
 |---|---|---|---|
-| 이동 수단·일정 추가 **sheet** 하단 `취소`(1)·`적용`/`일정에 추가`(2)(50): `ScheduleEditScreen` 이동 수단 시트, `AddPlaceScreen`·`PlaceDetailScreen` 시트 | 16dp | 가로 분할 → 12 | **Figma 수정 필요**: 12dp로 변경 |
+| 이동 수단 선택 시트 `취소`(1)·`적용`(2)(50) — `ScheduleEditScreen` 이동 수단 변경 시트 | 16dp | 가로 분할 → 12 | **Figma 수정 필요**: 12dp로 변경 |
+| 일정 추가 시트 `취소`(1)·`일정에 추가`(2)(50) — `AddPlaceScreen` 행 `+` 시트 | 16dp | 가로 분할 → 12 | **Figma 수정 필요**: 12dp로 변경 |
+| 일정 추가 시트 `취소`(1)·`일정에 추가`(2)(50) — `PlaceDetailScreen` `일정에 추가` 시트 | 16dp | 가로 분할 → 12 | **Figma 수정 필요**: 12dp로 변경 |
+
+변경 후에는 dialog·시트·카드·하단 고정 CTA의 가로 분할 버튼이 모두 12dp가 된다.
 
 원본 확인(2026-09-13, Figma MCP): Figma Make 원본에는 `Button` 컴포넌트·variant·auto-layout이 없고 모든 버튼이 클래스를 직접 적었다. 같은 파일(`ScheduleEditScreen`) 안에서도 취소·적용 조합이 dialog는 12, 시트는 16이었다. 프롬프트로 부분 수정을 반복하면서 생긴 불일치로 보고(추론), 규칙을 먼저 정한 뒤 Figma를 규칙에 맞춘다.
 
@@ -404,7 +408,7 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 | 일반 헤더 버튼 | 36dp · `radiusMd` | `background #F4F6FB` / 18dp | `AddPlaceScreen`, `CreateTripScreen`, `EditTripScreen`, `ScheduleEditScreen`, `NotificationsScreen`, `VariableMonitorScreen`, `RoutePreviewScreen`, `ActiveTravelScreen`(알림·설정) |
 | 최상위 탭 헤더 버튼 | **40dp** · `radiusMd` | `background` / 20dp | `MyTripsScreen` 알림 벨(26sp Hero title 헤더) |
 | 경고 진입 버튼 | 36dp · `radiusMd` | `warningContainer #FFF7ED` / 18dp `warning` 경고 삼각형 | `ActiveTravelScreen` 변수 감지 |
-| 헤더 오른쪽 보조 행동 | 36dp · `radiusMd` | `background` / **16dp `muted`** | `NotificationsScreen` 모두 읽음, `ScheduleEditScreen` 되돌리기 |
+| 헤더 오른쪽 보조 행동 | 36dp · `radiusMd` | `background` / **16dp `onSurfaceVariant #6B7280`**(D7, Figma 현재 `#94A3B8`에서 변경) | `NotificationsScreen` 모두 읽음, `ScheduleEditScreen` 되돌리기 |
 | 사진 위 버튼 | 36dp · 원형 | `rgba(0,0,0,0.3)` / 18dp 흰색 | `TripDetailScreen`, `PlaceDetailScreen` |
 | 어두운 화면 버튼 | 36dp · 원형 | 흰색 10% / 18dp 흰색 | `DayRouteScreen` |
 | 지도 위 떠 있는 버튼 | 40dp · 원형 | 흰색 90% + 그림자 `0 2px 8px rgba(0,0,0,0.15)` / 18dp `onSurface` | `AlternativePlacesScreen` |
@@ -423,7 +427,8 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 - 모든 헤더 버튼의 터치 영역은 48dp로 넓힌다(10절).
 
 **헤더 아이콘 색 (2026-09-13 결정, D7)**
-- 알림 벨·설정 같은 헤더 행동 아이콘은 **`onSurfaceVariant #6B7280`**을 쓴다. 뒤로 가기·닫기는 `onSurface #111827`이다.
+- 헤더의 행동 아이콘은 **`onSurfaceVariant #6B7280`**을 쓴다. 알림 벨·설정(18~20dp)과 헤더 오른쪽 보조 행동(16dp: `NotificationsScreen` 모두 읽음, `ScheduleEditScreen` 되돌리기)이 모두 해당한다. 뒤로 가기·닫기는 `onSurface #111827`이다.
+- 헤더 오른쪽 보조 행동 아이콘의 Figma 현재 값 `muted #94A3B8`도 같은 대비 미달이라 `#6B7280`으로 바꾼다(2026-09-13).
 - 대비: 흰 배경 4.84:1, 헤더 버튼 상자 `#F4F6FB` 위 4.47:1로 10절 "의미 있는 아이콘 3:1"을 넘는다.
 - `MyTripsScreen`·`ActiveTravelScreen` 알림·설정 아이콘의 `#4B5563`은 원본 확인(Figma MCP) 결과 이름 붙은 색 스타일이 아닌 임의 hex였다(소스 세 곳). 팔레트에 등록하지 않고 `#6B7280`으로 교체하며, **Figma도 같은 값으로 고친다.**
 - 한때 정했던 `muted #94A3B8`은 흰 배경 2.56:1, `#F4F6FB` 위 약 2.37:1로 3:1에 못 미쳐 폐기했다.
@@ -713,7 +718,7 @@ val LocalGilpickColors = compositionLocalOf<GilpickColors> { error("GilpickTheme
 | D4 | 버튼 곡률 12 vs 16 | **A 폭 기준**. 가로 분할 버튼 12, 폭을 채우는 버튼 16 | 6절 버튼 곡률 규칙 |
 | D5 | 오류 화면 원인 카드 | **B 오류 코드 행 제외**. 발생 시각·마지막 동작 2행만 둔다 | 9절 오류 화면 |
 | D6 | 24sp 제목 역할 | **A `Status title 24/32sp 900` 신설** | 4절 타입 표, 9절 오류 화면 |
-| D7 | 헤더 행동 아이콘 색 | **`onSurfaceVariant #6B7280`**(흰 배경 4.84:1). 원본 `#4B5563`(임의 hex)은 등록하지 않는다. 한때 정한 `#94A3B8`은 대비 미달(2.56:1)로 폐기 | 7절 헤더 아이콘 버튼 |
+| D7 | 헤더 행동 아이콘 색 | **`onSurfaceVariant #6B7280`**(흰 배경 4.84:1). 알림·설정 아이콘과 헤더 오른쪽 보조 행동 아이콘(모두 읽음·되돌리기)에 모두 적용한다. 원본 `#4B5563`(임의 hex)은 등록하지 않는다. `#94A3B8`은 대비 미달(2.56:1)로 헤더 아이콘에 쓰지 않는다 | 7절 헤더 아이콘 버튼 |
 | — | Tailwind `shadow-md`·`shadow-sm` 값 | 원본 `package.json` `tailwindcss ^4.0.0` 근거로 v4 기본값 확정 | 6절 그림자 |
 
 ### Figma 수정 필요 목록
@@ -726,8 +731,12 @@ val LocalGilpickColors = compositionLocalOf<GilpickColors> { error("GilpickTheme
 | D2 | `EditTripScreen` `저장` 비활성 | gradient + `opacity 40%` + 주버튼 그림자 | `#CBD5E1` + `opacity 40%`, 그림자 없음 |
 | D4 | `ActiveTravelScreen` `장소 추가` 점선 버튼(`w-full`) | 12dp(`rounded-xl`) | 16dp(`rounded-2xl`) |
 | D4 | `SettingsScreen` `로그아웃`(`w-full`) | 12dp(`rounded-xl`) | 16dp(`rounded-2xl`) |
-| D4 | `ScheduleEditScreen` 이동 수단 시트, `AddPlaceScreen`·`PlaceDetailScreen` 일정 추가 시트의 가로 분할 `취소`·`적용`/`일정에 추가` | 16dp(`rounded-2xl`) | 12dp(`rounded-xl`) |
+| D4 | `ScheduleEditScreen` 이동 수단 선택(변경) 시트 `취소`·`적용` | 16dp(`rounded-2xl`) | 12dp(`rounded-xl`) |
+| D4 | `AddPlaceScreen` 일정 추가 시트 `취소`·`일정에 추가` | 16dp(`rounded-2xl`) | 12dp(`rounded-xl`) |
+| D4 | `PlaceDetailScreen` 일정 추가 시트 `취소`·`일정에 추가` | 16dp(`rounded-2xl`) | 12dp(`rounded-xl`) |
 | D5 | `ErrorScreen` 원인 카드 | `오류 코드`·`발생 시각`·`마지막 동작` 3행 | `오류 코드` 행 제거 |
 | D7 | `MyTripsScreen` 알림 벨, `ActiveTravelScreen` 알림 벨·설정 아이콘 | `#4B5563` | `#6B7280` |
+| D7 | `NotificationsScreen` 헤더 모두 읽음 아이콘(16dp) | `#94A3B8` | `#6B7280` |
+| D7 | `ScheduleEditScreen` 헤더 되돌리기 아이콘(16dp) | `#94A3B8` | `#6B7280` |
 
 D4 예외 네 곳 중 `PlaceDetailScreen` 하단 CTA와 `ScheduleEditScreen` 체류 시간 dialog의 `취소`·`적용`은 가로 분할이라 이미 폭 기준(12dp)에 맞아 수정하지 않는다.
