@@ -34,10 +34,12 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 > **변경 기록 (2026-09-13, 팀 결정, #450)**: 직접 검색 화면을 **Figma `MapSearchScreen` 기준 지도형 검색으로 변경**한다(전체 화면 지도 + 결과 번호 마커 + 파란 원형 카테고리 칩 + 떠 있는 검색창 + 하단 결과 시트 + 행별 `선택` 버튼). 아래 문서에서 "F003 `PlaceSearchScreen`의 목록형 검색(`PlaceRow`·`EmptyState`)을 재사용한다"고 정했던 결정은 **폐기**한다. 기존 목록형 구현(T031·T032, `AlternativeSearchScreen.kt`)은 #450에서 지도형으로 교체한다. ALT-002 계약(`place.latitude`·`longitude` 포함)은 마커 표시에 그대로 쓸 수 있어 변경하지 않는다.
 >
-> **지도형 전환 시 구현 전 확인할 항목(결정 범위 밖, #450에 기록)**
-> - Figma 카테고리 칩(`전체`·`명소`·`음식`·`카페`·`쇼핑`·`자연`): spec FR-019가 "직접 검색은 반경·카테고리 제한을 두지 않는다", ALT-002에는 카테고리 파라미터가 없다. 칩을 받은 결과의 화면 필터로만 둘지, 계약·spec을 바꿀지 정해야 한다.
-> - Figma 시트 부제 "경복궁 기준 2km 이내": FR-019는 반경 제한이 없다. 반경 문구를 뺄지, 거리 표시로 바꿀지 정해야 한다.
-> - Figma의 `혼잡`·`마감` 배지: ALT-002에는 혼잡 정보와 폐점 시각이 없다(`operatingStatus`만). 없는 값은 표시하지 않는다(ui-guidelines 12절).
+> **지도형 전환의 세부 결정 (2026-09-14, #450)**
+> - **반경 2km**: spec FR-019를 "대체 대상 장소(감지 결과의 기존 일정 장소) 좌표 기준 2km 이내"로 바꿨다. Figma "경복궁 기준 2km 이내"의 `경복궁`은 예시 값이고, 같은 흐름의 `AlternativePlacesScreen` 감지 장소를 가리킨다. 서버 ALT-002의 거리 기준점도 같은 좌표다.
+>   - **반경 필터는 서버에서 적용해야 한다(화면 필터로는 불가).** 확인 결과: ALT-002는 `query`·`cursor`·`limit`(최대 20)만 받고, 서버는 TourAPI 키워드 검색(`searchKeyword2`, 전국, 반경 미지원)을 페이지 단위로 그대로 넘긴다. 화면에서 2km 밖을 걸러내면 한 페이지가 비어도 `hasNext=true`가 되고, `검색 결과 N곳`이 실제 개수와 달라지며, 무한 스크롤이 빈 페이지를 계속 부른다. 따라서 검색 API 동작(고정 2km 필터 또는 `radiusMeters` 파라미터) 변경이 필요하고 백엔드 조율 목록에 올렸다. TourAPI 키워드 검색은 반경을 지원하지 않고 위치 기반 목록(`locationBasedList2`)은 키워드를 지원하지 않아 서버 설계가 필요하다(research R1).
+>   - 백엔드 반영 전에는 앱이 "2km 이내" 문구를 표시하지 않는다(사실과 다른 안내 방지). 결과 행의 `기존 장소에서 N m` 거리 표시는 유지한다.
+> - **카테고리 칩**: 검색 API에 카테고리 필터 파라미터 추가를 백엔드와 조율한다(서버 `PlaceService.search_places`는 `category` 인자가 있으나 ALT-002가 `None`으로 호출). 반영 전에는 칩 UI를 구현하되 표시하지 않는다(조건부 렌더링).
+> - **`혼잡`·`마감` 배지**: 검색 API 응답에 혼잡도·마감 여부 값 추가를 백엔드와 조율한다. 반영 전에는 값이 없으면 배지를 그리지 않는다(ui-guidelines 12절, 값을 지어내지 않음).
 
 **Design Sources**: `docs/design/ui-guidelines.md`(3·5·9·10절), Figma Make 저장소 사본 `docs/design/figma-make/src/screens/AlternativePlacesScreen.tsx`(`hasResults` true/false), `ActiveTravelScreen.tsx`(변수 경고 영역), `MapSearchScreen.tsx`(직접 검색 — 지도형, 2026-09-13 변경). ~~F003 `PlaceSearchScreen.kt`(직접 검색 재사용)~~ 폐기. Figma의 `이동 시간 N분 증가` 근거 문구는 F010 범위라 표시하지 않는다(spec UI-003).
 
