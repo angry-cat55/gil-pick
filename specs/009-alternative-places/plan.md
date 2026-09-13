@@ -32,15 +32,22 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 ## UI Implementation & Validation
 
-**Design Sources**: `docs/design/ui-guidelines.md`(3·5·9·10절), Figma Make 저장소 사본 `docs/design/figma-make/src/screens/AlternativePlacesScreen.tsx`(`hasResults` true/false), `ActiveTravelScreen.tsx`(변수 경고 영역), `MapSearchScreen.tsx`·F003 `PlaceSearchScreen.kt`(직접 검색 재사용). Figma의 `이동 시간 N분 증가` 근거 문구는 F010 범위라 표시하지 않는다(spec UI-003).
+> **변경 기록 (2026-09-13, 팀 결정, #450)**: 직접 검색 화면을 **Figma `MapSearchScreen` 기준 지도형 검색으로 변경**한다(전체 화면 지도 + 결과 번호 마커 + 파란 원형 카테고리 칩 + 떠 있는 검색창 + 하단 결과 시트 + 행별 `선택` 버튼). 아래 문서에서 "F003 `PlaceSearchScreen`의 목록형 검색(`PlaceRow`·`EmptyState`)을 재사용한다"고 정했던 결정은 **폐기**한다. 기존 목록형 구현(T031·T032, `AlternativeSearchScreen.kt`)은 #450에서 지도형으로 교체한다. ALT-002 계약(`place.latitude`·`longitude` 포함)은 마커 표시에 그대로 쓸 수 있어 변경하지 않는다.
+>
+> **지도형 전환 시 구현 전 확인할 항목(결정 범위 밖, #450에 기록)**
+> - Figma 카테고리 칩(`전체`·`명소`·`음식`·`카페`·`쇼핑`·`자연`): spec FR-019가 "직접 검색은 반경·카테고리 제한을 두지 않는다", ALT-002에는 카테고리 파라미터가 없다. 칩을 받은 결과의 화면 필터로만 둘지, 계약·spec을 바꿀지 정해야 한다.
+> - Figma 시트 부제 "경복궁 기준 2km 이내": FR-019는 반경 제한이 없다. 반경 문구를 뺄지, 거리 표시로 바꿀지 정해야 한다.
+> - Figma의 `혼잡`·`마감` 배지: ALT-002에는 혼잡 정보와 폐점 시각이 없다(`operatingStatus`만). 없는 값은 표시하지 않는다(ui-guidelines 12절).
 
-**Tokens & Components**: 색은 `GilpickTheme` 토큰만 사용 — 경고 아이콘 박스·변수 칩·배너 `warningContainer`/`warning`, 1위 강조 배경 `primaryContainer`, 보조 글자 `muted`·`faint`, 폐점 임박 `warning`. 새 토큰 추가 없음. 재사용 component: `RouteMap`의 `circleMarker`·`pillMarker`·NaverMap 초기화(→ `internal`), `PlaceSearchScreen`의 `PlaceRow`·`EmptyState`(→ `internal` + 행 하단 slot), ui-guidelines 9절 `ErrorScreen` 형식은 `route`/`progress`가 쓰는 오류 composable 재사용. 신규: `AlternativePlacesScreen`, `AlternativeMap`, `AlternativeSearchScreen`, `VariableWarningBanner`(progress 패키지, 배너)
+**Design Sources**: `docs/design/ui-guidelines.md`(3·5·9·10절), Figma Make 저장소 사본 `docs/design/figma-make/src/screens/AlternativePlacesScreen.tsx`(`hasResults` true/false), `ActiveTravelScreen.tsx`(변수 경고 영역), `MapSearchScreen.tsx`(직접 검색 — 지도형, 2026-09-13 변경). ~~F003 `PlaceSearchScreen.kt`(직접 검색 재사용)~~ 폐기. Figma의 `이동 시간 N분 증가` 근거 문구는 F010 범위라 표시하지 않는다(spec UI-003).
+
+**Tokens & Components**: 색은 `GilpickTheme` 토큰만 사용 — 경고 아이콘 박스·변수 칩·배너 `warningContainer`/`warning`, 1위 강조 배경 `primaryContainer`, 보조 글자 `muted`·`faint`, 폐점 임박 `warning`. 새 토큰 추가 없음. 재사용 component: `RouteMap`의 `circleMarker`·`pillMarker`·NaverMap 초기화(→ `internal`), ~~`PlaceSearchScreen`의 `PlaceRow`·`EmptyState`(→ `internal` + 행 하단 slot)~~(직접 검색 목록형 재사용 폐기, 2026-09-13), ui-guidelines 9절 `ErrorScreen` 형식은 `route`/`progress`가 쓰는 오류 composable 재사용. 신규: `AlternativePlacesScreen`, `AlternativeMap`, `AlternativeSearchScreen`(지도형: 지도·번호 마커·칩·결과 시트, #450), `VariableWarningBanner`(progress 패키지, 배너)
 
 **State & Interaction**: `AlternativeUiState` = Loading(1초 지연 표시) / Error(재시도·돌아가기, 기존 일정 유지) / Closed(409, 진행 화면으로) / Content(후보 목록, `items` 비면 empty 표현, `refreshing`은 기존 목록 유지, `dismissPending`·`dismissError`). 상세(DETECT-002)+후보(ALT-001) 병렬 조회, `LifecycleResumeEffect`로 재조회. 후보 선택·직접 검색 선택 → `onSelectPlace(SelectedAlternative)`; `기존 일정 그대로 진행` → DETECT-004 → `onDismissed`. 배너: `ProgressUiState.Content.bannerDetection`(오늘·당일 미완료·ETA 최소 1건, Figma 단일 배너), 탭 → `onOpenAlternatives(detectionId)`. 배너 없음은 빈 상태를 만들지 않는다(spec UI-001)
 
 **Accessibility & Adaptive Layout**: 터치 대상 `sizeIn(minHeight = 48.dp)`·간격 8dp, 아이콘 버튼 `contentDescription`, 후보 행 `contentDescription = "N위 이름, 카테고리, 거리, 운영 상태"`, TOP·폐점 임박·방문 불가는 배지·문구·테두리 병기(색 단독 금지), 360dp·fontScale 2.0에서 `weight(1f)`+줄바꿈으로 잘림 없음(F006 `오늘로 돌아가기` 교훈), 지도 정보는 목록으로 중복 제공(UI-004), `statusBarsPadding`/`navigationBarsPadding`
 
-**Visual Validation**: `AlternativeScreenshotTest` 4상태 × 2배율 8장 + `ActiveTravelScreenshotTest` 배너 2장(ATD `captureToImage`; 다이얼로그·시트는 inline content로 캡처). 실기기/`gilpick_api36_play` 실서버 절차는 quickstart AND 5. 적용하지 않는 상태: 직접 검색 화면의 `empty`는 F003 `EmptyState` 재사용(새 표현 없음), 배너의 `loading`·`error`는 없음(실패 = 숨김)
+**Visual Validation**: `AlternativeScreenshotTest` 4상태 × 2배율 8장 + `ActiveTravelScreenshotTest` 배너 2장(ATD `captureToImage`; 다이얼로그·시트는 inline content로 캡처). 실기기/`gilpick_api36_play` 실서버 절차는 quickstart AND 5. 적용하지 않는 상태: ~~직접 검색 화면의 `empty`는 F003 `EmptyState` 재사용(새 표현 없음)~~ → 지도형 전환 후 직접 검색 `empty`는 결과 시트 안 빈 상태로 표시(#450, ui-guidelines 5절 "목록·검색 영역 안 빈 상태"), 배너의 `loading`·`error`는 없음(실패 = 숨김)
 
 ### Figma 대조 결과 (T003, 2026-09-09)
 
@@ -55,7 +62,7 @@ Figma Make `AlternativePlacesScreen.tsx`(`hasResults` true = `alternativePlaces`
 | 1위 후보 | 배경 `#F0F6FF` + `TOP` 배지 | 그대로 + contentDescription `1위 …` | UI-003·UI-008 |
 | 후보 점수 `displayScore` | 없음 | 표시하지 않음(정렬 순서로만 드러남). F010이 필요하면 `SelectedAlternative.displayScore`로 전달 | UI-003 목록에 없음 |
 | 선택 버튼 `경로 비교`·`비교` | 있음 | 라벨 그대로, 동작은 `onSelectPlace(SelectedAlternative)`로 F010에 전달(일정 미변경) | UI-005, FR-023 |
-| 직접 검색 `방문 불가`·`이미 일정에 있음` | 없음(`MapSearchScreen`은 F003 검색과 동일) | F003 `PlaceRow` 하단 slot에 `기존 장소에서 820m` + 상태 문구, 행 비활성(문구+흐림 병기), `visitable=false`면 선택 불가 | UI-007·UI-008 |
+| 직접 검색 `방문 불가`·`이미 일정에 있음` | 없음(`MapSearchScreen`은 지도·결과 시트형) | ~~F003 `PlaceRow` 하단 slot~~ → 2026-09-13부터 `MapSearchScreen` 결과 시트 행에 `기존 장소에서 820m` + 상태 문구, 행·`선택` 버튼 비활성(문구+흐림 병기), `visitable=false`면 선택 불가(#450) | UI-007·UI-008 |
 | 직접 검색 거리 없음(`distanceMeters=null`) | 없음 | 거리 문구 생략 | UI-007 |
 | 추천 실패 `error`(`다시 시도하기`·돌아가기) | 없음 | ui-guidelines 9절 `ErrorScreen` 형식, `route`/`progress` 오류 composable 재사용, 기존 일정 유지 | UI-006 |
 | 처리된 감지(`409 DETECTION_NOT_ACTIVE`) | 없음 | 안내 문구 + `진행 화면으로` 버튼 | UI-006 |
@@ -142,7 +149,7 @@ android/app/src/
 │   │   ├── AlternativeViewModel.kt      # 병렬 조회, 재조회, dismiss, 선택 전달
 │   │   ├── AlternativePlacesScreen.kt   # Figma AlternativePlacesScreen + empty/error/closed
 │   │   ├── AlternativeMap.kt            # NaverMap: 기존 장소 pill + 후보 순위 원형 (RouteMap helper 재사용)
-│   │   ├── AlternativeSearchScreen.kt   # 직접 검색 (PlaceRow/EmptyState 재사용 + 거리·방문 가능 slot)
+│   │   ├── AlternativeSearchScreen.kt   # 직접 검색 — 2026-09-13 지도형(MapSearchScreen)으로 변경(#450). 기존 PlaceRow/EmptyState 재사용 결정 폐기
 │   │   ├── AlternativeLabels.kt         # 거리·운영 상태·근거 코드 → 문구, 시각 KST
 │   │   └── AlternativeNavigation.kt     # AlternativePlacesRoute(detectionId, tripId), AlternativeSearchRoute, alternativeGraph(repository, map, onSelectPlace, onDismissed, onSessionExpired)
 │   ├── progress/
@@ -150,7 +157,7 @@ android/app/src/
 │   │   ├── ProgressViewModel.kt         # AlternativeRepository? 주입, DETECT-001 병렬 조회(실패 격리)
 │   │   └── ActiveTravelScreen.kt        # VariableWarningBanner + onOpenAlternatives
 │   ├── route/RouteMap.kt                # circleMarker/pillMarker/초기화 internal 공개 (F005)
-│   ├── place/PlaceSearchScreen.kt       # PlaceRow/EmptyState internal + trailing slot (F003)
+│   ├── place/PlaceSearchScreen.kt       # PlaceRow/EmptyState internal + trailing slot (F003) — 직접 검색 지도형 전환(#450) 후 F009에서 더는 쓰지 않음
 │   └── MainActivity.kt                  # alternativeGraph 배선, 배너 → AlternativePlacesRoute, onSelectPlace no-op(F010이 교체)
 ├── test/java/com/gilpick/alternative/
 │   ├── AlternativeApiTest.kt            # DTO 역직렬화
