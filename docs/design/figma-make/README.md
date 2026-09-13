@@ -2,7 +2,8 @@
 
 - 원본: https://www.figma.com/make/H7SpIPF8iNYyxb5jPlo7xM/Design-UI-from-Reference
 - 받은 날짜: 2026-09-04 (Figma MCP). 같은 날 오후 2차 갱신: 장소 상세에 일정 추가 시트, 장소 추가에 행 탭→상세·결과 없음 상태, DayRoute 신규, 여행 상세 메뉴·일정 편집 이동 수단 변경·새 여행/여행 수정 커버 이미지·내 여행 빈 상태 등
-- 내용: `src/App.tsx`(화면 목록·네비게이션), `src/index.css`(폰트·전역), `src/screens/*.tsx` 19개 화면
+- 내용: `src/App.tsx`(화면 목록·네비게이션), `src/index.css`(폰트·전역), `src/screens/*.tsx` 19개 화면, `package.json`(Tailwind v4 등 의존성 버전, Tailwind 이름 클래스의 실제 값 판단 근거)
+- 2026-09-13 Figma MCP로 원본을 다시 열어 대조: `App.tsx`·`index.css`·화면 19개는 차이 없음, `package.json`만 추가. `vite.config.ts`·`tsconfig.json`·`index.html`·`src/main.tsx`는 Make 실행용 설정이라 저장하지 않았다.
 - Figma에서 디자인을 바꾸기 전까지는 다시 불러올 필요 없이 이 사본을 쓴다. Figma를 바꾸면 같은 PR에서 이 폴더를 갱신한다(Figma MCP: 학생 플랜 하루 200회 읽기).
 - 이미지 자산(`src/imports/*.png`, unsplash URL)은 저장하지 않았다.
 
