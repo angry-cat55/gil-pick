@@ -9,9 +9,10 @@ import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.auth.AuthResult
 import com.gilpick.route.RouteRepository
 import com.gilpick.itinerary.RouteStatus
+import com.gilpick.trip.KST
 import java.time.Clock
 import java.time.Instant
-import java.time.LocalDate
+import java.time.OffsetDateTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -126,8 +127,14 @@ class PreviewViewModel(
             is AuthResult.Failure -> return PreviewUiState.Error(result.error.toReplacementError())
         }
         // 감지 대상 항목의 도착 예정 시각이 속한 날짜가 그 항목이 놓인 여행 날짜다.
-        val date = runCatching { LocalDate.parse(detection.eta.take(ISO_DATE_LENGTH)) }.getOrNull()
-            ?: return PreviewUiState.Error(ReplacementError.Unexpected)
+        //
+        // `eta`는 서버가 주는 instant다. 문자열 앞 10자를 그대로 쓰면 표기된 시각대의 날짜가
+        // 나오는데, UTC로 오는 `2026-09-10T16:23:32Z`는 KST로 09-11 01:23이라 하루 앞선 날짜를
+        // 조회하게 된다. 여행에 없는 날짜라 `ROUTE-001`이 404를 주고 비교를 만들지 못한다(#410).
+        // 여행 날짜는 서버가 KST로 산정하므로(F002 FR-006) 같은 기준으로 변환한다.
+        val date = runCatching {
+            OffsetDateTime.parse(detection.eta).toInstant().atZone(KST).toLocalDate()
+        }.getOrNull() ?: return PreviewUiState.Error(ReplacementError.Unexpected)
 
         val dayRoute = when (val result = routes.getDayRoute(detection.tripId, date)) {
             is AuthResult.Success -> result.value
@@ -156,9 +163,6 @@ class PreviewViewModel(
     }
 
     companion object {
-        /** ISO-8601 `2026-09-08T16:00:00+09:00`에서 날짜 부분의 길이. */
-        private const val ISO_DATE_LENGTH = 10
-
         /** 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다. */
         fun factory(
             detectionId: String,

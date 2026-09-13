@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -169,7 +170,7 @@ class TripDetailScreenTest {
 
         composeRule.onNodeWithText("목록으로 돌아가기").performClick()
 
-        composeRule.onNodeWithText("내 여행").assertIsDisplayed()
+        composeRule.onAllNodesWithText("내 여행").onFirst().assertIsDisplayed()
     }
 
     // --- 4. Back 버튼으로 복귀했을 때 목록 상태 유지 ---

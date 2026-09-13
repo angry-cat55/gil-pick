@@ -116,7 +116,12 @@ internal fun activeDetectionsJson() = """
 """.trimIndent()
 
 /** DETECT-002 상세. 혼잡·날씨는 평가됐고 운영시간은 확인 불가(`HOURS_UNKNOWN`)다. */
-internal fun detectionDetailJson(status: String = "ACTIVE") = """
+internal fun detectionDetailJson(
+    status: String = "ACTIVE",
+    // 서버는 instant를 UTC로 준다. 기본값은 기존 test가 쓰던 KST 표기 그대로 두고,
+    // 시각대 변환을 보는 test만 UTC 표기를 넘긴다(#410).
+    eta: String = "2026-09-09T14:00:00+09:00",
+) = """
     {"success": true,
      "data": {
        "detectionId": "$DETECTION_ID",
@@ -125,7 +130,7 @@ internal fun detectionDetailJson(status: String = "ACTIVE") = """
        "placeName": "경복궁",
        "primaryType": "WEATHER",
        "status": "$status",
-       "eta": "2026-09-09T14:00:00+09:00",
+       "eta": "$eta",
        "totalRiskScore": 78,
        "reason": "오후 2시 이후 강한 비 + 매우 높은 혼잡",
        "variables": {

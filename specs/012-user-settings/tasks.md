@@ -245,17 +245,19 @@
   - 선행: T011
   - 검증: path·method·field·200/400/401·공통 envelope가 생성 OpenAPI와 일치하고 DB migration 불필요가 확인됨
 
-- [ ] T026 최상위 Settings destination과 선택 상태를 연결하되 진행 여행 선택 정책은 추가하지 않음 in android/app/src/main/java/com/gilpick/settings/SettingsNavigation.kt and android/app/src/main/java/com/gilpick/MainActivity.kt
+- [X] T026 최상위 Settings destination과 선택 상태를 연결하되 진행 여행 선택 정책은 추가하지 않음 in android/app/src/main/java/com/gilpick/settings/SettingsNavigation.kt and android/app/src/main/java/com/gilpick/MainActivity.kt
   - 영역: FE
   - 담당: hs
   - 선행: T016, T020, T022, T024
   - 검증: Settings → 다른 최상위 화면 → Settings 왕복 뒤 마지막 성공 설정값이 유지되고 기존 여행·진행 route 회귀 test가 통과하며, F002 중복 기간 정책 미구현 상태에서 임의의 진행 여행을 고르지 않음
+  - 구현 기록: MainActivity.kt의 `TripRoute`를 `Scaffold`로 감싸고 Figma `App.tsx` 하단 탐색을 M3 `NavigationBar`(`내 여행`·`설정`)로 붙였다. 탭은 여행 목록·설정 destination 위에서만 보이고 하위 화면에서는 내려가며, 전환은 `popUpTo(start){saveState}`·`restoreState`·`launchSingleTop`으로 back stack을 쌓지 않는다. `여행 중` 탭은 F002 단일 진행 여행 정책이 없어 두지 않았다(`ponytail:` 주석). 여행 목록 헤더의 임시 `설정` TextButton(T022)은 제거했다. SettingsNavigation.kt는 route 주석만 갱신했고, `GilpickApp`에 `settingsRepository` 주입 인자를 더해 UI test가 서버 없이 탭 왕복을 본다(`SettingsNavigationTest` 4개).
 
-- [ ] T027 Android 설정 화면 adaptive·접근성·Figma screenshot 검증 in android/app/src/androidTest/java/com/gilpick/settings/SettingsAdaptiveTest.kt and specs/012-user-settings/quickstart.md
+- [X] T027 Android 설정 화면 adaptive·접근성·Figma screenshot 검증 in android/app/src/androidTest/java/com/gilpick/settings/SettingsAdaptiveTest.kt and specs/012-user-settings/quickstart.md
   - 영역: FE
   - 담당: hs
   - 선행: T026
   - 검증: 360dp, phone/tablet 세로·가로, 시스템 최대 글자 크기, system/navigation bar inset에서 잘림·겹침·가로 scroll·접근 불가 0건이고 승인 Figma와 content screenshot 일치
+  - 구현 기록: `SettingsAdaptiveTest` 17개. 48dp(토글·정책 2행·로그아웃), 360dp+글자 2.0에서 네 영역의 오른쪽 경계 ≤360dp와 핵심 문구 표시, 320dp 높이에서 로그아웃까지 스크롤 도달, 하단 탭과 로그아웃 경계 비겹침을 assert하고 content ON/OFF·저장 중·loading·조회/저장 error·정책 실패·계정 없음·360dp 2.0·가로 높이 screenshot 13장을 남긴다. phone/tablet 가로 방향은 `wm size`로 quickstart 5절에 기록했다.
 
 - [X] T028 Backend 전체 정적 분석·관련 회귀·계약 검증 실행 using specs/012-user-settings/quickstart.md
   - 영역: BE
@@ -263,11 +265,12 @@
   - 선행: T012, T025
   - 검증: `pytest` PREF·notification 관련 suite, `ruff check app tests`, `mypy app`, OpenAPI YAML·생성 schema 대조 결과를 Backend PR에 기록하고 public API·service docstring 확인
 
-- [ ] T029 Android 전체 unit·instrumented·정적 분석과 종단간 검증 실행 using specs/012-user-settings/quickstart.md
+- [X] T029 Android 전체 unit·instrumented·정적 분석과 종단간 검증 실행 using specs/012-user-settings/quickstart.md
   - 영역: FE
   - 담당: hs
   - 선행: T011, T027
   - 검증: `testDebugUnitTest`, `connectedDebugAndroidTest`, lint, 설정 변경 수동 검증 5회가 모두 30초 이내인지 확인, 동시 변경·재조회 자동 검증 10회 일치, 정책 진입·복귀, 두 기기 로그아웃, 구현 담당자를 제외한 팀원 2명의 첫 시도 위치 찾기 결과와 미실행 항목·이유를 Android PR에 기록
+  - 구현 기록: quickstart 3·4·5·6·8절에 기록. unit 581 통과, connected 511개(두 AVD 샤드) 중 병렬 timeout·환경성 실패는 단독 재실행으로 통과, `TripEmptyStateTest` 2개는 F011 벨 이후 `main`에서 실패하는 기존 항목이라 기록만 남김. lint는 변경 파일 0건. 실서버 PREF 동시 변경 10회 GET=DB 일치, 수동 변경 5회 4.8s 이내, 정책 2건 진입·복귀, 두 기기 로그아웃(A 즉시 로그인 화면·서버 204·B session과 설정 유지). 팀원 2명 첫 시도 위치 찾기는 담당자 외 팀원이 해야 해 미실행(8절).
 
 ---
 

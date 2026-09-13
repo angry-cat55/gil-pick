@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Gilpick" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Gilpick" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 밝은 배경 위에 그려지는 status bar 아이콘을 어둡게 한다. 흰 헤더(설정 계정 영역)에서 흰 아이콘은 보이지 않는다(UI-006). -->
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

@@ -7,12 +7,16 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.GilpickApp
+import com.gilpick.TAG_NAV_SETTINGS
 import com.gilpick.auth.AuthUiState
 import com.gilpick.ui.theme.GilpickTheme
 import org.junit.Assert.assertEquals
@@ -94,13 +98,14 @@ class SettingsLogoutTest {
             )
         }
 
-        composeRule.onNodeWithText("내 여행").assertIsDisplayed()
+        // `내 여행`은 제목과 하단 탭 두 곳에 있다(T026).
+        composeRule.onAllNodesWithText("내 여행").onFirst().assertIsDisplayed()
         composeRule.onNodeWithText("로그아웃").assertDoesNotExist()
-        composeRule.onNodeWithText("설정").performClick()
+        composeRule.onNodeWithTag(TAG_NAV_SETTINGS).performClick()
         composeRule.onNodeWithTag(TAG_LOGOUT).performClick()
 
         composeRule.onNodeWithText("카카오로 시작하기").assertIsDisplayed()
-        composeRule.onNodeWithText("내 여행").assertDoesNotExist()
+        composeRule.onAllNodesWithText("내 여행").assertCountEquals(0)
         composeRule.onNodeWithTag(TAG_LOGOUT).assertDoesNotExist()
     }
 

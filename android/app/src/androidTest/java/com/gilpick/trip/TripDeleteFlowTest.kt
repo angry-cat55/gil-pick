@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -169,7 +170,7 @@ class TripDeleteFlowTest {
 
         // 목록으로 돌아왔고, 삭제한 여행은 목록에 없다. TripListViewModel에는 삭제를
         // 알리는 경로가 없다. 복귀 시 재조회만으로 빠진다.
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
         composeRule.onNodeWithText(TRIP_NAME).assertDoesNotExist()
         assertEquals(1, deleteCount)
     }

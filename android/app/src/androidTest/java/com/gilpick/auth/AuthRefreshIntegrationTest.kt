@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -94,7 +97,7 @@ class AuthRefreshIntegrationTest {
         )
         setContentWithRepository()
         composeRule.onNodeWithText(string(R.string.refresh_offline_title)).assertIsDisplayed()
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertDoesNotExist()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).assertCountEquals(0)
     }
 
     @Test
@@ -109,7 +112,7 @@ class AuthRefreshIntegrationTest {
         composeRule.onNodeWithText(string(R.string.refresh_offline_retry)).performClick()
         composeRule.waitUntil(TIMEOUT_MS) { repository.state.value is AuthUiState.Authenticated }
 
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
         assertEquals(SECOND_ACCESS, runBlocking { repository.currentSession() }?.accessToken)
     }
 

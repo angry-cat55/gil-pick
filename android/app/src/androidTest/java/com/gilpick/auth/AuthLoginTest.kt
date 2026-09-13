@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -155,7 +156,7 @@ class AuthLoginTest {
             )
         }
 
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.login_kakao)).assertDoesNotExist()
     }
 
@@ -169,7 +170,7 @@ class AuthLoginTest {
             )
         }
 
-        composeRule.onNodeWithText(string(R.string.trips_title)).assertIsDisplayed()
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
     }
 
     // --- T045: 반복 시간 측정 ---
