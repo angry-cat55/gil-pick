@@ -83,6 +83,7 @@ import com.gilpick.place.StateMessage
 import com.gilpick.place.StepButton
 import com.gilpick.place.TransportOption
 import kotlin.math.abs
+import com.gilpick.ui.component.GradientButtonDefaults
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -817,7 +818,12 @@ private fun AddPlaceButton(enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** 하단 고정 `저장` 주버튼. 저장 중에는 비활성화하고 진행 중임을 표시한다(UI-007). */
+/**
+ * 하단 고정 `저장` 주버튼. 저장 중에는 비활성화하고 진행 중임을 표시한다(UI-007).
+ *
+ * 저장할 수 없을 때(일정을 불러오는 중·실패, 날짜 미선택)는 비활성 표현(가이드라인 7절 D2: `faint` + 40%)이다.
+ * 저장 중 표현은 처리 중이라 이 버튼에서는 바꾸지 않았다(#433 범위 밖).
+ */
 @Composable
 private fun SaveBar(saving: Boolean, enabled: Boolean, saveError: ItineraryError?, onSave: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
@@ -847,6 +853,7 @@ private fun SaveBar(saving: Boolean, enabled: Boolean, saveError: ItineraryError
             modifier = Modifier
                 .fillMaxWidth()
                 .height(SAVE_BUTTON_HEIGHT)
+                .alpha(if (!enabled && !saving) GradientButtonDefaults.DisabledAlpha else 1f)
                 .clip(shape)
                 .background(
                     if (enabled && !saving) Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark))

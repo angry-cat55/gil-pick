@@ -25,7 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * #431: `GradientButton` 계열 3종 × 기본·처리 중, 360dp·글자 2.0배 screenshot 기록.
+ * #431·#433: `GradientButton` 계열 3종 × 기본·처리 중, 비활성, 360dp·글자 2.0배 screenshot 기록.
  *
  * 검증이 아니라 기록이다. PNG를 기기 저장소에 남기고 `adb pull`로 꺼내 Figma gradient 버튼과 대조한다.
  * 처리 중 spinner는 회전 중이라 각도가 캡처마다 다를 수 있다.
@@ -81,6 +81,17 @@ class GradientButtonScreenshotTest {
     @Test
     fun 주_처리_중_360dp_최대_글자배율() = capture("gradient_button_primary_processing_360dp_fontscale2") {
         Narrow { GradientButton(label = "변경하는 중", onClick = {}, modifier = Modifier.fillMaxWidth(), processing = true) }
+    }
+
+    /** #433: 비활성(D2) — `faint` + 40%, 그림자 없음. */
+    @Test
+    fun 주_비활성() = capture("gradient_button_primary_disabled") {
+        GradientButton(label = "오늘 여행 시작", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
+    }
+
+    @Test
+    fun 주_비활성_360dp_최대_글자배율() = capture("gradient_button_primary_disabled_360dp_fontscale2") {
+        Narrow { GradientButton(label = "오늘 여행 시작", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false) }
     }
 
     /** 360dp 너비 + 시스템 글자 확대 최대 배율(2.0). */

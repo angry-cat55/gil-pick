@@ -78,6 +78,8 @@ import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.route.messageRes
 import com.gilpick.ui.component.BadgeTone
+import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.GradientButtonWidth
 import com.gilpick.ui.component.StatusBadge
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
@@ -630,7 +632,6 @@ private fun ItineraryActions(
     onEditItinerary: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -668,31 +669,26 @@ private fun ItineraryActions(
             is TripStartPhase.NoPlaces -> StartButton(
                 label = stringResource(R.string.trip_detail_start_add_place),
                 onClick = { onAddPlace(start.date) },
-                shape = RoundedCornerShape(radius.lg),
             )
 
             is TripStartPhase.Started -> StartButton(
                 label = stringResource(R.string.trip_detail_open_progress),
                 onClick = { onOpenProgress(start.date) },
-                shape = RoundedCornerShape(radius.lg),
             )
 
             is TripStartPhase.Launched -> StartButton(
                 label = stringResource(R.string.trip_detail_open_progress),
                 onClick = { onOpenProgress(start.date) },
-                shape = RoundedCornerShape(radius.lg),
             )
 
             is TripStartPhase.Failed -> StartButton(
                 label = stringResource(R.string.trip_detail_start_retry),
                 onClick = if (start.ready != null) requestThenStart else onRetryStart,
-                shape = RoundedCornerShape(radius.lg),
             )
 
             is TripStartPhase.Starting -> StartButton(
                 label = stringResource(R.string.trip_detail_starting),
                 onClick = {},
-                shape = RoundedCornerShape(radius.lg),
                 enabled = false,
                 busy = true,
             )
@@ -700,13 +696,11 @@ private fun ItineraryActions(
             is TripStartPhase.Ready -> StartButton(
                 label = stringResource(R.string.trip_detail_start_travel),
                 onClick = requestThenStart,
-                shape = RoundedCornerShape(radius.lg),
             )
 
             TripStartPhase.Loading, TripStartPhase.NotTravelDay -> StartButton(
                 label = stringResource(R.string.trip_detail_start_travel),
                 onClick = {},
-                shape = RoundedCornerShape(radius.lg),
                 enabled = false,
             )
         }
@@ -729,34 +723,29 @@ private fun ItineraryActions(
     }
 }
 
-/** 시작 영역의 전체 너비 주 버튼. [busy]면 라벨 옆에 진행 표시를 붙인다(UI-008). */
+/**
+ * 시작 영역의 전체 너비 주 버튼. 공통 [GradientButton]이다(#433).
+ *
+ * - [enabled]가 alse면 비활성 표현(가이드라인 7절 D2)이다. 여행 날짜가 아닐 때의 이유 문장은 버튼 위 안내가 맡는다.
+ * - [busy]면 처리 중 표현(80% + 라벨 앞 spinner, UI-008)이고 클릭이 막힌다.
+ * - 높이·곡률은 바꾸지 않았다. Figma 52dp 정렬은 여행 상세 화면 Issue(#442) 범위다.
+ */
 @Composable
 private fun StartButton(
     label: String,
     onClick: () -> Unit,
-    shape: RoundedCornerShape,
     enabled: Boolean = true,
     busy: Boolean = false,
 ) {
-    val spacing = LocalGilpickSpacing.current
-    Button(
+    GradientButton(
+        label = label,
         onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        width = GradientButtonWidth.Standalone,
+        height = PRIMARY_BUTTON_HEIGHT,
+        processing = busy,
         enabled = enabled,
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = PRIMARY_BUTTON_HEIGHT),
-        shape = shape,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(spacing.space2))
-        }
-        Text(label)
-    }
+    )
 }
 
 /** 시작 요청 실패 원인 문구. 세션 만료는 앱 전체 흐름이 다루므로 여기서는 일반 실패로 안내한다. */

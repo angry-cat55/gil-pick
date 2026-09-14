@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +84,9 @@ object GradientButtonDefaults {
     /** 처리 중 투명도(`disabled:opacity-80`, 가이드라인 7절 "버튼 비활성 상태"). */
     const val ProcessingAlpha: Float = 0.8f
 
+    /** 비활성 투명도(`TripDetailScreen` `disabled:opacity-40`, 가이드라인 7절 D2). */
+    const val DisabledAlpha: Float = 0.4f
+
     /** spinner 한 바퀴 시간. Tailwind `animate-spin`의 1s linear infinite. */
     const val SpinDurationMillis: Int = 1000
 }
@@ -98,7 +102,9 @@ object GradientButtonDefaults {
  *
  * @param label 버튼 문구. 처리 중에는 호출부가 진행 문구(예: `변경하는 중`)를 넘긴다.
  * @param processing 처리 중. gradient를 유지한 채 80% 투명도와 라벨 앞 spinner를 보이고 클릭을 막는다.
- * @param enabled 비활성 여부. 지금은 클릭만 막는다. 비활성 표현(`faint` 단색 + 40%, 그림자 없음, D2)은 #433에서 구현한다.
+ * @param enabled 조건이 맞지 않아 누를 수 없음(예: 여행 날짜 아님). `faint` 단색 + 40% 투명도, 그림자 없음, 흰 라벨 유지(7절 D2).
+ *   흰 라벨 대비가 1.48:1이라 호출부가 비활성 이유 문장을 함께 보여야 한다. 요청을 보내는 중에 잠그는 경우는
+ *   비활성이 아니라 [processing]을 쓴다. 둘 다 주면 [processing]이 이긴다.
  */
 @Composable
 fun GradientButton(
@@ -118,12 +124,13 @@ fun GradientButton(
     // 세 계열 모두 라벨이 흰색이다(3절). onPrimary가 흰색이라 그 값을 쓴다.
     val content = MaterialTheme.colorScheme.onPrimary
 
-    val gradient = when (tone) {
+    val disabled = !enabled && !processing
+    val gradient = if (disabled) SolidColor(colors.faint) else when (tone) {
         GradientTone.Primary -> CssLinearGradient(listOf(primary, colors.primaryDark))
         GradientTone.Success -> CssLinearGradient(listOf(colors.success, colors.successDark))
         GradientTone.Warning -> CssLinearGradient(listOf(colors.warning, colors.warningDark))
     }
-    val shadows = if (tone == GradientTone.Primary) LocalGilpickShadows.current.primaryButton else emptyList()
+    val shadows = if (tone == GradientTone.Primary && !disabled) LocalGilpickShadows.current.primaryButton else emptyList()
     val shape = RoundedCornerShape(
         when (width) {
             GradientButtonWidth.Standalone -> radius.lg
@@ -134,9 +141,13 @@ fun GradientButton(
     val shadowed = shadows.fold(
         modifier
             .minimumInteractiveComponentSize()
-            // Modifier.alpha는 경계 밖을 잘라 그림자가 사라진다. 그리기마다 투명도를 곱해 그림자까지 80%로 둔다.
+            // Modifier.alpha는 경계 밖을 잘라 그림자가 사라진다. 그리기마다 투명도를 곱해 그림자까지 같은 투명도로 둔다.
             .graphicsLayer {
-                alpha = if (processing) GradientButtonDefaults.ProcessingAlpha else 1f
+                alpha = when {
+                    processing -> GradientButtonDefaults.ProcessingAlpha
+                    disabled -> GradientButtonDefaults.DisabledAlpha
+                    else -> 1f
+                }
                 compositingStrategy = CompositingStrategy.ModulateAlpha
             },
     ) { acc, shadow -> acc.dropShadow(shape, shadow) }
@@ -233,6 +244,12 @@ private fun GradientButtonWarningPreview() = PreviewBox { GradientButton(label =
 @Composable
 private fun GradientButtonWarningProcessingPreview() = PreviewBox {
     GradientButton(label = "다시 만드는 중", onClick = {}, modifier = Modifier.fillMaxWidth(), tone = GradientTone.Warning, processing = true)
+}
+
+@Preview(widthDp = 360)
+@Composable
+private fun GradientButtonDisabledPreview() = PreviewBox {
+    GradientButton(label = "오늘 여행 시작", onClick = {}, modifier = Modifier.fillMaxWidth(), enabled = false)
 }
 
 @Composable
