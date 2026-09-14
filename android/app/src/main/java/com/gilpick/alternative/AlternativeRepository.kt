@@ -2,6 +2,7 @@ package com.gilpick.alternative
 
 import android.content.Context
 import com.gilpick.BuildConfig
+import com.gilpick.place.PlaceCategory
 import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthError
 import com.gilpick.auth.AuthErrorCodes
@@ -27,7 +28,24 @@ data class AlternativePage<T>(
     val items: List<T>,
     val nextCursor: String?,
     val hasNext: Boolean,
+    /** 직접 검색(ALT-002)에서만 채워지는 서버 필터 정보. 후보 목록(ALT-001)은 `null`이다. */
+    val filters: AlternativeSearchFilters? = null,
 )
+
+/**
+ * 서버가 지원하는 직접 검색 필터(#450). 셋 다 **계약에 아직 없다** — 있는 값만 화면이 쓴다.
+ *
+ * @property categories 카테고리 필터 목록. 비어 있지 않으면 칩을 그린다.
+ * @property originName 반경 기준 장소명. [radiusMeters]와 함께 있어야 부제를 그린다.
+ * @property radiusMeters 서버가 적용한 반경.
+ */
+data class AlternativeSearchFilters(
+    val categories: List<PlaceCategory>? = null,
+    val originName: String? = null,
+    val radiusMeters: Int? = null,
+) {
+    val isEmpty: Boolean get() = categories.isNullOrEmpty() && originName == null && radiusMeters == null
+}
 
 /**
  * 감지·대체 장소 데이터의 유일한 접근 지점.
@@ -89,9 +107,14 @@ class AlternativeRepository(
         detectionId: String,
         query: String,
         cursor: String? = null,
+        category: PlaceCategory? = null,
     ): AuthResult<AlternativePage<AlternativeSearchItemDto>> = call { token ->
-        api.searchAlternatives(bearer = token, detectionId = detectionId, query = query, cursor = cursor)
-            .toAuthResult { it.data.items.page(it.meta) }
+        api.searchAlternatives(bearer = token, detectionId = detectionId, query = query, cursor = cursor, category = category)
+            .toAuthResult { envelope ->
+                val data = envelope.data
+                val filters = AlternativeSearchFilters(categories = data.categories, originName = data.originName, radiusMeters = data.radiusMeters)
+                data.items.page(envelope.meta).copy(filters = filters.takeUnless { it.isEmpty })
+            }
     }
 
     /** 다섯 endpoint가 같은 인증·통신 실패 규칙을 쓰도록 한곳에 모은다. */

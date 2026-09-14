@@ -115,6 +115,8 @@ fun NavGraphBuilder.alternativeGraph(
             onLoadMore = viewModel::loadMore,
             onRetryLoadMore = viewModel::retryLoadMore,
             onSelect = { item -> onSelectPlace(viewModel.select(item)) },
+            onToggleSelect = viewModel::toggleSelect,
+            onSelectCategory = viewModel::selectCategory,
             modifier = Modifier.fillMaxSize(),
         )
     }

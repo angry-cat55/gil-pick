@@ -1,5 +1,6 @@
 package com.gilpick.alternative
 
+import com.gilpick.place.PlaceCategory
 /**
  * 대체 장소 화면의 표시 상태(data-model.md §3.1, spec UI-006).
  *
@@ -86,6 +87,9 @@ sealed interface AlternativeSearchPhase {
  * @property hasNext 이어질 페이지가 남았는지 여부.
  * @property loadingMore 다음 페이지를 받는 중인지 여부.
  * @property loadMoreError 다음 페이지 조회만 실패한 원인. 기존 결과는 유지한다.
+ * @property selectedPlaceId 시트 행과 지도 마커가 공유하는 선택 결과(UI-010, #450). 새 검색이 시작되면 풀린다.
+ * @property category 고른 카테고리 칩. `null`은 `전체`. 서버가 [filters]로 필터를 지원할 때만 뜻이 있다.
+ * @property filters 서버가 알려 준 필터 정보. `null`이면 칩·반경 부제를 그리지 않는다.
  */
 data class AlternativeSearchUiState(
     val query: String = "",
@@ -95,4 +99,7 @@ data class AlternativeSearchUiState(
     val hasNext: Boolean = false,
     val loadingMore: Boolean = false,
     val loadMoreError: AlternativeError? = null,
+    val selectedPlaceId: String? = null,
+    val category: PlaceCategory? = null,
+    val filters: AlternativeSearchFilters? = null,
 )

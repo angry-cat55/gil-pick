@@ -1,5 +1,6 @@
 package com.gilpick.alternative
 
+import com.gilpick.place.PlaceCategory
 import com.gilpick.auth.SuccessEnvelope
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -29,6 +30,8 @@ class FakeAlternativeService : AlternativeService {
     /** 지금까지 도착한 직접 검색 요청의 `(query, cursor)`. */
     val searchCalls = mutableListOf<Pair<String, String?>>()
 
+    /** 검색마다 받은 카테고리 필터(#450). */
+    val searchCategories = mutableListOf<PlaceCategory?>()
     var onSearch: suspend (cursor: String?) -> Response<AlternativeSearchEnvelope> = { search(searchJson()) }
 
     override suspend fun listDetections(
@@ -57,8 +60,10 @@ class FakeAlternativeService : AlternativeService {
         query: String,
         cursor: String?,
         limit: Int?,
+        category: PlaceCategory?,
     ): Response<AlternativeSearchEnvelope> {
         searchCalls += query to cursor
+        searchCategories += category
         return onSearch(cursor)
     }
 }
