@@ -97,6 +97,7 @@ async def list_trips(
     responses={
         400: {"model": ErrorEnvelope},
         401: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
         422: {"model": ErrorEnvelope},
     },
 )

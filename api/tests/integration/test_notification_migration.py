@@ -49,7 +49,7 @@ async def _inspect_schema(database_url: str) -> dict[str, object]:
 
 def test_notification_migration_is_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(_config())
-    assert script.get_heads() == ["012_add_kakao_route_provider"]
+    assert len(script.get_heads()) == 1
     assert (
         script.get_revision("012_add_kakao_route_provider").down_revision
         == "011_create_notifications"

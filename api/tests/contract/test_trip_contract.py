@@ -186,6 +186,36 @@ def test_create_trip_contract_allows_duplicate_names(client: TestClient) -> None
     assert first.json()["data"]["tripId"] != second.json()["data"]["tripId"]
 
 
+def test_create_trip_contract_returns_period_conflict_details(client: TestClient) -> None:
+    """기간 충돌은 겹치는 여행 식별자와 이름을 포함한 409로 반환한다."""
+    conflict_id = uuid.uuid4()
+    app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
+        AppError(
+            409,
+            "TRIP_PERIOD_CONFLICT",
+            "다른 여행과 기간이 겹칩니다.",
+            details={"tripId": str(conflict_id), "name": "기존 여행"},
+        )
+    )
+
+    response = client.post(
+        "/api/v1/trips",
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "name": "새 여행",
+            "startDate": "2026-09-01",
+            "endDate": "2026-09-03",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "TRIP_PERIOD_CONFLICT"
+    assert response.json()["error"]["details"] == {
+        "tripId": str(conflict_id),
+        "name": "기존 여행",
+    }
+
+
 @pytest.mark.parametrize(
     ("payload", "code"),
     [
@@ -219,7 +249,7 @@ def test_create_trip_openapi_requires_idempotency_key() -> None:
     header = next(item for item in operation["parameters"] if item["name"] == "Idempotency-Key")
 
     assert header["required"] is True
-    assert set(operation["responses"]) == {"201", "400", "401", "422"}
+    assert set(operation["responses"]) == {"201", "400", "401", "409", "422"}
 
 
 def test_list_trips_contract_forwards_filters_and_returns_pagination(

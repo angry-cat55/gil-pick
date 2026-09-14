@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import AppError
 from app.models.trip import Trip as TripModel
-from app.schemas.trip import UpdateTripRequest
+from app.schemas.trip import CreateTripRequest, UpdateTripRequest
 from app.services.trip import KST, TripService
 
 
@@ -34,6 +34,49 @@ def make_service(trip: TripModel) -> tuple[TripService, AsyncMock]:
     session = AsyncMock(spec=AsyncSession)
     session.scalar.return_value = trip
     return TripService(session, cursor_secret="unit-test-secret"), session
+
+
+@pytest.mark.asyncio
+async def test_create_trip_rejects_overlapping_active_trip() -> None:
+    """같은 사용자의 포함 경계 기간과 겹치는 생성은 충돌 여행 정보를 반환한다."""
+    conflict = make_trip()
+    service, _ = make_service(conflict)
+
+    with pytest.raises(AppError) as error:
+        await service.create_trip(
+            user_id=conflict.user_id,
+            payload=CreateTripRequest(
+                name="새 여행",
+                startDate=conflict.end_date,
+                endDate=conflict.end_date,
+            ),
+            idempotency_key=str(uuid.uuid4()),
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.code == "TRIP_PERIOD_CONFLICT"
+    assert error.value.details == {
+        "tripId": str(conflict.trip_id),
+        "name": conflict.name,
+    }
+
+
+@pytest.mark.asyncio
+async def test_overlap_check_excludes_updated_trip_itself() -> None:
+    """여행 수정의 중복 검사는 수정 대상 자체를 제외한다."""
+    trip = make_trip()
+    service, session = make_service(trip)
+    session.scalar.return_value = None
+
+    await service._reject_overlapping_period(
+        user_id=trip.user_id,
+        start_date=trip.start_date,
+        end_date=trip.end_date,
+        exclude_trip_id=trip.trip_id,
+    )
+
+    statement = session.scalar.await_args.args[0]
+    assert "trips.trip_id !=" in str(statement)
 
 
 @pytest.mark.asyncio
