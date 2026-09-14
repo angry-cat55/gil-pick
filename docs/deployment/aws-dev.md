@@ -111,15 +111,26 @@ docker compose -f deploy/aws/compose.yaml up -d --build
 
 Issue #523. 위 5절과 같은 절차(migration → build → 재기동 → health check)를 GitHub Actions 탭에서 버튼 한 번으로 실행할 수 있다. `.github/workflows/deploy-aws.yml`이 `workflow_dispatch`로만 동작하며, main merge마다 자동으로는 실행되지 않는다 — 공유 PoC 서버가 무관한 merge로 재시작돼 다른 팀원의 검증을 끊는 걸 피하기 위해서다.
 
-### 최초 1회: repository secret 등록
+이 저장소는 **Public**이다. self-hosted runner를 public repo에서 쓰면 외부인이 연 PR의 workflow가 우리 서버에서 실행될 수 있어 GitHub이 원칙적으로 비권장한다. `deploy-aws.yml`은 `workflow_dispatch`만 트리거라 Write 권한 있는 팀원만 실행할 수 있어 이 위험에서 벗어나 있다. **앞으로 다른 workflow에 `self-hosted`·`aws-dev` label을 재사용하려면, 반드시 `workflow_dispatch`처럼 외부에서 트리거 불가능한 이벤트로만 제한한다. `pull_request`·`pull_request_target`에는 절대 쓰지 않는다.**
 
-AI는 이 secret들의 실제 값을 다루지 않는다. 담당자가 직접 등록한다.
+EC2 보안 그룹이 SSH 22를 담당자 IP로만 제한하고 있어(1절), IP가 매번 바뀌는 GitHub 호스팅 runner에서는 SSH 접속이 막힌다. 그래서 SSH 대신 **EC2 안에 self-hosted runner를 직접 설치**해 실행한다 — 이러면 SSH secret 자체가 필요 없다.
+
+### 최초 1회: self-hosted runner 설치
+
+**runner 등록 token 발급은 Admin 권한이 필요하다.** repo owner가 GitHub 웹에서 `Settings → Actions → Runners → New self-hosted runner` (Linux, x64)를 열어 표시되는 `--token` 값을 확인한 뒤, EC2 SSH 접속 권한이 있는 담당자에게 전달한다. 이 token은 짧은 시간 안에 만료되는 1회성 등록 token이라 SSH key와 달리 일반 채널로 공유해도 되지만, 저장소나 로그에는 남기지 않는다.
+
+EC2에서 실행(다운로드 URL·token은 GitHub이 보여주는 값 그대로 사용):
 
 ```bash
-gh secret set AWS_DEV_SSH_KEY < /path/to/ec2-key.pem
-gh secret set AWS_DEV_SSH_USER --body "ubuntu"
-gh secret set AWS_DEV_HOST --body "<EC2 탄력적 IP 또는 SSH 접속에 쓰는 host>"
+mkdir -p /opt/gilpick/actions-runner && cd /opt/gilpick/actions-runner
+curl -o actions-runner.tar.gz -L https://github.com/actions/runner/releases/download/<최신 버전>/actions-runner-linux-x64-<최신 버전>.tar.gz
+tar xzf actions-runner.tar.gz
+./config.sh --url https://github.com/angry-cat55/gil-pick --token <GitHub이 보여준 token> --labels aws-dev --unattended
+sudo ./svc.sh install
+sudo ./svc.sh start
 ```
+
+`svc.sh install`로 systemd service로 등록하면 EC2 재부팅 후에도 runner가 자동으로 다시 뜬다. GitHub repository → Settings → Actions → Runners에서 `Idle` 상태로 뜨면 설치 완료다.
 
 ### 실행
 
