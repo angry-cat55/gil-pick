@@ -164,7 +164,7 @@ class TripDeleteFlowTest {
         openDetail()
 
         // 상세에 들어왔다.
-        composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).assertIsDisplayed()
 
         confirmDelete()
 
@@ -216,7 +216,7 @@ class TripDeleteFlowTest {
 
         assertEquals(0, deleteCount)
         // 상세에 그대로 있다.
-        composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).assertIsDisplayed()
     }
 
     @Test
@@ -247,7 +247,7 @@ class TripDeleteFlowTest {
             .onNodeWithText(string(R.string.trip_delete_error_forbidden))
             .assertIsDisplayed()
         // 상세에 머문다. 목록으로 돌아가지 않는다.
-        composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).assertIsDisplayed()
     }
 
     /**
