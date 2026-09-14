@@ -696,4 +696,18 @@
     <string name="settings_policy_error_not_https">안전하지 않은 주소라 열지 않았어요.</string>
     <string name="settings_policy_error_unavailable">문서를 열 브라우저를 찾지 못했어요.</string>
     <string name="settings_policy_dismiss">닫기</string>
+
+    <!-- #440 위치 권한 안내 화면(Figma LocationPermissionScreen) -->
+    <string name="location_permission_title">위치 권한이 필요해요</string>
+    <string name="location_permission_body">길픽이 제대로 작동하려면\n기기 위치 접근 권한을 허용해주세요</string>
+    <string name="location_permission_benefits">권한을 켜면</string>
+    <string name="location_permission_benefit_route">현재 위치를 기반으로 경로를 안내해요</string>
+    <string name="location_permission_benefit_detect">도착·출발을 자동으로 감지해요</string>
+    <string name="location_permission_benefit_accuracy">근처 혼잡도와 날씨를 더 정확하게 반영해요</string>
+    <string name="location_permission_limits">권한 없이는</string>
+    <string name="location_permission_limit_reroute">실시간 경로 재계산 기능</string>
+    <string name="location_permission_limit_detect">자동 도착·출발 처리</string>
+    <string name="location_permission_limit_variables">더 정확한 변수 감지</string>
+    <string name="location_permission_allow">위치 권한 허용하기</string>
+    <string name="location_permission_later">나중에 하기</string>
 </resources>

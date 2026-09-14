@@ -64,6 +64,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.Dp
 import com.gilpick.R
@@ -72,6 +73,7 @@ import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
 import com.gilpick.itinerary.TransportMode
 import com.gilpick.progress.DeviceLocationProvider
+import com.gilpick.progress.LocationPermissionScreen
 import com.gilpick.progress.ProgressError
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteSegmentDto
@@ -757,12 +759,33 @@ private fun ItineraryActions(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { onStartToday() }
+    // 권한이 없으면 시스템 창 전에 위치 권한 안내 화면을 먼저 보인다(#440). 허용·거부·나중에 하기 모두 시작한다(FR-020).
+    var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
     val requestThenStart = {
         if (DeviceLocationProvider.hasLocationPermission(context)) {
             onStartToday()
         } else {
-            permissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            permissionGuideOpen = true
+        }
+    }
+    if (permissionGuideOpen) {
+        // 헤더 없는 전체 화면 안내라 창 폭 제한을 끈 Dialog로 덮는다. 뒤로 가기는 시작하지 않고 닫는다.
+        Dialog(
+            onDismissRequest = { permissionGuideOpen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            LocationPermissionScreen(
+                onAllow = {
+                    permissionGuideOpen = false
+                    permissionLauncher.launch(
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    )
+                },
+                onLater = {
+                    permissionGuideOpen = false
+                    onStartToday()
+                },
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
