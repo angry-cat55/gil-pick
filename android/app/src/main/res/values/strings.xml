@@ -19,6 +19,12 @@
     <string name="refresh_offline_retry">다시 시도</string>
     <string name="logout">로그아웃</string>
 
+    <!-- 공통 오류 화면(가이드라인 9절, Figma ErrorScreen). 화면별 설명·행동 문구는 각 화면이 넘긴다. -->
+    <string name="state_error_title">문제가 발생했어요</string>
+    <string name="state_error_info">오류 정보</string>
+    <string name="state_error_occurred_at">발생 시각</string>
+    <string name="state_error_last_action">마지막 동작</string>
+
     <string name="trips_title">내 여행</string>
     <string name="trips_empty">아직 만든 여행이 없어요</string>
     <string name="trips_empty_hint">여행을 만들면 날짜별 일정과 이동 경로를 한 번에 정리할 수 있어요.</string>

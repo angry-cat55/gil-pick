@@ -308,6 +308,8 @@ private val GilpickTypography = Typography(
     displaySmall = TextStyle(fontSize = 28.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black),
     // Hero title 26/34 900 — 내 여행 제목, 장소 상세 이름
     headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 34.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+    // Status title 24/32 900 — 헤더 없는 전체 화면 안내·오류 제목(`ErrorScreen`, D6)
+    headlineLarge = TextStyle(fontSize = 24.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black),
     // Screen title 22/30 900 — 다음 장소, 여행 상세 제목
     headlineSmall = TextStyle(fontSize = 22.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black),
     // Sheet title 20/28 900
