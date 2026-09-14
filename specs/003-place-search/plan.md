@@ -6,7 +6,7 @@
 
 ## Summary
 
-인증된 사용자가 장소를 검색하고 상세 정보를 조회한다. Backend는 TourAPI `KorService2`를 기준 원천으로 사용하고, 음식·카페·쇼핑의 각 페이지 결과가 `limit`보다 적을 때만 Google Places로 부족분을 채운다. 확정 매칭된 장소는 TourAPI 정보에 Google 평점·평점 수·영업정보만 병합하며 Google 사진·리뷰는 제외한다. 각 외부 호출에는 5초 timeout과 일시적 실패 1회 재시도를 적용하고 Google 실패는 TourAPI 결과에 격리한다. 검색·상세 결과는 저장하거나 cache하지 않는다.
+인증된 사용자가 장소를 검색하고 상세 정보를 조회한다. Backend는 TourAPI `KorService2`를 기준 원천으로 사용하고, 전체 키워드 및 음식·카페·쇼핑 결과가 `limit`보다 적을 때 Google Places로 부족분을 채운다. Google Text Search는 cursor 검색 흐름당 최대 한 번만 호출하고 선택한 카테고리와 다른 Google 결과는 제외한다. 확정 매칭된 장소는 TourAPI 정보에 Google 평점·평점 수·영업정보만 병합하며 Google 사진·리뷰는 제외한다. 각 외부 호출에는 5초 timeout과 일시적 실패 1회 재시도를 적용하고 Google 실패는 TourAPI 결과에 격리한다. 검색·상세 결과는 저장하거나 cache하지 않는다.
 
 ## Technical Context
 
@@ -24,7 +24,7 @@
 
 **Performance Goals**: Google 보완 없는 검색과 상세는 각각 5초 이내(SC-001~002), 순차 Google 보완 검색은 10초 이내(SC-013), 단일 제공자 자동 재시도는 해당 호출 시작 후 11초 이내(SC-008); 확정 매칭 fixture의 중복 노출 0건(SC-003)
 
-**Constraints**: 인증 필수; keyword는 trim 후 2글자 이상이고 category와 단독·조합 가능; 둘 다 없으면 `400`; 명시적 검색만 허용; 각 provider 호출당 5초 timeout; timeout·일시적 5xx만 최대 1회 재시도; application error·4xx·인증·quota/rate limit은 재시도 금지; 음식·카페·쇼핑에서 TourAPI 정상 결과가 `limit` 미만일 때만 Google 보완; 확정 매칭만 병합하고 모호한 Google 후보는 제외; Google 사진·리뷰·장소별 provider 배지·일정 추가·지도·DB·Redis·Paging 3는 범위 밖; Google 필수 attribution은 준수
+**Constraints**: 인증 필수; keyword는 trim 후 2글자 이상이고 category와 단독·조합 가능; 둘 다 없으면 `400`; 명시적 검색만 허용; 각 provider 호출당 5초 timeout; timeout·일시적 5xx만 최대 1회 재시도; application error·4xx·인증·quota/rate limit은 재시도 금지; 전체 키워드·음식·카페·쇼핑에서 TourAPI 정상 결과가 `limit` 미만일 때만 Google 보완하며 cursor 검색 흐름당 최대 1회 호출; category 지정 시 Google type 일치 결과만 허용; 확정 매칭만 병합하고 모호한 Google 후보는 제외; Google 사진·리뷰·장소별 provider 배지·일정 추가·지도·DB·Redis·Paging 3는 범위 밖; Google 필수 attribution은 준수
 
 **Scale/Scope**: F003 endpoint 2개, 외부 client 2개, Android 검색·상세 화면 2개; TourAPI quota와 Google field-mask별 과금을 고려해 명시적 검색·최대 20건·조건부 Google 호출을 사용하고 두 provider의 quota·billing을 환경 Issue에서 확인
 

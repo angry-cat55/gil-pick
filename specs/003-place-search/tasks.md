@@ -102,7 +102,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: BE
   - 담당: ts
   - 선행: T004, T005
-  - 검증: 6개 category·체류시간, 상업 category의 `limit` 부족분만 Google 호출, 50m·이름·주소 확정 매칭, 모호 후보 제외, 복합 cursor·변조 거부 test를 구현 전 실패로 확인
+  - 검증: 6개 category·체류시간, 전체 키워드와 상업 category의 `limit` 부족분만 Google 호출, 검색 흐름당 호출 제한, 50m·이름·주소 확정 매칭, 모호 후보 제외, 복합 cursor·변조 거부 test를 확인
 - [x] T012 [P] [US1] Android 검색 repository와 ViewModel unit test 작성 in android/app/src/test/java/com/gilpick/place/PlaceRepositoryTest.kt, android/app/src/test/java/com/gilpick/place/PlaceSearchViewModelTest.kt
   - 영역: FE
   - 담당: jy
@@ -120,7 +120,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: BE
   - 담당: ts
   - 선행: T005, T010, T011, T035
-  - 검증: TourAPI를 먼저 호출하고 상업 category의 정상 결과가 `limit` 미만일 때만 Google 부족분을 요청하며 mapping·매칭·cursor unit test 통과
+  - 검증: TourAPI를 먼저 호출하고 전체 키워드와 상업 category의 정상 결과가 `limit` 미만일 때만 Google 부족분을 한 번 요청하며 category mapping·매칭·cursor unit test 통과
 - [x] T015 [US1] PLACE-001 validation과 검색 endpoint 구현 in api/app/api/v1/places.py
   - 영역: BE
   - 담당: ts
@@ -344,8 +344,14 @@ FE jy: T027 Android 오류 복구 test
 
 ## Notes
 
+- [x] T036 [US1] 전체 키워드 Google 부족분 보완·카테고리 일치·검색 흐름당 1회 호출 구현 in api/app/services/place.py, api/tests/unit/test_place_service.py
+  - 영역: BE
+  - 담당: ts
+  - 선행: T014, GitHub Issue #492
+  - 검증: 전체 키워드 결과의 Google 유형 변환, 음식·카페·쇼핑 일치, cursor 추가 조회까지 Google Text Search 최대 1회 unit test 통과
+
 - `[P]`는 다른 파일과 계약을 독립적으로 다룰 때만 표시했다.
 - 구현 test는 먼저 실패를 확인한 뒤 해당 구현 task를 진행한다.
 - 화면 완료에는 loading·empty·error·content, 접근성, 360dp·최대 font scale과 실제 기기 또는 screenshot 검증이 포함된다.
-- F003은 검색 결과를 DB·Redis에 저장하지 않고 Google Places는 음식·카페·쇼핑 부족분과 평점·영업정보에만 사용한다. 사진·리뷰와 장소별 provider 배지는 제외하고 필수 attribution은 유지한다.
+- F003은 검색 결과를 DB·Redis에 저장하지 않고 Google Places는 전체 키워드 및 음식·카페·쇼핑 부족분과 평점·영업정보에만 제한적으로 사용한다. 사진·리뷰와 장소별 provider 배지는 제외하고 필수 attribution은 유지한다.
 - 구현 중 API나 UI 계약이 바뀌면 관련 문서를 동기화하고 `speckit-analyze`를 다시 수행한다.
