@@ -439,7 +439,7 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
   - 담당: jy
   - 선행: T043, T044
   - 검증: 검색 전·결과(방문 불가 포함·선택 상태)·결과 없음·검색 실패 × 360dp 기본·최대 글자 배율, 칩·배지 켜짐(fake 응답) 참고 캡처. 지도는 자리 표시로 대체
-- [ ] T047 직접 검색 지도형 실기기 확인 in specs/009-alternative-places/quickstart.md per quickstart AND 2 (missing)
+- [x] T047 직접 검색 지도형 실기기 확인 in specs/009-alternative-places/quickstart.md per quickstart AND 2 (missing)
   - 영역: 통합
   - 담당: jy
   - 선행: T043, T044, T046
