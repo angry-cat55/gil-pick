@@ -1,6 +1,6 @@
 # CI (GitHub Actions)
 
-Issue #425. PR과 `main` push에서 Backend·Android 기본 품질 검증을 자동 실행한다. 배포(CD)는 범위 밖이며 `docs/deployment/aws-dev.md`를 따로 수동 수행한다.
+Issue #425. PR과 `main` push에서 Backend·Android 기본 품질 검증을 자동 실행한다. 배포(CD)는 이 workflow들의 범위 밖이며, `docs/deployment/aws-dev.md` 5-1절의 수동 트리거 배포 workflow(Issue #523)를 따로 사용한다.
 
 ## 구성
 

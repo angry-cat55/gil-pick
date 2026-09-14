@@ -1,0 +1,75 @@
+name: Deploy to AWS (dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '실서버에 배포합니다. 계속하려면 정확히 "deploy"를 입력하세요.'
+        required: true
+
+concurrency:
+  group: deploy-aws-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.inputs.confirm == 'deploy'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 확인 문자열 검증
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "::error::confirm 입력이 'deploy'가 아닙니다. 배포를 중단합니다."
+            exit 1
+          fi
+
+      - name: SSH 준비
+        env:
+          AWS_DEV_SSH_KEY: ${{ secrets.AWS_DEV_SSH_KEY }}
+          AWS_DEV_HOST: ${{ secrets.AWS_DEV_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$AWS_DEV_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$AWS_DEV_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # docs/deployment/aws-dev.md 5절과 동일한 순서(migration → build → 재기동)를
+      # 원격 EC2에서 그대로 실행한다. 자동 rollback은 하지 않는다 — 실패하면 이 step이
+      # 그대로 실패로 끝나고, DB migration downgrade는 데이터 손실 위험이 있어 시도하지
+      # 않는다(같은 문서 5절 기존 원칙).
+      - name: 배포 (migration → build → 재기동)
+        env:
+          AWS_DEV_SSH_USER: ${{ secrets.AWS_DEV_SSH_USER }}
+          AWS_DEV_HOST: ${{ secrets.AWS_DEV_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$AWS_DEV_SSH_USER@$AWS_DEV_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          cd /opt/gilpick/repository
+          git fetch origin
+          git checkout main
+          git pull --ff-only origin main
+          docker compose -f deploy/aws/compose.yaml run --rm api .venv/bin/alembic upgrade head
+          docker compose -f deploy/aws/compose.yaml up -d --build
+          REMOTE
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            if curl --fail -s https://gilpick-api.duckdns.org/health; then
+              echo
+              echo "healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::배포 후 health check가 10회 모두 실패했습니다. EC2에 직접 접속해 'docker compose -f deploy/aws/compose.yaml logs api'로 원인을 확인하세요. 자동 rollback은 수행하지 않습니다."
+          exit 1
+
+      - name: 배포된 migration 확인
+        if: success()
+        env:
+          AWS_DEV_SSH_USER: ${{ secrets.AWS_DEV_SSH_USER }}
+          AWS_DEV_HOST: ${{ secrets.AWS_DEV_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$AWS_DEV_SSH_USER@$AWS_DEV_HOST" \
+            "cd /opt/gilpick/repository && docker compose -f deploy/aws/compose.yaml run --rm api .venv/bin/alembic current"
