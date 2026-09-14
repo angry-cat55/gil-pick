@@ -59,6 +59,7 @@ data class ActiveTravelRoute(
  * @param itineraryRepository 일정 개요 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param alternativeRepository F009 배너용 감지 목록 접근 지점을 만든다. `null`을 돌려주면 배너를 조회하지 않는다.
  * @param replacementRepository F010 장소 변경 되돌리기 접근 지점을 만든다. `null`을 돌려주면 되돌리기를 보내지 않는다.
+ * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. `MainActivity`가 `VariableMonitorRoute(tripId)`로 잇는다.
  * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.progressGraph(
@@ -69,6 +70,7 @@ fun NavGraphBuilder.progressGraph(
     alternativeRepository: (Context) -> AlternativeRepository? = AlternativeRepository::default,
     replacementRepository: (Context) -> ReplacementRepository? = ReplacementRepository::default,
     onNotifications: () -> Unit = {},
+    onOpenVariableMonitor: (tripId: String) -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
         RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f)
     },
@@ -133,6 +135,7 @@ fun NavGraphBuilder.progressGraph(
             // F009 배너 → 그 감지의 대체 장소 화면. 돌아오면 위 재개 조회가 배너를 다시 맞춘다(거절 후 소멸).
             onOpenAlternatives = { detectionId -> navController.navigate(AlternativePlacesRoute(detectionId, route.tripId)) },
             onNotifications = onNotifications,
+            onOpenVariableMonitor = { onOpenVariableMonitor(route.tripId) },
             map = map,
         )
     }

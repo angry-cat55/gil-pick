@@ -20,8 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,14 +41,16 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
 import com.gilpick.alternative.AlternativeError
 import com.gilpick.alternative.clockLabel
 import com.gilpick.alternative.messageRes
-import com.gilpick.progress.StateMessage
+import com.gilpick.ui.component.EmptyState
+import com.gilpick.ui.component.EmptyStateTone
+import com.gilpick.ui.component.ErrorState
+import com.gilpick.ui.component.SecondaryButton
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -124,7 +124,8 @@ private fun Header(onBack: () -> Unit) {
         )
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            // Page title 18sp(가이드라인 4절, Figma `text-[18px]`).
+            style = MaterialTheme.typography.titleMedium,
             fontFamily = title.displayFont(),
             color = MaterialTheme.colorScheme.onSurface,
         )
@@ -149,77 +150,42 @@ private fun DelayedLoading() {
     }
 }
 
-/** Figma `hasAlerts=false`: 초록 방패 상자, `모든 일정이 예정대로예요`, 설명, `여행 진행 화면으로`. */
+/** Figma `hasAlerts=false`: 초록 방패 상자(화면 전체 빈 상태, 성공 계열), `모든 일정이 예정대로예요`, 설명, `여행 진행 화면으로`. */
 @Composable
 private fun EmptyState(onBack: () -> Unit) {
-    val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
-    val colors = LocalGilpickColors.current
-
     Column(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = spacing.space6, vertical = spacing.space6),
-            verticalArrangement = Arrangement.spacedBy(spacing.space2, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(bottom = spacing.space4)
-                    .size(EMPTY_ICON_BOX)
-                    .background(colors.successContainer, RoundedCornerShape(radius.xl)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lucide_shield_check),
-                    contentDescription = null,
-                    tint = colors.success,
-                    modifier = Modifier.size(EMPTY_ICON),
-                )
-            }
-            val title = stringResource(R.string.monitor_empty_title)
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontFamily = title.displayFont(),
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.testTag(TAG_MONITOR_EMPTY),
-            )
-            Text(
-                text = stringResource(R.string.monitor_empty_body),
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.muted,
-                textAlign = TextAlign.Center,
-            )
-        }
+        EmptyState(
+            icon = R.drawable.ic_lucide_shield_check,
+            title = stringResource(R.string.monitor_empty_title),
+            body = stringResource(R.string.monitor_empty_body),
+            tone = EmptyStateTone.Success,
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+        )
         ToProgressButton(onBack)
     }
 }
 
-/** 조회 실패: F009 오류 형식(원인, `다시 시도하기` 또는 `다시 로그인`, `돌아가기`). */
+/**
+ * 조회 실패: 공통 오류 화면(가이드라인 9절). 원인 문구, `다시 시도하기`(또는 `다시 로그인`), `돌아가기`.
+ * 재시도할 수 없는 오류는 `돌아가기`만 주버튼으로 둔다. 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
+ */
 @Composable
 private fun ErrorState(state: VariableMonitorUiState.Error, onRetry: () -> Unit, onBack: () -> Unit, onReauthenticate: () -> Unit) {
-    StateMessage(
-        title = stringResource(R.string.monitor_error_title),
-        body = stringResource(state.error.messageRes),
-        icon = R.drawable.ic_lucide_circle_x,
-    ) {
-        when {
-            state.error == AlternativeError.SessionExpired -> Button(onClick = onReauthenticate, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.place_reauthenticate))
-            }
-            state.retryable -> Button(onClick = onRetry, modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_MONITOR_RETRY)) {
-                Text(stringResource(R.string.alternative_retry))
-            }
-        }
-        TextButton(onClick = onBack, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-            Text(stringResource(R.string.alternative_go_back))
-        }
+    val back = stringResource(R.string.alternative_go_back)
+    val (primaryLabel, onPrimary) = when {
+        state.error == AlternativeError.SessionExpired -> stringResource(R.string.place_reauthenticate) to onReauthenticate
+        state.retryable -> stringResource(R.string.alternative_retry) to onRetry
+        else -> back to onBack
     }
+    ErrorState(
+        title = stringResource(R.string.monitor_error_title),
+        description = stringResource(state.error.messageRes),
+        primaryLabel = primaryLabel,
+        onPrimary = onPrimary,
+        secondaryLabel = back.takeIf { onPrimary !== onBack },
+        onSecondary = onBack,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 /** 배너, `감지 N건` + 정렬 토글, 감지 카드 목록. */
@@ -410,7 +376,7 @@ private fun DetectionCard(detection: DetectionUi, now: Instant, onOpen: () -> Un
     }
 }
 
-/** 변수 한 줄: 아이콘, 변수명, 판정 값. 위험이면 값이 `error` 색이되 문구가 뜻을 전달한다(가이드라인 10절). */
+/** 변수 한 줄: 아이콘, 변수명, 판정 값. 위험 단계별 색(높음 `error`·중간 `warning`·낮음 `amber`)이되 문구가 뜻을 전달한다(가이드라인 10절). */
 @Composable
 private fun VariableLine(row: VariableRow) {
     val spacing = LocalGilpickSpacing.current
@@ -427,7 +393,12 @@ private fun VariableLine(row: VariableRow) {
             text = row.value.orEmpty(),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold,
-            color = if (row.risk) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            color = when (row.risk) {
+                RiskLevel.HIGH -> MaterialTheme.colorScheme.error
+                RiskLevel.MEDIUM -> colors.warning
+                RiskLevel.LOW -> colors.amber
+                null -> MaterialTheme.colorScheme.onSurface
+            },
         )
     }
 }
@@ -458,34 +429,25 @@ private fun ExcludedNote(note: String) {
     }
 }
 
-/** 아래 `여행 진행 화면으로`(Figma: `background` 배경, 회색 글자). */
+/** 아래 `여행 진행 화면으로`(Figma: `background` 배경 52dp, 회색 글자). */
 @Composable
 private fun ToProgressButton(onBack: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
 
-    Button(
+    SecondaryButton(
+        label = stringResource(R.string.monitor_to_progress),
         onClick = onBack,
-        shape = RoundedCornerShape(radius.lg),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
+        height = BOTTOM_BUTTON,
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(start = spacing.space4, end = spacing.space4, top = spacing.space3, bottom = spacing.space8)
-            .heightIn(min = BOTTOM_BUTTON)
             .testTag(TAG_MONITOR_TO_PROGRESS),
-    ) {
-        Text(stringResource(R.string.monitor_to_progress))
-    }
+    )
 }
 
 const val TAG_MONITOR_BACK = "monitor_back"
 const val TAG_MONITOR_LOADING = "monitor_loading"
-const val TAG_MONITOR_EMPTY = "monitor_empty"
-const val TAG_MONITOR_RETRY = "monitor_retry"
 const val TAG_MONITOR_LIST = "monitor_list"
 const val TAG_MONITOR_COUNT = "monitor_count"
 const val TAG_MONITOR_SORT = "monitor_sort"
@@ -498,8 +460,6 @@ const val TAG_MONITOR_CARD_PREFIX = "monitor_card_"
 const val TAG_MONITOR_OPEN_PREFIX = "monitor_open_"
 
 private val BOTTOM_BUTTON: Dp = 52.dp
-private val EMPTY_ICON_BOX: Dp = 80.dp
-private val EMPTY_ICON: Dp = 32.dp
 private val BANNER_ICON_BOX: Dp = 40.dp
 private val BANNER_ICON: Dp = 18.dp
 private val CARD_ICON: Dp = 14.dp

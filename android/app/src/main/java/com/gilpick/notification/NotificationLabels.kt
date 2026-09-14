@@ -118,16 +118,25 @@ val NotificationError.messageRes: Int
  * 감지 카드의 변수 한 줄(Figma `details`·`infoNote`, UI-008).
  *
  * @property value 판정 값 문구. 평가되지 않은 변수는 `null`이고 [note]가 제외 사유다.
- * @property risk 위험으로 판정됐다. 문구 색만 바뀌고 값은 계약 그대로다.
+ * @property risk 위험 단계. 위험이 아니면 `null`. 문구 색만 바뀌고 값은 계약 그대로다.
  * @property note 제외 사유. 계약의 `unavailableReason`을 문구로 옮긴 것이며 값을 지어내지 않는다.
  */
 data class VariableRow(
     @DrawableRes val icon: Int,
     val label: String,
     val value: String?,
-    val risk: Boolean,
+    val risk: RiskLevel?,
     val note: String?,
 )
+
+/**
+ * 위험도 3단계(Figma `VariableMonitorScreen` `severityColor`: 높음 `error`·중간 `warning`·낮음 `amber`).
+ *
+ * DETECT-002에는 단계 값이 없고 변수마다 위험 여부(`crowded`·`atRisk`·`closingSoon`)만 온다. 계약에서
+ * 읽을 수 있는 만큼만 나눈다: 혼잡도는 `level`이 `CROWDED`면 [HIGH], `SLIGHTLY_CROWDED`면 [MEDIUM]이고,
+ * 강수·운영 종료는 여부만 있어 [HIGH]다. [LOW]는 계약에 근거가 없어 지금은 쓰이지 않는다(값을 지어내지 않음).
+ */
+enum class RiskLevel { HIGH, MEDIUM, LOW }
 
 /** DETECT-002 변수별 판정을 카드 줄 세 개(혼잡도·강수 예보·운영 종료)로 옮긴다. */
 @Composable
@@ -152,21 +161,25 @@ fun VariableVerdictsDto.variableRows(): List<VariableRow> {
             icon = R.drawable.ic_lucide_users,
             label = congestionLabel,
             value = congestionValue.takeIf { congestion.available },
-            risk = congestion.crowded == true,
+            risk = when {
+                congestion.crowded != true -> null
+                congestion.level == CongestionLevel.SLIGHTLY_CROWDED -> RiskLevel.MEDIUM
+                else -> RiskLevel.HIGH
+            },
             note = excludedNote(congestion.available, congestion.unavailableReason, congestionLabel),
         ),
         VariableRow(
             icon = R.drawable.ic_lucide_cloud_drizzle,
             label = weatherLabel,
             value = weatherValue.takeIf { weather.available },
-            risk = weather.atRisk == true,
+            risk = RiskLevel.HIGH.takeIf { weather.atRisk == true },
             note = excludedNote(weather.available, weather.unavailableReason, weatherLabel),
         ),
         VariableRow(
             icon = R.drawable.ic_lucide_clock,
             label = hoursLabel,
             value = hoursValue.takeIf { operatingHours.available },
-            risk = operatingHours.closingSoon == true,
+            risk = RiskLevel.HIGH.takeIf { operatingHours.closingSoon == true },
             note = excludedNote(operatingHours.available, operatingHours.unavailableReason, hoursLabel),
         ),
     )
