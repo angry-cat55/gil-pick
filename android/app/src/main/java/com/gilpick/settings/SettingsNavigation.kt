@@ -168,7 +168,8 @@ private fun LogoutSection(onLogout: () -> Unit) {
             onLogout()
         },
         enabled = !requested,
-        shape = RoundedCornerShape(LocalGilpickRadius.current.md),
+        // 폭을 채우는 버튼이라 16dp(가이드라인 6절 R1, D4).
+        shape = RoundedCornerShape(LocalGilpickRadius.current.lg),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,

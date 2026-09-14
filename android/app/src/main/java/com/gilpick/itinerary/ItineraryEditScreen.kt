@@ -1102,11 +1102,15 @@ internal fun TransportSheetContent(nextPlaceName: String, current: TransportMode
     }
 }
 
-/** Figma 대화상자·시트 하단: `취소`(1) : `적용`(2), 높이 50dp. */
+/**
+ * Figma 대화상자·시트 하단: `취소`(1) : `적용`(2), 높이 50dp.
+ *
+ * 한 줄을 가로로 나눈 버튼이라 곡률은 12dp다(가이드라인 6절 R3, D4). 체류 시간 dialog와 이동 수단 시트가 함께 쓴다.
+ */
 @Composable
 private fun CancelApplyRow(onCancel: () -> Unit, onApply: () -> Unit, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
-    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.md)
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(spacing.space3)) {
         Box(
             modifier = Modifier

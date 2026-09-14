@@ -655,6 +655,8 @@ internal fun AddToScheduleSheet(
     var transport by remember { mutableStateOf(PlaceTransport.TRANSIT) }
     var minutes by remember { mutableIntStateOf(defaultMinutes.coerceIn(STAY_MIN, STAY_MAX)) }
     val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
+    // `취소`·`일정에 추가`는 한 줄을 가로로 나눈 버튼이라 12dp다(가이드라인 6절 R3, D4).
+    val buttonShape = RoundedCornerShape(LocalGilpickRadius.current.md)
     val title = stringResource(R.string.place_detail_sheet_title)
     val minutesText = stringResource(R.string.place_detail_stay_minutes, minutes)
 
@@ -742,7 +744,7 @@ internal fun AddToScheduleSheet(
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp)
-                        .clip(shape)
+                        .clip(buttonShape)
                         .background(MaterialTheme.colorScheme.background)
                         .clickable(onClick = onDismiss, role = Role.Button),
                     contentAlignment = Alignment.Center,
@@ -757,7 +759,7 @@ internal fun AddToScheduleSheet(
                     modifier = Modifier
                         .weight(2f)
                         .height(50.dp)
-                        .clip(shape)
+                        .clip(buttonShape)
                         .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
                         .clickable(
                             onClick = { onConfirm(AddToScheduleRequest(transport, minutes)) },
