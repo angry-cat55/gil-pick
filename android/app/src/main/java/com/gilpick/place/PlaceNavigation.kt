@@ -31,6 +31,14 @@ object PlaceSearchRoute
 data class PlaceDetailRoute(val placeId: String)
 
 /**
+ * 장소 지도 전체 화면 route(#479). 상세가 이미 가진 값만 넘기므로 다시 조회하지 않는다.
+ *
+ * @property latitude `null`이면 좌표가 없다는 안내를 보인다.
+ */
+@Serializable
+data class PlaceMapRoute(val name: String, val latitude: Double?, val longitude: Double?)
+
+/**
  * 장소 검색·상세 destination을 app navigation graph에 등록한다.
  *
  * 문자열 route가 아니라 `@Serializable` 타입을 쓴다. 인자 이름과 타입을 컴파일러가
@@ -93,6 +101,20 @@ fun NavGraphBuilder.placeGraph(
                 // 시트는 상세가 내용을 보여 준 뒤에만 열리므로 이 시점의 phase는 Content다.
                 (state.phase as? PlaceDetailPhase.Content)?.let { onAddToSchedule(it.place, request) }
             },
+            onOpenMap = {
+                (state.phase as? PlaceDetailPhase.Content)?.place?.let { place ->
+                    navController.navigate(PlaceMapRoute(place.name, place.latitude, place.longitude))
+                }
+            },
+        )
+    }
+    composable<PlaceMapRoute> { entry ->
+        val route = entry.toRoute<PlaceMapRoute>()
+        PlaceMapScreen(
+            name = route.name,
+            latitude = route.latitude,
+            longitude = route.longitude,
+            onBack = { navController.popBackStack() },
         )
     }
 }

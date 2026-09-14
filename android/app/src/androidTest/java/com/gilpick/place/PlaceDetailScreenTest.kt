@@ -58,7 +58,6 @@ class PlaceDetailScreenTest {
             ),
         )
 
-        // hero 이름과 지도 핀 라벨에 한 번씩 나온다.
         composeRule.onAllNodes(hasText("경복궁")).onFirst().assertIsDisplayed()
         // hero와 주소 행에 한 번씩.
         composeRule.onAllNodes(hasText("서울특별시 종로구 사직로 161")).assertCountEquals(2)
@@ -137,6 +136,32 @@ class PlaceDetailScreenTest {
         composeRule.onNodeWithTag(ADD_TO_SCHEDULE_CONFIRM_TAG).performClick()
 
         assertEquals(listOf(AddToScheduleRequest(PlaceTransport.WALK, 120)), requests)
+    }
+
+    @Test
+    fun 좌표가_없으면_지도_대신_안내를_보인다() {
+        setScreen(content(testPlace("tourapi:1")))
+
+        composeRule.onNodeWithText("위치 정보가 없어 지도를 표시할 수 없어요").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun 좌표가_있으면_지도_영역을_그린다() {
+        setScreen(content(testPlace("tourapi:1", name = "경복궁", latitude = 37.5796, longitude = 126.977)))
+
+        // 지도 인증 key가 없는 test 환경에서는 안내 문구가, 있으면 지도가 같은 자리에 온다.
+        composeRule.onNodeWithTag("route_map").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("위치 정보가 없어 지도를 표시할 수 없어요").assertDoesNotExist()
+    }
+
+    @Test
+    fun 지도에서_보기는_지도_화면_행동을_부른다() {
+        var opened = 0
+        setScreen(content(testPlace("tourapi:1")), onOpenMap = { opened++ })
+
+        composeRule.onNodeWithContentDescription("지도에서 보기").assertHeightIsAtLeast(48.dp).performClick()
+
+        assertEquals(1, opened)
     }
 
     @Test
@@ -223,10 +248,11 @@ class PlaceDetailScreenTest {
         onRetry: () -> Unit = {},
         onReauthenticate: () -> Unit = {},
         onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
+        onOpenMap: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
-                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry, onReauthenticate = onReauthenticate, onAddToSchedule = onAddToSchedule)
+                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry, onReauthenticate = onReauthenticate, onAddToSchedule = onAddToSchedule, onOpenMap = onOpenMap)
             }
         }
     }
@@ -248,6 +274,8 @@ internal fun testPlace(
     description: String? = null,
     phone: String? = null,
     operatingGuide: String? = null,
+    latitude: Double? = null,
+    longitude: Double? = null,
 ): PlaceDto = PlaceDto(
     placeId = id,
     source = if (id.startsWith("google:")) PlaceSource.GOOGLE_PLACES else PlaceSource.TOUR_API,
@@ -256,8 +284,8 @@ internal fun testPlace(
     category = category,
     tourApiCategory = if (id.startsWith("google:")) null else TourApiCategoryDto(large = "A02"),
     address = address,
-    latitude = null,
-    longitude = null,
+    latitude = latitude,
+    longitude = longitude,
     imageUrl = imageUrl,
     recommendedStayMinutes = 90,
     rating = rating,

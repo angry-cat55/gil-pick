@@ -1,7 +1,6 @@
 package com.gilpick.place
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,11 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -288,7 +284,7 @@ private fun Content(
         ) {
             Stats(place = place)
             InfoRows(place = place)
-            MapPreview(name = place.name)
+            MapPreview(place = place)
             Spacer(modifier = Modifier.height(96.dp))
         }
         ActionBar(onOpenMap = onOpenMap, onAddToSchedule = { showSheet = true })
@@ -529,53 +525,20 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String) {
     }
 }
 
-/** Figma `Map`: 격자·도로·핀을 그린 130dp 자리 표시. 실제 지도는 지도 기능에서 넣는다. */
+/** Figma `Map` 자리(130dp)에 실제 Naver 지도를 넣는다(#479). 스크롤 안이라 제스처는 끈다. */
 @Composable
-private fun MapPreview(name: String) {
-    Box(
+private fun MapPreview(place: PlaceDto) {
+    PlaceMap(
+        name = place.name,
+        latitude = place.latitude,
+        longitude = place.longitude,
+        interactive = false,
         modifier = Modifier
             .padding(top = LocalGilpickSpacing.current.space2, start = LocalGilpickSpacing.current.space4, end = LocalGilpickSpacing.current.space4)
             .fillMaxWidth()
             .height(130.dp)
-            .clip(RoundedCornerShape(LocalGilpickRadius.current.lg))
-            .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center,
-    ) {
-        val primary = MaterialTheme.colorScheme.primary
-        Canvas(modifier = Modifier.matchParentSize()) {
-            // Figma SVG viewBox 340×130 좌표를 실제 크기로 늘린다.
-            val sx = size.width / 340f
-            val sy = size.height / 130f
-            val grid = primary.copy(alpha = 0.5f)
-            var x = 0f
-            while (x <= size.width) {
-                drawLine(grid, Offset(x, 0f), Offset(x, size.height), strokeWidth = 0.3f * sx)
-                x += 24f * sx
-            }
-            var y = 0f
-            while (y <= size.height) {
-                drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 0.3f * sx)
-                y += 24f * sx
-            }
-            val road = Path().apply {
-                moveTo(0f, 65f * sy)
-                quadraticTo(90f * sx, 50f * sy, 170f * sx, 65f * sy)
-                quadraticTo(250f * sx, 80f * sy, 340f * sx, 55f * sy)
-            }
-            drawPath(road, Color.White.copy(alpha = 0.7f), style = Stroke(width = 8f * sx))
-            drawLine(Color.White.copy(alpha = 0.5f), Offset(170f * sx, 0f), Offset(170f * sx, size.height), strokeWidth = 5f * sx)
-            val pin = Offset(170f * sx, 65f * sy)
-            drawCircle(primary.copy(alpha = 0.2f), radius = 22f * sx, center = pin)
-            drawCircle(primary, radius = 12f * sx, center = pin)
-        }
-        Text(
-            text = name,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.ExtraBold,
-            fontFamily = name.displayFont(),
-            color = Color.White,
-        )
-    }
+            .clip(RoundedCornerShape(LocalGilpickRadius.current.lg)),
+    )
 }
 
 /** Figma `CTA`: 지도 버튼(48×52, #F4F6FB)과 gradient `일정에 추가`(52dp). 위에 1dp 선. */

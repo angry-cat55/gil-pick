@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -88,6 +89,19 @@ class PlaceNavigationTest {
             val route = navController.currentBackStackEntry?.toRoute<PlaceDetailRoute>()
             assertEquals(PLACE_ID, route?.placeId)
         }
+    }
+
+    /** 상세의 `지도에서 보기`가 하는 navigation을 직접 수행해 지도 화면 route 등록을 확인한다(#479). */
+    @Test
+    fun 지도_화면은_장소_이름을_제목으로_열리고_뒤로_돌아온다() {
+        composeRule.setContent { PlaceNavHostUnderTest() }
+
+        composeRule.runOnIdle { navController.navigate(PlaceMapRoute("경복궁", 37.5796, 126.977)) }
+        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
+        composeRule.onNodeWithTag("route_map").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
+        composeRule.onNodeWithText("장소 추가").assertIsDisplayed()
     }
 
     /** 검색 결과 행이 하는 일과 같은 navigation을 test가 직접 수행하고 상세 도착을 기다린다. */
