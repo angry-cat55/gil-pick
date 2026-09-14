@@ -310,7 +310,7 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 
 - 목록 행은 카드로 감싸지 않는다. 흰 블록 안에서 1dp `background` 색 구분선(좌우 여백 16~20dp)으로 잇는다.
 - bottom sheet는 상단 모서리만 둥글게 하고 40 × 4dp `outlineVariant` handle을 둔다.
-- Compose에서 그림자는 `Modifier.shadow`로 근사한다. 색 있는 그림자(주버튼·FAB)는 `ambientColor`·`spotColor`에 `primary`를 준다.
+- Compose에서 그림자는 `LocalGilpickShadows`의 토큰을 `Modifier.dropShadow(shape, shadow)`(`androidx.compose.ui.draw`, 정식 API)로 적용한다. 토큰은 CSS 값을 그대로 담은 `List<Shadow>`이므로 겹 순서대로 적용하고, `shape`는 그 요소의 곡률 토큰과 같게 준다. 색 있는 그림자(주버튼·FAB 등)도 색이 토큰에 들어 있어 따로 지정하지 않는다. elevation 근사(`Modifier.shadow`)는 blur·spread·offset을 표와 맞출 수 없어 쓰지 않는다(2026-09-14, #430).
 
 ## 7. 공통 컴포넌트와 아이콘
 
