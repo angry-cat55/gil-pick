@@ -99,6 +99,8 @@ private val GilpickColorScheme = lightColorScheme(
  * @property onKakao 카카오 버튼 라벨.
  * @property headerIcon 헤더 알림·설정 아이콘과 헤더 오른쪽 보조 행동 아이콘(가이드라인 7절 "헤더 아이콘 색", D7).
  *   `onSurfaceVariant`와 같은 값이다. 흰 배경 4.84:1, `#F4F6FB` 위 4.47:1. 뒤로 가기·닫기는 `onSurface`를 쓴다.
+ * @property darkGradientMid 로그인 배경 gradient 중간(160°, 55%). [dark]에서 시작해 [darkGradientEnd]로 끝난다(가이드라인 3절 `dark` 행).
+ * @property darkGradientEnd 로그인 배경 gradient 끝(100%).
  */
 data class GilpickColors(
     val muted: Color,
@@ -125,6 +127,8 @@ data class GilpickColors(
     val kakao: Color,
     val onKakao: Color,
     val headerIcon: Color,
+    val darkGradientMid: Color,
+    val darkGradientEnd: Color,
 )
 
 private val GilpickLightColors = GilpickColors(
@@ -152,6 +156,8 @@ private val GilpickLightColors = GilpickColors(
     kakao = Color(0xFFFEE500),
     onKakao = Color(0xFF111827),
     headerIcon = Color(0xFF6B7280),
+    darkGradientMid = Color(0xFF0E1A3A),
+    darkGradientEnd = Color(0xFF0F2050),
 )
 
 /** 4dp 배수 간격. Figma Tailwind 단위(1 = 4px) 그대로다. 용도는 가이드라인 5절에 있다. */
@@ -308,6 +314,8 @@ fun String.displayFont(): FontFamily =
  * 패밀리는 지정하지 않는다(시스템 폰트). 숫자·라틴 강조에는 화면에서 [displayFont]를 붙인다.
  */
 private val GilpickTypography = Typography(
+    // Brand 36/44 900 — 로그인 `길픽`(자간 -0.5, 가이드라인 4절)
+    displayMedium = TextStyle(fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
     // Display 28/36 900 — 여행 중 ETA
     displaySmall = TextStyle(fontSize = 28.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black),
     // Hero title 26/34 900 — 내 여행 제목, 장소 상세 이름
