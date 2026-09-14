@@ -62,7 +62,8 @@ class PlaceDetailScreenTest {
         composeRule.onAllNodes(hasText("경복궁")).onFirst().assertIsDisplayed()
         // hero와 주소 행에 한 번씩.
         composeRule.onAllNodes(hasText("서울특별시 종로구 사직로 161")).assertCountEquals(2)
-        composeRule.onNodeWithText("매주 화요일 휴무").performScrollTo().assertIsDisplayed()
+        // Google 영업시간이 없으면 상단 운영시간 통계와 하단 운영시간 행이 같은 TourAPI 안내를 보여준다(#480).
+        composeRule.onAllNodes(hasText("매주 화요일 휴무")).assertCountEquals(2)
         composeRule.onNodeWithContentDescription("경복궁 대표 사진").assertIsDisplayed()
         composeRule.onNodeWithText("일정에 추가").assertIsDisplayed()
     }

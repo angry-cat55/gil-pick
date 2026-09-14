@@ -422,7 +422,7 @@ private fun Stats(place: PlaceDto) {
         )
         Stat(
             // 최대 글자 배율에서 3열에 안 들어가면 `09:00~1|8:00`처럼 숫자 중간이 아니라 `~` 뒤에서 줄바꿈되도록 zero-width space를 둔다.
-            value = todayHoursLabel(place.currentOpeningHours ?: place.regularOpeningHours)?.replace("~", "~​") ?: missing,
+            value = place.openingHoursSummary()?.replace("~", "~​") ?: missing,
             label = stringResource(R.string.place_detail_stat_hours),
             modifier = Modifier.weight(1f),
         )
@@ -457,15 +457,12 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier, de
 
 /**
  * Figma `Info rows`: 주소·운영시간·혼잡도·날씨. 혼잡도·날씨는 API에 없어 `정보 없음`이다.
- * 운영시간에는 Google 영업시간과 TourAPI 운영 안내를 줄바꿈으로 함께 쓴다(FR-006).
+ * 운영시간은 상단 `Stats`와 같은 규칙([openingHoursDetail])로 그린다(#480).
  */
 @Composable
 private fun InfoRows(place: PlaceDto) {
     val missing = stringResource(R.string.place_detail_missing)
-    val hours = listOfNotNull(
-        place.regularOpeningHours?.takeIf { it.isNotEmpty() }?.joinToString("\n"),
-        place.operatingGuide,
-    ).joinToString("\n").ifEmpty { missing }
+    val hours = place.openingHoursDetail ?: missing
 
     Column(
         modifier = Modifier
