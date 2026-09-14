@@ -15,12 +15,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,14 +32,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,10 +57,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
 import com.gilpick.alternative.clockLabel
-import com.gilpick.progress.StateMessage
 import com.gilpick.route.RouteMap
 import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.dropShadow
+import com.gilpick.notification.IconBoxButton
+import com.gilpick.ui.component.ErrorState
+import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.GradientTone
+import com.gilpick.ui.component.SecondaryButton
+import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -134,40 +135,33 @@ fun RoutePreviewScreen(
 }
 
 /** 상단 바. Figma의 뒤로 버튼과 `경로 비교` 제목이다. */
+/** 상단 바(Figma 실측): 36dp `background` 상자 뒤로 가기(승인 중 40%), Page title 18sp `경로 비교`. */
 @Composable
 private fun Header(onBack: () -> Unit, enabled: Boolean = true) {
     val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding()
-            .padding(horizontal = spacing.space5, vertical = spacing.space3),
+            .padding(start = spacing.space3, end = spacing.space5, top = spacing.space1, bottom = spacing.space2),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space1),
     ) {
-        Box(
-            modifier = Modifier
-                .size(MIN_TOUCH)
-                .clip(RoundedCornerShape(radius.md))
-                .clickable(enabled = enabled, onClick = onBack)
-                .testTag(TAG_BACK),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_lucide_arrow_left),
-                contentDescription = stringResource(R.string.replacement_back),
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+        IconBoxButton(
+            icon = R.drawable.ic_lucide_arrow_left,
+            contentDescription = stringResource(R.string.replacement_back),
+            onClick = onBack,
+            tint = MaterialTheme.colorScheme.onSurface,
+            enabled = enabled,
+            modifier = Modifier.testTag(TAG_BACK),
+        )
         val title = stringResource(R.string.replacement_preview_title)
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontFamily = title.displayFont(),
-            fontWeight = FontWeight.Black,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -282,10 +276,8 @@ internal fun RouteRecalculatingContent(placeName: String?, modifier: Modifier = 
 }
 
 /**
- * 미리보기 생성 실패(UI-004).
- *
- * 원인을 문구로 알리고 `다시 시도`와 `다른 후보 보기`를 함께 준다. **기존 일정이 그대로임을**
- * 반드시 함께 알린다 — 사용자가 일정이 망가졌다고 오해하지 않게 하는 것이 이 화면의 핵심이다(FR-007).
+ * 미리보기 생성 실패: 공통 오류 화면(가이드라인 9절). 원인 + 기존 일정 유지 문장, `다시 시도하기`(세션 만료면
+ * `다시 로그인`), 보조 `다른 후보 보기`(UI-004). 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
  */
 @Composable
 private fun ErrorState(
@@ -294,36 +286,23 @@ private fun ErrorState(
     onOtherCandidates: () -> Unit,
     onReauthenticate: () -> Unit,
 ) {
-    StateMessage(
+    val sessionExpired = error == ReplacementError.SessionExpired
+    ErrorState(
         title = stringResource(R.string.replacement_error_title),
-        body = stringResource(error.messageRes) + "\n" + stringResource(R.string.replacement_schedule_kept),
-        icon = R.drawable.ic_lucide_circle_x,
-    ) {
-        if (error == ReplacementError.SessionExpired) {
-            Button(
-                onClick = onReauthenticate,
-                modifier = Modifier.heightIn(min = MIN_TOUCH),
-            ) {
-                Text(stringResource(R.string.place_reauthenticate))
-            }
-        } else {
-            Button(
-                onClick = onRetry,
-                modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_RETRY),
-            ) {
-                Text(stringResource(R.string.replacement_retry))
-            }
-        }
-        TextButton(
-            onClick = onOtherCandidates,
-            modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_OTHER_CANDIDATES),
-        ) {
-            Text(stringResource(R.string.replacement_other_candidates))
-        }
-    }
+        description = stringResource(error.messageRes) + "\n" + stringResource(R.string.replacement_schedule_kept),
+        primaryLabel = stringResource(if (sessionExpired) R.string.place_reauthenticate else R.string.replacement_retry),
+        onPrimary = if (sessionExpired) onReauthenticate else onRetry,
+        secondaryLabel = stringResource(R.string.replacement_other_candidates),
+        onSecondary = onOtherCandidates,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 /** 비교 본문: 지도, 무엇이 무엇으로 바뀌는지, 비교 네 항목, 두 행동. */
+/**
+ * `content`: 지도(범례), 변경 요약 + 비교 표, 승인 실패 박스가 스크롤되고 버튼 두 개는 하단에 고정된다
+ * (Figma `flex-1` spacer).
+ */
 @Composable
 private fun ContentState(
     content: PreviewUiState.Content,
@@ -334,31 +313,33 @@ private fun ContentState(
 ) {
     val spacing = LocalGilpickSpacing.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .navigationBarsPadding(),
-    ) {
-        Box(
+    Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
+        Column(
             modifier = Modifier
+                .weight(1f)
                 .fillMaxWidth()
-                .height(MAP_HEIGHT)
-                .padding(horizontal = spacing.space4)
-                .testTag(TAG_MAP_SLOT),
+                .verticalScroll(rememberScrollState()),
         ) {
-            map(content, Modifier.fillMaxSize())
-            Legend(modifier = Modifier.align(Alignment.TopEnd).padding(spacing.space3))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = spacing.space3)
+                    .height(MAP_HEIGHT)
+                    .padding(horizontal = spacing.space4)
+                    .testTag(TAG_MAP_SLOT),
+            ) {
+                map(content, Modifier.fillMaxSize())
+                Legend(modifier = Modifier.align(Alignment.TopEnd).padding(spacing.space3))
+            }
+            Summary(content = content, modifier = Modifier.padding(horizontal = spacing.space4).padding(top = spacing.space3))
+            content.approveFailure?.let { failure ->
+                ApproveFailure(
+                    failure = failure,
+                    placeName = content.preview.alternativePlace.name,
+                    modifier = Modifier.padding(horizontal = spacing.space4).padding(top = spacing.space3),
+                )
+            }
         }
-        Summary(content = content, modifier = Modifier.padding(spacing.space4))
-        content.approveFailure?.let { failure ->
-            ApproveFailure(
-                failure = failure,
-                placeName = content.preview.alternativePlace.name,
-                modifier = Modifier.padding(horizontal = spacing.space4),
-            )
-        }
-        Spacer(modifier = Modifier.height(spacing.space4))
         Actions(
             content = content,
             onApprove = onApprove,
@@ -424,10 +405,12 @@ private fun Summary(content: PreviewUiState.Content, modifier: Modifier = Modifi
     val colors = LocalGilpickColors.current
     val preview = content.preview
 
+    val shape = RoundedCornerShape(radius.lg)
+
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(radius.lg))
+        modifier = LocalGilpickShadows.current.card
+            .fold(modifier.fillMaxWidth()) { acc, shadow -> acc.dropShadow(shape, shadow) }
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .padding(spacing.space5),
         verticalArrangement = Arrangement.spacedBy(spacing.space1),
@@ -475,6 +458,7 @@ private fun Summary(content: PreviewUiState.Content, modifier: Modifier = Modifi
             after = duration.after?.let { durationLabel(it) },
             better = isBetter(duration.before, duration.after),
         )
+        RowDivider()
         val distance = preview.comparison.totalDistanceMeters
         ComparisonRow(
             label = stringResource(R.string.replacement_row_distance),
@@ -482,12 +466,15 @@ private fun Summary(content: PreviewUiState.Content, modifier: Modifier = Modifi
             after = distance.after?.let { distanceLabel(it) },
             better = isBetter(distance.before, distance.after),
         )
+        RowDivider()
+        // 도착 예정·마감 시간은 나아짐·나빠짐의 판정 근거가 명세에 없어 강조하지 않는다(Figma는 색을 준다, PR 기록).
         ComparisonRow(
             label = stringResource(R.string.replacement_row_arrival),
             before = preview.comparison.estimatedArrivalAt.before?.let(::clockLabel),
             after = preview.comparison.estimatedArrivalAt.after?.let(::clockLabel),
             better = null,
         )
+        RowDivider()
         ComparisonRow(
             label = stringResource(R.string.replacement_row_closes),
             before = preview.comparison.closesAt.before?.let(::clockLabel),
@@ -497,11 +484,17 @@ private fun Summary(content: PreviewUiState.Content, modifier: Modifier = Modifi
     }
 }
 
+/** 비교 표 행 사이 1dp `background` 구분선(Figma `border-b border-[#F4F6FB]`, 마지막 행 없음). */
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.background)
+}
+
 /**
  * 비교 한 줄(UI-002·FR-002).
  *
- * 확인하지 못한 값은 `정보 없음`이다. 값이 아니므로 나아짐·나빠짐 색과 기호를 쓰지 않는다.
- * 나아짐·나빠짐은 색과 함께 기호로 알리고, 접근성 문구로 항목명·이전 값·이후 값을 한 번에 읽힌다.
+ * 확인하지 못한 값은 `정보 없음`이다. 값이 아니므로 나아짐·나빠짐 색과 아이콘을 쓰지 않는다.
+ * 나아짐·나빠짐은 색과 함께 아이콘(체크·경고 삼각형)으로 알리고, 접근성 문구로 항목명·이전 값·이후 값·판정을 한 번에 읽힌다.
  *
  * @param better 나아졌는지. 판단 근거가 없거나 값이 없으면 `null`이며 강조하지 않는다.
  */
@@ -517,11 +510,6 @@ private fun ComparisonRow(label: String, before: String?, after: String?, better
         missing || better == null -> colors.muted
         better -> colors.success
         else -> colors.warning
-    }
-    val mark = when {
-        missing || better == null -> ""
-        better -> BETTER_MARK
-        else -> WORSE_MARK
     }
     val verdict = when {
         missing || better == null -> ""
@@ -552,22 +540,26 @@ private fun ComparisonRow(label: String, before: String?, after: String?, better
             textDecoration = if (before == null) TextDecoration.None else TextDecoration.LineThrough,
         )
         Text(
-            text = afterText + mark,
+            text = afterText,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = accent,
         )
+        // Figma: 나아짐은 12dp `success` 체크, 나빠짐은 12dp `warning` 경고 삼각형. 뜻은 contentDescription의 문구가 전달한다.
+        if (!missing && better != null) {
+            Icon(
+                painter = painterResource(if (better) R.drawable.ic_lucide_check else R.drawable.ic_lucide_triangle_alert),
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(ROW_MARK),
+            )
+        }
     }
 }
 
 /**
- * 아래쪽 두 행동(UI-003·UI-005).
- *
- * 평소에는 `변경 승인` + `다른 후보 보기`다. 승인 중에는 `변경 승인`이 진행 표시로 바뀌고 두 행동이
- * 모두 잠긴다. 승인이 실패하면 `변경 승인` 자리를 **원인별 다음 행동**이 대신한다(Figma 승인 실패
- * 상태). `다른 후보 보기`는 실패 상태에서도 계속 보인다.
- *
- * 둘 다 48dp 이상이고 8dp 이상 떨어진다(UI-008).
+ * 하단 고정 버튼(Figma `px-4 pb-8 pt-4 space-y-2`). `변경 승인`은 주 gradient 54dp, 승인 실패 뒤 다음 행동은
+ * **경고 gradient**(가이드라인 3절), `다른 후보 보기`는 `background` 채움 50dp. 승인 중에는 둘 다 잠긴다(UI-005).
  */
 @Composable
 private fun Actions(
@@ -583,61 +575,42 @@ private fun Actions(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = spacing.space4)
-            .padding(bottom = spacing.space8),
+            .padding(top = spacing.space4, bottom = spacing.space8),
         verticalArrangement = Arrangement.spacedBy(spacing.space2),
     ) {
-        Button(
+        GradientButton(
+            label = stringResource(
+                when {
+                    content.approving -> R.string.replacement_approving
+                    action == ApproveAction.Recreate -> R.string.replacement_action_recreate
+                    action == ApproveAction.Candidates -> R.string.replacement_action_candidates
+                    action == ApproveAction.Retry -> R.string.replacement_action_retry
+                    else -> R.string.replacement_approve
+                },
+            ),
             onClick = when (action) {
                 ApproveAction.Recreate -> onRecreate
                 ApproveAction.Candidates -> onOtherCandidates
                 ApproveAction.Retry, null -> onApprove
             },
-            enabled = !content.approving,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = PRIMARY_BUTTON_HEIGHT)
-                .testTag(TAG_APPROVE),
-        ) {
-            if (content.approving) {
-                CircularProgressIndicator(
-                    strokeWidth = SPINNER_STROKE,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(SPINNER_SIZE),
-                )
-                Spacer(modifier = Modifier.width(spacing.space2))
-            }
-            Text(
-                stringResource(
-                    when {
-                        content.approving -> R.string.replacement_approving
-                        action == ApproveAction.Recreate -> R.string.replacement_action_recreate
-                        action == ApproveAction.Candidates -> R.string.replacement_action_candidates
-                        action == ApproveAction.Retry -> R.string.replacement_action_retry
-                        else -> R.string.replacement_approve
-                    },
-                ),
-            )
-        }
-        OutlinedButton(
+            tone = if (action == null) GradientTone.Primary else GradientTone.Warning,
+            processing = content.approving,
+            modifier = Modifier.fillMaxWidth().testTag(TAG_APPROVE),
+        )
+        SecondaryButton(
+            label = stringResource(R.string.replacement_other_candidates),
             onClick = onOtherCandidates,
             enabled = !content.approving,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = MIN_TOUCH)
-                .testTag(TAG_OTHER_CANDIDATES),
-        ) {
-            Text(stringResource(R.string.replacement_other_candidates))
-        }
+            height = SECONDARY_BUTTON_HEIGHT,
+            modifier = Modifier.fillMaxWidth().testTag(TAG_OTHER_CANDIDATES),
+        )
     }
 }
 
 /**
- * 승인 실패 안내(UI-005).
- *
- * 원인 문구와 **기존 일정이 그대로임**을 함께 알린다. 색만으로 알리지 않도록 경고 아이콘과 문구를
- * 함께 둔다(가이드라인 10절). 다음 행동은 [Actions]가 원인에 맞춰 보인다.
- *
- * @param placeName 대체 장소 이름. `방문할 수 없음` 안내에 어떤 장소인지 넣는다.
+ * 승인 실패 안내(가이드라인 9절 "실패 안내 박스" 블록형): `warningContainer` + 1dp `warningBorder`, 32dp `warning`
+ * 채움 아이콘 상자, `onWarningContainer` 원인 문장, 보조 문장 `기존 일정은 그대로예요`(FR-007). 다음 행동은
+ * 박스 밖 하단 CTA가 경고 gradient로 바뀐다([Actions]).
  */
 @Composable
 private fun ApproveFailure(failure: ReplacementError, placeName: String, modifier: Modifier = Modifier) {
@@ -649,38 +622,45 @@ private fun ApproveFailure(failure: ReplacementError, placeName: String, modifie
     } else {
         stringResource(failure.messageRes)
     }
+    val shape = RoundedCornerShape(radius.lg)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(radius.lg))
+            .border(FAILURE_BORDER, colors.warningBorder, shape)
+            .clip(shape)
             .background(colors.warningContainer)
             .padding(spacing.space4)
+            .semantics(mergeDescendants = true) {}
             .testTag(TAG_APPROVE_FAILURE),
         horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+        verticalAlignment = Alignment.Top,
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_lucide_triangle_alert),
-            contentDescription = null,
-            tint = colors.warning,
-            modifier = Modifier.size(FAILURE_ICON),
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(spacing.space1)) {
-            Text(
-                text = stringResource(R.string.replacement_approve_failed),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+        Box(
+            modifier = Modifier
+                .size(FAILURE_ICON_BOX)
+                .background(colors.warning, RoundedCornerShape(radius.md)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_triangle_alert),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(FAILURE_ICON),
             )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.space1), modifier = Modifier.weight(1f)) {
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = colors.onWarningContainer,
             )
+            // 보조 문장 색 `#B45309`(3절 괄호 값)은 이름 붙은 토큰이 없어 제목과 같은 `onWarningContainer`를 쓴다(PR 기록).
             Text(
                 text = stringResource(R.string.replacement_schedule_kept),
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.muted,
+                color = colors.onWarningContainer,
             )
         }
     }
@@ -766,7 +746,6 @@ internal val ReplacementError.messageRes: Int
     }
 
 internal const val TAG_BACK = "preview_back"
-internal const val TAG_RETRY = "preview_retry"
 internal const val TAG_APPROVE = "preview_approve"
 internal const val TAG_OTHER_CANDIDATES = "preview_other_candidates"
 internal const val TAG_MAP_SLOT = "preview_map"
@@ -774,9 +753,6 @@ internal const val TAG_CHANGE_SUMMARY = "preview_change_summary"
 internal const val TAG_REASON = "preview_reason"
 internal const val TAG_APPROVE_FAILURE = "preview_approve_failure"
 
-/** 나아짐·나빠짐을 색 없이도 알리는 기호(UI-002). */
-private const val BETTER_MARK = " ↓"
-private const val WORSE_MARK = " ↑"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 
@@ -788,13 +764,14 @@ private val RECALC_ICON: Dp = 16.dp
 private const val RECALC_ARC_DEGREES = 270f
 private const val RECALC_SPIN_MILLIS = 1_200
 internal const val TAG_RECALCULATING = "replacement_recalculating"
-private val MIN_TOUCH: Dp = 48.dp
-private val PRIMARY_BUTTON_HEIGHT: Dp = 54.dp
 private val MAP_HEIGHT: Dp = 190.dp
 private val ROW_MIN_HEIGHT: Dp = 44.dp
 private val ROW_LABEL_WIDTH: Dp = 72.dp
 private val LEGEND_SWATCH_WIDTH: Dp = 16.dp
 private val LEGEND_SWATCH_HEIGHT: Dp = 2.dp
-private val SPINNER_SIZE: Dp = 16.dp
-private val SPINNER_STROKE: Dp = 2.dp
-private val FAILURE_ICON: Dp = 20.dp
+/** Figma 실측: `다른 후보 보기` 50dp, 비교 행 아이콘 12dp, 실패 박스 32dp 상자·15dp 아이콘·1dp 테두리. 화면 전용이라 토큰이 아니다. */
+private val SECONDARY_BUTTON_HEIGHT: Dp = 50.dp
+private val ROW_MARK: Dp = 12.dp
+private val FAILURE_ICON_BOX: Dp = 32.dp
+private val FAILURE_ICON: Dp = 15.dp
+private val FAILURE_BORDER: Dp = 1.dp

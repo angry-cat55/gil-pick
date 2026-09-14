@@ -45,8 +45,8 @@ class RoutePreviewApproveTest {
         setScreen(content(approving = true), onApprove = { approves++ }, onOtherCandidates = { others++ })
 
         composeRule.onNodeWithText("변경하는 중").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().assertIsNotEnabled().performClick()
-        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performScrollTo().assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).assertIsNotEnabled().performClick()
+        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).assertIsNotEnabled().performClick()
         composeRule.onNodeWithTag(TAG_BACK).assertIsDisplayed()
         composeRule.runOnIdle {
             assertEquals(0, approves)
@@ -59,7 +59,7 @@ class RoutePreviewApproveTest {
         var approves = 0
         setScreen(content(), onApprove = { approves++ })
 
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo()
+        composeRule.onNodeWithTag(TAG_APPROVE)
             .assertIsEnabled()
             .assertHeightIsAtLeast(48.dp)
             .performClick()
@@ -73,7 +73,7 @@ class RoutePreviewApproveTest {
         setScreen(content(failure = ReplacementError.ScheduleChanged), onRetry = { recreates++ })
 
         assertFailure("이 날짜 일정이 바뀌어서 비교를 다시 만들어야 해요", "다시 만들기")
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
         composeRule.runOnIdle { assertEquals(1, recreates) }
     }
 
@@ -83,7 +83,7 @@ class RoutePreviewApproveTest {
         setScreen(content(failure = ReplacementError.PreviewExpired), onRetry = { recreates++ })
 
         assertFailure("비교한 지 오래돼서 다시 만들어야 해요", "다시 만들기")
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
         composeRule.runOnIdle { assertEquals(1, recreates) }
     }
 
@@ -93,7 +93,7 @@ class RoutePreviewApproveTest {
         setScreen(content(failure = ReplacementError.AlreadyVisited), onOtherCandidates = { others++ })
 
         assertFailure("이미 그 장소에 도착해서 바꿀 수 없어요", "후보 목록으로")
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
         composeRule.runOnIdle { assertEquals(1, others) }
     }
 
@@ -104,7 +104,7 @@ class RoutePreviewApproveTest {
 
         // 어떤 장소가 막혔는지 알아야 다음 후보를 고를 수 있다(Figma 승인 실패 상태).
         assertFailure("창덕궁을(를) 지금은 방문할 수 없어요", "후보 목록으로")
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
         composeRule.runOnIdle { assertEquals(1, others) }
     }
 
@@ -114,7 +114,7 @@ class RoutePreviewApproveTest {
         setScreen(content(failure = ReplacementError.Network), onApprove = { approves++ })
 
         assertFailure("연결이 불안정해요", "다시 시도")
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
         composeRule.runOnIdle { assertEquals(1, approves) }
     }
 
@@ -162,7 +162,7 @@ class RoutePreviewApproveTest {
         setScreen(content(failure = ReplacementError.ScheduleChanged))
 
         composeRule.onNodeWithText("기존 일정은 그대로예요").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performScrollTo()
+        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES)
             .assertIsEnabled()
             .assertHeightIsAtLeast(48.dp)
     }
@@ -178,9 +178,8 @@ class RoutePreviewApproveTest {
     /** 실패 블록의 문구와 다음 행동 버튼을 함께 확인한다. 다음 행동은 48dp 이상이어야 한다(UI-008). */
     private fun assertFailure(message: String, actionLabel: String) {
         composeRule.onNodeWithTag(TAG_APPROVE_FAILURE).performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("변경하지 못했어요").assertIsDisplayed()
         composeRule.onNodeWithText(message).assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo()
+        composeRule.onNodeWithTag(TAG_APPROVE)
             .assertIsEnabled()
             .assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithText(actionLabel).assertIsDisplayed()

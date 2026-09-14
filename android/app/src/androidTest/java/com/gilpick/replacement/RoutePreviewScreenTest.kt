@@ -164,8 +164,8 @@ class RoutePreviewScreenTest {
         composeRule.onNodeWithText("경로를 계산하지 못했어요", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("기존 일정은 그대로예요", substring = true).assertIsDisplayed()
 
-        composeRule.onNodeWithTag(TAG_RETRY).assertHeightIsAtLeast(48.dp).performClick()
-        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithText("다시 시도하기").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithText("다른 후보 보기").assertHeightIsAtLeast(48.dp).performClick()
         composeRule.runOnIdle {
             assertEquals(1, retries)
             assertEquals(1, others)
@@ -177,7 +177,7 @@ class RoutePreviewScreenTest {
         var reauth = 0
         setScreen(PreviewUiState.Error(ReplacementError.SessionExpired), onReauthenticate = { reauth++ })
 
-        composeRule.onNodeWithTag(TAG_RETRY).assertDoesNotExist()
+        composeRule.onNodeWithText("다시 시도하기").assertDoesNotExist()
         composeRule.onNodeWithText("다시 로그인").assertHeightIsAtLeast(48.dp).performClick()
         composeRule.runOnIdle { assertEquals(1, reauth) }
     }
@@ -189,8 +189,8 @@ class RoutePreviewScreenTest {
         var others = 0
         setScreen(content(), onApprove = { approves++ }, onOtherCandidates = { others++ })
 
-        composeRule.onNodeWithTag(TAG_APPROVE).performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithTag(TAG_APPROVE).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).assertHeightIsAtLeast(48.dp).performClick()
         composeRule.runOnIdle {
             assertEquals(1, approves)
             assertEquals(1, others)

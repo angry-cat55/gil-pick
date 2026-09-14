@@ -12,6 +12,8 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -26,6 +28,7 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
  *
  * 폭을 채우는 버튼이라 곡률은 `radiusLg`다(6절 D4). 라벨은 14sp 600 `onSurfaceVariant`.
  * [height]는 최소 높이이며 글자 배율이 커지면 늘어난다. 터치 영역은 48dp 이상이다.
+ * 비활성이면 Figma `disabled:opacity-40`대로 40% 투명이다(`RoutePreviewScreen` 승인 중 `다른 후보 보기`).
  */
 @Composable
 fun SecondaryButton(
@@ -41,6 +44,7 @@ fun SecondaryButton(
     Box(
         modifier = modifier
             .minimumInteractiveComponentSize()
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .heightIn(min = height)
             .clip(shape)
             .background(MaterialTheme.colorScheme.background)
@@ -56,3 +60,5 @@ fun SecondaryButton(
         )
     }
 }
+
+private const val DISABLED_ALPHA = 0.4f
