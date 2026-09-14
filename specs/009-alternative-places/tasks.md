@@ -7,7 +7,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 
 **Input**: `specs/009-alternative-places/`의 `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/alternatives.openapi.yaml`, `quickstart.md`
 
-**Organization**: Feature Owner는 `jy`(명세 산출물)다. Backend 구현 담당은 `ts`, Frontend(Android) 구현 담당은 `jy`다(2026-09-09 합의). F008 파일(`api/app/api/v1/detections.py`, `api/app/schemas/detection.py`, `api/app/services/detection/operating_hours_source.py`) 수정은 F008 구현 담당 `jh` review를, F003 `api/app/services/place.py` 수정은 F003 담당(`ts` 본인)이 맡는다. Android의 `progress/*`(F007 최근 수정자 `hs`)·`route/RouteMap.kt`·`place/PlaceSearchScreen.kt` 수정은 `hs` review를 받는다. 테스트는 명세의 독립 검증·성공 기준과 constitution 품질 게이트를 만족하도록 구현보다 먼저 배치한다.
+**Organization**: Feature Owner는 `jy`(명세 산출물)다. Backend 구현 담당은 `ts`, Frontend(Android) 구현 담당은 `jy`다(2026-09-09 합의). F008 파일(`api/app/api/v1/detections.py`, `api/app/schemas/detection.py`, `api/app/services/detection/operating_hours_source.py`) 수정은 F008 구현 담당 `jh` review를, F003 `api/app/services/place.py` 수정은 F003 담당(`ts` 본인)이 맡는다. Android의 `progress/*`(F007 최근 수정자 `hs`)·`route/RouteMap.kt`·`place/PlaceSearchScreen.kt` 수정은 `hs` review를 받는다(`place/PlaceSearchScreen.kt` 수정은 초기 목록형 직접 검색 T031 이력이다. 2026-09-13 지도형 전환(#450) 후 직접 검색은 이 파일을 재사용하지 않으며, 남은 작업은 Phase 8 Convergence에 있다). 테스트는 명세의 독립 검증·성공 기준과 constitution 품질 게이트를 만족하도록 구현보다 먼저 배치한다.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -318,6 +318,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 - **Foundational (Phase 2)**: T001 완료 후. BE T004·T005·T006·T007 병렬 → T008(T002 후) → T009. FE T010(T001 후) → T011
 - **User Stories (Phase 3~6)**: Foundational 완료 후. US1(BE)과 US2(FE 대부분)는 **다른 담당·다른 파일이라 병렬 진행** 가능. US3는 US1 endpoint(T017)·US2 navigation(T026) 후. US4는 US1 파이프라인(T016·T017) 후
 - **Polish (Phase 7)**: 관련 story 완료 후. T035·T036 병렬, T037 → T038 → T039 순
+- **Convergence (Phase 8)**: FE T045(선행 없음) → T043(#434 후) → T044 → T046 → T047. BE T041 → T040 → T042는 백엔드 조율 결정 후 착수
 
 ### User Story Dependencies
 
@@ -393,3 +394,53 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
 - 후보 조회·검색·선택은 일정·경로·감지 상태를 바꾸지 않는다. 상태를 바꾸는 유일한 동작은 DETECT-004 거절이다
 - 사용자 위치·`candidateId` 원문을 log에 남기지 않는다(constitution V)
 - `onSelectPlace`는 F010이 미리보기 화면으로 연결한다. F009 PR은 콜백 도달까지만 검증한다
+
+---
+
+## Phase 8: Convergence
+
+**Purpose**: 2026-09-13~14 직접 검색 지도형 전환(#450)과 spec FR-019 2km 반경 확정 전 변경안에 따라 남은 작업. BE task(T040~T042)는 **백엔드 조율 결정(plan.md "반경 적용 방식 조사") 이후 착수**한다. FE task(T043~T047)는 조율 전에 먼저 진행하며 API가 지원하지 않는 요소는 응답 필드 유무로 숨긴다.
+
+- [ ] T040 ALT-002 서버 2km 반경 필터와 좌표 없는 결과 제외 in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py per FR-019, US3/AC5~AC6 (missing)
+  - 영역: BE
+  - 담당: ts
+  - 선행: 백엔드 조율 결정(plan.md "반경 적용 방식 조사" A·B·C 중 선택), T041
+  - 착수 조건: **백엔드 조율 후**. 결정 전에는 현재 계약(반경 제한 없음)을 유지한다
+  - 검증: T041 통과. 기존 장소 좌표 기준 2000m 밖 결과·`distanceMeters=null` 결과가 응답에 없고, 페이지마다 `items` 개수와 `hasNext`가 일치(빈 페이지에 `hasNext=true` 없음). 외부 호출 상한과 응답 시간을 측정해 PR에 기록. `docs/design/api-spec.md` ALT-002·`contracts/alternatives.openapi.yaml`·`docs/planning/functional-spec.md` 5.4의 "확정 예정" 표시를 확정 내용으로 같은 PR에서 교체(constitution II)
+- [ ] T041 ALT-002 반경 계약 test in api/tests/contract/test_alternatives_contract.py, api/tests/unit/test_alternative_candidates.py per FR-019, US3/AC5~AC6, Constitution II (missing)
+  - 영역: BE
+  - 담당: ts
+  - 선행: 백엔드 조율 결정
+  - 착수 조건: **백엔드 조율 후**
+  - 검증: 2km 경계(1999m 포함·2001m 제외), 좌표 없는 결과 제외, 기존 장소·같은 날짜 장소가 2km 이내면 `inSchedule=true`로 포함, 페이지 재구성 시 cursor 연속성. 방식 C라면 `radiusMeters` 파라미터 검증(범위·기본값). 구현 전 실패 확인
+- [ ] T042 ALT-002 카테고리 필터 파라미터와 결과별 혼잡도·마감 여부 값 in api/app/api/v1/alternatives.py, api/app/services/alternatives/__init__.py, api/app/schemas/alternatives.py per FR-019 카테고리, plan: 혼잡·마감 배지 (missing)
+  - 영역: BE
+  - 담당: ts
+  - 선행: 백엔드 조율 결정, T040
+  - 착수 조건: **백엔드 조율 후**. 혼잡도·마감 여부 값은 외부 호출량 증가 여부를 먼저 확인
+  - 검증: 카테고리 미지정 시 제한 없음, 지정 시 해당 내부 카테고리만 반환. 혼잡도·마감 여부는 확보하지 못하면 `null`(값을 지어내지 않음, constitution IV). 계약 test·api-spec·계약 파일 동기화
+- [ ] T043 직접 검색 화면 지도형 교체 in android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeMap.kt per plan: 지도형 직접 검색 전환, UI-007, UI-008, UI-010 (missing)
+  - 영역: FE
+  - 담당: jy
+  - 선행: T045, #434(공통 StateMessage)
+  - 검증: T045 통과. Figma `MapSearchScreen` 구조(전체 화면 지도·결과 번호 마커·떠 있는 검색창·하단 결과 시트·행별 `선택` 버튼). `RouteMap` helper 재사용, `PlaceRow`·`EmptyState` 목록형 재사용 제거. `기존 장소에서 N m`·`방문 불가`/`이미 일정에 있음` 문구+비활성 유지, `선택` → `SelectedAlternative(candidateId=null)`. 48dp 터치, 360dp·글자 2.0배 잘림 없음. 지도 정보는 결과 시트 목록으로도 제공
+- [ ] T044 직접 검색 선택 상태 공유와 조건부 칩·배지·반경 부제 in android/app/src/main/java/com/gilpick/alternative/AlternativeViewModel.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeApi.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt per plan: State & Interaction(직접 검색), UI-010 (missing)
+  - 영역: FE
+  - 담당: jy
+  - 선행: T043
+  - 검증: 마커 탭·행 탭이 같은 `selectedPlaceId`를 바꾼다. 카테고리 칩은 응답(또는 계약)에 카테고리 필터 지원 필드가 있을 때만, `혼잡`·`마감` 배지는 결과 항목에 해당 필드 값이 있을 때만, 반경 부제("{기존 장소명} 기준 2km 이내")는 서버 반경 필터가 계약에 반영된 뒤에만 표시. DTO의 새 필드는 nullable로 두고 필드 이름은 T040~T042 결정 후 확정. 앱 버전·원격 설정으로 켜지 않는다. 받은 페이지를 화면에서 반경·카테고리로 거르지 않는다
+- [ ] T045 [P] 직접 검색 지도형 UI test in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeSearchScreenTest.kt per UI-007, UI-008, UI-010, US3/AC1~AC4 (partial)
+  - 영역: FE
+  - 담당: jy
+  - 선행: 없음
+  - 검증: 기존 검증(2글자 미만 안내, 방문 불가·이미 일정에 있음 비활성, `candidateId=null` 전달, 페이지 이어 불러오기)을 지도형 구조로 갱신. 추가: 행↔마커 선택 연동, 필드 없음 → 칩·배지·반경 부제 미표시, fake 응답에 필드 있음 → 표시. 구현 전 실패 확인
+- [ ] T046 직접 검색 지도형 screenshot in android/app/src/androidTest/java/com/gilpick/alternative/AlternativeScreenshotTest.kt per plan: Visual Validation, UI-009, UI-010, SC-009 (missing)
+  - 영역: FE
+  - 담당: jy
+  - 선행: T043, T044
+  - 검증: 검색 전·결과(방문 불가 포함·선택 상태)·결과 없음·검색 실패 × 360dp 기본·최대 글자 배율, 칩·배지 켜짐(fake 응답) 참고 캡처. 지도는 자리 표시로 대체
+- [ ] T047 직접 검색 지도형 실기기 확인 in specs/009-alternative-places/quickstart.md per quickstart AND 2 (missing)
+  - 영역: 통합
+  - 담당: jy
+  - 선행: T043, T044, T046
+  - 검증: quickstart AND 2의 지도 확인·조건부 표시 확인·반경 확인(확정 전) 절차를 `gilpick_api36_play` 또는 실기기에서 수행하고 결과·screenshot 경로를 quickstart 검증 기록에 추가. 반경 확정 후 확인은 T040 병합 뒤 다시 기록

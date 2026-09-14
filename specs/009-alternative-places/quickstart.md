@@ -73,6 +73,7 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 3. 기존 장소 자신이 결과에 있으면 `inSchedule=true`, `visitable=false`.
 4. Google 병합 결과 `businessStatus=CLOSED_TEMPORARILY`면 결과에서 빠지지 않고 `operatingStatus=CLOSED`, `visitable=false`.
 5. 페이지 처리(`cursor`)와 TourAPI 실패 시 오류 형식이 PLACE-001과 같은지 확인한다.
+6. **FR-019 반경 제한은 백엔드 조율 후 확정 예정**: 확정 전에는 반경 제한 없이 결과가 오는 현재 동작을 확인한다. 확정 후에는 2km 밖 결과·좌표 없는 결과가 없는지, 페이지마다 `hasNext`와 개수가 일치하는지, 카테고리 필터 파라미터 동작을 확인하는 절차로 바꾼다(tasks Convergence).
 
 ### BE 8. 후보 식별자 (FR-013·FR-014)
 
@@ -94,10 +95,13 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 5. 1초 미만 로딩에는 대기 표시가 없고, 재조회 중에는 기존 목록이 유지되는지 확인한다.
 6. 평점 없는 후보는 `★` 항목이 없고, `UNKNOWN`은 `운영시간 확인 불가`, `CLOSING_SOON`은 경고색+문구 병기인지 확인한다.
 
-### AND 2. 선택 전달·직접 검색·거절 (US2 Scenario 2·3, US3, FR-015·FR-016)
+### AND 2. 선택 전달·직접 검색·거절 (US2 Scenario 2·3, US3, FR-015·FR-016, UI-010)
 
 1. 1위 `경로 비교`·다른 행 `비교` 탭 → `onSelectPlace(SelectedAlternative)`에 `detectionId`·`placeId`·`candidateId`·`name`·`distanceMeters`·`displayScore`가 전달된다(`AlternativeNavigationTest`).
-2. `직접 검색` → `AlternativeSearchScreen`; 2글자 미만은 검색하지 않고 안내; 결과 행에 `기존 장소에서 N m`·`방문 불가`/`이미 일정에 있음` 표시와 비활성; 방문 가능 행 선택 시 `candidateId=null`로 같은 콜백에 전달.
+2. `직접 검색` → `AlternativeSearchScreen`(지도형, #450); 2글자 미만은 검색하지 않고 안내; 결과 시트 행에 `기존 장소에서 N m`·`방문 불가`/`이미 일정에 있음` 표시와 비활성; 방문 가능 행의 `선택` 시 `candidateId=null`로 같은 콜백에 전달.
+   - **지도 확인**: 결과마다 지도에 번호 마커가 표시되고 결과 시트 행 번호와 같다. 행을 누르면 해당 마커가 선택 표시(`primary` 채움·halo)되고, 마커를 누르면 해당 행이 선택된다. 지도 정보(번호·장소명·거리)는 시트 목록에서도 모두 확인된다. 지도 SDK attribution이 시트에 가리지 않는다.
+   - **조건부 표시 확인**: 검색 API 응답에 카테고리 필터 지원 필드가 없으면 카테고리 칩이 보이지 않고, 결과 항목에 혼잡도·마감 여부 값이 없으면 `혼잡`·`마감` 배지가 보이지 않는다. fake 응답에 해당 필드를 넣으면 칩·배지가 보인다.
+   - **반경 확인 (FR-019 반경 제한은 백엔드 조율 후 확정 예정)**: 확정 전에는 시트에 "기준 2km 이내" 문구가 없다. 확정 후에는 문구가 기존 장소 이름으로 표시되고, 결과에 2km 밖 장소(`distanceMeters` > 2000)나 거리 없는 장소가 없는지 확인한다(US3 Scenario 5·6).
 3. `기존 일정 그대로 진행` → DETECT-004 호출, 성공 시 `onDismissed` 호출, 요청 중 버튼 비활성, 실패 시 오류 표시 후 화면 유지(`AlternativeViewModelTest`).
 
 ### AND 3. 진행 화면 배너 (UI-001, FR-028)
@@ -106,9 +110,9 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 2. 감지 0건 또는 조회 실패 → 배너 없음, 나머지 진행 화면 정상(`ActiveTravelScreenTest`).
 3. 다른 날짜를 보고 있을 때 배너가 숨겨지는지 확인한다.
 
-### AND 4. Screenshot (UI-008·UI-009)
+### AND 4. Screenshot (UI-008·UI-009·UI-010, SC-009)
 
-`AlternativeScreenshotTest`: 후보 있음·후보 없음·추천 실패·처리된 감지 × (360dp 기본, 360dp fontScale 2.0) = 8장, `ActiveTravelScreenshotTest`에 배너 있음 2장 추가. 360dp·2.0에서 잘림·가로 스크롤이 없고 터치 대상 48dp(`assertTouchHeightIsEqualTo`/`sizeIn`)를 확인한다. ATD `gilpick_api36`에서 `captureToImage`로 저장한다.
+`AlternativeScreenshotTest`: 후보 있음·후보 없음·추천 실패·처리된 감지 × (360dp 기본, 360dp fontScale 2.0) = 8장, `ActiveTravelScreenshotTest`에 배너 있음 2장 추가. 직접 검색 지도형은 검색 전·결과 있음(방문 불가 포함·선택 상태)·결과 없음·검색 실패 × (360dp 기본, 360dp fontScale 2.0) = 8장을 추가한다(tasks T046, 지도는 자리 표시). 360dp·2.0에서 잘림·가로 스크롤이 없고 터치 대상 48dp(`assertTouchHeightIsEqualTo`/`sizeIn`)를 확인한다. ATD `gilpick_api36`에서 `captureToImage`로 저장한다.
 
 ### AND 5. 실서버 연동 (UI-009, SC-008)
 

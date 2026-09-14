@@ -6,7 +6,7 @@
 
 ## Summary
 
-F008 `ACTIVE` 감지 결과 하나를 기준으로, 기존 장소 좌표에서 TourAPI 위치 기반 목록을 **2km 한 번** 받아 0.5km→1km→2km 사다리와 소→중→대분류 비교를 메모리에서 적용하고, 거리·혼잡·날씨로 예비 점수를 매긴 뒤 상위부터 Google Text Search 1회씩으로 평점 병합과 운영 상태 확인을 하여 운영 중 후보 10개(확인 상한 20)를 채운다. 최종 점수(거리 35·베이지안 평점 30·혼잡 20·날씨 15, 결손 가중치 재분배)로 정렬해 서명된 `candidateId`와 함께 반환한다(ALT-001). 직접 검색(ALT-002)은 F003 검색을 그대로 실행하고 거리·운영 상태·방문 가능·일정 포함 여부를 덧붙인다. `기존 일정 그대로 진행`은 새 계약 **DETECT-004 감지 거절**로 `ACTIVE → DISMISSED`를 멱등하게 처리한다. 후보는 저장하지 않고 새 테이블·migration이 없다.
+F008 `ACTIVE` 감지 결과 하나를 기준으로, 기존 장소 좌표에서 TourAPI 위치 기반 목록을 **2km 한 번** 받아 0.5km→1km→2km 사다리와 소→중→대분류 비교를 메모리에서 적용하고, 거리·혼잡·날씨로 예비 점수를 매긴 뒤 상위부터 Google Text Search 1회씩으로 평점 병합과 운영 상태 확인을 하여 운영 중 후보 10개(확인 상한 20)를 채운다. 최종 점수(거리 35·베이지안 평점 30·혼잡 20·날씨 15, 결손 가중치 재분배)로 정렬해 서명된 `candidateId`와 함께 반환한다(ALT-001). 직접 검색(ALT-002)은 F003 검색을 그대로 실행하고 거리·운영 상태·방문 가능·일정 포함 여부를 덧붙인다(현재 계약. spec FR-019의 2km 반경은 확정 전 변경안이며 적용 방식은 아래 "반경 적용 방식 조사"에서 백엔드 조율 후 정한다). `기존 일정 그대로 진행`은 새 계약 **DETECT-004 감지 거절**로 `ACTIVE → DISMISSED`를 멱등하게 처리한다. 후보는 저장하지 않고 새 테이블·migration이 없다.
 
 Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma `AlternativePlacesScreen`/`alternativesEmpty`)·직접 검색 화면·지도를 만들고, 진행 화면(`ActiveTravelScreen`)에 변수 경고 배너 진입점을 더한다. 후보·직접 검색 선택은 `onSelectPlace(SelectedAlternative)` 콜백으로 F010에 넘기며 일정을 바꾸지 않는다. 결정 근거는 [research.md](research.md), 계약은 [contracts/alternatives.openapi.yaml](contracts/alternatives.openapi.yaml), 상태 모델은 [data-model.md](data-model.md), 검증 절차는 [quickstart.md](quickstart.md)다.
 
@@ -24,22 +24,31 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 **Project Type**: Mobile + API
 
-**Performance Goals**: ALT-001 응답 p95 6초 이내(TourAPI 1회 ≤5s와 Google ≤20회 병렬 ≤5s가 상한, 정상 시 2~3초). ALT-002·DETECT-004는 PLACE-001·DETECT-003과 동급. 요청당 외부 호출 상한: TourAPI 1, Google ≤`OPERATING_CHECK_LIMIT`(20), 기상청 1, 서울시 ≤구역 수
+**Performance Goals**: ALT-001 응답 p95 6초 이내(TourAPI 1회 ≤5s와 Google ≤20회 병렬 ≤5s가 상한, 정상 시 2~3초). ALT-002·DETECT-004는 PLACE-001·DETECT-003과 동급(ALT-002는 FR-019 반경 적용 방식에 따라 재산정, "반경 적용 방식 조사" 참조). 요청당 외부 호출 상한: TourAPI 1, Google ≤`OPERATING_CHECK_LIMIT`(20), 기상청 1, 서울시 ≤구역 수
 
 **Constraints**: 후보 조회·검색·선택은 일정·경로·감지 상태를 바꾸지 않음(FR-023). DETECT-004는 상태 기반 멱등(constitution III). 선택적 provider 실패는 변수 단위 격리, TourAPI 실패만 추천 실패(constitution IV, FR-021·FR-022). 모든 endpoint는 `detection → trip_day → trip → user` 소유권 검증(constitution V). 조정값(반경·가중치·상한·TTL)은 `policy.py` 한곳. 화면 값은 `com.gilpick.ui.theme` 토큰만 사용
 
-**Scale/Scope**: 신규 endpoint 3개(ALT-001·ALT-002·DETECT-004) + DETECT-001 확장(필터·필드 2개), 신규 서비스 패키지 1개(`services/alternatives/`), client 메서드 1개(`search_by_location`), F003·F008 파일의 동작 불변 승격/분리 refactor 2건. Android 신규 파일 9개 + `progress` 3파일·`route/RouteMap.kt`·`place/PlaceSearchScreen.kt` 수정. F010·F011 제외
+**Scale/Scope**: 신규 endpoint 3개(ALT-001·ALT-002·DETECT-004) + DETECT-001 확장(필터·필드 2개), 신규 서비스 패키지 1개(`services/alternatives/`), client 메서드 1개(`search_by_location`), F003·F008 파일의 동작 불변 승격/분리 refactor 2건. Android 신규 파일 9개 + `progress` 3파일·`route/RouteMap.kt` 수정(`place/PlaceSearchScreen.kt` 수정은 초기 목록형 구현 T031 이력이며, 지도형 전환(#450) 후 직접 검색은 이 파일을 쓰지 않는다). F010·F011 제외
 
 ## UI Implementation & Validation
 
 > **변경 기록 (2026-09-13, 팀 결정, #450)**: 직접 검색 화면을 **Figma `MapSearchScreen` 기준 지도형 검색으로 변경**한다(전체 화면 지도 + 결과 번호 마커 + 파란 원형 카테고리 칩 + 떠 있는 검색창 + 하단 결과 시트 + 행별 `선택` 버튼). 아래 문서에서 "F003 `PlaceSearchScreen`의 목록형 검색(`PlaceRow`·`EmptyState`)을 재사용한다"고 정했던 결정은 **폐기**한다. 기존 목록형 구현(T031·T032, `AlternativeSearchScreen.kt`)은 #450에서 지도형으로 교체한다. ALT-002 계약(`place.latitude`·`longitude` 포함)은 마커 표시에 그대로 쓸 수 있어 변경하지 않는다.
 >
-> **지도형 전환의 세부 결정 (2026-09-14, #450)**
-> - **반경 2km**: spec FR-019를 "대체 대상 장소(감지 결과의 기존 일정 장소) 좌표 기준 2km 이내"로 바꿨다. Figma "경복궁 기준 2km 이내"의 `경복궁`은 예시 값이고, 같은 흐름의 `AlternativePlacesScreen` 감지 장소를 가리킨다. 서버 ALT-002의 거리 기준점도 같은 좌표다.
->   - **반경 필터는 서버에서 적용해야 한다(화면 필터로는 불가).** 확인 결과: ALT-002는 `query`·`cursor`·`limit`(최대 20)만 받고, 서버는 TourAPI 키워드 검색(`searchKeyword2`, 전국, 반경 미지원)을 페이지 단위로 그대로 넘긴다. 화면에서 2km 밖을 걸러내면 한 페이지가 비어도 `hasNext=true`가 되고, `검색 결과 N곳`이 실제 개수와 달라지며, 무한 스크롤이 빈 페이지를 계속 부른다. 따라서 검색 API 동작(고정 2km 필터 또는 `radiusMeters` 파라미터) 변경이 필요하고 백엔드 조율 목록에 올렸다. TourAPI 키워드 검색은 반경을 지원하지 않고 위치 기반 목록(`locationBasedList2`)은 키워드를 지원하지 않아 서버 설계가 필요하다(research R1).
+> **지도형 전환의 세부 결정 (2026-09-14, #450)** — 직접 검색 전환 결정의 근거는 이 절 한곳에 둔다. spec·research는 이 절을 참조한다.
+> - **반경 2km (spec FR-019, 확정 전 변경안 — 반경 제한은 백엔드 조율 후 확정 예정)**: 직접 검색 결과를 기존 장소(감지 결과의 일정 장소) 좌표 기준 2km 이내로 한정한다. 확정 전까지는 현재 ALT-002 계약(반경 제한 없음)이 유효하다.
+>   - **기준점 근거**: Figma `MapSearchScreen` 시트 부제 "경복궁 기준 2km 이내"의 `경복궁`은 예시 값이다. 같은 Figma 흐름에서 직접 검색은 `AlternativePlacesScreen`("경복궁 · 방문 어려움 감지")의 `직접 검색`으로 들어오므로 `경복궁`은 감지된 기존 장소를 가리킨다. 서버 ALT-002도 이미 감지 결과의 일정 항목 장소 좌표를 거리 기준점으로 쓴다(`api/app/services/alternatives/__init__.py` `search`, `docs/design/api-spec.md` ALT-002 `distanceMeters`). 2km는 FR-002 후보 추천의 최대 반경과 같다.
+>   - **반경 필터는 서버에서 적용해야 한다(화면 필터로는 불가).** ALT-002는 `query`·`cursor`·`limit`(최대 20)만 받고, 서버는 TourAPI 키워드 검색(`searchKeyword2`, 전국, 반경 미지원)을 페이지 단위로 그대로 넘긴다. 화면에서 2km 밖을 걸러내면 한 페이지가 비어도 `hasNext=true`가 되고, `검색 결과 N곳`이 실제 개수와 달라지며, 무한 스크롤이 빈 페이지를 계속 부른다. TourAPI 키워드 검색은 반경을 지원하지 않고 위치 기반 목록(`locationBasedList2`)은 키워드를 지원하지 않는다(research R1).
 >   - 백엔드 반영 전에는 앱이 "2km 이내" 문구를 표시하지 않는다(사실과 다른 안내 방지). 결과 행의 `기존 장소에서 N m` 거리 표시는 유지한다.
-> - **카테고리 칩**: 검색 API에 카테고리 필터 파라미터 추가를 백엔드와 조율한다(서버 `PlaceService.search_places`는 `category` 인자가 있으나 ALT-002가 `None`으로 호출). 반영 전에는 칩 UI를 구현하되 표시하지 않는다(조건부 렌더링).
-> - **`혼잡`·`마감` 배지**: 검색 API 응답에 혼잡도·마감 여부 값 추가를 백엔드와 조율한다. 반영 전에는 값이 없으면 배지를 그리지 않는다(ui-guidelines 12절, 값을 지어내지 않음).
+> - **카테고리 칩**: 칩을 고르지 않으면 제한 없음, 고르면 해당 카테고리로 한정한다(spec FR-019). 검색 API에 카테고리 필터 파라미터 추가를 백엔드와 조율한다(서버 `PlaceService.search_places`는 `category` 인자가 있으나 ALT-002가 `None`으로 호출).
+> - **`혼잡`·`마감` 배지**: 검색 API 응답에 혼잡도·마감 여부 값 추가를 백엔드와 조율한다. 값이 없으면 배지를 그리지 않는다(ui-guidelines 12절, 값을 지어내지 않음).
+>
+> **반경 적용 방식 조사 (결정: 백엔드 조율 후)**
+>
+> | 방식 | 동작 | 외부 호출량(검색 1페이지 기준) | 성능·정확도 영향 |
+> |---|---|---|---|
+> | A. 키워드 검색 후처리 + 페이지 재구성 | `searchKeyword2` 결과를 받아 기존 장소 좌표와 haversine 거리로 2km 밖을 버리고, 20건이 찰 때까지 TourAPI 다음 페이지를 이어 받아 서버 cursor를 새로 만든다 | 전국 결과 중 2km 안 비율에 반비례. 흔한 키워드("카페")는 TourAPI 페이지 여러 번(상한 필요), 드문 키워드는 끝까지 넘겨도 0건일 수 있음 | 응답 시간이 키워드마다 크게 흔들림(ALT-002 "PLACE-001과 동급" 목표 초과 가능). 호출 상한에 걸리면 2km 안 결과를 놓칠 수 있음. Google 보완(FR-020) 결과도 같은 후처리 필요 |
+> | B. 위치 기반 목록 + 이름 필터 | `locationBasedList2`(mapX·mapY·radius=2000, `numOfRows` 크게)를 1회 받아 서버 메모리에서 검색어로 장소명을 거르고 페이지를 만든다(ALT-001 R1과 같은 호출) | TourAPI 1회(한 요청에 최대 `numOfRows`, 초과분은 추가 페이지) | 응답 시간이 안정적이고 반경이 정확함. 대신 검색어가 **장소명 부분 일치**로만 동작해 `searchKeyword2`의 키워드 매칭과 결과가 달라질 수 있음(FR-018·FR-020 "F003 검색과 동일" 재정의 필요). Google 보완 규칙과의 결합 방식 재설계 필요 |
+> | C. 반경 파라미터(`radiusMeters`) 추가 | ALT-002에 선택 파라미터를 두고, 서버 내부는 A 또는 B로 구현한다. 앱은 2000을 보낸다 | 내부 구현(A 또는 B)을 따른다 | 계약이 명시적이라 향후 반경 조정이 쉬움. 파라미터만으로 성능 문제가 풀리지는 않으므로 A/B 선택이 여전히 필요. 계약·api-spec·계약 test 변경 범위가 가장 큼 |
 
 **Design Sources**: `docs/design/ui-guidelines.md`(3·5·9·10절), Figma Make 저장소 사본 `docs/design/figma-make/src/screens/AlternativePlacesScreen.tsx`(`hasResults` true/false), `ActiveTravelScreen.tsx`(변수 경고 영역), `MapSearchScreen.tsx`(직접 검색 — 지도형, 2026-09-13 변경). ~~F003 `PlaceSearchScreen.kt`(직접 검색 재사용)~~ 폐기. Figma의 `이동 시간 N분 증가` 근거 문구는 F010 범위라 표시하지 않는다(spec UI-003).
 
@@ -47,9 +56,11 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 **State & Interaction**: `AlternativeUiState` = Loading(1초 지연 표시) / Error(재시도·돌아가기, 기존 일정 유지) / Closed(409, 진행 화면으로) / Content(후보 목록, `items` 비면 empty 표현, `refreshing`은 기존 목록 유지, `dismissPending`·`dismissError`). 상세(DETECT-002)+후보(ALT-001) 병렬 조회, `LifecycleResumeEffect`로 재조회. 후보 선택·직접 검색 선택 → `onSelectPlace(SelectedAlternative)`; `기존 일정 그대로 진행` → DETECT-004 → `onDismissed`. 배너: `ProgressUiState.Content.bannerDetection`(오늘·당일 미완료·ETA 최소 1건, Figma 단일 배너), 탭 → `onOpenAlternatives(detectionId)`. 배너 없음은 빈 상태를 만들지 않는다(spec UI-001)
 
+**State & Interaction — 직접 검색(지도형, #450)**: `AlternativeSearchUiState.phase`는 기존 `Idle`/`Loading`/`Content`/`Empty`/`TooShort`/`Failed`를 유지하고, 결과 시트 행과 지도 마커가 같은 선택 상태(`selectedPlaceId`)를 공유한다. 행 탭·마커 탭 모두 선택을 바꾸고, `선택` 버튼만 `onSelectPlace(SelectedAlternative(candidateId=null))`를 호출한다. **지도형 UI의 조건부 표시는 검색 API 응답에 해당 필드가 있는지로 판단한다.** 카테고리 칩은 응답(또는 계약)에 카테고리 필터 지원 필드가 있을 때만, `혼잡`·`마감` 배지는 결과 항목에 혼잡도·마감 여부 필드 값이 있을 때만 그린다. 반경 부제("{기존 장소명} 기준 2km 이내")는 서버 반경 필터 적용이 계약에 반영된 뒤에만 표시한다. 앱 버전·원격 설정으로 켜지 않는다.
+
 **Accessibility & Adaptive Layout**: 터치 대상 `sizeIn(minHeight = 48.dp)`·간격 8dp, 아이콘 버튼 `contentDescription`, 후보 행 `contentDescription = "N위 이름, 카테고리, 거리, 운영 상태"`, TOP·폐점 임박·방문 불가는 배지·문구·테두리 병기(색 단독 금지), 360dp·fontScale 2.0에서 `weight(1f)`+줄바꿈으로 잘림 없음(F006 `오늘로 돌아가기` 교훈), 지도 정보는 목록으로 중복 제공(UI-004), `statusBarsPadding`/`navigationBarsPadding`
 
-**Visual Validation**: `AlternativeScreenshotTest` 4상태 × 2배율 8장 + `ActiveTravelScreenshotTest` 배너 2장(ATD `captureToImage`; 다이얼로그·시트는 inline content로 캡처). 실기기/`gilpick_api36_play` 실서버 절차는 quickstart AND 5. 적용하지 않는 상태: ~~직접 검색 화면의 `empty`는 F003 `EmptyState` 재사용(새 표현 없음)~~ → 지도형 전환 후 직접 검색 `empty`는 결과 시트 안 빈 상태로 표시(#450, ui-guidelines 5절 "목록·검색 영역 안 빈 상태"), 배너의 `loading`·`error`는 없음(실패 = 숨김)
+**Visual Validation**: `AlternativeScreenshotTest` 4상태 × 2배율 8장 + `ActiveTravelScreenshotTest` 배너 2장 + 직접 검색 지도형 4상태(검색 전·결과 있음·결과 없음·검색 실패) × 2배율 8장(UI-009·UI-010·SC-009, tasks T046)(ATD `captureToImage`; 다이얼로그·시트는 inline content로 캡처). 실기기/`gilpick_api36_play` 실서버 절차는 quickstart AND 5. 적용하지 않는 상태: ~~직접 검색 화면의 `empty`는 F003 `EmptyState` 재사용(새 표현 없음)~~ → 지도형 전환 후 직접 검색 `empty`는 결과 시트 안 빈 상태로 표시(#450, ui-guidelines 5절 "목록·검색 영역 안 빈 상태"), 배너의 `loading`·`error`는 없음(실패 = 숨김)
 
 ### Figma 대조 결과 (T003, 2026-09-09)
 
