@@ -8,7 +8,13 @@ from typing import Any
 import httpx2
 from pydantic import ValidationError
 
-from app.clients.route_provider import Coordinate, NormalizedRoute, Provider, RouteProviderError, TransportMode
+from app.clients.route_provider import (
+    Coordinate,
+    NormalizedRoute,
+    Provider,
+    RouteProviderError,
+    TransportMode,
+)
 from app.core.config import Settings
 
 
@@ -73,6 +79,8 @@ class OdsayClient:
         error = payload.get("error")
         if error:
             code = error.get("code") if isinstance(error, dict) else None
+            if str(code) == "429":
+                raise RouteProviderError("ROUTE_PROVIDER_RATE_LIMITED", retryable=True)
             if str(code) == "-98":
                 raise RouteProviderError("ROUTE_NOT_FOUND", retryable=False)
             raise RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=False)
@@ -103,9 +111,9 @@ class OdsayClient:
             ]
             joined: list[Coordinate] = []
             for piece in pieces:
-                if len(piece) < 2 or (joined and joined[-1] != piece[0]):
-                    raise ValueError("invalid geometry order")
-                joined.extend(piece if not joined else piece[1:])
+                if len(piece) < 2:
+                    raise ValueError("invalid geometry")
+                joined.extend(piece[1:] if joined and joined[-1] == piece[0] else piece)
             if len(joined) < 2:
                 raise ValueError("missing geometry")
             return joined
