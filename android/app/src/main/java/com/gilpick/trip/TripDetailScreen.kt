@@ -22,10 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -431,7 +427,7 @@ private fun Hero(
             ) {
                 HeroButton(onClick = { menuOpen = true }, contentDescription = stringResource(R.string.trip_detail_more)) {
                     Icon(
-                        imageVector = Icons.Default.MoreVert,
+                        painter = painterResource(R.drawable.ic_lucide_ellipsis_vertical),
                         contentDescription = null,
                         tint = onImage,
                         modifier = Modifier.size(HERO_ICON),
@@ -850,10 +846,11 @@ private fun ItineraryActions(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                painter = painterResource(R.drawable.ic_lucide_chevron_right),
                 // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(CHEVRON_ICON),
             )
         }
     }
@@ -1162,9 +1159,9 @@ private fun RouteSummaryRow(route: RouteDto, dateLabel: String, onOpenRoute: () 
         ) {
             Text(stringResource(R.string.trip_detail_route_open))
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                painter = painterResource(R.drawable.ic_lucide_chevron_right),
                 contentDescription = null,
-                modifier = Modifier.size(ADD_ICON + spacing.space1),
+                modifier = Modifier.size(CHEVRON_ICON),
             )
         }
     }
@@ -1282,7 +1279,7 @@ private fun AddPlaceButton(dateLabel: String, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(spacing.space1),
         ) {
             Icon(
-                imageVector = Icons.Default.Add,
+                painter = painterResource(R.drawable.ic_lucide_plus),
                 // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1342,10 +1339,11 @@ private fun PlaceRow(item: ItineraryItemDto, onClick: () -> Unit) {
             )
         }
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            painter = painterResource(R.drawable.ic_lucide_chevron_right),
             // 행 전체가 누를 수 있는 하나의 대상이라 아이콘은 장식이다(가이드라인 10절).
             contentDescription = null,
             tint = colors.faint,
+            modifier = Modifier.size(CHEVRON_ICON),
         )
     }
 }
@@ -1595,6 +1593,9 @@ private val EDIT_ICON = 14.dp
 /** Figma 날짜 헤더의 일차 배지와 `추가` 아이콘, 장소 순서 번호 원의 크기. */
 private val DAY_BADGE = 24.dp
 private val ADD_ICON = 12.dp
+
+/** Figma 행·버튼 끝 chevron(14). */
+private val CHEVRON_ICON = 14.dp
 private val SEQUENCE_CIRCLE = 24.dp
 
 /** 이동 수단 줄의 들여쓰기와 세로선. Figma의 `ml-11`·1px 선에 해당한다. */
