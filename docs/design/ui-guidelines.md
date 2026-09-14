@@ -657,7 +657,13 @@ val LocalGilpickColors = compositionLocalOf<GilpickColors> { error("GilpickTheme
 ```
 
 - 기본값을 주지 않고 `error(...)`로 둔다. 테마 밖에서 쓰면 조용히 잘못된 색이 나오는 대신 즉시 실패한다.
-- gradient 주버튼은 `Brush.linearGradient(listOf(primary, primaryDark))`를 공통 컴포넌트(`GradientButton`)로 만들어 재사용한다.
+- gradient 버튼은 공통 컴포넌트 `GradientButton`(`com.gilpick.ui.component`)을 쓰고 화면에서 직접 조립하지 않는다.
+  - `tone`: `Primary`(`primary → primaryDark`, 주버튼 그림자) / `Success`(`success → successDark`) / `Warning`(`warning → warningDark`). 성공·경고는 그림자가 없다(3절).
+  - `width`: `Standalone`(6절 R1·R2, 16dp) / `Split`(R3, 12dp). 곡률 dp를 직접 넘기지 않는다.
+  - `height`: 최소 높이(기본 54dp, Figma 46~54dp). 글자 배율이 커지면 늘어나고 터치 영역은 48dp 이상이다.
+  - `processing`: gradient 유지 + 80% 투명도 + 라벨 앞 lucide `loader` spinner, 클릭 차단. 진행 문구는 호출부가 `label`로 넘긴다.
+  - `enabled`: 클릭 차단. 비활성 표현(D2)은 #433에서 이 인자에 붙인다.
+  - gradient는 CSS `linear-gradient(135deg, …)`와 같게 그린다. `Brush.linearGradient` 기본값은 대각선 방향이라 가로로 긴 버튼에서 Figma와 달라지므로 쓰지 않는다.
 
 **공통 규칙**
 
