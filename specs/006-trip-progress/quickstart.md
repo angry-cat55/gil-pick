@@ -3,7 +3,7 @@
 ## 사전 조건
 
 - PostgreSQL/PostGIS(`docker compose up -d postgres`)와 `alembic upgrade head`(migration 005 포함)
-- test에서는 TMAP·ODsay를 F005 fixture/MockTransport로 대체한다. 실제 provider 호출은 live smoke test에서만 한다.
+- test에서는 TMAP·Kakao Maps를 F005 fixture/MockTransport로 대체한다. 실제 provider 호출은 live smoke test에서만 한다.
 - Android: `gilpick_api36_play` AVD(화면 확인용), 위치는 `adb emu geo fix <lon> <lat>`로 주입한다.
 
 ## 자동 검증

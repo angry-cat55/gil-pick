@@ -48,6 +48,25 @@ class RouteApiTest {
     }
 
     @Test
+    fun `Kakao 대중교통 provider 응답을 역직렬화한다`() = withService { server, api ->
+        val kakaoRoute = readyRouteJson().replace("\"ODSAY\"", "\"KAKAO\"")
+        server.enqueue(
+            MockResponse(
+                code = 200,
+                body = routeEnvelopeJson("READY", route = kakaoRoute),
+            ),
+        )
+
+        val route = api.getDayRoute(
+            BEARER,
+            ROUTE_TRIP_ID,
+            ROUTE_DATE,
+        ).body()!!.data.route!!
+
+        assertEquals(RouteProvider.KAKAO, route.segments[1].provider)
+    }
+
+    @Test
     fun `NOT_CALCULATED와 FAILED는 route와 failure가 상태에 맞게 null이다`() = withService { server, api ->
         server.enqueue(MockResponse(code = 200, body = routeEnvelopeJson("NOT_CALCULATED", scheduleVersion = 0)))
         server.enqueue(MockResponse(code = 200, body = routeEnvelopeJson("FAILED", failure = failureJson())))

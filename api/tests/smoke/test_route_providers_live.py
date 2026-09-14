@@ -7,7 +7,7 @@ from time import monotonic
 
 import pytest
 
-from app.clients.odsay import OdsayClient
+from app.clients.kakao_transit import KakaoTransitClient
 from app.clients.route_provider import Coordinate, Provider, TransportMode
 from app.clients.tmap import TmapClient
 from app.core.config import Settings
@@ -50,10 +50,10 @@ async def test_tmap_representative_walk_route() -> None:
 
 
 @pytest.mark.asyncio
-async def test_odsay_representative_transit_route() -> None:
+async def test_kakao_representative_transit_route() -> None:
     settings = _settings()
-    assert settings.odsay_api_key.get_secret_value()
-    client = OdsayClient(settings)
+    assert settings.kakao_rest_api_key.get_secret_value()
+    client = KakaoTransitClient(settings)
     try:
         result = await client.calculate(
             ORIGIN,
@@ -64,8 +64,8 @@ async def test_odsay_representative_transit_route() -> None:
     finally:
         await client.close()
 
-    assert result.provider is Provider.ODSAY
-    assert result.attribution == "ODsay"
+    assert result.provider is Provider.KAKAO
+    assert result.attribution == "Kakao Maps"
     assert result.duration_seconds >= 0
     assert result.distance_meters >= 0
     assert len(result.coordinates) >= 2

@@ -263,6 +263,31 @@
 
 ---
 
+## Phase 7: Kakao Maps 대중교통 provider 전환 (#494)
+
+- [X] T037 Kakao Maps 대중교통 adapter 구현 in api/app/clients/kakao_transit.py
+  - 영역: BE
+  - 담당: ts
+  - 선행: Kakao Developers 무료 쿼터와 AWS PoC 확인
+  - 검증: 첫 추천 경로의 시간·거리·`steps[].path.points` 정규화, timeout·429·5xx·경로 없음·무효 응답 분류 단위 테스트 통과
+- [X] T038 신규 대중교통 계산과 DB·API provider 계약을 `KAKAO`로 전환 in api/app/services/route.py, api/app/models/, api/app/schemas/route.py, api/migrations/versions/012_add_kakao_route_provider.py
+  - 영역: BE·계약
+  - 담당: ts
+  - 선행: T037
+  - 검증: 신규 TRANSIT는 `KAKAO`, 기존 `ODSAY` 저장 데이터는 조회 가능, migration upgrade와 route·progress 제약조건 검증
+- [X] T039 Android `KAKAO` 역직렬화와 F005·F006 공용 문서 동기화 in android/app/src/main/java/com/gilpick/route/RouteApi.kt, specs/005-route-calculation/, specs/006-trip-progress/, docs/
+  - 영역: 통합
+  - 담당: ts
+  - 선행: T038
+  - 검증: Android contract test, Backend unit·contract test, `speckit-analyze`, `git diff --check` 통과
+- [ ] T040 AWS 실제 Kakao 경로와 Android 화면 종단 검증 in specs/005-route-calculation/quickstart.md
+  - 영역: 통합
+  - 담당: ts
+  - 선행: T039, PR review 전 공유 개발 서버 branch 배포 승인
+  - 검증: 서울 시내 TRANSIT 일정의 `READY`, provider `KAKAO`, 지도 형상·시간·거리·attribution 표시와 카카오 통계 호출 증가 확인
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -274,6 +299,7 @@ Setup(T001~T004)
   → US2(T022~T028)
   → US3(T029~T032)
   → Polish(T033~T036)
+  → Kakao provider 전환(T037~T040)
 ```
 
 ### User Story Dependencies
@@ -331,6 +357,6 @@ FE jy: T030 test → T032 retry UI
 ## Notes
 
 - F004가 아직 구현 중이면 해당 일정 저장·Android ViewModel 선행 task가 병합된 뒤 T019·T021을 시작한다.
-- TMAP·ODsay 운영 quota·권한·attribution은 공식 console과 live smoke test에서 재확인한다. 확인 전 값을 사실로 단정하지 않는다.
+- TMAP·Kakao Maps 운영 quota·권한·attribution은 공식 console과 live smoke test에서 재확인한다. 교체 전 ODsay 검증 기록은 이력으로만 유지하며, 확인 전 값을 사실로 단정하지 않는다.
 - F006의 진행 중 `/route/recalculate`와 F005 실패 전용 `/route/retry`를 합치지 않는다.
 - 구현·검증 완료 전 `mvp-features.md` 상태를 `READY`로 변경하지 않는다.

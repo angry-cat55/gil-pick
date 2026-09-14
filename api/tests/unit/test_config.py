@@ -21,7 +21,6 @@ def valid_settings(**overrides: object) -> dict[str, object]:
         "tour_api_service_key": "test-tour-api-key",
         "google_places_api_key": "test-google-places-key",
         "tmap_api_key": "tmap-secret",
-        "odsay_api_key": "odsay-secret",
     }
     values.update(overrides)
     return values
@@ -83,8 +82,8 @@ def test_route_provider_settings_have_documented_defaults() -> None:
     assert settings.route_provider_timeout_seconds == 5
     assert settings.route_calculation_deadline_seconds == 10
     assert settings.route_provider_concurrency == 3
+    assert settings.kakao_maps_base_url == "https://dapi.kakao.com"
     assert str(settings.tmap_api_key) == "**********"
-    assert str(settings.odsay_api_key) == "**********"
 
 
 @pytest.mark.parametrize(

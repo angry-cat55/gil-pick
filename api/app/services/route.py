@@ -97,7 +97,7 @@ class RouteCalculationService:
         self,
         *,
         tmap: RouteProvider,
-        odsay: RouteProvider,
+        transit: RouteProvider,
         concurrency: int,
         deadline_seconds: float,
     ) -> None:
@@ -106,7 +106,7 @@ class RouteCalculationService:
         self.providers = {
             ClientTransportMode.WALK: tmap,
             ClientTransportMode.CAR: tmap,
-            ClientTransportMode.TRANSIT: odsay,
+            ClientTransportMode.TRANSIT: transit,
         }
         self.concurrency = concurrency
         self.deadline_seconds = deadline_seconds
@@ -582,8 +582,8 @@ class RouteService:
 
 
 def build_route_service(settings):  # type: ignore[no-untyped-def]
-    """공용 설정으로 실제 DB·TMAP·ODsay 경로 서비스를 구성한다."""
-    from app.clients.odsay import OdsayClient
+    """공용 설정으로 실제 DB·TMAP·Kakao 경로 서비스를 구성한다."""
+    from app.clients.kakao_transit import KakaoTransitClient
     from app.clients.tmap import TmapClient
     from app.db import create_session_factory
 
@@ -591,7 +591,7 @@ def build_route_service(settings):  # type: ignore[no-untyped-def]
         create_session_factory(),
         RouteCalculationService(
             tmap=TmapClient(settings),
-            odsay=OdsayClient(settings),
+            transit=KakaoTransitClient(settings),
             concurrency=settings.route_provider_concurrency,
             deadline_seconds=settings.route_calculation_deadline_seconds,
         ),
@@ -793,7 +793,7 @@ def _route_data_from_result(
 
 
 def _provider_for_mode(mode: ClientTransportMode) -> ClientProvider:
-    return ClientProvider.ODSAY if mode is ClientTransportMode.TRANSIT else ClientProvider.TMAP
+    return ClientProvider.KAKAO if mode is ClientTransportMode.TRANSIT else ClientProvider.TMAP
 
 
 def _retry_version_conflict() -> AppError:

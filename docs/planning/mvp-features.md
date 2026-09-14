@@ -95,7 +95,7 @@
 - 외부 연동 자격은 다음 시점까지 준비한다.
   - F001: Kakao test app, Backend HTTPS callback, Android App Link domain과 `assetlinks.json`
   - F003: TourAPI, Google Places
-  - F005: TMAP·ODsay
+  - F005: TMAP·Kakao Maps
   - F008: 기상청·서울시 데이터
   - F009: F003에서 확정한 Google Places 계약 재사용
   - F011: Firebase·FCM

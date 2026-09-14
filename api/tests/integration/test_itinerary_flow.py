@@ -443,7 +443,7 @@ async def test_stay_only_change_carries_active_route_to_new_schedule_version(
         session_factory,
         RouteCalculationService(
             tmap=_UnusedProvider(),
-            odsay=_UnusedProvider(),
+            transit=_UnusedProvider(),
             concurrency=3,
             deadline_seconds=10,
         ),

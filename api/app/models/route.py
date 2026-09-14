@@ -22,7 +22,7 @@ class Route(TimestampMixin, Base):
         UniqueConstraint("trip_day_id", "schedule_version", name="uq_routes_day_schedule_version"),
         CheckConstraint("schedule_version >= 1", name="ck_routes_schedule_version"),
         CheckConstraint("status IN ('READY', 'FAILED', 'HISTORICAL')", name="ck_routes_status"),
-        CheckConstraint("provider IS NULL OR provider IN ('TMAP', 'ODSAY', 'MIXED')", name="ck_routes_provider"),
+        CheckConstraint("provider IS NULL OR provider IN ('TMAP', 'ODSAY', 'KAKAO', 'MIXED')", name="ck_routes_provider"),
         CheckConstraint(
             "(status = 'READY' AND total_duration_seconds IS NOT NULL AND total_duration_seconds >= 0 AND total_distance_meters IS NOT NULL AND total_distance_meters >= 0 AND route_payload IS NOT NULL AND failure_code IS NULL) OR "
             "(status = 'FAILED' AND total_duration_seconds IS NULL AND total_distance_meters IS NULL AND route_payload IS NULL AND failure_code IS NOT NULL) OR "

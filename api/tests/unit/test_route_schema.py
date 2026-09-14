@@ -7,7 +7,13 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.itinerary import DayItinerary
-from app.schemas.route import FailedRouteData, ReadyRouteData, RouteFailureCode, RouteGeometry
+from app.schemas.route import (
+    FailedRouteData,
+    Provider,
+    ReadyRouteData,
+    RouteFailureCode,
+    RouteGeometry,
+)
 
 
 def _ready_payload() -> dict[str, object]:
@@ -38,6 +44,25 @@ def test_ready_route_accepts_ordered_segments_and_geojson() -> None:
     data = ReadyRouteData.model_validate(_ready_payload())
     assert data.route.total_duration_seconds == 600
     assert data.route.segments[0].geometry.type == "LineString"
+
+
+@pytest.mark.parametrize("provider", ["KAKAO", "ODSAY"])
+def test_ready_route_accepts_current_and_legacy_transit_providers(provider: str) -> None:
+    payload = _ready_payload()
+    route = payload["route"]
+    assert isinstance(route, dict)
+    segments = route["segments"]
+    assert isinstance(segments, list)
+    segment = segments[0]
+    assert isinstance(segment, dict)
+    segment["transportMode"] = "TRANSIT"
+    segment["provider"] = provider
+    segment["providerAttribution"] = provider
+    route["providerAttributions"] = [provider]
+
+    data = ReadyRouteData.model_validate(payload)
+
+    assert data.route.segments[0].provider is Provider(provider)
 
 
 def test_route_geometry_rejects_invalid_or_short_linestring() -> None:

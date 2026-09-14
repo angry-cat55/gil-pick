@@ -86,13 +86,13 @@ def _snapshot(count: int, modes: list[TransportMode] | None = None) -> RouteSnap
 def _service(
     *,
     tmap: FakeProvider | None = None,
-    odsay: FakeProvider | None = None,
+    transit: FakeProvider | None = None,
     concurrency: int = 3,
     deadline_seconds: float = 10.0,
 ) -> RouteCalculationService:
     return RouteCalculationService(
         tmap=tmap or FakeProvider(provider=Provider.TMAP),
-        odsay=odsay or FakeProvider(provider=Provider.ODSAY),
+        transit=transit or FakeProvider(provider=Provider.KAKAO),
         concurrency=concurrency,
         deadline_seconds=deadline_seconds,
     )
@@ -101,13 +101,13 @@ def _service(
 @pytest.mark.asyncio
 async def test_zero_items_is_not_calculated_without_provider_call() -> None:
     tmap = FakeProvider(provider=Provider.TMAP)
-    odsay = FakeProvider(provider=Provider.ODSAY)
+    transit = FakeProvider(provider=Provider.KAKAO)
 
-    result = await _service(tmap=tmap, odsay=odsay).calculate(_snapshot(0))
+    result = await _service(tmap=tmap, transit=transit).calculate(_snapshot(0))
 
     assert result.status == "NOT_CALCULATED"
     assert result.route is None and result.failure is None
-    assert tmap.calls == odsay.calls == 0
+    assert tmap.calls == transit.calls == 0
 
 
 @pytest.mark.asyncio
@@ -314,14 +314,14 @@ async def test_route_service_closes_each_shared_provider_once() -> None:
             self.close_calls += 1
 
     tmap = CloseableProvider(provider=Provider.TMAP)
-    odsay = CloseableProvider(provider=Provider.ODSAY)
-    calculator = _service(tmap=tmap, odsay=odsay)
+    transit = CloseableProvider(provider=Provider.KAKAO)
+    calculator = _service(tmap=tmap, transit=transit)
     service = RouteService(None, calculator)  # type: ignore[arg-type]
 
     await service.close()
 
     assert tmap.close_calls == 1
-    assert odsay.close_calls == 1
+    assert transit.close_calls == 1
 
 
 @pytest.mark.asyncio
@@ -385,7 +385,7 @@ async def test_single_segment_retries_transient_failure_once_with_five_second_at
     class DeadlineProvider(FakeProvider):
         def __init__(self) -> None:
             super().__init__(
-                provider=Provider.ODSAY,
+                provider=Provider.KAKAO,
                 failures=[RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=True)],
             )
             self.deadlines: list[float] = []
@@ -398,13 +398,13 @@ async def test_single_segment_retries_transient_failure_once_with_five_second_at
     monkeypatch.setattr("app.services.route.monotonic", lambda: next(clock))
     provider = DeadlineProvider()
 
-    result = await _service(odsay=provider).calculate_single_segment(
+    result = await _service(transit=provider).calculate_single_segment(
         origin=Coordinate(longitude=127.0, latitude=37.5),
         destination=Coordinate(longitude=127.1, latitude=37.6),
         transport_mode=TransportMode.TRANSIT,
     )
 
-    assert result.provider is Provider.ODSAY
+    assert result.provider is Provider.KAKAO
     assert provider.calls == 2
     assert provider.deadlines == [105.0, 106.0]
 

@@ -47,7 +47,7 @@ object RouteFailureCodes {
 
 /** 구간을 계산한 경로 제공자. attribution 문구는 [RouteSegmentDto.providerAttribution]이 따로 준다. */
 @Serializable
-enum class RouteProvider { TMAP, ODSAY }
+enum class RouteProvider { TMAP, ODSAY, KAKAO }
 
 /** GeoJSON 좌표 한 점. `[경도, 위도]` 순서의 배열이라 data class로 풀지 않는다. */
 typealias Position = List<Double>

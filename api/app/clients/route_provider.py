@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class Provider(StrEnum):
     TMAP = "TMAP"
     ODSAY = "ODSAY"
+    KAKAO = "KAKAO"
 
 
 class TransportMode(StrEnum):

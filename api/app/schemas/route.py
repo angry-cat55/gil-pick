@@ -27,6 +27,7 @@ class TransportMode(StrEnum):
 class Provider(StrEnum):
     TMAP = "TMAP"
     ODSAY = "ODSAY"
+    KAKAO = "KAKAO"
 
 
 class RouteFailureCode(StrEnum):

@@ -3,7 +3,7 @@
 ## 사전 조건
 
 - PostgreSQL/PostGIS와 API·Android 개발 환경
-- test에서는 TMAP·ODsay fixture/MockTransport 사용
+- test에서는 TMAP·Kakao Maps MockTransport 사용
 - live smoke test에서만 provider key와 Naver Maps client ID를 로컬 secret으로 주입
 
 ## 자동 검증
@@ -37,7 +37,15 @@ cd ..\android
 
 Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log·fixture에 key나 불필요한 정밀 좌표를 남기지 않는다.
 
-### ODsay 불연속 형상 회귀 검증 (#421, 2026-09-14)
+### Kakao Maps provider 전환 검증 (#494, 2026-09-15)
+
+- Kakao Developers REST API key를 사용한 AWS 사전 PoC에서 대중교통 endpoint가 HTTP 200, `status=OK`, 경로 15개를 반환했고 console 호출량 1건 증가를 확인했다. key와 원본 응답은 기록하지 않았다.
+- 빈 PostgreSQL/PostGIS에 migration `001`부터 `012_add_kakao_route_provider`까지 적용하고 API 전체 테스트를 실행해 `741 passed, 3 skipped`를 확인했다. skip 3건은 명시적 opt-in이 필요한 실제 provider smoke test다.
+- `ck_routes_provider`와 `ck_progress_segments_provider`가 신규 `KAKAO`와 기존 `ODSAY` 값을 함께 허용하는 PostgreSQL 계약 테스트가 통과했다.
+- Android `RouteApiTest` 8건이 통과해 신규 `KAKAO`와 기존 `ODSAY` provider 역직렬화 호환성을 확인했다.
+- 실제 Kakao adapter를 사용한 AWS 일정 계산과 Android 지도 화면 종단 검증은 T040에서 수행한다.
+
+### 교체 전 ODsay 불연속 형상 회귀 검증 (#421, 2026-09-14, 이력)
 
 - 실제 `loadLane` 응답은 동일한 `result.lane[].section[].graphPos[]` 형식이지만 환승이 포함된 경로에서는 선 조각의 경계 좌표가 서로 다를 수 있음을 확인했다.
 - 실제 응답과 같은 구조의 fixture로 불연속 선 조각을 입력해도 제공 순서, 시간, 거리와 전체 좌표를 보존하는 adapter 단위 테스트를 추가했다.
@@ -104,7 +112,7 @@ screenshot 위치: `/sdcard/Android/data/com.gilpick/files/screenshots/` (`-Pand
 
 | 항목 | 교차 확인 결과 |
 |---|---|
-| enum | `RouteStatus`는 `NOT_CALCULATED/READY/FAILED`, 이동수단은 `WALK/TRANSIT/CAR`, provider는 `TMAP/ODSAY`로 일치한다. |
+| enum | `RouteStatus`는 `NOT_CALCULATED/READY/FAILED`, 이동수단은 `WALK/TRANSIT/CAR`, 신규 provider는 `TMAP/KAKAO`로 일치하며 교체 전 `ODSAY` 응답도 조회 호환성을 유지한다. |
 | nullable | `READY`는 `route`만, `FAILED`는 `failure`만 값이 있고 `NOT_CALCULATED`는 둘 다 `null`이다. |
 | 단위·형상 | 시간은 초, 거리는 미터, geometry는 GeoJSON `LineString`과 `[경도, 위도]` 순서다. |
 | 오류 code | 실패 data의 provider code 5종과 HTTP error의 `VERSION_CONFLICT`, `ROUTE_NOT_FAILED`를 포함한 6종이 일치한다. |

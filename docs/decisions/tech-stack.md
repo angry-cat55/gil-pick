@@ -14,7 +14,7 @@ flowchart LR
     B --> W[기상청]
     B --> S[서울시 도시데이터]
     B --> TM[TMAP]
-    B --> O[ODsay]
+    B --> KM[Kakao Maps]
     B --> F[Firebase Admin / FCM]
     J[APScheduler] --> B
 ```
@@ -50,7 +50,7 @@ flowchart LR
 - 외부 경로 호출은 5초 timeout과 1회 재시도를 적용한다.
 - 일정 저장 후 경로가 실패하면 일정은 유지하고 `routeStatus=FAILED`를 기록한다.
 - `경로 다시 계산`은 기존 일정을 입력으로 사용한다.
-- ODsay 결과 사용 시 제공사 표시 정보를 앱에 전달한다.
+- Kakao Maps 결과 사용 시 제공사 표시 정보를 앱에 전달한다.
 
 ## 5. 진행 상태와 지오펜스
 
@@ -103,7 +103,7 @@ Google Places는 필요한 최소 field mask만 요청하며 서버 캐시는 �
 |---|---|---|
 | TourAPI | 5초·1회 | 관광 데이터 제외 |
 | TMAP | 5초·1회 | 경로 실패 |
-| ODsay | 5초·1회 | 경로 실패 |
+| Kakao Maps | 5초·1회 | 경로 실패 |
 | Google Places | 5초·1회 | Google 변수 제외 |
 | 기상청 | 5초·1회 | 날씨 변수 제외 |
 | 서울시 데이터 | 5초·1회 | 혼잡 변수 제외 |

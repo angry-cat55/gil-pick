@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_principal
 from app.api.errors import AppError, success_response
 from app.clients.google_places import GooglePlacesClient
-from app.clients.odsay import OdsayClient
+from app.clients.kakao_transit import KakaoTransitClient
 from app.clients.tmap import TmapClient
 from app.clients.tour_api import TourApiClient
 from app.core.config import Settings, get_settings
@@ -45,7 +45,8 @@ async def get_replacement_service(
         yield ReplacementService(
             session,
             calculator=RouteCalculationService(
-                tmap=TmapClient(settings, client), odsay=OdsayClient(settings, client),
+                tmap=TmapClient(settings, client),
+                transit=KakaoTransitClient(settings, client),
                 concurrency=settings.route_provider_concurrency,
                 deadline_seconds=settings.route_calculation_deadline_seconds,
             ),

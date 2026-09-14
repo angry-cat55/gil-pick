@@ -73,7 +73,7 @@ components:
       enum: [WALK, TRANSIT, CAR]
     Provider:
       type: string
-      enum: [TMAP, ODSAY]
+      enum: [TMAP, ODSAY, KAKAO]
     Position:
       type: array
       prefixItems:

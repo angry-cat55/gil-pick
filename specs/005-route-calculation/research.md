@@ -18,17 +18,17 @@
 
 ## 결정 3: 제공자와 후보
 
-**Decision**: `WALK`·`CAR`는 TMAP, `TRANSIT`는 ODsay를 사용하고 각 provider의 기본 추천 후보 하나만 정규화한다.
+**Decision**: `WALK`·`CAR`는 TMAP, `TRANSIT`는 Kakao Maps를 사용하고 각 provider의 기본 추천 후보 하나만 정규화한다. 교체 전 저장된 `ODSAY` provider 값은 조회 호환성을 위해 유지한다.
 
 **Rationale**: FR-002·FR-005a와 사용자의 범위 축소 결정을 따른다.
 
 **Alternatives considered**: 후보 저장·앱 정렬·provider 교차 비교는 MVP 범위 밖이다.
 
-## 결정 4: ODsay 지도 형상
+## 결정 4: Kakao Maps 지도 형상
 
-**Decision**: 대중교통 검색 응답의 `mapObj`로 지도 형상을 조회하고 두 호출을 한 구간 계산으로 취급한다. 하나라도 무효면 구간 실패다.
+**Decision**: 대중교통 응답의 첫 번째 `routes` 항목을 기본 추천 경로로 채택하고 `steps[].path.points`를 제공 순서대로 이어 지도 형상으로 사용한다. 응답 한 번으로 시간·거리·형상을 함께 얻는다.
 
-**Rationale**: ODsay 공식 안내에서 검색과 지도 표현용 형상 조회가 분리된다. 임의 직선은 실제 경로를 왜곡한다.
+**Rationale**: Kakao Maps 공식 응답이 기본 추천 경로의 단계별 실제 좌표를 제공하므로 별도 형상 호출이나 임의 직선 연결이 필요 없다.
 
 **Alternatives considered**: 정류장 좌표 직선 연결은 FR-003을 충족하지 못한다.
 
@@ -59,5 +59,6 @@
 ## 확인 근거와 한계
 
 - 저장소 확정 사실: `httpx2` async timeout/retry pattern, PostgreSQL/PostGIS, 일정 `schedule_version`, Compose/Retrofit/StateFlow 구조를 사용한다.
-- 공식 자료 확인 사실: ODsay는 대중교통 검색과 `mapObj` 기반 형상 조회를 제공한다. Naver Maps Android SDK는 marker/path overlay와 gesture를 지원하며 `MapView` lifecycle 전달이 필요하다.
-- 구현 전 재검증: TMAP·ODsay quota와 key 권한, 필수 attribution 문구, Naver SDK 적용 버전은 계약·console 설정에 따라 달라질 수 있다. live smoke test에서 확인하되 secret은 저장하지 않는다.
+- 공식 자료 확인 사실: Kakao Maps 대중교통 경로 응답은 기본 경로 목록, 총 시간·거리와 `steps[].path.points` 형상을 제공한다. Naver Maps Android SDK는 marker/path overlay와 gesture를 지원하며 `MapView` lifecycle 전달이 필요하다.
+- 2026-09-14 AWS PoC 확인 사실: 기존 `KAKAO_REST_API_KEY`로 HTTP 200·`status=OK`·15개 경로를 받았고 Kakao Developers 통계에 대중교통 호출 1건이 집계됐다. secret 원문은 기록하지 않는다.
+- 구현 전 재검증: TMAP·Kakao Maps quota와 key 권한, 필수 attribution 문구, Naver SDK 적용 버전은 계약·console 설정에 따라 달라질 수 있다. live smoke test에서 확인하되 secret은 저장하지 않는다.
