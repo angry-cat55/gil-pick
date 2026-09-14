@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from datetime import date, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, inspect, select, update as sql_update
+from sqlalchemy import func, inspect, select, text, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api.errors import AppError
@@ -208,10 +208,17 @@ async def test_trip_schema_constraints_and_indexes_exist(
 
     async with engine.connect() as connection:
         tables, constraints, indexes = await connection.run_sync(schema_snapshot)
+        exclusion_constraint = await connection.scalar(
+            text(
+                "SELECT conname FROM pg_constraint "
+                "WHERE conrelid = 'trips'::regclass AND contype = 'x'"
+            )
+        )
 
     assert "trips" in tables
     assert {"ck_trips_name_length", "ck_trips_date_range"} <= constraints
     assert {"ix_trips_user_deleted_at", "ix_trips_user_lower_name_active"} <= indexes
+    assert exclusion_constraint == "ex_trips_user_active_period"
 
 
 @pytest.mark.asyncio
@@ -628,3 +635,92 @@ async def test_delete_trip_allows_completed_and_rejects_other_owner_and_missing(
         active_row = await session.get(Trip, active.trip_id)
         assert completed_row is not None and completed_row.deleted_at is not None
         assert active_row is not None and active_row.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_trip_period_overlap_is_rejected_for_create_and_update(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """같은 사용자의 생성·수정 기간이 하루라도 겹치면 기존 여행 정보와 함께 거절한다."""
+    user_id = await create_user(session_factory)
+    existing = await create_trip(
+        session_factory,
+        user_id,
+        name="기존 여행",
+        start_date=date(2026, 10, 1),
+        end_date=date(2026, 10, 3),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    candidate = await create_trip(
+        session_factory,
+        user_id,
+        name="수정할 여행",
+        start_date=date(2026, 10, 5),
+        end_date=date(2026, 10, 7),
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    with pytest.raises(AppError) as create_error:
+        await create_trip(
+            session_factory,
+            user_id,
+            start_date=existing.end_date,
+            end_date=date(2026, 10, 4),
+            idempotency_key=str(uuid.uuid4()),
+        )
+    assert create_error.value.code == "TRIP_PERIOD_CONFLICT"
+    assert create_error.value.details == {
+        "tripId": str(existing.trip_id),
+        "name": existing.name,
+    }
+
+    with pytest.raises(AppError) as update_error:
+        await update_trip(
+            session_factory,
+            user_id,
+            candidate.trip_id,
+            UpdateTripRequest(startDate=date(2026, 10, 3), version=candidate.version),
+        )
+    assert update_error.value.code == "TRIP_PERIOD_CONFLICT"
+    assert update_error.value.details["tripId"] == str(existing.trip_id)
+
+
+@pytest.mark.asyncio
+async def test_trip_period_overlap_ignores_other_users_and_deleted_trips(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """다른 사용자와 논리 삭제된 여행의 기간은 재사용할 수 있다."""
+    user_id = await create_user(session_factory)
+    other_user_id = await create_user(session_factory)
+    other_trip = await create_trip(
+        session_factory,
+        other_user_id,
+        start_date=date(2026, 11, 1),
+        end_date=date(2026, 11, 3),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await create_trip(
+        session_factory,
+        user_id,
+        start_date=other_trip.start_date,
+        end_date=other_trip.end_date,
+        idempotency_key=str(uuid.uuid4()),
+    )
+    deleted = await create_trip(
+        session_factory,
+        user_id,
+        start_date=date(2026, 11, 5),
+        end_date=date(2026, 11, 7),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    await delete_trip(session_factory, user_id, deleted.trip_id)
+
+    reused = await create_trip(
+        session_factory,
+        user_id,
+        start_date=deleted.start_date,
+        end_date=deleted.end_date,
+        idempotency_key=str(uuid.uuid4()),
+    )
+
+    assert reused.trip_id != deleted.trip_id

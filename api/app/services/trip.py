@@ -21,6 +21,7 @@ from app.api.errors import (
     INVALID_TRIP_PERIOD,
     TRIP_LOCKED,
     TRIP_NOT_FOUND,
+    TRIP_PERIOD_CONFLICT,
     VERSION_CONFLICT,
 )
 from app.models.trip import Trip as TripModel
@@ -78,6 +79,14 @@ class TripService:
             raise AppError(400, "INVALID_REQUEST", "Idempotency-Key가 필요합니다.")
 
         trip_id = uuid.uuid5(user_id, key)
+        await self._lock_trip_periods(user_id)
+        await self._reject_overlapping_period(
+            user_id=user_id,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+            exclude_trip_id=trip_id,
+        )
+
         result = await self.session.execute(
             pg_insert(TripModel)
             .values(
@@ -248,6 +257,15 @@ class TripService:
         end_date = payload.end_date or trip.end_date
         _validate_trip_values(name=name, start_date=start_date, end_date=end_date)
 
+        if period_requested:
+            await self._lock_trip_periods(user_id)
+            await self._reject_overlapping_period(
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                exclude_trip_id=trip_id,
+            )
+
         period_shrinks = start_date > trip.start_date or end_date < trip.end_date
         deleted_day_count = 0
         deleted_item_count = 0
@@ -385,6 +403,38 @@ class TripService:
         if trip.user_id != user_id:
             raise AppError(403, FORBIDDEN, "다른 사용자의 여행은 조회할 수 없습니다.")
         return trip
+
+
+    async def _lock_trip_periods(self, user_id: uuid.UUID) -> None:
+        """같은 사용자의 기간 변경 요청을 transaction 단위로 직렬화한다."""
+        lock_key = user_id.int & ((1 << 63) - 1)
+        await self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
+    async def _reject_overlapping_period(
+        self,
+        *,
+        user_id: uuid.UUID,
+        start_date: date,
+        end_date: date,
+        exclude_trip_id: uuid.UUID | None = None,
+    ) -> None:
+        """같은 사용자의 활성 여행과 기간이 겹치면 충돌 정보를 반환한다."""
+        statement = select(TripModel).where(
+            TripModel.user_id == user_id,
+            TripModel.deleted_at.is_(None),
+            TripModel.start_date <= end_date,
+            TripModel.end_date >= start_date,
+        )
+        if exclude_trip_id is not None:
+            statement = statement.where(TripModel.trip_id != exclude_trip_id)
+        conflict = await self.session.scalar(statement.limit(1))
+        if conflict is not None:
+            raise AppError(
+                409,
+                TRIP_PERIOD_CONFLICT,
+                "다른 여행과 기간이 겹칩니다. 다른 기간을 선택해 주세요.",
+                details={"tripId": str(conflict.trip_id), "name": conflict.name},
+            )
 
 
 def _decode_cursor(

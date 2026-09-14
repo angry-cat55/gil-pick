@@ -6,6 +6,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -44,4 +45,12 @@ Index(
     Trip.user_id,
     func.lower(Trip.name),
     postgresql_where=Trip.deleted_at.is_(None),
+)
+
+ExcludeConstraint(
+    (Trip.user_id, "="),
+    (func.daterange(Trip.start_date, Trip.end_date, "[]"), "&&"),
+    where=Trip.deleted_at.is_(None),
+    using="gist",
+    name="ex_trips_user_active_period",
 )
