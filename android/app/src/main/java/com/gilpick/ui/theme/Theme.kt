@@ -84,7 +84,9 @@ private val GilpickColorScheme = lightColorScheme(
  * @property primarySoft 안내 배너 배경.
  * @property primaryLight 배너 안 출처 글자, 어두운 지도 위 강조.
  * @property success 여행 중·운영 중·완료. [successContainer]는 상태 칩 배경.
+ * @property successDark 성공 gradient 버튼 끝(135°, 가이드라인 3절 "버튼 gradient").
  * @property warning 변수 감지, 마감 임박. [warningContainer] 배너 배경, [onWarningContainer] 배너 제목.
+ * @property warningDark 경고 gradient 버튼 끝(135°, 가이드라인 3절 "버튼 gradient").
  * @property amber 낮은 위험 단계.
  * @property info 계획 ETA와 일반 안내(= primaryDark).
  * @property star 평점 `★`.
@@ -105,7 +107,9 @@ data class GilpickColors(
     val primaryLight: Color,
     val success: Color,
     val successContainer: Color,
+    val successDark: Color,
     val warning: Color,
+    val warningDark: Color,
     val warningContainer: Color,
     val onWarningContainer: Color,
     val amber: Color,
@@ -129,7 +133,9 @@ private val GilpickLightColors = GilpickColors(
     primaryLight = Color(0xFF93C5FD),
     success = Color(0xFF10B981),
     successContainer = Color(0xFFECFDF5),
+    successDark = Color(0xFF059669),
     warning = Color(0xFFF97316),
+    warningDark = Color(0xFFEA580C),
     warningContainer = Color(0xFFFFF7ED),
     onWarningContainer = Color(0xFF92400E),
     amber = Color(0xFFF59E0B),
