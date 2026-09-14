@@ -104,6 +104,22 @@ class GeofenceManagerTest {
     }
 
     @Test
+    fun `등록 결과와 실패 원인을 로그로 남기고 좌표는 남기지 않는다`() = runTest {
+        val lines = mutableListOf<String>()
+        val logged = GeofenceManager(client, session, log = lines::add)
+
+        logged.sync(TRIP_ID, DATE, listOf(arrival()))
+        logged.sync(TRIP_ID, DATE, listOf(arrival()))
+        client.failOnAdd = true
+        logged.sync(TRIP_ID, DATE, listOf(arrival(), departure()))
+
+        assertTrue(lines[0], lines[0].startsWith("sync date=$DATE: registered 1 (added=1 removed=0)"))
+        assertTrue(lines[1], lines[1].contains("no change"))
+        assertTrue(lines[2], lines[2].contains("register FAILED") && lines[2].contains("IllegalStateException: 등록 실패"))
+        assertTrue(lines.none { it.contains("37.") || it.contains("126.") })
+    }
+
+    @Test
     fun `등록에 실패해도 예외를 밖으로 던지지 않는다`() = runTest {
         // 자동 감지만 꺼지고 F006 수동 진행은 그대로 동작해야 한다(FR-024, constitution I).
         client.failOnAdd = true
