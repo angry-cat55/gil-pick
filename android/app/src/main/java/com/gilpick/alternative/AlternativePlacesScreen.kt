@@ -24,12 +24,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,9 +55,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
 import com.gilpick.place.labelRes
-import com.gilpick.progress.StateMessage
 import com.gilpick.route.Position
 import com.gilpick.route.distanceLabel
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.layout.layout
+import com.gilpick.ui.component.EmptyState
+import com.gilpick.ui.component.EmptyStateTone
+import com.gilpick.ui.component.ErrorState
+import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.SecondaryButton
+import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -104,7 +109,16 @@ fun AlternativePlacesScreen(
     },
 ) {
     val radius = LocalGilpickRadius.current
+    val spacing = LocalGilpickSpacing.current
+    val shadows = LocalGilpickShadows.current
 
+    // 오류는 화면 전체를 대신한다(가이드라인 9절 오류 화면). 돌아가기는 보조 버튼이 맡는다.
+    if (state is AlternativeUiState.Error) {
+        ErrorState(state, onRetry = onRetry, onBack = onBack, onReauthenticate = onReauthenticate, modifier = modifier.fillMaxSize())
+        return
+    }
+
+    val sheetShape = RoundedCornerShape(topStart = radius.xl, topEnd = radius.xl)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -119,18 +133,34 @@ fun AlternativePlacesScreen(
             Box(modifier = Modifier.fillMaxSize().testTag(TAG_MAP_SLOT)) {
                 map(origin, candidates, Modifier.fillMaxSize())
             }
-            BackButton(onBack = onBack, modifier = Modifier.statusBarsPadding().padding(LocalGilpickSpacing.current.space4))
+            // Figma: 지도 하단 40dp 흰 fade. sheet가 그 위로 16dp 겹친다.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(MAP_FADE)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.surface))),
+            )
+            BackButton(onBack = onBack, modifier = Modifier.statusBarsPadding().padding(spacing.space4))
         }
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f - MAP_WEIGHT)
-                .clip(RoundedCornerShape(topStart = radius.xl, topEnd = radius.xl))
+            modifier = shadows.sheetBelowMap
+                .fold(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f - MAP_WEIGHT)
+                        // 자기 자리보다 16dp 높게 재고 16dp 위에 놓아 지도 위로 겹친다(Figma `-mt-4`). 아래 끝은 그대로다.
+                        .layout { measurable, constraints ->
+                            val overlap = spacing.space4.roundToPx()
+                            val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = constraints.maxHeight + overlap))
+                            layout(placeable.width, constraints.maxHeight) { placeable.place(0, -overlap) }
+                        },
+                ) { acc, shadow -> acc.dropShadow(sheetShape, shadow) }
+                .clip(sheetShape)
                 .background(MaterialTheme.colorScheme.surface),
         ) {
             when (state) {
                 AlternativeUiState.Loading -> DelayedLoading()
-                is AlternativeUiState.Error -> ErrorState(state, onRetry = onRetry, onBack = onBack, onReauthenticate = onReauthenticate)
                 is AlternativeUiState.Closed -> ClosedState(state, onBack = onBack)
                 is AlternativeUiState.Content -> Sheet(
                     content = state,
@@ -140,12 +170,14 @@ fun AlternativePlacesScreen(
                     onRetryKeep = onRetryKeep,
                     onDismissKeepError = onDismissKeepError,
                 )
+                is AlternativeUiState.Error -> Unit
             }
         }
     }
 }
 
 /** 지도 위 둥근 뒤로 버튼(Figma). 보이는 크기는 40dp, 터치 영역은 48dp다(UI-008). */
+/** 지도 위 떠 있는 뒤로 버튼(가이드라인 7절): 40dp 흰 90% 원 + `mapFloatingButton` 그림자, 18dp `onSurface`. 터치 영역은 48dp다(UI-008). */
 @Composable
 private fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier) {
     Box(
@@ -157,9 +189,9 @@ private fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier
-                .size(BACK_BUTTON)
-                .background(MaterialTheme.colorScheme.surface, CircleShape),
+            modifier = LocalGilpickShadows.current.mapFloatingButton
+                .fold(Modifier.size(BACK_BUTTON)) { acc, shadow -> acc.dropShadow(CircleShape, shadow) }
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = BACK_BUTTON_ALPHA), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -191,39 +223,42 @@ private fun DelayedLoading() {
 }
 
 /** 추천 실패(UI-006): 원인, `다시 시도하기`(가능할 때), `돌아가기`. 기존 일정은 그대로다. */
+/**
+ * 추천 실패: 공통 오류 화면(가이드라인 9절). 원인 문구(기존 일정 유지 포함), `다시 시도하기`(세션 만료면 `다시 로그인`,
+ * 재시도 불가면 `돌아가기`가 주버튼), 보조 `돌아가기`. 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
+ */
 @Composable
-private fun ErrorState(state: AlternativeUiState.Error, onRetry: () -> Unit, onBack: () -> Unit, onReauthenticate: () -> Unit) {
-    StateMessage(
-        title = stringResource(R.string.alternative_error_title),
-        body = stringResource(state.error.messageRes),
-        icon = R.drawable.ic_lucide_circle_x,
-    ) {
-        when {
-            state.error == AlternativeError.SessionExpired -> Button(onClick = onReauthenticate, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.place_reauthenticate))
-            }
-            state.retryable -> Button(onClick = onRetry, modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_RETRY)) {
-                Text(stringResource(R.string.alternative_retry))
-            }
-        }
-        TextButton(onClick = onBack, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-            Text(stringResource(R.string.alternative_go_back))
-        }
+private fun ErrorState(state: AlternativeUiState.Error, onRetry: () -> Unit, onBack: () -> Unit, onReauthenticate: () -> Unit, modifier: Modifier = Modifier) {
+    val back = stringResource(R.string.alternative_go_back)
+    val (primaryLabel, onPrimary) = when {
+        state.error == AlternativeError.SessionExpired -> stringResource(R.string.place_reauthenticate) to onReauthenticate
+        state.retryable -> stringResource(R.string.alternative_retry) to onRetry
+        else -> back to onBack
     }
+    ErrorState(
+        title = stringResource(R.string.alternative_error_title),
+        description = stringResource(state.error.messageRes),
+        primaryLabel = primaryLabel,
+        onPrimary = onPrimary,
+        secondaryLabel = back.takeIf { onPrimary !== onBack },
+        onSecondary = onBack,
+        modifier = modifier,
+    )
 }
 
 /** 이미 처리된 감지(UI-006): 현재 상태 안내와 `진행 화면으로`. */
+/** 이미 처리된 감지: 공통 빈 상태(화면 전체 단계, 성공 계열 체크) + `진행 화면으로` 주버튼. */
 @Composable
 private fun ClosedState(state: AlternativeUiState.Closed, onBack: () -> Unit) {
-    StateMessage(
+    EmptyState(
+        icon = R.drawable.ic_lucide_check,
         title = stringResource(R.string.alternative_closed_title),
         body = stringResource(state.status.closedRes),
-        icon = R.drawable.ic_lucide_check,
-    ) {
-        Button(onClick = onBack, modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_TO_PROGRESS)) {
-            Text(stringResource(R.string.alternative_to_progress))
-        }
-    }
+        tone = EmptyStateTone.Success,
+        titleStyle = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        action = { GradientButton(label = stringResource(R.string.alternative_to_progress), onClick = onBack, modifier = Modifier.testTag(TAG_TO_PROGRESS)) },
+    )
 }
 
 /** 둥근 sheet 본문: 손잡이, 감지 요약, 후보 목록 또는 후보 없음. */
@@ -377,19 +412,25 @@ private fun CandidateSection(
         if (index < items.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.background)
     }
     Spacer(modifier = Modifier.height(spacing.space5))
-    OutlinedButton(
-        onClick = onKeep,
-        enabled = !content.dismissPending,
-        shape = RoundedCornerShape(LocalGilpickRadius.current.lg),
+    // Figma 테두리형 보조 버튼: 2dp `outlineVariant`, 50dp, `radiusLg`, 14sp 600 `onSurfaceVariant`.
+    val keepEnabled = !content.dismissPending
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = KEEP_HEIGHT)
+            .alpha(if (keepEnabled) 1f else DISABLED_ALPHA)
+            .border(KEEP_BORDER, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(LocalGilpickRadius.current.lg))
+            .clip(RoundedCornerShape(LocalGilpickRadius.current.lg))
+            .clickable(enabled = keepEnabled, onClick = onKeep, role = Role.Button)
             .testTag(TAG_KEEP),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = stringResource(if (content.dismissPending) R.string.alternative_keep_pending else R.string.alternative_keep),
-            color = LocalGilpickColors.current.muted,
+            text = stringResource(if (keepEnabled) R.string.alternative_keep else R.string.alternative_keep_pending),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = spacing.space2, vertical = spacing.space2),
         )
     }
 }
@@ -496,10 +537,13 @@ private fun CandidateRow(candidate: AlternativeCandidateDto, top: Boolean, onSel
 private fun SelectButton(top: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
+    val shape = RoundedCornerShape(radius.md)
+    // TOP 후보의 `경로 비교`는 목록 안 작은 주 행동 버튼 그림자(가이드라인 6절 `listPrimaryAction`)를 받는다.
+    val shadows = if (top) LocalGilpickShadows.current.listPrimaryAction else emptyList()
     Box(
-        modifier = modifier
-            .sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
-            .clip(RoundedCornerShape(radius.md))
+        modifier = shadows
+            .fold(modifier.sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)) { acc, shadow -> acc.dropShadow(shape, shadow) }
+            .clip(shape)
             .then(if (top) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier)
             .clickable(onClick = onClick, role = Role.Button),
         contentAlignment = Alignment.Center,
@@ -544,45 +588,19 @@ private fun EmptySection(content: AlternativeUiState.Content, onKeep: () -> Unit
             modifier = Modifier.padding(top = spacing.space1),
         )
     }
-    val enabled = !content.dismissPending
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = KEEP_HEIGHT)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .clip(RoundedCornerShape(radius.lg))
-            .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, colors.primaryDark)))
-            .clickable(enabled = enabled, onClick = onKeep, role = Role.Button)
-            .testTag(TAG_KEEP),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(if (enabled) R.string.alternative_keep else R.string.alternative_keep_pending),
-            style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = spacing.space2, vertical = spacing.space3),
-        )
-    }
+    GradientButton(
+        label = stringResource(if (content.dismissPending) R.string.alternative_keep_pending else R.string.alternative_keep),
+        onClick = onKeep,
+        processing = content.dismissPending,
+        height = KEEP_HEIGHT,
+        modifier = Modifier.fillMaxWidth().testTag(TAG_KEEP),
+    )
     Spacer(modifier = Modifier.height(spacing.space2))
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = MIN_TOUCH)
-            .clip(RoundedCornerShape(radius.lg))
-            .background(MaterialTheme.colorScheme.background)
-            .clickable(onClick = onSearch, role = Role.Button)
-            .testTag(TAG_SEARCH),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.alternative_search_manually),
-            style = MaterialTheme.typography.labelLarge,
-            color = colors.muted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = spacing.space2, vertical = spacing.space3),
-        )
-    }
+    SecondaryButton(
+        label = stringResource(R.string.alternative_search_manually),
+        onClick = onSearch,
+        modifier = Modifier.fillMaxWidth().testTag(TAG_SEARCH),
+    )
 }
 
 /** 거절 실패 안내(UI-005): 원인 문구, `다시 시도`, `닫기`. 후보 목록은 그대로다. */
@@ -625,7 +643,6 @@ internal const val TAG_COUNT = "alternative_count"
 internal const val TAG_SEARCH = "alternative_search"
 internal const val TAG_KEEP = "alternative_keep"
 internal const val TAG_KEEP_ERROR = "alternative_keep_error"
-internal const val TAG_RETRY = "alternative_retry"
 internal const val TAG_TO_PROGRESS = "alternative_to_progress"
 internal const val TAG_EMPTY = "alternative_empty"
 internal const val TAG_CANDIDATE_PREFIX = "alternative_candidate_"
@@ -646,4 +663,9 @@ private val RANK_BOX: Dp = 32.dp
 private val HANDLE_WIDTH: Dp = 40.dp
 private val HANDLE_HEIGHT: Dp = 4.dp
 private val KEEP_HEIGHT: Dp = 52.dp
-private const val DISABLED_ALPHA = 0.5f
+/** Figma 실측: 테두리형 보조 버튼 2dp, 지도 하단 fade 40dp, 뒤로 버튼 흰 90%. 화면 전용이라 토큰이 아니다. */
+private val KEEP_BORDER: Dp = 2.dp
+private val MAP_FADE: Dp = 40.dp
+private const val BACK_BUTTON_ALPHA = 0.9f
+/** 보내는 중 테두리형 버튼 흐림(Figma `disabled:opacity-40` 계열, 가이드라인 7절). */
+private const val DISABLED_ALPHA = 0.4f
