@@ -237,22 +237,33 @@ class PlaceService:
             if item.place_id not in {entry.place_id for entry in items}:
                 items.append(item)
 
-        google_token = state.get("google_page_token")
-        if category in _COMMERCIAL and len(items) < limit:
-            params = {"maxResultCount": limit - len(items)}
-            if google_token:
-                params["pageToken"] = google_token
+        google_done = bool(state.get("google_done") or state.get("google_page_token"))
+        google_attempted = False
+        google_allowed = (
+            query is not None and category is None
+        ) or category in _COMMERCIAL
+        if google_allowed and not google_done and len(items) < limit:
+            google_attempted = True
+            params = {"pageSize": limit - len(items)}
+            if category is None:
+                assert query is not None
+                google_query = query
+            else:
+                google_query = _CATEGORY_LABEL[category]
+            if query and category is not None:
+                google_query = f"{query} {_CATEGORY_LABEL[category]}"
             try:
                 google = await self.google_client.search_text(
-                    query or _CATEGORY_LABEL[category], **params
+                    google_query, **params
                 )
             except GooglePlacesClientError as exc:
                 self._log_google_degradation("SEARCH_SUPPLEMENT", exc)
-                google_token = None
             else:
-                google_token = google.get("nextPageToken")
                 for raw in google.get("places", []):
-                    candidate = google_place(raw, category)
+                    google_category = self._google_category(raw.get("types", []))
+                    if category is not None and google_category is not category:
+                        continue
+                    candidate = google_place(raw, google_category)
                     if candidate is None or candidate.place_id in seen:
                         continue
                     match, ambiguous = find_match(items, candidate)
@@ -263,14 +274,14 @@ class PlaceService:
 
         total = int(body.get("totalCount") or len(raw_items))
         tour_has_next = page_no * limit < total
-        has_next = tour_has_next or bool(google_token)
+        has_next = tour_has_next
         next_cursor = None
         if has_next:
             next_cursor = self._encode_cursor(
                 {
                     "v": 1,
                     "tour_page_no": page_no + 1 if tour_has_next else page_no,
-                    "google_page_token": google_token,
+                    "google_done": google_done or google_attempted,
                     "seen_place_ids": [*(list(seen)[-80:]), *[i.place_id for i in items]][-100:],
                     "criteria_hash": criteria,
                 }

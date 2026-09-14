@@ -70,6 +70,7 @@ def google_place(
     address: str,
     latitude: float,
     longitude: float,
+    types: list[str] | None = None,
 ) -> dict[str, Any]:
     """Google Text Search place를 만든다."""
     return {
@@ -77,7 +78,7 @@ def google_place(
         "displayName": {"text": name, "languageCode": "ko"},
         "formattedAddress": address,
         "location": {"latitude": latitude, "longitude": longitude},
-        "types": ["cafe", "food"],
+        "types": types or ["cafe", "food"],
         "rating": 4.6,
         "userRatingCount": 321,
         "businessStatus": "OPERATIONAL",
@@ -248,7 +249,7 @@ async def test_google_is_called_only_for_commercial_category_shortage() -> None:
 
     assert len(items) == 2
     assert len(google.calls) == 1
-    assert google.calls[0][1]["maxResultCount"] == 1
+    assert google.calls[0][1]["pageSize"] == 1
 
     google.calls.clear()
     nature_tour = StubTourClient([tour_response([tour_item("2")])])
@@ -258,6 +259,81 @@ async def test_google_is_called_only_for_commercial_category_shortage() -> None:
     )
 
     assert google.calls == []
+
+
+@pytest.mark.asyncio
+async def test_all_keyword_search_uses_google_once_and_maps_its_category() -> None:
+    """전체 키워드 검색은 Google 부족분을 한 번만 보완하고 type으로 분류한다."""
+    tour = StubTourClient(
+        [
+            tour_response([tour_item("1")], total=3),
+            tour_response([tour_item("2")], page=2, total=3),
+        ]
+    )
+    google = StubGoogleClient(
+        {
+            "places": [
+                google_place(
+                    "g1", name="한성대학교", address="서울특별시 성북구 삼선교로 16길 116",
+                    latitude=37.582, longitude=127.010, types=["university"],
+                )
+            ],
+            "nextPageToken": "ignored-to-limit-calls",
+        }
+    )
+    place_service = service(tour, google)
+
+    first, cursor, has_next = await place_service.search_places(
+        query="한성대학교", category=None, area_code=None, cursor=None, limit=2,
+    )
+    assert cursor is not None
+    await place_service.search_places(
+        query="한성대학교", category=None, area_code=None, cursor=cursor, limit=2,
+    )
+
+    assert has_next is True
+    assert [item.category for item in first] == [
+        PlaceCategory.HISTORY_CULTURE,
+        PlaceCategory.OTHER,
+    ]
+    assert len(google.calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("category", "types", "label"),
+    [
+        (PlaceCategory.FOOD, ["restaurant", "food"], "음식점"),
+        (PlaceCategory.CAFE, ["cafe", "food"], "카페"),
+        (PlaceCategory.SHOPPING, ["shopping_mall", "store"], "쇼핑"),
+    ],
+)
+async def test_google_supplement_matches_selected_category(
+    category: PlaceCategory, types: list[str], label: str,
+) -> None:
+    """Google 보완 결과는 선택한 상업 카테고리와 일치해야 한다."""
+    google = StubGoogleClient(
+        {
+            "places": [
+                google_place(
+                    "other", name="다른 유형", address="서울특별시 중구",
+                    latitude=37.5, longitude=127.0, types=["university"],
+                ),
+                google_place(
+                    "g1", name="검색 결과", address="서울특별시 중구",
+                    latitude=37.5, longitude=127.0, types=types,
+                )
+            ]
+        }
+    )
+
+    items, _, _ = await service(StubTourClient([tour_response([])]), google).search_places(
+        query="테스트", category=category, area_code=None, cursor=None, limit=2,
+    )
+
+    assert len(items) == 1
+    assert items[0].category is category
+    assert google.calls[0][0] == f"테스트 {label}"
 
 
 @pytest.mark.asyncio
