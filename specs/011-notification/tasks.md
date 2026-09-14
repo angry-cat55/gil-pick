@@ -283,7 +283,7 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T009, T022
   - 검증: `create_place_change_suggestion`이 `replacement_suggestion_enabled=false`면 행·발송 없음(감지 생성·조회 불변), 다시 true면 이후 감지부터 재개(소급 없음, FR-022), 도착·출발·자동·재질문은 설정과 무관(FR-004, SC-003). PREF-001·PREF-002는 F012 범위이므로 여기서 구현하지 않고 컬럼 값 fixture로만 검증
-- [ ] T038 [US5] 통합 확인 in specs/011-notification/quickstart.md 실서버 5
+- [x] T038 [US5] 통합 확인 in specs/011-notification/quickstart.md 실서버 5
   - 영역: 통합
   - 담당: ts
   - 선행: T037, T024, T029
@@ -341,12 +341,12 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T010, T013
   - 검증: 알림 생성·전달마다 request id·유형·대상 id·기기 수·전달 결과 요약 log, 토큰 원문·정밀 위치·본문 개인정보 미기록(FR-024, constitution V). `SensitiveDataFilter` 통과 확인
-- [ ] T045 전체 자동 검증 실행 in specs/011-notification/quickstart.md 자동 검증
+- [x] T045 전체 자동 검증 실행 in specs/011-notification/quickstart.md 자동 검증
   - 영역: 통합
   - 담당: ts
   - 선행: Phase 3~8 완료
   - 검증: quickstart "자동 검증" 블록의 BE pytest 7개 + Android `testDebugUnitTest`·`assembleDebug`·`connectedDebugAndroidTest -P...package=com.gilpick.notification` 실행, 결과를 PR에 기록. 기존 `test_auth_contract.py` 실패는 무관(origin/main 기준)
-- [ ] T046 실서버·실 FCM 종단 검증 in specs/011-notification/quickstart.md 실서버 1~6
+- [x] T046 실서버·실 FCM 종단 검증 in specs/011-notification/quickstart.md 실서버 1~6
   - 영역: 통합
   - 담당: jy
   - 선행: T045, G001(Firebase 프로젝트·`google-services.json`)

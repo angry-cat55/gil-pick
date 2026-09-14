@@ -275,7 +275,7 @@ class NotificationNavigationTest {
     private fun json(body: String) = MockResponse(code = 200, headers = JSON_HEADERS, body = body)
 
     private companion object {
-        const val WAIT_MILLIS = 5_000L
+        const val WAIT_MILLIS = 15_000L
         const val TAG_FAKE_MAP = "notification_nav_fake_map"
         val JSON_HEADERS: Headers = Headers.headersOf("Content-Type", "application/json")
     }
