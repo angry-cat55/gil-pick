@@ -1,0 +1,84 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "api/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - ".github/workflows/backend-ci.yml"
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 이 workflow는 운영 secret(외부 provider key 등)을 쓰지 않는다.
+# Settings 필수 필드는 실제 provider를 호출하지 않는 dummy 값으로 채운다.
+env:
+  DATABASE_URL: postgresql+asyncpg://gilpick:gilpick@localhost:5432/gilpick
+  TEST_DATABASE_URL: postgresql+asyncpg://gilpick:gilpick@localhost:5432/gilpick
+  JWT_SIGNING_SECRET: ci-only-dummy-jwt-signing-secret-32-bytes-min
+  JWT_ISSUER: https://api-ci.gilpick.invalid
+  JWT_AUDIENCE: gilpick-android
+  KAKAO_REST_API_KEY: ci-only-dummy-kakao-rest-key
+  KAKAO_CLIENT_SECRET: ci-only-dummy-kakao-client-secret
+  KAKAO_REDIRECT_URI: https://api-ci.gilpick.invalid/api/v1/auth/kakao/callback
+  ANDROID_APP_LINK_BASE_URL: https://app-ci.gilpick.invalid/auth/kakao/complete
+  ANDROID_APP_LINK_HOST: app-ci.gilpick.invalid
+  TOUR_API_SERVICE_KEY: ci-only-dummy-tour-api-key
+  GOOGLE_PLACES_API_KEY: ci-only-dummy-google-places-key
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: gilpick
+          POSTGRES_USER: gilpick
+          POSTGRES_PASSWORD: gilpick
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gilpick -d gilpick"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.8.22"
+          enable-cache: true
+          cache-dependency-glob: "api/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: 문법 검사
+        run: uv run python -m compileall -q app tests
+
+      - name: Run migrations
+        run: uv run alembic upgrade head
+
+      # unit/contract/integration을 한 번에 돌리면 공유 DB·로깅 핸들러 상태가 섞여
+      # 일부 caplog 기반 단언이 순서 의존적으로 실패한다(회귀 아님). 디렉터리별로
+      # 별도 invocation으로 분리해 이 flakiness를 피한다.
+      - name: Unit tests
+        run: uv run pytest tests/unit -q
+
+      - name: Contract tests
+        run: uv run pytest tests/contract -q
+
+      - name: Integration tests
+        run: uv run pytest tests/integration -q
