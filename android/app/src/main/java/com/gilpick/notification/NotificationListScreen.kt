@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -104,7 +105,6 @@ private val NotificationUiState.hasUnread: Boolean
 @Composable
 private fun Header(onBack: () -> Unit, onMarkAllRead: () -> Unit, hasUnread: Boolean) {
     val spacing = LocalGilpickSpacing.current
-    val colors = LocalGilpickColors.current
     val title = stringResource(R.string.notification_list_title)
 
     Row(
@@ -132,9 +132,9 @@ private fun Header(onBack: () -> Unit, onMarkAllRead: () -> Unit, hasUnread: Boo
         IconBoxButton(
             icon = R.drawable.ic_lucide_check_check,
             contentDescription = stringResource(R.string.notification_mark_all_read),
-            tint = if (hasUnread) MaterialTheme.colorScheme.primary else colors.muted,
             onClick = onMarkAllRead,
             enabled = hasUnread,
+            iconSize = ACTION_ICON,
             modifier = Modifier.testTag(TAG_MARK_ALL_READ),
         )
     }
@@ -144,17 +144,21 @@ private fun Header(onBack: () -> Unit, onMarkAllRead: () -> Unit, hasUnread: Boo
  * Figma 헤더의 둥근 아이콘 상자(`rounded-xl`, `background` 배경)를 48dp 터치 영역 안에 둔다(UI-006).
  * 여행 목록·진행 화면 헤더의 알림 벨(T036)도 같은 모양이라 함께 쓴다.
  *
+ * @param tint 아이콘 색. 기본은 헤더 아이콘 색 토큰(가이드라인 7절 D7, `headerIcon`)이며 뒤로 가기·닫기만 `onSurface`를 넘긴다.
+ * @param enabled 비활성이면 상자째 40% 투명(7절 헤더 아이콘 버튼).
  * @param box 상자 한 변. Figma는 알림 목록·진행 화면 36dp, 여행 목록 40dp다.
+ * @param iconSize 아이콘 한 변. 알림 벨·설정 18dp, 헤더 오른쪽 보조 행동(`모두 읽음`) 16dp.
  */
 @Composable
 fun IconBoxButton(
     icon: Int,
     contentDescription: String,
-    tint: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tint: Color = LocalGilpickColors.current.headerIcon,
     enabled: Boolean = true,
     box: Dp = ICON_BOX,
+    iconSize: Dp = ICON,
 ) {
     val radius = LocalGilpickRadius.current
     Box(
@@ -166,6 +170,7 @@ fun IconBoxButton(
     ) {
         Box(
             modifier = Modifier
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .size(box)
                 .background(MaterialTheme.colorScheme.background, RoundedCornerShape(radius.md)),
             contentAlignment = Alignment.Center,
@@ -174,7 +179,7 @@ fun IconBoxButton(
                 painter = painterResource(icon),
                 contentDescription = contentDescription,
                 tint = tint,
-                modifier = Modifier.size(ICON),
+                modifier = Modifier.size(iconSize),
             )
         }
     }
@@ -289,3 +294,9 @@ internal const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 
 private val ICON_BOX: Dp = 36.dp
 private val ICON: Dp = 18.dp
+
+/** 헤더 오른쪽 보조 행동 아이콘(`모두 읽음`, 가이드라인 7절 표). */
+private val ACTION_ICON: Dp = 16.dp
+
+/** 비활성 헤더 아이콘 버튼 투명도(7절 헤더 아이콘 버튼 `opacity 40%`). */
+private const val DISABLED_ALPHA = 0.4f
