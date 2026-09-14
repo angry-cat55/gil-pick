@@ -351,7 +351,7 @@ description: "Task list for F011 알림"
   - 담당: jy
   - 선행: T045, G001(Firebase 프로젝트·`google-services.json`)
   - 검증: 실기기(`gilpick_api36_play`)에서 로그인→DEV-001, 감지 생성→30초 내 장소 변경 제안 수신→탭→대체 장소 화면, 도착 후보→확인 알림→진행 화면, 설정 off→장소 변경 제안 미수신·도착 알림 유지, 로그아웃→미수신. G001 미준비면 이 task는 `blocked by` 환경 Issue로 연결하고 실행 못 한 항목·이유를 PR에 남긴다
-- [ ] T047 Feature 상태 전이 in docs/planning/mvp-features.md
+- [x] T047 Feature 상태 전이 in docs/planning/mvp-features.md
   - 영역: 통합
   - 담당: ts
   - 선행: T045

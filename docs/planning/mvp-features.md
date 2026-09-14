@@ -21,7 +21,7 @@
 | F008 | 여행 변수 감지 | 남은 일정의 혼잡도·날씨·운영시간 평가 | F006 | DONE | ts |
 | F009 | 대체 장소 추천 | F003의 장소·Google 보강 계약을 재사용해 변동 조건에 맞는 대체 후보 추천 | F003, F008 | READY (재작업) | jy |
 | F010 | 일정 변경 | 대체 장소 미리보기·승인 후 일정과 경로 변경·되돌리기 | F004, F005, F009 | IN_PROGRESS | hs |
-| F011 | 알림 | 도착·출발 확인과 장소 변경 제안 알림 | F006, F007, F008 | VERIFY | ts |
+| F011 | 알림 | 도착·출발 확인과 장소 변경 제안 알림 | F006, F007, F008 | DONE | ts |
 | F012 | 사용자 설정 | 장소 변경 제안 알림 설정과 정책 문서·로그아웃 진입 | F001 | VERIFY | jh |
 
 ### F012 상태 전이 기록
@@ -38,7 +38,7 @@
 - `READY`: 2026-09-10 spec·clarify·plan·tasks·analyze를 마친 검증된 tasks 문서 PR에서 반영. Backend `ts`, Frontend `jy` 합의 완료. `speckit-analyze` CRITICAL 0건, MEDIUM 4건(I1·C1·X1·X2) 반영.
 - `IN_PROGRESS`: 2026-09-10 첫 구현 Issue #367(알림 스키마·FCM client·발송 pipeline) PR에서 반영.
 - `VERIFY`: 2026-09-14 Issue #376에서 Backend 자동 test, Android unit·build·알림 계측 test, AWS 실서버·실 FCM 종단 검증을 완료한 전체 검증 PR에서 반영.
-- `DONE`: F011 관련 PR이 모두 `main`에 병합된 뒤 반영한다.
+- `DONE`: 2026-09-14 구현 PR #378·#380·#381·#382·#383·#386·#387·#389·#391과 전체 검증 PR #459가 모두 `main`에 병합된 것을 확인한 상태 전이 PR에서 반영.
 
 ### F010 상태 전이 기록
 
