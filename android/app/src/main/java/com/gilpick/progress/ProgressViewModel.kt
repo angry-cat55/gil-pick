@@ -143,11 +143,15 @@ class ProgressViewModel(
         }
         // 권한이 없으면 걸어 둔 것을 풀고 원인을 안내한다. 진행 중 권한을 회수해도 여기로 온다.
         if (!hasBackgroundPermission()) {
+            logDetection("background location permission missing -> detection off (notice shown), targets=${content.progress.detectionTargets.size}")
             manager.clear()
             setDetectionOff(DetectionOffReason.PermissionMissing)
             return
         }
         setDetectionOff(null)
+        if (content.progress.detectionTargets.isEmpty()) {
+            logDetection("no detection targets from PROG-001 (day not started or nothing to watch) -> nothing registered")
+        }
         manager.sync(tripId, content.progress.date, content.progress.detectionTargets)
     }
 

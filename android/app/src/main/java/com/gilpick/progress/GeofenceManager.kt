@@ -4,6 +4,11 @@ import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
@@ -45,6 +50,7 @@ interface GeofenceClient {
 class GeofenceManager(
     private val client: GeofenceClient,
     private val session: DetectionSessionStore,
+    private val log: (String) -> Unit = ::logDetection,
 ) {
 
     /** 지금 등록돼 있다고 보는 대상. `geofenceId`로 식별한다. */
@@ -64,16 +70,21 @@ class GeofenceManager(
         // 값이 바뀐 대상도 다시 등록한다. 반경이나 좌표가 달라졌을 수 있다.
         val toAdd = next.values.filter { registered[it.geofenceId] != it }
 
-        if (toRemove.isEmpty() && toAdd.isEmpty()) return false
+        if (toRemove.isEmpty() && toAdd.isEmpty()) {
+            log("sync date=$date targets=${targets.size}: no change (registered=${registered.size})")
+            return false
+        }
 
         return try {
             if (toRemove.isNotEmpty()) client.remove(toRemove.toList())
             if (toAdd.isNotEmpty()) client.add(toAdd)
             registered = next
             if (next.isEmpty()) session.clear() else session.save(tripId, date)
+            log("sync date=$date: registered ${next.size} (added=${toAdd.size} removed=${toRemove.size}) ids=${next.keys}")
             true
         } catch (e: Exception) {
             // 등록 실패는 자동 감지만 끄고 진행을 막지 않는다. 다음 조회에서 다시 시도한다.
+            log("sync date=$date: register FAILED -> auto detection off until next load: ${e.describeGeofenceFailure()}")
             registered = emptyMap()
             false
         }
@@ -84,8 +95,27 @@ class GeofenceManager(
         val ids = registered.keys.toList()
         registered = emptyMap()
         session.clear()
-        if (ids.isNotEmpty()) runCatching { client.remove(ids) }
+        if (ids.isNotEmpty()) {
+            log("clear: removing ${ids.size} ids=$ids")
+            runCatching { client.remove(ids) }.onFailure { log("clear: remove FAILED: ${it.describeGeofenceFailure()}") }
+        }
     }
+}
+
+/** logcat 진단용 tag(#422). adb logcat -s GilpickGeofence. 위치 좌표·토큰은 남기지 않는다. */
+internal const val DETECTION_LOG_TAG = "GilpickGeofence"
+
+internal fun logDetection(message: String) {
+    Log.i(DETECTION_LOG_TAG, message)
+}
+
+/**
+ * Play Services 실패를 원인 코드 이름으로 풀어 쓴다. 1000 GEOFENCE_NOT_AVAILABLE(위치 설정 꺼짐·기기 미지원),
+ * 1001 GEOFENCE_TOO_MANY_GEOFENCES, 1004 GEOFENCE_INSUFFICIENT_LOCATION_PERMISSION, 1005 GEOFENCE_REQUEST_TOO_FREQUENT.
+ */
+internal fun Throwable.describeGeofenceFailure(): String = when (this) {
+    is ApiException -> "ApiException status=$statusCode ${GeofenceStatusCodes.getStatusCodeString(statusCode)}"
+    else -> "${javaClass.simpleName}: $message"
 }
 
 /**
@@ -159,6 +189,11 @@ class PlayServicesGeofenceClient(context: Context) : GeofenceClient {
     // 호출 전에 백그라운드 위치 권한을 확인한다. 없으면 GeofenceManager가 등록을 시도하지 않는다.
     @SuppressLint("MissingPermission")
     override suspend fun add(targets: List<DetectionTargetDto>) {
+        // Play 서비스가 없거나 낡으면 addGeofences가 바로 실패한다. 어느 쪽인지 먼저 남긴다(#422).
+        val availability = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(appContext)
+        if (availability != ConnectionResult.SUCCESS) {
+            logDetection("Play services unavailable: ${GoogleApiAvailability.getInstance().getErrorString(availability)}")
+        }
         val request = GeofencingRequest.Builder()
             // 등록 시점에 이미 반경 안이면 즉시 알리지 않는다. 등록 자체가 도착을 뜻하지 않기 때문이다.
             .setInitialTrigger(0)

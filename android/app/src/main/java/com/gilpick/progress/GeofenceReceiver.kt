@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import com.google.android.gms.location.GeofenceStatusCodes
+import com.gilpick.auth.AuthResult
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -36,23 +38,46 @@ class GeofenceReceiver : BroadcastReceiver() {
      * @param intent Play Services가 담은 전이 정보.
      */
     override fun onReceive(context: Context, intent: Intent) {
-        val event = GeofencingEvent.fromIntent(intent) ?: return
-        if (event.hasError()) return
+        val event = GeofencingEvent.fromIntent(intent)
+        if (event == null) {
+            logDetection("receiver: intent without geofencing event")
+            return
+        }
+        if (event.hasError()) {
+            logDetection("receiver: event error ${event.errorCode} ${GeofenceStatusCodes.getStatusCodeString(event.errorCode)}")
+            return
+        }
 
-        val eventType = event.geofenceTransition.toProgressEventType() ?: return
+        val eventType = event.geofenceTransition.toProgressEventType()
+        if (eventType == null) {
+            logDetection("receiver: unsupported transition ${event.geofenceTransition}")
+            return
+        }
         val triggering = event.triggeringGeofences.orEmpty()
-        if (triggering.isEmpty()) return
+        if (triggering.isEmpty()) {
+            logDetection("receiver: $eventType without triggering geofences")
+            return
+        }
 
-        val location = event.triggeringLocation ?: return
-        val session = sessionStore(context).current ?: return
+        val location = event.triggeringLocation
+        if (location == null) {
+            logDetection("receiver: $eventType ${triggering.map { it.requestId }} without location -> dropped")
+            return
+        }
+        val session = sessionStore(context).current
+        if (session == null) {
+            logDetection("receiver: $eventType ${triggering.map { it.requestId }} but no detection session -> dropped")
+            return
+        }
         val repository = repositoryFactory(context)
+        logDetection("receiver: $eventType ${triggering.map { it.requestId }} accuracy=${location.accuracy}m date=${session.date}")
 
         val pending = goAsync()
         scope.launch {
             try {
                 triggering.forEach { geofence ->
                     val itemId = geofence.requestId.substringBefore(':')
-                    repository.registerEvent(
+                    val result = repository.registerEvent(
                         tripId = session.tripId,
                         date = java.time.LocalDate.parse(session.date),
                         // 같은 전이가 중복 전달돼도 서버가 한 번만 처리하도록 내용에서 파생한다.
@@ -66,6 +91,13 @@ class GeofenceReceiver : BroadcastReceiver() {
                             longitude = location.longitude,
                             accuracyMeters = location.accuracy.toDouble(),
                         ),
+                    )
+                    logDetection(
+                        "receiver: PROG-005 ${geofence.requestId} $eventType -> " +
+                            when (result) {
+                                is AuthResult.Success -> "ok"
+                                is AuthResult.Failure -> "FAILED ${result.error}"
+                            },
                     )
                 }
             } finally {
