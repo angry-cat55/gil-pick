@@ -219,7 +219,6 @@ private fun Header(
             IconBoxButton(
                 icon = R.drawable.ic_lucide_bell,
                 contentDescription = stringResource(R.string.notification_open_bell),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = onNotifications,
                 modifier = Modifier.testTag(TAG_NOTIFICATIONS),
             )
