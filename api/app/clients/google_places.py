@@ -88,7 +88,7 @@ class GooglePlacesClient:
             "POST",
             "/places:searchText",
             field_mask=SEARCH_FIELD_MASK,
-            json={"textQuery": text_query, **params},
+            json={"textQuery": text_query, "languageCode": "ko", **params},
         )
 
     async def get_place(self, place_id: str) -> dict[str, Any]:
@@ -107,6 +107,7 @@ class GooglePlacesClient:
             "GET",
             f"/places/{place_id}",
             field_mask=DETAIL_FIELD_MASK,
+            query={"languageCode": "ko"},
         )
 
     async def _request(
@@ -116,11 +117,12 @@ class GooglePlacesClient:
         *,
         field_mask: str,
         json: dict[str, Any] | None = None,
+        query: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         for attempt in range(2):
             try:
                 return await self._request_once(
-                    method, path, field_mask=field_mask, json=json
+                    method, path, field_mask=field_mask, json=json, query=query
                 )
             except GooglePlacesClientError as exc:
                 if attempt == 0 and exc.retryable:
@@ -135,6 +137,7 @@ class GooglePlacesClient:
         *,
         field_mask: str,
         json: dict[str, Any] | None = None,
+        query: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
             response = await self.client.request(
@@ -145,6 +148,7 @@ class GooglePlacesClient:
                     "X-Goog-FieldMask": field_mask,
                 },
                 json=json,
+                params=query,
             )
         except httpx2.TimeoutException as exc:
             raise GooglePlacesClientError(

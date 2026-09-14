@@ -48,6 +48,7 @@ async def test_text_search_uses_minimum_field_mask() -> None:
         assert request.headers["X-Goog-FieldMask"] == SEARCH_FIELD_MASK
         assert "photos" not in SEARCH_FIELD_MASK
         assert "reviews" not in SEARCH_FIELD_MASK
+        assert json.loads(request.content)["languageCode"] == "ko"
         return httpx2.Response(200, json=fixture("text_search_success.json"))
 
     client = GooglePlacesClient(
@@ -66,6 +67,7 @@ async def test_details_and_empty_response_are_preserved() -> None:
     async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.method == "GET":
             assert request.headers["X-Goog-FieldMask"] == DETAIL_FIELD_MASK
+            assert request.url.params["languageCode"] == "ko"
         return httpx2.Response(200, json=responses.pop(0))
 
     client = GooglePlacesClient(
