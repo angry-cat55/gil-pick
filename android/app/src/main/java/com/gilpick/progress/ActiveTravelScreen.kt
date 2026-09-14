@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -53,7 +53,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -70,8 +72,16 @@ import com.gilpick.route.RouteMarks
 import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.route.routeDateLabel
+import com.gilpick.ui.component.EmptyState
+import com.gilpick.ui.component.EmptyStateSize
+import com.gilpick.ui.component.EmptyStateTone
+import com.gilpick.ui.component.ErrorState
+import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.GradientButtonWidth
+import com.gilpick.ui.component.GradientTone
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
+import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickSizing
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import com.gilpick.ui.theme.displayFont
@@ -156,8 +166,8 @@ fun ActiveTravelScreen(
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
                 ProgressUiState.Loading -> Loading()
-                ProgressUiState.Empty -> EmptyState(onAddPlace = onAddPlace)
-                is ProgressUiState.Error -> ErrorState(error = state.error, onRetry = onRetry, onReauthenticate = onReauthenticate)
+                ProgressUiState.Empty -> EmptyContent(onAddPlace = onAddPlace)
+                is ProgressUiState.Error -> ErrorContent(error = state.error, onRetry = onRetry, onReauthenticate = onReauthenticate)
                 is ProgressUiState.Content -> Content(
                     content = state,
                     onAddPlace = onAddPlace,
@@ -410,38 +420,29 @@ private fun Loading() {
     }
 }
 
-/** 빈 상태(가이드라인 9절): 오늘 날짜에 장소가 없다. `장소 추가`를 제공한다(UI-008). */
+/** 빈 상태(가이드라인 9절, 공통 [EmptyState]): 오늘 날짜에 장소가 없다. `장소 추가`를 제공한다(UI-008). */
 @Composable
-private fun EmptyState(onAddPlace: () -> Unit) {
-    StateMessage(
+private fun EmptyContent(onAddPlace: () -> Unit) {
+    EmptyState(
+        icon = R.drawable.ic_map,
         title = stringResource(R.string.progress_empty_title),
         body = stringResource(R.string.progress_empty_body),
-        icon = R.drawable.ic_map,
-    ) {
-        Button(onClick = onAddPlace, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-            Text(stringResource(R.string.progress_add_place))
-        }
-    }
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        action = { GradientButton(label = stringResource(R.string.progress_add_place), onClick = onAddPlace) },
+    )
 }
 
-/** 오류 상태: 원인 문구와 `다시 시도`. 세션 만료는 `다시 로그인`으로 잇는다. */
+/** 오류 상태(가이드라인 9절 "오류 화면", 공통 [ErrorState]): 원인 문구와 `다시 시도`. 세션 만료는 `다시 로그인`으로 잇는다. */
 @Composable
-private fun ErrorState(error: ProgressError, onRetry: () -> Unit, onReauthenticate: () -> Unit) {
-    StateMessage(
+private fun ErrorContent(error: ProgressError, onRetry: () -> Unit, onReauthenticate: () -> Unit) {
+    val sessionExpired = error == ProgressError.SessionExpired
+    ErrorState(
         title = stringResource(R.string.progress_error_title),
-        body = stringResource(error.messageRes),
-        icon = R.drawable.ic_lucide_circle_x,
-    ) {
-        if (error == ProgressError.SessionExpired) {
-            Button(onClick = onReauthenticate, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.place_reauthenticate))
-            }
-        } else {
-            Button(onClick = onRetry, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.progress_retry))
-            }
-        }
-    }
+        description = stringResource(error.messageRes),
+        primaryLabel = stringResource(if (sessionExpired) R.string.place_reauthenticate else R.string.progress_retry),
+        onPrimary = if (sessionExpired) onReauthenticate else onRetry,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 /** 가운데 안내. 아이콘·제목·설명·행동 순서는 가이드라인 9절 빈 상태 형식이다. F009 대체 장소 화면도 쓴다. */
@@ -518,38 +519,63 @@ private fun Content(
     var sheetRow by remember { mutableStateOf<ProgressRow?>(null) }
     val canEdit = content.isToday && content.viewingStarted
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = spacing.space4)
-            .navigationBarsPadding(),
-    ) {
-        Spacer(modifier = Modifier.height(spacing.space3))
-        // Figma `ActiveTravelScreen`은 이 안내를 스크롤 영역 맨 위, 다른 배너보다 앞에 둔다.
-        content.visibleDetectionNotice?.let { reason ->
-            DetectionOffBanner(
-                reason = reason,
-                onEnable = onEnableDetection,
-                onDismiss = onDismissDetectionNotice,
-                modifier = Modifier.padding(bottom = spacing.space2),
-            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = spacing.space4)
+                .navigationBarsPadding(),
+        ) {
+            Spacer(modifier = Modifier.height(spacing.space3))
+            // Figma `ActiveTravelScreen`은 이 안내를 스크롤 영역 맨 위, 다른 배너보다 앞에 둔다.
+            content.visibleDetectionNotice?.let { reason ->
+                DetectionOffBanner(
+                    reason = reason,
+                    onEnable = onEnableDetection,
+                    onDismiss = onDismissDetectionNotice,
+                    modifier = Modifier.padding(bottom = spacing.space2),
+                )
+            }
+            // F009 변수 경고 배너(UI-001). Figma는 권한 안내 다음, 카드 앞에 둔다. 없으면 자리도 없다.
+            content.bannerDetection?.let { detection ->
+                VariableWarningBanner(
+                    detection = detection,
+                    now = content.now,
+                    onClick = { onOpenAlternatives(detection.detectionId) },
+                    modifier = Modifier.padding(bottom = spacing.space2),
+                )
+            }
+            if (content.isToday) {
+                NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
+            }
+            content.actionError?.let { failure ->
+                ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
+            }
+            if (itinerary != null) {
+                MapSlot(
+                    route = itinerary.route,
+                    marks = if (content.isToday) content.progress.toRouteMarks() else RouteMarks.NONE,
+                    onOpenRoute = { onOpenRoute(itinerary.date, itinerary.dayNumber) },
+                    map = map,
+                    modifier = Modifier.padding(top = spacing.space3),
+                )
+                ItemList(
+                    content = content,
+                    itinerary = itinerary,
+                    onRowClick = if (canEdit) { row -> sheetRow = row } else null,
+                    modifier = Modifier.padding(top = spacing.space3),
+                )
+            }
+            AddPlaceButton(onAddPlace = onAddPlace, modifier = Modifier.padding(top = spacing.space3, bottom = spacing.space4))
         }
-        // F009 변수 경고 배너(UI-001). Figma는 권한 안내 다음, 카드 앞에 둔다. 없으면 자리도 없다.
-        content.bannerDetection?.let { detection ->
-            VariableWarningBanner(
-                detection = detection,
-                now = content.now,
-                onClick = { onOpenAlternatives(detection.detectionId) },
-                modifier = Modifier.padding(bottom = spacing.space2),
-            )
-        }
-        if (content.isToday) {
-            NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
-        }
-        content.actionError?.let { failure ->
-            ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
-        }
+
+        // Figma Toast: 스크롤 안이 아니라 화면 하단 고정(`absolute bottom-4 left-4 right-4`). 되돌리기 수단이 스크롤 위치와
+        // 무관하게 항상 보인다(가이드라인 10절).
+        val toastModifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(spacing.space4)
         // 장소 변경 직후의 되돌리기(F010 UI-006). 자동 확정 토스트와 같은 자리를 쓰고, 둘이 동시에
         // 가능하면 남은 시간이 짧은 이쪽을 먼저 보인다(F010 UI-006a, ProgressUiState가 판단).
         content.visibleReplacementUndo?.let { undo ->
@@ -559,7 +585,7 @@ private fun Content(
                 submitting = content.replacementUndoPending,
                 error = content.replacementUndoError,
                 onUndo = onUndoReplacement,
-                modifier = Modifier.padding(top = spacing.space2),
+                modifier = toastModifier,
             )
         }
         // 자동 확정 직후의 되돌리기(UI-003). 되돌릴 수 있는 동안만 보인다.
@@ -571,25 +597,9 @@ private fun Content(
                 submitting = content.undoPending,
                 error = content.undoError,
                 onUndo = onUndo,
-                modifier = Modifier.padding(top = spacing.space2),
+                modifier = toastModifier,
             )
         }
-        if (itinerary != null) {
-            MapSlot(
-                route = itinerary.route,
-                marks = if (content.isToday) content.progress.toRouteMarks() else RouteMarks.NONE,
-                onOpenRoute = { onOpenRoute(itinerary.date, itinerary.dayNumber) },
-                map = map,
-                modifier = Modifier.padding(top = spacing.space3),
-            )
-            ItemList(
-                content = content,
-                itinerary = itinerary,
-                onRowClick = if (canEdit) { row -> sheetRow = row } else null,
-                modifier = Modifier.padding(top = spacing.space3),
-            )
-        }
-        AddPlaceButton(onAddPlace = onAddPlace, modifier = Modifier.padding(top = spacing.space3, bottom = spacing.space4))
     }
 
     sheetRow?.let { row ->
@@ -686,33 +696,65 @@ private fun DetectionOffBanner(
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
+    val shape = RoundedCornerShape(radius.lg)
 
+    // 가이드라인 9절 "권한 꺼짐 배너": 실패가 아니라 사용자가 켤 수 있는 주의 상태라 caution(amber) 계열이다.
+    // 아이콘 · 문장 · `권한 허용` · ✕ 한 줄. 켜는 방법 문장은 FR-025가 요구해 Figma 한 줄 위에 한 줄 더 둔다.
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(radius.lg))
-            .background(colors.warningContainer)
-            .padding(horizontal = spacing.space4, vertical = spacing.space3)
+            .clip(shape)
+            .background(colors.cautionContainer)
+            .border(1.dp, colors.cautionBorder, shape)
+            .padding(start = spacing.space4, end = spacing.space1, top = spacing.space1, bottom = spacing.space3)
             .testTag(TAG_DETECTION_OFF),
     ) {
-        Text(
-            text = stringResource(reason.causeRes),
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.onWarningContainer,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_map_pin),
+                contentDescription = null,
+                tint = colors.caution,
+                modifier = Modifier.size(BANNER_ICON).padding(end = spacing.space1),
+            )
+            // 좁은 화면에서 두 줄이 되면 어절 단위로 접는다(글자 중간 금지, T039와 같은 판단).
+            Text(
+                text = stringResource(reason.causeRes),
+                style = MaterialTheme.typography.bodySmall.copy(lineBreak = LineBreak.Simple.copy(wordBreak = LineBreak.WordBreak.Phrase)),
+                color = colors.onWarningContainer,
+                modifier = Modifier.weight(1f),
+            )
+            // 정확도 부족은 사용자가 권한으로 풀 수 있는 문제가 아니다. 켜는 행동을 주지 않는다.
+            if (reason == DetectionOffReason.PermissionMissing) {
+                TextAction(
+                    label = stringResource(R.string.detection_off_enable),
+                    onClick = onEnable,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Black),
+                    color = colors.caution,
+                )
+            }
+            // Figma ✕(14dp, 60%). 터치 영역은 48dp다(10절).
+            Box(
+                modifier = Modifier
+                    .size(MIN_TOUCH)
+                    .clip(RoundedCornerShape(radius.sm))
+                    .clickable(onClick = onDismiss, role = Role.Button),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_x),
+                    contentDescription = stringResource(R.string.detection_off_dismiss),
+                    tint = colors.caution.copy(alpha = DISMISS_ICON_ALPHA),
+                    modifier = Modifier.size(DISMISS_ICON),
+                )
+            }
+        }
         Text(
             text = stringResource(reason.howToRes),
             style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Normal,
             color = colors.onWarningContainer,
-            modifier = Modifier.padding(top = spacing.space1),
+            modifier = Modifier.padding(start = BANNER_ICON + spacing.space3, end = spacing.space3),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2), modifier = Modifier.padding(top = spacing.space1)) {
-            // 정확도 부족은 사용자가 권한으로 풀 수 있는 문제가 아니다. 켜는 행동을 주지 않는다.
-            if (reason == DetectionOffReason.PermissionMissing) {
-                TextAction(label = stringResource(R.string.detection_off_enable), onClick = onEnable)
-            }
-            TextAction(label = stringResource(R.string.detection_off_dismiss), onClick = onDismiss)
-        }
     }
 }
 
@@ -734,7 +776,8 @@ private fun VariableWarningBanner(
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
     val sinceSeconds = (now.epochSecond - OffsetDateTime.parse(detection.createdAt).toEpochSecond()).toInt().coerceAtLeast(0)
-    val shape = RoundedCornerShape(radius.xl)
+    // Figma `rounded-2xl`(16dp). 안의 경고 박스는 `rounded-xl`(12dp)이다.
+    val shape = RoundedCornerShape(radius.lg)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -753,7 +796,7 @@ private fun VariableWarningBanner(
         Box(
             modifier = Modifier
                 .size(BANNER_ICON_BOX)
-                .background(colors.warning, RoundedCornerShape(radius.lg)),
+                .background(colors.warning, RoundedCornerShape(radius.md)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -800,7 +843,12 @@ private val DetectionOffReason.howToRes: Int
     }
 
 @Composable
-private fun TextAction(label: String, onClick: () -> Unit) {
+private fun TextAction(
+    label: String,
+    onClick: () -> Unit,
+    style: TextStyle = MaterialTheme.typography.labelLarge,
+    color: Color = MaterialTheme.colorScheme.primary,
+) {
     Box(
         modifier = Modifier
             .heightIn(min = MIN_TOUCH)
@@ -810,72 +858,46 @@ private fun TextAction(label: String, onClick: () -> Unit) {
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+            style = style,
+            color = color,
             modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space2),
         )
     }
 }
 
+/** Figma 다음 장소 카드: 흰 `rounded-3xl`, 안쪽 20, 플로팅 카드 그림자(`0 4px 20px rgba(0,0,0,0.08)`, 가이드라인 6절). */
 @Composable
 private fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.xl)
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(radius.xl))
-            .background(MaterialTheme.colorScheme.surface)
+        modifier = LocalGilpickShadows.current.floatingCard
+            .fold(modifier.fillMaxWidth()) { acc, shadow -> acc.dropShadow(shape, shadow) }
+            .background(MaterialTheme.colorScheme.surface, shape)
             .padding(spacing.space5),
     ) { content() }
 }
 
+/** 당일 완료 카드(UI-006): 공통 [EmptyState]의 `Card` 단계(56dp 성공 상자, 18sp 제목)다. */
 @Composable
 private fun AllDoneCard(content: ProgressUiState.Content) {
     val spacing = LocalGilpickSpacing.current
-    val colors = LocalGilpickColors.current
-    val radius = LocalGilpickRadius.current
     val visited = content.visitedCount
     val lastArrival = content.progress.items.mapNotNull { it.actualArrivedAt }.maxOrNull()
 
     Card(modifier = Modifier.testTag(TAG_CARD_ALL_DONE)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = spacing.space2),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(ALL_DONE_ICON_BOX)
-                    .background(colors.successContainer, RoundedCornerShape(radius.lg)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lucide_check),
-                    contentDescription = null,
-                    tint = colors.success,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-            Text(
-                text = stringResource(R.string.progress_all_done_title),
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = spacing.space3),
-            )
-            Text(
-                text = if (lastArrival != null) {
-                    stringResource(R.string.progress_all_done_body, visited, timeLabel(lastArrival))
-                } else {
-                    stringResource(R.string.progress_all_done_body_no_time, visited)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.muted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = spacing.space1),
-            )
-        }
+        EmptyState(
+            icon = R.drawable.ic_lucide_check,
+            title = stringResource(R.string.progress_all_done_title),
+            body = if (lastArrival != null) {
+                stringResource(R.string.progress_all_done_body, visited, timeLabel(lastArrival))
+            } else {
+                stringResource(R.string.progress_all_done_body_no_time, visited)
+            },
+            size = EmptyStateSize.Card,
+            tone = EmptyStateTone.Success,
+            modifier = Modifier.fillMaxWidth().padding(vertical = spacing.space2),
+        )
     }
 }
 
@@ -913,12 +935,14 @@ private fun ArrivedCard(row: ProgressRow, hasNext: Boolean, pending: ProgressAct
             )
         }
         if (hasNext) {
-            PrimaryAction(
+            // 요청 중에는 비활성이 아니라 처리 중(가이드라인 7절 "처리 중 주버튼").
+            GradientButton(
                 label = stringResource(R.string.progress_action_depart),
                 onClick = onDepart,
+                height = CARD_BUTTON_HEIGHT,
                 enabled = pending == null,
-                busy = pending?.status == ItemStatus.COMPLETED,
-                modifier = Modifier.fillMaxWidth(),
+                processing = pending?.status == ItemStatus.COMPLETED,
+                modifier = Modifier.fillMaxWidth().pendingSemantics(pending?.status == ItemStatus.COMPLETED),
             )
         }
     }
@@ -982,13 +1006,16 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, pendi
         )
         val enabled = pending == null
         Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
-            PrimaryAction(
+            // 도착 확정 행동은 성공 gradient(가이드라인 3절 "버튼 gradient"). 한 줄을 나눈 버튼이라 곡률 12dp(6절 R3).
+            GradientButton(
                 label = stringResource(R.string.progress_action_arrive),
                 onClick = onArrive,
+                tone = GradientTone.Success,
+                width = GradientButtonWidth.Split,
+                height = CARD_BUTTON_HEIGHT,
                 enabled = enabled,
-                busy = pending?.status == ItemStatus.ARRIVED,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(radius.md),
+                processing = pending?.status == ItemStatus.ARRIVED,
+                modifier = Modifier.weight(1f).pendingSemantics(pending?.status == ItemStatus.ARRIVED),
             )
             Box(
                 modifier = Modifier
@@ -1073,39 +1100,11 @@ private fun Dot() {
     )
 }
 
-/**
- * Figma 주버튼: 135° `primary → primaryDark` gradient, 48dp, 흰 글자. F004 저장 버튼과 같은 조립이다.
- *
- * @param enabled 요청 중이면 `false`. 눌리지 않고 흐리게 보인다.
- * @param busy 이 버튼의 요청이 진행 중이다. 글자 옆에 진행 표시를 겹친다.
- */
+/** 요청 중인 gradient 버튼에 `처리 중` 설명을 붙인다(UI-008 "진행 중임을 표시"). spinner는 장식이라 설명이 없다. */
 @Composable
-private fun PrimaryAction(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    busy: Boolean = false,
-    shape: RoundedCornerShape = RoundedCornerShape(LocalGilpickRadius.current.lg),
-) {
-    Box(
-        modifier = modifier
-            .heightIn(min = MIN_TOUCH)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
-            .clickable(enabled = enabled, onClick = onClick, role = Role.Button),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space2, vertical = LocalGilpickSpacing.current.space3),
-        )
-        if (busy) BusyIndicator(Color.White, Modifier.align(Alignment.CenterEnd).padding(end = LocalGilpickSpacing.current.space3))
-    }
+private fun Modifier.pendingSemantics(pending: Boolean): Modifier {
+    val label = stringResource(R.string.progress_action_pending)
+    return if (pending) semantics { contentDescription = label } else this
 }
 
 /**
@@ -1521,5 +1520,9 @@ private val STATUS_CIRCLE: Dp = 24.dp
 private val ROW_LINE_HEIGHT: Dp = 28.dp
 private val TRANSPORT_ICON: Dp = 11.dp
 
-/** Figma 당일 완료 카드의 체크 상자(`w-14`). */
-private val ALL_DONE_ICON_BOX: Dp = 56.dp
+/** Figma 카드 안 행동 버튼 높이(`h-[48px]`). */
+private val CARD_BUTTON_HEIGHT: Dp = 48.dp
+
+/** 권한 꺼짐 배너 ✕(Figma 14dp, `opacity 0.6`). */
+private val DISMISS_ICON: Dp = 14.dp
+private const val DISMISS_ICON_ALPHA = 0.6f

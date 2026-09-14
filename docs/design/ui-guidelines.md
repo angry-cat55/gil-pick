@@ -81,7 +81,8 @@ Figma에는 48dp 터치 영역도, 4.5:1 대비도, 오류 화면도 그려지�
 | `dark` | `#0B1120` | 로그인 배경(→ `#0E1A3A` → `#0F2050` gradient), 데모 프레임 |
 | `darkMap` | `#0F1A2E` | 일자 경로 화면 배경(도로 `#1E3A5F`·`#263A5F`, 블록 `#152033`) |
 | `onDarkMuted` | `#8BA3C7` | 어두운 배경 위 보조 글자 |
-| `toast` | `rgba(17,24,39,0.92)` | 하단 toast 배경 (`되돌리기`는 `#34D399`) |
+| `toast` | `rgba(17,24,39,0.92)` | 하단 toast 배경 |
+| `toastAction` | `#34D399` | toast 위 `되돌리기` 글자 — `ActiveTravelScreen` |
 | `scrim` | `rgba(0,0,0,0.5)` | sheet·dialog 뒤 어둡게 (여행 중 화면은 0.4) |
 
 hero 사진 위 gradient는 `rgba(0,0,0,0.3) → transparent(50%) → rgba(0,0,0,0.5)`, 사진 위 원형 버튼은 `rgba(0,0,0,0.3)` + 흰 아이콘이다.
@@ -644,7 +645,7 @@ feature 패키지가 아니라 중립 위치에 둔다. 특정 feature가 소유
 
 **Material 3에 없는 값**
 
-`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`, `headerIcon`(7절 헤더 아이콘 색, `onSurfaceVariant`와 같은 값)과 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
+`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`·`toastAction`, `headerIcon`(7절 헤더 아이콘 색, `onSurfaceVariant`와 같은 값)과 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
 
 - 그림자는 `GilpickShadows`(`LocalGilpickShadows`)다. 6절 표에서 값이 있는 행마다 토큰 하나(`card`, `floatingCard`, `primaryButton`, `fab`, `sheetOverMap`, `sheetBelowMap`, `dialog`, `dropdownMenu`, `listPrimaryAction`, `calendarSelected`, `mapFloatingButton`, `stayMinusSheet`, `stayMinusDialog`, `stayPlusDialog`, `activeTripCard`, `mapSmallButton`(`shadow-md`), `toggleThumb`(`shadow-sm`))이며, 각 토큰은 CSS 겹 순서대로 `List<Shadow>`다. 모달 bottom sheet는 그림자가 없어 토큰이 없다.
 - 환산: px → dp 1:1, `blur` → `radius`, `spread` → `spread`, `x y` → `offset`, `rgba` alpha → 색의 alpha. 화면은 `Modifier.dropShadow(shape, shadow)`를 겹 순서대로 적용한다.

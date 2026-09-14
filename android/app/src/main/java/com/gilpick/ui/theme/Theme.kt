@@ -94,7 +94,9 @@ private val GilpickColorScheme = lightColorScheme(
  * @property star 평점 `★`.
  * @property dark 로그인 배경. [onDarkMuted]는 그 위 보조 글자.
  * @property darkMap 일자 경로 화면 배경. 지도 뒤와 그 위 sheet의 바탕이다.
- * @property toast 하단 toast 배경.
+ * @property caution 권한 꺼짐 배너 아이콘·행동 글자(가이드라인 9절 "권한 꺼짐 배너"). 실패가 아니라 사용자가 켤 수 있는 주의 상태라
+ *   경고(주황)와 구분한다. [cautionContainer] 배너 배경, [cautionBorder] 1dp 테두리, [cautionSoft] 권한 없이 잠기는 기능 아이콘 원.
+ * @property toast 하단 toast 배경. [toastAction]은 그 위 `되돌리기` 글자.
  * @property kakao 카카오 브랜드 가이드가 정한 버튼 배경. 앱 팔레트와 무관하게 고정이다.
  * @property onKakao 카카오 버튼 라벨.
  * @property headerIcon 헤더 알림·설정 아이콘과 헤더 오른쪽 보조 행동 아이콘(가이드라인 7절 "헤더 아이콘 색", D7).
@@ -116,12 +118,17 @@ data class GilpickColors(
     val warningBorder: Color,
     val onWarningContainer: Color,
     val amber: Color,
+    val caution: Color,
+    val cautionContainer: Color,
+    val cautionBorder: Color,
+    val cautionSoft: Color,
     val info: Color,
     val star: Color,
     val dark: Color,
     val darkMap: Color,
     val onDarkMuted: Color,
     val toast: Color,
+    val toastAction: Color,
     val kakao: Color,
     val onKakao: Color,
     val headerIcon: Color,
@@ -143,12 +150,17 @@ private val GilpickLightColors = GilpickColors(
     warningBorder = Color(0xFFFED7AA),
     onWarningContainer = Color(0xFF92400E),
     amber = Color(0xFFF59E0B),
+    caution = Color(0xFFD97706),
+    cautionContainer = Color(0xFFFFFBEB),
+    cautionBorder = Color(0xFFFDE68A),
+    cautionSoft = Color(0xFFFEF3C7),
     info = Color(0xFF2457C5),
     star = Color(0xFFFBBF24),
     dark = Color(0xFF0B1120),
     darkMap = Color(0xFF0F1A2E),
     onDarkMuted = Color(0xFF8BA3C7),
     toast = Color(0xEB111827),
+    toastAction = Color(0xFF34D399),
     kakao = Color(0xFFFEE500),
     onKakao = Color(0xFF111827),
     headerIcon = Color(0xFF6B7280),

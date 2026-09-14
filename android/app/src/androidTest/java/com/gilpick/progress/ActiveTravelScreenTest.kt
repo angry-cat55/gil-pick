@@ -236,8 +236,8 @@ class ActiveTravelScreenTest {
         cardText(TAG_CARD_NEXT, "북촌한옥마을").assertIsDisplayed()
         composeRule.onNodeWithText("도착했어요").assertIsNotEnabled()
         composeRule.onNodeWithText("건너뛰기").assertIsNotEnabled()
+        // 요청한 버튼(gradient)은 처리 중 설명을 갖고, spinner는 장식이다(공통 GradientButton).
         composeRule.onNodeWithContentDescription("처리 중").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_BUSY, useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithText("도착했어요").performClick()
         composeRule.onNodeWithText("건너뛰기").performClick()
         composeRule.runOnIdle {
