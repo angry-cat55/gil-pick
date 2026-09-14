@@ -31,6 +31,24 @@ gradlew.bat --offline :app:connectedDebugAndroidTest \
 
 `tests/contract/test_auth_contract.py`의 기존 실패는 F011과 무관하다(origin/main 기준).
 
+## 2026-09-14 실행 결과
+
+### 자동 검증
+
+- Backend: 임시 PostGIS 18-3.6 DB에 migration `head` 적용 후 위 F011 선택 test 실행 — `62 passed`.
+- Android unit·build: `:app:testDebugUnitTest :app:assembleDebug` — 성공.
+- Android 알림 계측 test: Google Play 포함 API 36 AVD `gilpick_api36_play`에서 `com.gilpick.notification` 패키지 실행 — `38 passed`.
+- 느린 AVD에서 알림 목록 화면이 열린 뒤 목록 응답 표시가 기존 5초를 넘겨 실패하는 것을 확인했다. 화면 이동 자체는 먼저 성공했으므로 프로덕션 동작은 변경하지 않고 `NotificationNavigationTest`의 비동기 대기 한도만 15초로 조정했으며, 해당 class `5 passed`와 전체 `38 passed`를 다시 확인했다.
+
+### AWS 실서버·실 FCM
+
+- 로그인 후 `PUT /api/v1/devices/fcm-token` `200 OK`와 활성 FCM 기기 1개를 확인했다.
+- 장소 변경 제안 알림을 실제 수신하고 알림 대상의 대체 장소 화면이 열리는 것을 확인했다.
+- 도착 확인 알림을 실제 수신하고 여행 진행 화면이 열리는 것을 확인했다.
+- 장소 변경 제안 알림 설정을 끈 상태에서는 새 감지는 생성되지만 제안 알림은 생성·수신되지 않고, 도착 확인 알림은 계속 수신되는 것을 확인했다.
+- 로그아웃 후 활성 FCM 기기가 0개가 되고 이후 알림이 수신되지 않는 것을 확인했다.
+- 서비스 계정 JSON, FCM token 등 secret 원문은 검증 기록에 남기지 않았다.
+
 ## Backend 시나리오
 
 ### BE 1. 장소 변경 제안 알림 생성 (US2, FR-001·FR-002·FR-003, SC-001)
