@@ -1,5 +1,11 @@
 package com.gilpick.alternative
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
+import com.gilpick.place.PlaceCategory
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -36,13 +42,13 @@ class AlternativeSearchScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun 검색_전에는_F003_빈_상태_틀로_안내하고_칩은_없다() {
+    fun 검색_전에는_시트_안_빈_상태로_안내하고_칩은_없다() {
         setScreen(AlternativeSearchUiState())
 
-        composeRule.onNodeWithText("직접 검색").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_SEARCH_MAP).assertExists()
         composeRule.onNodeWithText("어떤 장소를 찾고 계세요?").assertIsDisplayed()
         composeRule.onNodeWithText("기존 장소 대신 갈 곳의 이름을 검색해 보세요").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("장소 이름 검색").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("관광지, 이름, 카테고리 검색").assertIsDisplayed()
         composeRule.onNodeWithText("전체").assertDoesNotExist()
         composeRule.onNodeWithTag(TAG_SEARCH_BACK).assertHeightIsAtLeast(48.dp)
     }
@@ -53,10 +59,10 @@ class AlternativeSearchScreenTest {
         var query = ""
         setScreen(AlternativeSearchUiState(), onQueryChange = { query = it }, onSearch = { searches++ })
 
-        composeRule.onNodeWithContentDescription("장소 이름 검색").performTextInput("덕수궁")
+        composeRule.onNodeWithContentDescription("관광지, 이름, 카테고리 검색").performTextInput("덕수궁")
         composeRule.runOnIdle { assertEquals(0, searches) }
 
-        composeRule.onNodeWithContentDescription("장소 이름 검색").performImeAction()
+        composeRule.onNodeWithContentDescription("관광지, 이름, 카테고리 검색").performImeAction()
         composeRule.runOnIdle {
             assertEquals("덕수궁", query)
             assertEquals(1, searches)
@@ -102,7 +108,56 @@ class AlternativeSearchScreenTest {
     }
 
     @Test
-    fun empty는_검색어와_함께_F003_빈_상태_틀로_안내한다() {
+    fun 행이나_마커를_누르면_같은_선택_상태를_바꾸고_선택된_행은_selected다() {
+        val toggled = mutableListOf<String>()
+        setScreen(content().copy(selectedPlaceId = "tourapi:126508"), onToggleSelect = { toggled += it })
+
+        composeRule.onNodeWithTag(TAG_SEARCH_ROW_PREFIX + "tourapi:126508").assertIsSelected()
+        composeRule.onNodeWithTag(TAG_SEARCH_ROW_PREFIX + "google:ChIJ_abc-123").assertIsNotSelected().performClick()
+
+        composeRule.runOnIdle { assertEquals(listOf("google:ChIJ_abc-123"), toggled) }
+    }
+
+    @Test
+    fun 응답에_필터_필드가_없으면_칩과_반경_부제와_배지를_그리지_않는다() {
+        setScreen(content())
+
+        composeRule.onNodeWithTag(TAG_SEARCH_CHIPS).assertDoesNotExist()
+        composeRule.onNodeWithText("전체").assertDoesNotExist()
+        composeRule.onNodeWithText("기준 2km 이내", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("혼잡").assertDoesNotExist()
+        composeRule.onNodeWithText("마감", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun 응답에_필터_필드가_있으면_칩과_반경_부제와_배지를_그리고_칩은_콜백을_부른다() {
+        val picked = mutableListOf<PlaceCategory?>()
+        val items = searchItems().mapIndexed { index, item ->
+            when (index) {
+                0 -> item.copy(crowded = true)
+                1 -> item.copy(closesAt = "2026-09-14T11:00:00Z")
+                else -> item
+            }
+        }
+        setScreen(
+            content().copy(
+                results = items,
+                filters = AlternativeSearchFilters(categories = listOf(PlaceCategory.FOOD, PlaceCategory.CAFE), originName = "경복궁", radiusMeters = 2000),
+            ),
+            onSelectCategory = { picked += it },
+        )
+
+        composeRule.onNodeWithText("경복궁 기준 2.0km 이내").assertIsDisplayed()
+        composeRule.onNodeWithText("혼잡").assertIsDisplayed()
+        composeRule.onNodeWithText("20:00 마감").assertIsDisplayed()
+        composeRule.onNodeWithText("전체").assertIsSelected()
+        composeRule.onNodeWithText("음식").assertHeightIsAtLeast(48.dp).performClick()
+
+        composeRule.runOnIdle { assertEquals(listOf<PlaceCategory?>(PlaceCategory.FOOD), picked) }
+    }
+
+    @Test
+    fun empty는_검색어와_함께_시트_안_빈_상태로_안내한다() {
         setScreen(AlternativeSearchUiState(query = "없는곳", committedQuery = "없는곳", phase = AlternativeSearchPhase.Empty))
 
         composeRule.onNodeWithText("'없는곳' 검색 결과가 없어요").assertIsDisplayed()
@@ -173,6 +228,8 @@ class AlternativeSearchScreenTest {
         onLoadMore: () -> Unit = {},
         onRetryLoadMore: () -> Unit = {},
         onSelect: (AlternativeSearchItemDto) -> Unit = {},
+        onToggleSelect: (String) -> Unit = {},
+        onSelectCategory: (PlaceCategory?) -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -187,6 +244,10 @@ class AlternativeSearchScreenTest {
                     onLoadMore = onLoadMore,
                     onRetryLoadMore = onRetryLoadMore,
                     onSelect = onSelect,
+                    onToggleSelect = onToggleSelect,
+                    onSelectCategory = onSelectCategory,
+                    // 지도는 Naver SDK 인증 key가 필요해 계측 환경에서 그릴 수 없다.
+                    map = { _, _, _, modifier -> Box(modifier.fillMaxSize()) },
                 )
             }
         }

@@ -1,6 +1,7 @@
 package com.gilpick.alternative
 
 import com.gilpick.auth.SuccessEnvelope
+import com.gilpick.place.PlaceCategory
 import com.gilpick.place.PlaceDto
 import com.gilpick.place.PlaceListMeta
 import kotlinx.serialization.Serializable
@@ -256,12 +257,24 @@ data class AlternativeSearchItemDto(
     val operatingStatus: OperatingStatus,
     val visitable: Boolean,
     val inSchedule: Boolean,
+    /** 혼잡 여부. **ALT-002 계약에 아직 없다**(백엔드 조율 중, #450). 값이 없으면 `혼잡` 배지를 그리지 않는다. */
+    val crowded: Boolean? = null,
+    /** 마감 시각(ISO-8601). **계약에 아직 없다**(#450). 값이 없으면 `마감` 배지를 그리지 않는다. */
+    val closesAt: String? = null,
 )
 
-/** ALT-002 응답 data. */
+/**
+ * ALT-002 응답 data.
+ *
+ * [categories]·[originName]·[radiusMeters]는 **계약에 아직 없는 선택 필드**다(#450, 백엔드 조율 중). 서버가 내려주기
+ * 시작하면 화면이 카테고리 칩과 반경 부제를 그린다. 그전까지는 `null`이라 그리지 않는다(값을 지어내지 않음).
+ */
 @Serializable
 data class AlternativeSearchData(
     val items: List<AlternativeSearchItemDto>,
+    val categories: List<PlaceCategory>? = null,
+    val originName: String? = null,
+    val radiusMeters: Int? = null,
 )
 
 /** ALT-002 응답 envelope. F003 검색과 같은 pagination meta를 쓴다. */
@@ -388,5 +401,7 @@ interface AlternativeService {
         @Query("query") query: String,
         @Query("cursor") cursor: String? = null,
         @Query("limit") limit: Int? = null,
+        /** 카테고리 필터. 계약에 아직 없어 서버는 무시한다(#450). 화면은 [AlternativeSearchData.categories]가 있을 때만 보낸다. */
+        @Query("category") category: PlaceCategory? = null,
     ): Response<AlternativeSearchEnvelope>
 }

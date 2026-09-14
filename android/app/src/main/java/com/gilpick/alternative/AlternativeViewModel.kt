@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.gilpick.place.PlaceCategory
 import com.gilpick.auth.AuthResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -210,6 +211,18 @@ class AlternativeSearchViewModel(
         fetchNextPage()
     }
 
+    /** 시트 행이나 지도 마커를 눌렀다. 같은 결과를 다시 누르면 선택이 풀린다(UI-010). */
+    fun toggleSelect(placeId: String) {
+        _state.update { it.copy(selectedPlaceId = if (it.selectedPlaceId == placeId) null else placeId) }
+    }
+
+    /** 카테고리 칩. 서버 필터로 같은 검색어를 다시 조회한다(화면에서 거르지 않는다, #450). */
+    fun selectCategory(category: PlaceCategory?) {
+        if (_state.value.category == category) return
+        _state.update { it.copy(category = category) }
+        if (_state.value.committedQuery.length >= MIN_QUERY_LENGTH) startSearch()
+    }
+
     /** 방문 가능한 결과의 선택: 후보 토큰·점수가 없는 [SelectedAlternative]다(data-model.md §3.2). */
     fun select(item: AlternativeSearchItemDto) = SelectedAlternative(
         detectionId = detectionId,
@@ -223,9 +236,11 @@ class AlternativeSearchViewModel(
     private fun startSearch() {
         loadJob?.cancel()
         nextCursor = null
-        _state.update { it.copy(results = emptyList(), phase = AlternativeSearchPhase.Loading, hasNext = false, loadingMore = false, loadMoreError = null) }
+        _state.update {
+            it.copy(results = emptyList(), phase = AlternativeSearchPhase.Loading, hasNext = false, loadingMore = false, loadMoreError = null, selectedPlaceId = null)
+        }
         loadJob = viewModelScope.launch {
-            when (val result = repository.searchAlternatives(detectionId, _state.value.committedQuery)) {
+            when (val result = repository.searchAlternatives(detectionId, _state.value.committedQuery, category = _state.value.category)) {
                 is AuthResult.Success -> {
                     val page = result.value
                     nextCursor = page.nextCursor.takeIf { page.hasNext }
@@ -235,6 +250,7 @@ class AlternativeSearchViewModel(
                             results = items,
                             hasNext = page.hasNext,
                             phase = if (items.isEmpty()) AlternativeSearchPhase.Empty else AlternativeSearchPhase.Content,
+                            filters = page.filters,
                         )
                     }
                 }
@@ -250,7 +266,7 @@ class AlternativeSearchViewModel(
         if (_state.value.loadingMore || loadJob?.isActive == true) return
         _state.update { it.copy(loadingMore = true) }
         loadJob = viewModelScope.launch {
-            when (val result = repository.searchAlternatives(detectionId, _state.value.committedQuery, cursor)) {
+            when (val result = repository.searchAlternatives(detectionId, _state.value.committedQuery, cursor, category = _state.value.category)) {
                 is AuthResult.Success -> {
                     val page = result.value
                     nextCursor = page.nextCursor.takeIf { page.hasNext }

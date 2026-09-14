@@ -5,6 +5,7 @@ import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
+import com.gilpick.place.PlaceCategory
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
@@ -151,6 +152,40 @@ class AlternativeSearchViewModelTest {
     }
 
     /** 두 번째 페이지: 첫 페이지의 창덕궁이 다시 오고 덕수궁이 새로 온다. 마지막 페이지다. */
+    @Test
+    fun `행이나 마커 선택은 같은 값을 토글하고 새 검색이 시작되면 풀린다`() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onQueryChange("궁궐")
+        viewModel.search()
+        advanceUntilIdle()
+
+        viewModel.toggleSelect("tourapi:126508")
+        assertEquals("tourapi:126508", viewModel.state.value.selectedPlaceId)
+        viewModel.toggleSelect("tourapi:126508")
+        assertNull(viewModel.state.value.selectedPlaceId)
+
+        viewModel.toggleSelect("tourapi:126508")
+        viewModel.search()
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.selectedPlaceId)
+    }
+
+    @Test
+    fun `카테고리 칩은 서버 필터로 같은 검색어를 다시 조회하고 응답에 필터 정보가 없으면 filters는 null이다`() = runTest {
+        val viewModel = newViewModel()
+        viewModel.onQueryChange("궁궐")
+        viewModel.search()
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.filters)
+
+        viewModel.selectCategory(PlaceCategory.FOOD)
+        advanceUntilIdle()
+
+        assertEquals(PlaceCategory.FOOD, viewModel.state.value.category)
+        assertEquals(listOf(null, PlaceCategory.FOOD), service.searchCategories)
+        assertEquals(AlternativeSearchPhase.Content, viewModel.state.value.phase)
+    }
+
     private fun secondPageJson() = """
         {"success": true,
          "data": {"items": [
