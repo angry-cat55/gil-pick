@@ -284,7 +284,7 @@ erDiagram
 | `schedule_version` | integer | N | 계산에 사용한 일정 버전 |
 | `status` | varchar(20) | N | `READY`, `FAILED`, `HISTORICAL` |
 | `is_active` | boolean | N | 현재 지도에 적용된 경로 |
-| `provider` | varchar(20) | Y | `TMAP`, `ODSAY`, `MIXED` |
+| `provider` | varchar(20) | Y | `TMAP`, `KAKAO`, `MIXED`; 기존 `ODSAY` 허용 |
 | `total_duration_seconds` | integer | Y | 총 이동시간(초) |
 | `total_distance_meters` | integer | Y | 총 이동거리 |
 | `route_payload` | jsonb | Y | 정규화한 구간, WGS84 LineString, marker, 제공사 표시정보 |
@@ -389,7 +389,7 @@ erDiagram
 | `from_item_id` | uuid | Y | FK → `itinerary_items.item_id`, null이면 시작 위치, 삭제 시 cascade |
 | `to_item_id` | uuid | N | FK → `itinerary_items.item_id`, 삭제 시 cascade |
 | `transport_mode` | varchar(20) | N | `WALK`, `TRANSIT`, `CAR` |
-| `provider` | varchar(20) | N | `TMAP`, `ODSAY` |
+| `provider` | varchar(20) | N | `TMAP`, `KAKAO`; 기존 `ODSAY` 허용 |
 | `duration_seconds` | integer | N | 이동시간(초), 0 이상 |
 | `distance_meters` | integer | N | 이동거리(m), 0 이상 |
 | `computed_at` | timestamptz | N | 계산 시각 |

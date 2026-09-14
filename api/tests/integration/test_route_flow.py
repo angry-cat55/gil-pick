@@ -129,7 +129,7 @@ def _service(
 ) -> RouteService:
     calculation = RouteCalculationService(
         tmap=provider,
-        odsay=FixedProvider(Provider.ODSAY),
+        transit=FixedProvider(Provider.KAKAO),
         concurrency=3,
         deadline_seconds=10,
     )
@@ -484,7 +484,7 @@ async def test_retry_reports_version_conflict_when_schedule_changes_after_snapsh
 
     calculation = RouteCalculationService(
         tmap=FixedProvider(Provider.TMAP),
-        odsay=FixedProvider(Provider.ODSAY),
+        transit=FixedProvider(Provider.KAKAO),
         concurrency=3,
         deadline_seconds=10,
     )

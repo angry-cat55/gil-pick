@@ -9,7 +9,7 @@
 | `schedule_version` | integer | 1 이상, 계산 입력 version |
 | `status` | enum | `READY`, `FAILED`, `HISTORICAL` |
 | `is_active` | boolean | 현재 사용자 노출 대상 여부 |
-| `provider` | enum nullable | `TMAP`, `ODSAY`, `MIXED`; 1개 장소는 null |
+| `provider` | enum nullable | `TMAP`, `KAKAO`, `MIXED`; 교체 전 `ODSAY` 데이터 조회 허용, 1개 장소는 null |
 | `total_duration_seconds` | integer nullable | READY면 0 이상 |
 | `total_distance_meters` | integer nullable | READY면 0 이상 |
 | `route_payload` | JSONB nullable | READY면 정규화 구간·geometry·attribution 포함 |

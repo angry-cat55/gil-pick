@@ -44,7 +44,7 @@
 
 ## 결정 5: 계획에 없는 구간은 `progress_segments`에 저장하고 기존 provider를 재사용한다
 
-**Decision**: `현재 위치→첫 장소`(도보)와 건너뛰기로 이어진 `이전→다음 장소`(이전 장소의 `transport_mode_to_next`) 구간은 F005 `RouteCalculationService`의 provider(TMAP/ODsay)를 단일 구간으로 호출해 `progress_segments`에 저장한다. ETA 재계산은 인접 쌍이 F005 활성 경로 구간이면 그 값을, 아니면 `progress_segments`의 값을 쓰고, 둘 다 없으면 ETA를 null(`정보 없음`)로 둔다. 계산은 transaction 밖에서 하고 실패해도 상태 전환은 성공으로 커밋한다(spec Edge Case).
+**Decision**: `현재 위치→첫 장소`(도보)와 건너뛰기로 이어진 `이전→다음 장소`(이전 장소의 `transport_mode_to_next`) 구간은 F005 `RouteCalculationService`의 provider(TMAP/Kakao Maps)를 단일 구간으로 호출해 `progress_segments`에 저장한다. ETA 재계산은 인접 쌍이 F005 활성 경로 구간이면 그 값을, 아니면 `progress_segments`의 값을 쓰고, 둘 다 없으면 ETA를 null(`정보 없음`)로 둔다. 계산은 transaction 밖에서 하고 실패해도 상태 전환은 성공으로 커밋한다(spec Edge Case).
 
 **Rationale**: clarify 결정(A안)을 그대로 구현한다. 저장해 두면 되돌리기·체류 시간 변경 뒤 재계산에서 provider를 다시 호출하지 않는다. 지도 형상은 진행 화면에 필요 없으므로 이동시간·거리·수단만 저장한다.
 

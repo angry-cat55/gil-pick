@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.api.errors import AppError
 from app.api.dependencies import get_current_principal
 from app.api.v1.replacements import get_replacement_service
-from app.clients.odsay import OdsayClient
+from app.clients.kakao_transit import KakaoTransitClient
 from app.clients.tmap import TmapClient
 from app.core.config import Settings
 from app.core.security import AuthPrincipal
@@ -913,7 +913,7 @@ async def test_create_preview_with_live_provider_responds_within_three_seconds()
     engine = create_async_engine(url)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     tmap = TmapClient(settings)
-    odsay = OdsayClient(settings)
+    transit = KakaoTransitClient(settings)
     try:
         seeded = await _seed(factory)
         async with factory() as session:
@@ -921,7 +921,7 @@ async def test_create_preview_with_live_provider_responds_within_three_seconds()
                 session,
                 calculator=RouteCalculationService(
                     tmap=tmap,
-                    odsay=odsay,
+                    transit=transit,
                     concurrency=settings.route_provider_concurrency,
                     deadline_seconds=settings.route_calculation_deadline_seconds,
                 ),
@@ -955,5 +955,5 @@ async def test_create_preview_with_live_provider_responds_within_three_seconds()
             assert elapsed <= 3, f"REPL-001 응답 시간: {elapsed:.3f}초"
     finally:
         await tmap.close()
-        await odsay.close()
+        await transit.close()
         await engine.dispose()

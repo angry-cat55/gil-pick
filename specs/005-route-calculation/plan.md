@@ -4,7 +4,7 @@
 
 ## Summary
 
-날짜별 일정 저장이 확정되면 장소 사이 구간을 저장된 이동수단에 따라 TMAP(도보·자동차) 또는 ODsay(대중교통)로 계산하고, 현재 `schedule_version`에 대응하는 경로 하나를 저장·조회한다. 일정 transaction은 외부 호출 전에 커밋해 경로 실패와 분리한다. 여러 구간은 동시에 계산하되 전체 10초 deadline을 적용하고, 일시적 실패만 남은 시간 안에서 1회 재시도한다. 실패 시 일정은 보존하고 `FAILED` 상태와 동일 입력 재시도만 제공한다.
+날짜별 일정 저장이 확정되면 장소 사이 구간을 저장된 이동수단에 따라 TMAP(도보·자동차) 또는 Kakao Maps(대중교통)로 계산하고, 현재 `schedule_version`에 대응하는 경로 하나를 저장·조회한다. 일정 transaction은 외부 호출 전에 커밋해 경로 실패와 분리한다. 여러 구간은 동시에 계산하되 전체 10초 deadline을 적용하고, 일시적 실패만 남은 시간 안에서 1회 재시도한다. 실패 시 일정은 보존하고 `FAILED` 상태와 동일 입력 재시도만 제공한다.
 
 ## Technical Context
 
@@ -65,7 +65,7 @@ specs/005-route-calculation/
 
 api/app/
 ├── api/v1/{itinerary,route}.py
-├── clients/{tmap,odsay}.py
+├── clients/{tmap,kakao_transit}.py
 ├── models/{itinerary,route}.py
 ├── schemas/{itinerary,route}.py
 └── services/{itinerary,route}.py
@@ -83,7 +83,7 @@ android/app/src/main/java/com/gilpick/
 2. 짧은 transaction에서 일정을 저장하고 `schedule_version`을 확정한다. 경로 입력이 바뀌면 이전 현재 경로를 `HISTORICAL`로 바꾸고 커밋한다.
 3. 0개는 `NOT_CALCULATED`, 1개는 외부 호출 없이 합계 0의 `READY`를 저장한다.
 4. 2개 이상이면 immutable snapshot의 구간을 구조적 동시성으로 계산한다. 전체 deadline은 10초, 시도 timeout은 `min(5초, 남은 시간)`이다. timeout·429·5xx만 남은 시간 안에서 1회 재시도한다.
-5. ODsay는 검색 결과의 기본 추천 후보만 채택하고 지도 형상 상세 호출도 같은 deadline에 포함한다.
+5. Kakao Maps는 대중교통 응답의 첫 번째 기본 추천 경로만 채택하고 `steps[].path.points`를 지도 형상으로 정규화한다.
 6. 모든 구간 성공 시 별도 transaction에서 현재 version을 재확인하고 `READY`를 활성화한다. 하나라도 실패하면 `FAILED`를 기록한다. version이 달라졌다면 결과를 현재 경로로 저장하지 않는다.
 7. 일정 저장 응답은 경로 실패와 관계없이 성공이다. 재시도 endpoint는 현재 `FAILED`·같은 version만 허용한다. 별도 멱등성 저장소 없이 `(trip_day_id, schedule_version)` 경로를 upsert하여 중복 요청에도 같은 경로 하나만 유지한다.
 

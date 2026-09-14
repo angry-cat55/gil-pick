@@ -146,7 +146,7 @@ class ProgressSegment(Base):
             name="ck_progress_segments_transport_mode",
         ),
         CheckConstraint(
-            "provider IN ('TMAP', 'ODSAY')", name="ck_progress_segments_provider"
+            "provider IN ('TMAP', 'ODSAY', 'KAKAO')", name="ck_progress_segments_provider"
         ),
         CheckConstraint("duration_seconds >= 0", name="ck_progress_segments_duration"),
         CheckConstraint("distance_meters >= 0", name="ck_progress_segments_distance"),

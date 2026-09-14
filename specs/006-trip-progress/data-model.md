@@ -56,7 +56,7 @@ migration `005_create_progress_tables`가 아래 변경을 담는다. F004 migra
 | `from_item_id` | uuid nullable | null = 시작 위치(`start_location`) |
 | `to_item_id` | uuid | FK `itinerary_items` cascade |
 | `transport_mode` | enum | `WALK`(시작 구간 고정) 또는 이전 장소 `transport_mode_to_next` |
-| `provider` | enum | `TMAP`·`ODSAY` |
+| `provider` | enum | 신규 계산은 `TMAP`·`KAKAO`, 교체 전 데이터는 `ODSAY` 허용 |
 | `duration_seconds`, `distance_meters` | integer | 0 이상 |
 | `computed_at` | timestamptz | 계산 시각 |
 
