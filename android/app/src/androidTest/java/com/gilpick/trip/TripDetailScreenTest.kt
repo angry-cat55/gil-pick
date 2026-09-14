@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -92,7 +93,8 @@ class TripDetailScreenTest {
 
         composeRule.onNodeWithText("여행 2").performClick()
 
-        composeRule.onNodeWithText("여행 상세").assertIsDisplayed()
+        // hero에는 화면 제목이 없어 여행을 받은 상세에만 있는 `더보기`로 상세 진입을 확인한다(#442).
+        composeRule.onNodeWithContentDescription("더보기").assertIsDisplayed()
         // 누른 카드의 tripId가 상세로 전달됐는지 확인한다.
         composeRule.onNodeWithText("t2 여행").assertIsDisplayed()
     }
@@ -182,7 +184,8 @@ class TripDetailScreenTest {
         composeRule.onNodeWithText("여행 26").assertIsDisplayed()
 
         composeRule.onNodeWithText("여행 26").performClick()
-        composeRule.onNodeWithText("여행 상세").assertIsDisplayed()
+        // hero에는 화면 제목이 없어 여행을 받은 상세에만 있는 `더보기`로 상세 진입을 확인한다(#442).
+        composeRule.onNodeWithContentDescription("더보기").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
 
         // 목록 맨 위로 튀지 않고 보고 있던 자리가 그대로 있어야 한다.
@@ -343,7 +346,8 @@ class TripDetailScreenTest {
 
         composeRule.onNodeWithText("오늘 여행 시작").assertIsNotEnabled()
         composeRule.onNodeWithText("총 이동").assertIsDisplayed()
-        composeRule.onNodeWithText("정보 없음").assertIsDisplayed()
+        // hero 지역 줄(TripDto에 지역이 없음, #442)과 `총 이동` 값이 모두 `정보 없음`이다.
+        composeRule.onAllNodesWithText("정보 없음").assertCountEquals(2)
     }
 
     // --- F005 T030: 경로 실패 재시도(UI-002a, FR-010·019) ---

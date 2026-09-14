@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -190,7 +191,7 @@ class TripEditFlowTest {
 
         // 상세로 돌아오고, 돌아온 상세는 서버에서 다시 받은 값을 보여준다.
         awaitDetailAfterSave()
-        composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).assertIsDisplayed()
         composeRule.onNodeWithText("부산 여행").assertIsDisplayed()
         assertEquals(2, storedVersion)
     }
@@ -213,7 +214,7 @@ class TripEditFlowTest {
         composeRule.waitForIdle()
 
         awaitDetailAfterSave()
-        composeRule.onNodeWithText(string(R.string.trip_detail_title)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).assertIsDisplayed()
         composeRule.onNodeWithText("대구 여행").assertIsDisplayed()
         assertEquals(3, storedVersion)
         assertEquals(emptyList<Int>(), conflicts)
@@ -252,7 +253,7 @@ class TripEditFlowTest {
         // 상세로 돌아오고 서버의 기간이 실제로 줄었다.
         composeRule.waitUntil(TIMEOUT_MILLIS) {
             composeRule
-                .onAllNodesWithText(string(R.string.trip_detail_title))
+                .onAllNodesWithContentDescription(string(R.string.trip_detail_more))
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
@@ -295,7 +296,7 @@ class TripEditFlowTest {
 
         composeRule.waitUntil(TIMEOUT_MILLIS) {
             composeRule
-                .onAllNodesWithText(string(R.string.trip_detail_title))
+                .onAllNodesWithContentDescription(string(R.string.trip_detail_more))
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }

@@ -8,8 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -23,28 +23,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,6 +46,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import com.gilpick.ui.theme.LocalGilpickShadows
+import com.gilpick.ui.theme.displayFont
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -149,7 +154,7 @@ fun TripDetailScreen(
     onLaunchConsumed: () -> Unit = {},
 ) {
     val spacing = LocalGilpickSpacing.current
-    var menuOpen by remember { mutableStateOf(false) }
+    val title = stringResource(R.string.trip_detail_title)
 
     // 방금 시작됐으면 진행 화면으로 간다. 신호를 바로 소비해 돌아왔을 때 다시 이동하지 않는다.
     val start = state.start
@@ -165,84 +170,53 @@ fun TripDetailScreen(
     // rememberSaveable만 쓴다.
     var confirmOpen by rememberSaveable { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
-                Text(
-                    text = stringResource(R.string.trip_detail_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH)) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        // 아이콘 전용 버튼이므로 설명이 필수다(가이드라인 10절).
-                        contentDescription = stringResource(R.string.trip_detail_back),
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            // 앱은 edge-to-edge라 상태 표시줄 뒤까지 그려진다. 장소 상세와 같이 그 띠는 흰색으로 두고 hero는 그 아래서 시작한다.
+            .background(MaterialTheme.colorScheme.surface)
+            .statusBarsPadding()
+            .background(MaterialTheme.colorScheme.background)
+            // 화면 제목 막대가 없어져 제목은 창 제목 semantics로만 남긴다.
+            .semantics { paneTitle = title },
+    ) {
+        when (val phase = state.phase) {
+            // 여행을 받기 전·실패에는 hero를 채울 값이 없다. 같은 자리에 빈 hero와 뒤로 가기만 두어
+            // 내용이 도착해도 상단 구조가 튀지 않게 한다. 더보기는 여행을 받은 뒤에만 할 수 있는 일이라 숨긴다.
+            TripDetailPhase.Loading -> {
+                Hero(trip = null, onBack = onBack)
+                Box(modifier = Modifier.weight(1f)) { LoadingState() }
+            }
+
+            is TripDetailPhase.Content -> DetailContent(
+                trip = phase.trip,
+                itinerary = state.itinerary,
+                routes = routes,
+                start = state.start,
+                onBack = onBack,
+                onEdit = onEdit,
+                onRequestDelete = { confirmOpen = true },
+                onRetryItinerary = onRetryItinerary,
+                onEditItinerary = onEditItinerary,
+                onAddPlace = onAddPlace,
+                onSelectPlace = onSelectPlace,
+                onOpenRoute = onOpenRoute,
+                onRetryRoute = onRetryRoute,
+                onStartToday = onStartToday,
+                onRetryStart = onRetryStart,
+                onOpenProgress = onOpenProgress,
+            )
+
+            is TripDetailPhase.Failed -> {
+                Hero(trip = null, onBack = onBack)
+                Box(modifier = Modifier.weight(1f)) {
+                    ErrorState(
+                        error = phase.error,
+                        onRetry = onRetry,
+                        onBack = onBack,
+                        modifier = Modifier.padding(horizontal = spacing.space5),
                     )
                 }
-            },
-            actions = {
-                // 여행을 받아 둔 상태에서만 할 수 있는 일이다. 실패·대기 중에는 메뉴를
-                // 열어도 누를 것이 없다.
-                if (state.phase is TripDetailPhase.Content) {
-                    IconButton(
-                        onClick = { menuOpen = true },
-                        modifier = Modifier.size(MIN_TOUCH),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.trip_detail_more),
-                        )
-                    }
-                    TripDetailMenu(
-                        expanded = menuOpen,
-                        onDismiss = { menuOpen = false },
-                        onEdit = {
-                            menuOpen = false
-                            onEdit()
-                        },
-                        onDelete = {
-                            menuOpen = false
-                            confirmOpen = true
-                        },
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                titleContentColor = MaterialTheme.colorScheme.onSurface,
-                navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        )
-
-        Box(modifier = Modifier.weight(1f)) {
-            when (val phase = state.phase) {
-                TripDetailPhase.Loading -> LoadingState()
-
-                is TripDetailPhase.Content -> DetailContent(
-                    trip = phase.trip,
-                    itinerary = state.itinerary,
-                    routes = routes,
-                    start = state.start,
-                    onRetryItinerary = onRetryItinerary,
-                    onEditItinerary = onEditItinerary,
-                    onAddPlace = onAddPlace,
-                    onSelectPlace = onSelectPlace,
-                    onOpenRoute = onOpenRoute,
-                    onRetryRoute = onRetryRoute,
-                    onStartToday = onStartToday,
-                    onRetryStart = onRetryStart,
-                    onOpenProgress = onOpenProgress,
-                )
-
-                is TripDetailPhase.Failed -> ErrorState(
-                    error = phase.error,
-                    onRetry = onRetry,
-                    onBack = onBack,
-                    modifier = Modifier.padding(horizontal = spacing.space5),
-                )
             }
         }
     }
@@ -262,15 +236,15 @@ fun TripDetailScreen(
 }
 
 /**
- * 삭제 확인 다이얼로그.
+ * 삭제 확인 다이얼로그(Figma `TripDetailScreen` 삭제 확인).
  *
- * pen `Dialog`를 따른다. `AlertDialog`가 아니라 [BasicAlertDialog]를 쓰는 이유는
- * `AlertDialog`가 제목·본문·버튼의 배치와 간격을 스스로 정해서, pen이 요구하는 균등
- * 분할 버튼과 24dp 안쪽 여백을 그대로 만들 수 없기 때문이다. [BasicAlertDialog]는
- * 창 동작(뒤로 가기, scrim, `paneTitle` semantics)만 주고 내용은 호출자가 채운다.
+ * `AlertDialog`가 아니라 [BasicAlertDialog]를 쓰는 이유는 `AlertDialog`가 제목·본문·버튼의 배치와
+ * 간격을 스스로 정해서 Figma 배치를 그대로 만들 수 없기 때문이다. [BasicAlertDialog]는 창 동작(뒤로 가기,
+ * scrim, `paneTitle` semantics)만 주고 내용은 호출자가 채운다.
  *
- * 파괴적 행동이라 `취소`를 왼쪽에 먼저 두고 `삭제`를 오른쪽에 둔다. 두 버튼의 너비를
- * 같게 하는 pen의 배치를 그대로 지킨다.
+ * Figma대로 48dp `errorContainer` 아이콘 상자, 제목, 본문 아래에 파란 `취소`(폭을 채움)와 빨간 글자
+ * `삭제하기`를 세로로 둔다. 되돌릴 수 없는 행동이라 강조는 `취소`에 준다. 본문은 여행명을 인용하는
+ * 기존 문장을 유지한다(#442 결정).
  *
  * @param tripName 본문에 인용할 여행명.
  * @param deletion 삭제 요청의 진행 단계. 진행 중에는 버튼을 잠그고 실패하면 안내를 붙인다.
@@ -304,22 +278,37 @@ private fun DeleteConfirmDialog(
             .padding(horizontal = spacing.space5)
             .widthIn(max = DIALOG_WIDTH),
     ) {
+        val shape = RoundedCornerShape(radius.xl)
+        val shadowed = LocalGilpickShadows.current.dialog.fold(Modifier as Modifier) { acc, shadow -> acc.dropShadow(shape, shadow) }
         Surface(
-            shape = RoundedCornerShape(radius.xl),
+            shape = shape,
             color = MaterialTheme.colorScheme.surface,
+            modifier = shadowed,
         ) {
-            Column(
-                modifier = Modifier.padding(spacing.space6),
-                verticalArrangement = Arrangement.spacedBy(spacing.space2),
-            ) {
+            Column(modifier = Modifier.padding(spacing.space6)) {
+                Box(
+                    modifier = Modifier
+                        .size(DIALOG_ICON_BOX)
+                        .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(radius.lg)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lucide_trash),
+                        // 제목이 뜻을 전달한다(가이드라인 10절).
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(DIALOG_ICON),
+                    )
+                }
                 Text(
                     text = stringResource(R.string.trip_delete_title),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = spacing.space4, bottom = spacing.space2),
                 )
                 Text(
                     text = stringResource(R.string.trip_delete_body, tripName),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
@@ -330,49 +319,39 @@ private fun DeleteConfirmDialog(
                         text = stringResource(deletion.error.messageRes),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = spacing.space2),
                     )
                 }
 
-                Row(
+                GradientButton(
+                    label = stringResource(R.string.trip_delete_cancel),
+                    onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = spacing.space4),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+                        .padding(top = spacing.space6),
+                    width = GradientButtonWidth.Standalone,
+                    height = DIALOG_BUTTON_HEIGHT,
+                    enabled = !deleting,
+                )
+                TextButton(
+                    onClick = onConfirm,
+                    enabled = !deleting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = spacing.space2)
+                        .heightIn(min = MIN_TOUCH),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                        disabledContentColor = MaterialTheme.colorScheme.error,
+                    ),
                 ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        enabled = !deleting,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = DIALOG_BUTTON_HEIGHT),
-                        shape = RoundedCornerShape(radius.md),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.trip_delete_cancel),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Button(
-                        onClick = onConfirm,
-                        enabled = !deleting,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = DIALOG_BUTTON_HEIGHT),
-                        shape = RoundedCornerShape(radius.md),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            // pen은 이 라벨을 $on-primary로 적었지만 배경이 $error이므로
-                            // 대응하는 역할은 onError다. 두 토큰의 값은 같다.
-                            contentColor = MaterialTheme.colorScheme.onError,
+                    Text(
+                        text = stringResource(
+                            if (deleting) R.string.trip_delete_progress
+                            else R.string.trip_delete_confirm,
                         ),
-                    ) {
-                        Text(
-                            stringResource(
-                                if (deleting) R.string.trip_delete_progress
-                                else R.string.trip_delete_confirm,
-                            ),
-                        )
-                    }
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             }
         }
@@ -389,101 +368,242 @@ private val TripDeleteError.messageRes: Int
     }
 
 /**
- * AppBar 더보기 메뉴.
+ * 180dp hero(Figma `TripDetailScreen` 상단, 가이드라인 1절·3절).
  *
- * pen의 `Menu` 요소다. `수정`과 `삭제` 사이의 구분선, 삭제 항목의 `error` 색까지
- * pen을 따른다. 삭제는 되돌릴 수 없으므로 색으로도 구분해 두지만, 색만으로 뜻을
- * 전달하지 않도록 라벨이 함께 있다(가이드라인 10절).
+ * - 커버 이미지·지역명은 `TripDto`에 대응하는 값이 없다. 지어내지 않고 이미지 자리는 `faint` 대체 배경,
+ *   지역 줄은 `정보 없음`으로 둔다(가이드라인 12절). Backend 계약 추가는 별도 요청이다.
+ * - 이름·기간·상태는 F002 US3 Acceptance Scenario 1이 요구하는 세 가지다. Figma hero에는 상태 배지가
+ *   없지만 명세 요구라 여행명 옆에 [StatusBadge]로 둔다(#442 결정).
+ * - 글자 배율이 커지면 hero가 세로로 늘어난다. 고정 높이는 최소값이다(가이드라인 4절).
+ *
+ * @param trip 받아 둔 여행. `null`이면 대기·실패 상태라 빈 hero와 뒤로 가기만 그린다.
+ * @param onEdit 메뉴 `여행 편집`. [trip]이 있을 때만 쓴다.
+ * @param onRequestDelete 메뉴 `여행 삭제`. 확인 다이얼로그를 연다.
  */
 @Composable
-private fun TripDetailMenu(
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
+private fun Hero(
+    trip: TripDto?,
+    onBack: () -> Unit,
+    onEdit: () -> Unit = {},
+    onRequestDelete: () -> Unit = {},
 ) {
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss,
-        // Material 3 기본 메뉴 배경은 이 앱이 정의하지 않은 surface 계열 색이라 연보라로
-        // 나온다. pen의 Menu는 $surface다(가이드라인 3절).
-        modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+    val spacing = LocalGilpickSpacing.current
+    val onImage = MaterialTheme.colorScheme.onPrimary
+    val shade = MaterialTheme.colorScheme.scrim
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = HERO_HEIGHT)
+            .background(LocalGilpickColors.current.faint),
     ) {
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.trip_detail_edit)) },
-            onClick = onEdit,
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
-                    contentDescription = null,
-                )
-            },
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to shade.copy(alpha = HERO_SHADE_TOP),
+                        0.5f to shade.copy(alpha = 0f),
+                        1f to shade.copy(alpha = HERO_SHADE_BOTTOM),
+                    ),
+                ),
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        DropdownMenuItem(
-            text = {
+        HeroButton(
+            onClick = onBack,
+            contentDescription = stringResource(R.string.trip_detail_back),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = spacing.space3 - HERO_BUTTON_INSET, start = spacing.space5 - HERO_BUTTON_INSET),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_arrow_left),
+                contentDescription = null,
+                tint = onImage,
+                modifier = Modifier.size(HERO_ICON),
+            )
+        }
+        if (trip != null) {
+            var menuOpen by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = spacing.space3 - HERO_BUTTON_INSET, end = spacing.space5 - HERO_BUTTON_INSET),
+            ) {
+                HeroButton(onClick = { menuOpen = true }, contentDescription = stringResource(R.string.trip_detail_more)) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = null,
+                        tint = onImage,
+                        modifier = Modifier.size(HERO_ICON),
+                    )
+                }
+                if (menuOpen) {
+                    TripDetailMenu(
+                        onDismiss = { menuOpen = false },
+                        onEdit = {
+                            menuOpen = false
+                            onEdit()
+                        },
+                        onDelete = {
+                            menuOpen = false
+                            onRequestDelete()
+                        },
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = spacing.space5, end = spacing.space5, bottom = spacing.space4, top = HERO_TEXT_TOP),
+            ) {
                 Text(
-                    text = stringResource(R.string.trip_detail_delete),
-                    color = MaterialTheme.colorScheme.error,
+                    text = stringResource(R.string.trip_detail_value_unknown),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onImage.copy(alpha = HERO_REGION_ALPHA),
                 )
-            },
-            onClick = onDelete,
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            },
-        )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = trip.name,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = trip.name.displayFont(),
+                        color = onImage,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    StatusBadge(
+                        label = stringResource(trip.status.detailLabelRes),
+                        tone = trip.status.detailTone,
+                    )
+                }
+                // 글자 배율이 크면 기간과 일수를 한 줄에 둘 수 없다. 단어 단위로 다음 줄로 넘긴다.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.space1)) {
+                    val meta = onImage.copy(alpha = HERO_META_ALPHA)
+                    Text(
+                        text = stringResource(R.string.trips_period, trip.startDate, trip.endDate),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = meta,
+                    )
+                    Text(text = stringResource(R.string.trip_detail_meta_separator), style = MaterialTheme.typography.bodyMedium, color = meta)
+                    Text(
+                        text = stringResource(R.string.trips_day_count, trip.dayCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = meta,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** hero 위 36dp 원형 반투명 버튼(가이드라인 7절 "사진 위 버튼"). 터치 영역은 48dp다(10절). */
+@Composable
+private fun HeroButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    icon: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(MIN_TOUCH)
+            .clip(CircleShape)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(HERO_BUTTON)
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = HERO_BUTTON_ALPHA), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { icon() }
     }
 }
 
 /**
- * 여행 요약.
+ * hero 더보기 메뉴(Figma 168dp 흰 카드).
  *
- * 이름·기간·상태는 US3 Acceptance Scenario 1이 요구하는 세 가지다. 상태는 색만으로
- * 구분하지 않도록 문구를 가진 [StatusBadge]로 표시한다(가이드라인 10절).
+ * M3 `DropdownMenu`는 카드 그림자를 토큰(6절 드롭다운 메뉴)으로 줄 수 없어 [Popup]에 직접 그린다. 그림자가
+ * popup 창에 잘리지 않도록 카드 둘레에 여백을 두고 그만큼 위치를 되돌린다. 삭제는 되돌릴 수 없으므로
+ * `error` 색으로도 구분하지만 색만으로 뜻을 전달하지 않도록 라벨이 함께 있다(가이드라인 10절).
  */
 @Composable
-private fun Summary(trip: TripDto, modifier: Modifier = Modifier) {
+private fun TripDetailMenu(
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val spacing = LocalGilpickSpacing.current
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
+    val density = LocalDensity.current
+    // popup 창은 화면 밖으로 나갈 수 없다. 오른쪽 그림자 여백을 화면 가장자리까지의 거리(20 − 6dp)로 줄여야 카드가 버튼 오른쪽 끝에 맞는다.
+    val endRoom = spacing.space5 - HERO_BUTTON_INSET
+    val room = with(density) { MENU_SHADOW_ROOM.roundToPx() }
+    val top = with(density) { (MIN_TOUCH - HERO_BUTTON_INSET + spacing.space2).roundToPx() }
+    val shadowed = LocalGilpickShadows.current.dropdownMenu.fold(Modifier as Modifier) { acc, shadow -> acc.dropShadow(shape, shadow) }
 
-    Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(vertical = spacing.space4),
-            verticalArrangement = Arrangement.spacedBy(spacing.space1),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-                verticalAlignment = Alignment.CenterVertically,
+    Popup(
+        alignment = Alignment.TopEnd,
+        offset = IntOffset(x = with(density) { (endRoom - HERO_BUTTON_INSET).roundToPx() }, y = top - room),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Box(modifier = Modifier.padding(start = MENU_SHADOW_ROOM, top = MENU_SHADOW_ROOM, bottom = MENU_SHADOW_ROOM, end = endRoom)) {
+            Column(
+                modifier = shadowed
+                    .width(MENU_WIDTH)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surface),
             ) {
-                Text(
-                    text = trip.name,
-                    style = MaterialTheme.typography.headlineSmall,
+                MenuItem(
+                    label = stringResource(R.string.trip_detail_edit),
+                    icon = R.drawable.ic_lucide_pencil,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = onEdit,
                 )
-                StatusBadge(
-                    label = stringResource(trip.status.detailLabelRes),
-                    tone = trip.status.detailTone,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DIVIDER)
+                        .background(MaterialTheme.colorScheme.background),
+                )
+                MenuItem(
+                    label = stringResource(R.string.trip_detail_delete),
+                    icon = R.drawable.ic_lucide_trash,
+                    color = MaterialTheme.colorScheme.error,
+                    iconTint = MaterialTheme.colorScheme.error,
+                    onClick = onDelete,
                 )
             }
-            Text(
-                text = stringResource(R.string.trips_period, trip.startDate, trip.endDate),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = stringResource(R.string.trips_day_count, trip.dayCount),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+    }
+}
+
+@Composable
+private fun MenuItem(label: String, icon: Int, color: Color, iconTint: Color, onClick: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = MIN_TOUCH)
+            .clickable(onClick = onClick, role = Role.Button)
+            .padding(horizontal = spacing.space4, vertical = spacing.space3),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(MENU_ICON),
+        )
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = color)
     }
 }
 
@@ -496,6 +616,9 @@ private fun Summary(trip: TripDto, modifier: Modifier = Modifier) {
 @Composable
 private fun DetailContent(
     trip: TripDto,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onRequestDelete: () -> Unit,
     start: TripStartPhase,
     onStartToday: () -> Unit,
     onRetryStart: () -> Unit,
@@ -517,9 +640,11 @@ private fun DetailContent(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState()),
     ) {
+        // Figma는 hero·통계를 고정하고 일정만 스크롤하지만, 글자 배율이 크면 고정 영역이 화면을 넘는다.
+        // 기존처럼 한 스크롤로 두어 360dp·글자 2.0배에서도 모든 내용에 닿게 한다(가이드라인 10절).
+        Hero(trip = trip, onBack = onBack, onEdit = onEdit, onRequestDelete = onRequestDelete)
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
-                Summary(trip = trip)
                 TripStats(trip = trip, itinerary = itinerary, routes = routes)
                 ItineraryActions(
                     start = start,
@@ -599,8 +724,8 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
             text = value,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            // 글자 배율이 크면 값이 한 줄을 넘는다. 말줄임 대신 줄바꿈해 잘리지 않게 한다(가이드라인 10절).
+            textAlign = TextAlign.Center,
         )
         Text(
             text = label,
@@ -652,12 +777,14 @@ private fun ItineraryActions(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val note: String? = when (start) {
-            TripStartPhase.NotTravelDay -> stringResource(R.string.trip_detail_start_travel_unavailable)
             is TripStartPhase.NoPlaces -> stringResource(R.string.trip_detail_start_no_places)
             is TripStartPhase.Failed -> stringResource(start.error.startMessageRes)
             else -> null
         }
-        if (note != null) {
+        // 여행 날짜가 아니면 비활성 버튼 위에 이유 배너를 둔다(Figma, 가이드라인 7절 D2: 이유 문장 병기 필수).
+        if (start == TripStartPhase.NotTravelDay) {
+            NotTravelDayBanner()
+        } else if (note != null) {
             Text(
                 text = note,
                 style = MaterialTheme.typography.bodySmall,
@@ -708,6 +835,15 @@ private fun ItineraryActions(
             onClick = onEditItinerary,
             modifier = Modifier.heightIn(min = MIN_TOUCH),
         ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_pencil),
+                // 바로 옆 라벨이 뜻을 전달한다(가이드라인 10절).
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(end = spacing.space1)
+                    .size(EDIT_ICON),
+            )
             Text(
                 text = stringResource(R.string.trip_detail_edit_itinerary),
                 style = MaterialTheme.typography.labelMedium,
@@ -742,10 +878,41 @@ private fun StartButton(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         width = GradientButtonWidth.Standalone,
-        height = PRIMARY_BUTTON_HEIGHT,
+        height = START_BUTTON_HEIGHT,
         processing = busy,
         enabled = enabled,
     )
+}
+
+/** 여행 날짜가 아닐 때 시작 버튼 위 이유 배너(Figma: 시계 아이콘 + `background` 배경, `radiusMd`). 카운트다운은 데모 연출이라 두지 않는다. */
+@Composable
+private fun NotTravelDayBanner() {
+    val spacing = LocalGilpickSpacing.current
+    val muted = LocalGilpickColors.current.muted
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = spacing.space2)
+            .background(MaterialTheme.colorScheme.background, RoundedCornerShape(LocalGilpickRadius.current.md))
+            .padding(horizontal = spacing.space3, vertical = spacing.space2),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_clock),
+            // 바로 옆 문장이 이유를 전달한다(가이드라인 10절).
+            contentDescription = null,
+            tint = muted,
+            modifier = Modifier.size(EDIT_ICON),
+        )
+        Text(
+            text = stringResource(R.string.trip_detail_start_travel_unavailable),
+            style = MaterialTheme.typography.bodySmall,
+            color = muted,
+            modifier = Modifier.weight(1f),
+        )
+    }
 }
 
 /** 시작 요청 실패 원인 문구. 세션 만료는 앱 전체 흐름이 다루므로 여기서는 일반 실패로 안내한다. */
@@ -1205,6 +1372,13 @@ private fun TransportRow(mode: TransportMode?, segment: RouteSegmentDto? = null)
                 .background(MaterialTheme.colorScheme.outlineVariant),
         )
         if (mode != null) {
+            Icon(
+                painter = painterResource(mode.iconRes),
+                // 바로 옆 문구가 수단을 전달한다(가이드라인 10절).
+                contentDescription = null,
+                tint = colors.muted,
+                modifier = Modifier.size(ADD_ICON),
+            )
             Text(
                 text = if (segment != null) {
                     stringResource(
@@ -1222,6 +1396,14 @@ private fun TransportRow(mode: TransportMode?, segment: RouteSegmentDto? = null)
         }
     }
 }
+
+/** 이동 수단 아이콘(Figma 이동 수단 줄 12dp). 앱의 세 수단에 맞는 프로젝트 아이콘셋을 쓴다. */
+private val TransportMode.iconRes: Int
+    get() = when (this) {
+        TransportMode.WALK -> R.drawable.ic_lucide_walk
+        TransportMode.TRANSIT -> R.drawable.ic_lucide_transit
+        TransportMode.CAR -> R.drawable.ic_lucide_car
+    }
 
 /** 이동 수단 문구. */
 private val TransportMode.labelRes: Int
@@ -1370,11 +1552,45 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val MIN_TOUCH = Dp(48f)
 
-/** pen `Dialog`의 너비. 좁은 화면에서는 이보다 줄어든다. */
+/** 삭제 확인 다이얼로그의 너비. 좁은 화면에서는 이보다 줄어든다. */
 private val DIALOG_WIDTH = 326.dp
 
-/** pen `Dialog`의 버튼 높이. 가이드라인 5절의 주요 CTA 높이(52~56dp) 안이다. */
+/** Figma 삭제 확인 `취소` 버튼 높이(`h-[52px]`). */
 private val DIALOG_BUTTON_HEIGHT = 52.dp
+
+/** Figma 삭제 확인 아이콘 상자(`w-12 h-12`)와 휴지통 아이콘(22). */
+private val DIALOG_ICON_BOX = 48.dp
+private val DIALOG_ICON = 22.dp
+
+/** Figma `오늘 여행 시작` 높이(`h-[52px]`). */
+private val START_BUTTON_HEIGHT = 52.dp
+
+/** Figma hero(`h-[180px]`)와 가이드라인 3절 hero gradient(위 30% → 가운데 투명 → 아래 50%). */
+private val HERO_HEIGHT = 180.dp
+private const val HERO_SHADE_TOP = 0.3f
+private const val HERO_SHADE_BOTTOM = 0.5f
+
+/** hero 글자 영역이 위쪽 버튼과 겹치지 않게 두는 최소 여백(버튼 위치 12 + 크기 36 + 간격 8). */
+private val HERO_TEXT_TOP = 56.dp
+
+/** Figma hero 글자 투명도: 지역 `text-white/80`, 기간 `text-white/70`. */
+private const val HERO_REGION_ALPHA = 0.8f
+private const val HERO_META_ALPHA = 0.7f
+
+/** hero 위 원형 버튼(`w-9 h-9 bg-black/30`)과 아이콘(18). 48dp 터치 영역 안에서 가운데 두므로 그 차이만큼 바깥으로 당긴다. */
+private val HERO_BUTTON = 36.dp
+private const val HERO_BUTTON_ALPHA = 0.3f
+private val HERO_ICON = 18.dp
+private val HERO_BUTTON_INSET = 6.dp
+
+/** Figma 더보기 메뉴(`w-[168px]`), 항목 아이콘(15), 구분선(1px), 그림자가 popup 창에 잘리지 않게 두는 여백. */
+private val MENU_WIDTH = 168.dp
+private val MENU_ICON = 15.dp
+private val DIVIDER = 1.dp
+private val MENU_SHADOW_ROOM = 40.dp
+
+/** Figma `일정 편집` 연필·배너 시계 아이콘(14). */
+private val EDIT_ICON = 14.dp
 
 /** Figma 날짜 헤더의 일차 배지와 `추가` 아이콘, 장소 순서 번호 원의 크기. */
 private val DAY_BADGE = 24.dp

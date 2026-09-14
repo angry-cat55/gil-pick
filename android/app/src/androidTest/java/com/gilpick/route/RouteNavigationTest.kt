@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -149,7 +150,8 @@ class RouteNavigationTest {
         composeRule.onNodeWithContentDescription("9월 2일 경로 보기").assertDoesNotExist()
 
         // 총 이동 통계는 모든 날짜가 READY가 아니므로 `정보 없음`이다.
-        composeRule.onNodeWithText("정보 없음").assertIsDisplayed()
+        // hero 지역 줄(TripDto에 지역이 없음, #442)도 `정보 없음`이라 두 곳이다.
+        composeRule.onAllNodesWithText("정보 없음").assertCountEquals(2)
     }
 
     @Test
