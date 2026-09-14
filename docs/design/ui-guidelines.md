@@ -644,7 +644,10 @@ feature 패키지가 아니라 중립 위치에 둔다. 특정 feature가 소유
 
 **Material 3에 없는 값**
 
-`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`와 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
+`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`, `headerIcon`(7절 헤더 아이콘 색, `onSurfaceVariant`와 같은 값)과 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
+
+- 그림자는 `GilpickShadows`(`LocalGilpickShadows`)다. 6절 표에서 값이 있는 행마다 토큰 하나(`card`, `floatingCard`, `primaryButton`, `fab`, `sheetOverMap`, `sheetBelowMap`, `dialog`, `dropdownMenu`, `listPrimaryAction`, `calendarSelected`, `mapFloatingButton`, `stayMinusSheet`, `stayMinusDialog`, `stayPlusDialog`, `activeTripCard`, `mapSmallButton`(`shadow-md`), `toggleThumb`(`shadow-sm`))이며, 각 토큰은 CSS 겹 순서대로 `List<Shadow>`다. 모달 bottom sheet는 그림자가 없어 토큰이 없다.
+- 환산: px → dp 1:1, `blur` → `radius`, `spread` → `spread`, `x y` → `offset`, `rgba` alpha → 색의 alpha. 화면은 `Modifier.dropShadow(shape, shadow)`를 겹 순서대로 적용한다.
 
 ```kotlin
 data class GilpickColors(val muted: Color, val faint: Color, val primaryDark: Color, /* … */ val success: Color)

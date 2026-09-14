@@ -7,12 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gilpick.R
@@ -35,6 +37,7 @@ fun GilpickTheme(content: @Composable () -> Unit) {
         LocalGilpickSpacing provides GilpickSpacing(),
         LocalGilpickSizing provides GilpickSizing(),
         LocalGilpickRadius provides GilpickRadius(),
+        LocalGilpickShadows provides GilpickShadows(),
     ) {
         MaterialTheme(
             colorScheme = GilpickColorScheme,
@@ -90,6 +93,8 @@ private val GilpickColorScheme = lightColorScheme(
  * @property toast 하단 toast 배경.
  * @property kakao 카카오 브랜드 가이드가 정한 버튼 배경. 앱 팔레트와 무관하게 고정이다.
  * @property onKakao 카카오 버튼 라벨.
+ * @property headerIcon 헤더 알림·설정 아이콘과 헤더 오른쪽 보조 행동 아이콘(가이드라인 7절 "헤더 아이콘 색", D7).
+ *   `onSurfaceVariant`와 같은 값이다. 흰 배경 4.84:1, `#F4F6FB` 위 4.47:1. 뒤로 가기·닫기는 `onSurface`를 쓴다.
  */
 data class GilpickColors(
     val muted: Color,
@@ -112,6 +117,7 @@ data class GilpickColors(
     val toast: Color,
     val kakao: Color,
     val onKakao: Color,
+    val headerIcon: Color,
 )
 
 private val GilpickLightColors = GilpickColors(
@@ -135,6 +141,7 @@ private val GilpickLightColors = GilpickColors(
     toast = Color(0xEB111827),
     kakao = Color(0xFFFEE500),
     onKakao = Color(0xFF111827),
+    headerIcon = Color(0xFF6B7280),
 )
 
 /** 4dp 배수 간격. Figma Tailwind 단위(1 = 4px) 그대로다. 용도는 가이드라인 5절에 있다. */
@@ -180,6 +187,69 @@ data class GilpickRadius(
 )
 
 /**
+ * 그림자(가이드라인 6절 "그림자" 표). 표에서 값이 있는 행마다 토큰 하나다.
+ *
+ * CSS `box-shadow: x y blur spread rgba(r,g,b,a)`를 조정 없이 옮긴다.
+ * - px → dp 1:1(간격·곡률과 같은 Figma 단위). `blur` → [Shadow.radius], `spread` → [Shadow.spread],
+ *   `x y` → [Shadow.offset].
+ * - `rgba`의 alpha는 [Shadow.color]의 alpha에 넣고 [Shadow.alpha]는 1로 둔다.
+ * - 쉼표로 이어진 여러 겹은 CSS 순서대로 [List]에 담는다. 화면은 `Modifier.dropShadow`를 겹 순서대로 적용한다.
+ * - 모달 bottom sheet는 그림자 없이 scrim만 쓰므로 토큰이 없다.
+ */
+data class GilpickShadows(
+    /** 흰 카드. `0 1px 4px rgba(0,0,0,0.06)` */
+    val card: List<Shadow> = listOf(css(y = 1, blur = 4, color = Black.copy(alpha = 0.06f))),
+    /** 다음 장소 카드. `0 4px 20px rgba(0,0,0,0.08)` */
+    val floatingCard: List<Shadow> = listOf(css(y = 4, blur = 20, color = Black.copy(alpha = 0.08f))),
+    /** gradient 주버튼. `0 4px 16px rgba(59,123,248,0.3)` */
+    val primaryButton: List<Shadow> = listOf(css(y = 4, blur = 16, color = Primary.copy(alpha = 0.3f))),
+    /** 새 여행 만들기 FAB. `0 8px 28px rgba(59,123,248,0.5)` */
+    val fab: List<Shadow> = listOf(css(y = 8, blur = 28, color = Primary.copy(alpha = 0.5f))),
+    /** 비모달 sheet(지도 위, `MapSearchScreen` 결과 sheet). `0 -4px 24px rgba(0,0,0,0.12)` */
+    val sheetOverMap: List<Shadow> = listOf(css(y = -4, blur = 24, color = Black.copy(alpha = 0.12f))),
+    /** 지도 아래 겹친 sheet(`AlternativePlacesScreen` 후보 sheet). `0 -4px 20px rgba(0,0,0,0.08)` */
+    val sheetBelowMap: List<Shadow> = listOf(css(y = -4, blur = 20, color = Black.copy(alpha = 0.08f))),
+    /** dialog(Tailwind `shadow-2xl`). `0 25px 50px -12px rgba(0,0,0,0.25)`. scrim `rgba(0,0,0,0.5)`은 별도다. */
+    val dialog: List<Shadow> = listOf(css(y = 25, blur = 50, spread = -12, color = Black.copy(alpha = 0.25f))),
+    /** 드롭다운 메뉴. `0 8px 32px rgba(0,0,0,0.18)` */
+    val dropdownMenu: List<Shadow> = listOf(css(y = 8, blur = 32, color = Black.copy(alpha = 0.18f))),
+    /** 목록 안 작은 주 행동 버튼(TOP 후보 `경로 비교`). `0 2px 8px rgba(59,123,248,0.3)` */
+    val listPrimaryAction: List<Shadow> = listOf(css(y = 2, blur = 8, color = Primary.copy(alpha = 0.3f))),
+    /** 달력 시작·종료일 선택 원. `0 2px 8px rgba(59,123,248,0.35)` */
+    val calendarSelected: List<Shadow> = listOf(css(y = 2, blur = 8, color = Primary.copy(alpha = 0.35f))),
+    /** 지도 위 떠 있는 버튼. `0 2px 8px rgba(0,0,0,0.15)` */
+    val mapFloatingButton: List<Shadow> = listOf(css(y = 2, blur = 8, color = Black.copy(alpha = 0.15f))),
+    /** 체류 시간 `−` 버튼(시트). `0 2px 6px rgba(0,0,0,0.08)` */
+    val stayMinusSheet: List<Shadow> = listOf(css(y = 2, blur = 6, color = Black.copy(alpha = 0.08f))),
+    /** 체류 시간 `−` 버튼(dialog). `0 2px 8px rgba(0,0,0,0.1)` */
+    val stayMinusDialog: List<Shadow> = listOf(css(y = 2, blur = 8, color = Black.copy(alpha = 0.1f))),
+    /** 체류 시간 dialog `+` 버튼. `0 4px 12px rgba(59,123,248,0.3)` */
+    val stayPlusDialog: List<Shadow> = listOf(css(y = 4, blur = 12, color = Primary.copy(alpha = 0.3f))),
+    /** 진행 중 여행 카드. `0 0 0 2px #3B7BF8, 0 2px 12px rgba(59,123,248,0.12)` — 첫 겹은 2dp 강조 테두리다. */
+    val activeTripCard: List<Shadow> = listOf(
+        css(spread = 2, color = Primary),
+        css(y = 2, blur = 12, color = Primary.copy(alpha = 0.12f)),
+    ),
+    /** 지도 위 작은 버튼(Tailwind `shadow-md`). `0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)` */
+    val mapSmallButton: List<Shadow> = listOf(
+        css(y = 4, blur = 6, spread = -1, color = Black.copy(alpha = 0.1f)),
+        css(y = 2, blur = 4, spread = -2, color = Black.copy(alpha = 0.1f)),
+    ),
+    /** 토글 thumb(Tailwind `shadow-sm`). `0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1)` */
+    val toggleThumb: List<Shadow> = listOf(
+        css(y = 1, blur = 3, color = Black.copy(alpha = 0.1f)),
+        css(y = 1, blur = 2, spread = -1, color = Black.copy(alpha = 0.1f)),
+    ),
+)
+
+private val Black = Color(0xFF000000)
+private val Primary = Color(0xFF3B7BF8)
+
+/** CSS `box-shadow` 한 겹을 px 값 그대로 [Shadow]로 옮긴다. x 오프셋은 표에 쓰는 행이 없어 0이다. */
+private fun css(y: Int = 0, blur: Int = 0, spread: Int = 0, color: Color): Shadow =
+    Shadow(radius = blur.dp, color = color, spread = spread.dp, offset = DpOffset(0.dp, y.dp))
+
+/**
  * 테마 밖에서 읽으면 즉시 실패한다.
  *
  * 기본값을 주면 테마를 빠뜨렸을 때 조용히 다른 색이 나온다. 그 편이 찾기 더 어렵다.
@@ -197,6 +267,10 @@ val LocalGilpickSizing = compositionLocalOf<GilpickSizing> {
 }
 
 val LocalGilpickRadius = compositionLocalOf<GilpickRadius> {
+    error("GilpickTheme 안에서만 사용할 수 있습니다")
+}
+
+val LocalGilpickShadows = compositionLocalOf<GilpickShadows> {
     error("GilpickTheme 안에서만 사용할 수 있습니다")
 }
 
