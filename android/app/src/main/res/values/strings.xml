@@ -532,6 +532,11 @@
     <string name="replacement_preview_title">경로 비교</string>
     <string name="replacement_back">뒤로 가기</string>
     <string name="replacement_loading">비교를 만드는 중</string>
+    <!-- 1초 뒤 보이는 경로 재생성 모양 로딩(UI-004, Figma RouteRecalculatingScreen). %1$s는 대체 장소명. -->
+    <string name="replacement_recalculating_title">경로를 다시 계산하고 있습니다</string>
+    <string name="replacement_recalculating_body_named">%1$s(으)로 변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요</string>
+    <string name="replacement_recalculating_body">변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요</string>
+    <string name="replacement_recalculating_kept">계산에 실패해도 기존 일정은 그대로 유지됩니다</string>
     <string name="replacement_map_description">기존 경로와 변경 경로를 함께 보여 주는 지도</string>
     <string name="replacement_legend_original">기존</string>
     <string name="replacement_legend_changed">변경</string>

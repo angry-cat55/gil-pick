@@ -525,6 +525,7 @@ private fun TripRoute(
                             detectionId = selected.detectionId,
                             placeId = selected.placeId,
                             candidateId = selected.candidateId,
+                            placeName = selected.name,
                         ),
                     )
                 },

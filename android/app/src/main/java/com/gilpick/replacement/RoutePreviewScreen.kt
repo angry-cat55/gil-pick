@@ -1,6 +1,19 @@
 package com.gilpick.replacement
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +55,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +90,7 @@ import kotlinx.coroutines.delay
  * @param onApprove `변경 승인`. T023이 실제 승인에 연결한다.
  * @param onOtherCandidates `다른 후보 보기`. 미리보기를 폐기하고 F009 후보 목록으로 돌아간다(UI-003).
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
+ * @param placeName 대체 장소명. `loading` 안내 문장에 넣고, 모르면 이름 없는 문장을 쓴다(값을 지어내지 않음).
  * @param map 지도 영역. 기본은 F005 [RouteMap]이며 UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -89,6 +102,7 @@ fun RoutePreviewScreen(
     onOtherCandidates: () -> Unit,
     onReauthenticate: () -> Unit,
     modifier: Modifier = Modifier,
+    placeName: String? = null,
     map: @Composable (PreviewUiState.Content, Modifier) -> Unit = { content, mapModifier ->
         PreviewMap(content = content, modifier = mapModifier)
     },
@@ -100,7 +114,7 @@ fun RoutePreviewScreen(
     ) {
         Header(onBack = onBack, enabled = !state.isApproving)
         when (state) {
-            PreviewUiState.Loading -> DelayedLoading()
+            PreviewUiState.Loading -> DelayedLoading(placeName)
             is PreviewUiState.Error -> ErrorState(
                 error = state.error,
                 onRetry = onRetry,
@@ -159,11 +173,13 @@ private fun Header(onBack: () -> Unit, enabled: Boolean = true) {
     }
 }
 
-/** 비교를 만드는 동안의 대기 표시. 1초를 넘길 때만 보인다(UI-004, 가이드라인 9절). */
+/**
+ * 미리보기 생성 대기. 1초를 넘길 때만 경로 재생성 모양(UI-004, Figma `RouteRecalculatingScreen`)을 보인다.
+ * 그 전에는 아무것도 그리지 않는다(가이드라인 9절).
+ */
 @Composable
-private fun DelayedLoading() {
+private fun DelayedLoading(placeName: String?) {
     var visible by remember { mutableStateOf(false) }
-    val label = stringResource(R.string.replacement_loading)
 
     LaunchedEffect(Unit) {
         delay(LOADING_INDICATOR_DELAY_MILLIS)
@@ -171,9 +187,97 @@ private fun DelayedLoading() {
     }
 
     if (visible) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.clearAndSetSemantics { contentDescription = label })
+        RouteRecalculatingContent(placeName = placeName, modifier = Modifier.fillMaxSize())
+    }
+}
+
+/**
+ * Figma `RouteRecalculatingScreen`에서 가져오는 요소만: 원형 진행 표시(112dp, `outlineVariant` 트랙 7dp,
+ * `primary` 원호 회전), 가운데 32dp `primaryContainer` 상자 + 16dp `primary` navigation 아이콘, 제목,
+ * 설명, 하단 `기존 일정 유지` 안내. 3단계 체크리스트·완료 화면·별도 route는 넣지 않는다(#439 결정).
+ * REPL-001은 요청·응답 1회라 진행률을 알 수 없으므로 원호는 indeterminate로 계속 돈다.
+ */
+@Composable
+internal fun RouteRecalculatingContent(placeName: String?, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val scheme = MaterialTheme.colorScheme
+    val label = stringResource(R.string.replacement_loading)
+    val rotation by rememberInfiniteTransition(label = "recalculating").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(RECALC_SPIN_MILLIS, easing = LinearEasing), RepeatMode.Restart),
+        label = "recalculatingRotation",
+    )
+    val track = scheme.outlineVariant
+    val arc = scheme.primary
+
+    Column(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = spacing.space6, vertical = spacing.space6),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(bottom = spacing.space8)
+                    .size(RECALC_RING)
+                    .semantics { contentDescription = label }
+                    .testTag(TAG_RECALCULATING)
+                    .drawBehind {
+                        val strokePx = RECALC_STROKE.toPx()
+                        val inset = strokePx / 2
+                        val arcSize = Size(size.width - strokePx, size.height - strokePx)
+                        drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(strokePx))
+                        // Figma dasharray 216/289 ≈ 원주의 75%. 회전 각도만 바뀐다.
+                        drawArc(arc, rotation - 90f, RECALC_ARC_DEGREES, false, Offset(inset, inset), arcSize, style = Stroke(strokePx, cap = StrokeCap.Round))
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(RECALC_ICON_BOX)
+                        .background(scheme.primaryContainer, RoundedCornerShape(radius.md)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lucide_navigation),
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(RECALC_ICON),
+                    )
+                }
+            }
+            val title = stringResource(R.string.replacement_recalculating_title)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontFamily = title.displayFont(),
+                color = scheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = spacing.space2),
+            )
+            Text(
+                text = if (placeName != null) stringResource(R.string.replacement_recalculating_body_named, placeName) else stringResource(R.string.replacement_recalculating_body),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
+                color = colors.muted,
+                textAlign = TextAlign.Center,
+            )
         }
+        Text(
+            text = stringResource(R.string.replacement_recalculating_kept),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
+            color = colors.faint,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = spacing.space4, end = spacing.space4, top = spacing.space4, bottom = spacing.space8),
+        )
     }
 }
 
@@ -675,6 +779,15 @@ private const val BETTER_MARK = " ↓"
 private const val WORSE_MARK = " ↑"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
+
+/** Figma `RouteRecalculatingScreen` 실측(`w-28`, `strokeWidth 7`, `w-8`, 16px 아이콘, `spin-cw 1.2s`). 화면 전용이라 토큰이 아니다. */
+private val RECALC_RING: Dp = 112.dp
+private val RECALC_STROKE: Dp = 7.dp
+private val RECALC_ICON_BOX: Dp = 32.dp
+private val RECALC_ICON: Dp = 16.dp
+private const val RECALC_ARC_DEGREES = 270f
+private const val RECALC_SPIN_MILLIS = 1_200
+internal const val TAG_RECALCULATING = "replacement_recalculating"
 private val MIN_TOUCH: Dp = 48.dp
 private val PRIMARY_BUTTON_HEIGHT: Dp = 54.dp
 private val MAP_HEIGHT: Dp = 190.dp
