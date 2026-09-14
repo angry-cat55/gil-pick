@@ -147,6 +147,7 @@ private fun Header(onBack: () -> Unit, onMarkAllRead: () -> Unit, hasUnread: Boo
  * @param tint 아이콘 색. 기본은 헤더 아이콘 색 토큰(가이드라인 7절 D7, `headerIcon`)이며 뒤로 가기·닫기만 `onSurface`를 넘긴다.
  * @param enabled 비활성이면 상자째 40% 투명(7절 헤더 아이콘 버튼).
  * @param box 상자 한 변. Figma는 알림 목록·진행 화면 36dp, 여행 목록 40dp다.
+ * @param boxColor 상자 배경. 기본 `background`, 경고 진입 버튼(변수 감지)은 `warningContainer`(7절 표).
  * @param iconSize 아이콘 한 변. 알림 벨·설정 18dp, 헤더 오른쪽 보조 행동(`모두 읽음`) 16dp.
  */
 @Composable
@@ -158,6 +159,7 @@ fun IconBoxButton(
     tint: Color = LocalGilpickColors.current.headerIcon,
     enabled: Boolean = true,
     box: Dp = ICON_BOX,
+    boxColor: Color = MaterialTheme.colorScheme.background,
     iconSize: Dp = ICON,
 ) {
     val radius = LocalGilpickRadius.current
@@ -172,7 +174,7 @@ fun IconBoxButton(
             modifier = Modifier
                 .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .size(box)
-                .background(MaterialTheme.colorScheme.background, RoundedCornerShape(radius.md)),
+                .background(boxColor, RoundedCornerShape(radius.md)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

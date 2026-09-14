@@ -136,7 +136,7 @@ class VariableMonitorScreenTest {
     fun empty는_예정대로_문구와_진행_화면으로를_보여준다() {
         setScreen(VariableMonitorUiState.Empty)
 
-        composeRule.onNodeWithTag(TAG_MONITOR_EMPTY).assertTextEquals("모든 일정이 예정대로예요")
+        composeRule.onNodeWithText("모든 일정이 예정대로예요").assertIsDisplayed()
         composeRule.onNodeWithText("10분마다 다시 확인하고,\n변수가 생기면 바로 알려드릴게요.").assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_MONITOR_TO_PROGRESS).assertIsDisplayed().performClick()
 
@@ -149,7 +149,7 @@ class VariableMonitorScreenTest {
 
         composeRule.onNodeWithText("감지 결과를 불러올 수 없어요").assertIsDisplayed()
         composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요. 기존 일정은 그대로예요.").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_MONITOR_RETRY).performClick()
+        composeRule.onNodeWithText("다시 시도하기").performClick()
 
         assertEquals(1, retries)
     }
@@ -159,7 +159,7 @@ class VariableMonitorScreenTest {
         setScreen(VariableMonitorUiState.Error(AlternativeError.SessionExpired, retryable = false))
 
         composeRule.onNodeWithText("다시 로그인").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_MONITOR_RETRY).assertDoesNotExist()
+        composeRule.onNodeWithText("다시 시도하기").assertDoesNotExist()
     }
 
     @Test

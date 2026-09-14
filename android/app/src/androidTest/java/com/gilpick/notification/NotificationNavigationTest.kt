@@ -40,6 +40,7 @@ import com.gilpick.progress.PROGRESS_TRIP_ID
 import com.gilpick.progress.ProgressRepository
 import com.gilpick.progress.ProgressService
 import com.gilpick.progress.TAG_NOTIFICATIONS
+import com.gilpick.progress.TAG_VARIABLE_MONITOR
 import com.gilpick.progress.createProgressRetrofit
 import com.gilpick.progress.movingProgress
 import com.gilpick.progress.overviewJson
@@ -205,6 +206,23 @@ class NotificationNavigationTest {
     }
 
     @Test
+    fun 진행_화면_헤더_경고_버튼은_감지_목록을_열고_뒤로_가면_진행_화면으로_돌아온다() {
+        setGraph(start = ActiveTravelRoute(PROGRESS_TRIP_ID, "서울 여행"))
+        composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithTag(TAG_VARIABLE_MONITOR).fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.onNodeWithTag(TAG_VARIABLE_MONITOR).performClick()
+
+        composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithTag(TAG_MONITOR_OPEN_PREFIX + NOTIF_DETECTION_ID).fetchSemanticsNodes().isNotEmpty() }
+        composeRule.runOnIdle {
+            assertEquals(VariableMonitorRoute(PROGRESS_TRIP_ID), navController.currentBackStackEntry?.toRoute<VariableMonitorRoute>())
+        }
+
+        composeRule.onNodeWithTag(TAG_MONITOR_BACK).performClick()
+
+        composeRule.waitUntil(WAIT_MILLIS) { navController.currentBackStackEntry?.destination?.hasRoute<ActiveTravelRoute>() == true }
+    }
+
+    @Test
     fun 감지_목록의_대체_장소_보기는_그_감지의_대체_장소_화면을_연다() {
         setGraph(start = VariableMonitorRoute(PROGRESS_TRIP_ID))
         composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithTag(TAG_MONITOR_OPEN_PREFIX + NOTIF_DETECTION_ID).fetchSemanticsNodes().isNotEmpty() }
@@ -246,6 +264,7 @@ class NotificationNavigationTest {
                         itineraryRepository = { itineraryRepository },
                         alternativeRepository = { alternativeRepository },
                         onNotifications = { navController.navigate(NotificationListRoute) },
+                        onOpenVariableMonitor = { tripId -> navController.navigate(VariableMonitorRoute(tripId)) },
                         map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                     alternativeGraph(

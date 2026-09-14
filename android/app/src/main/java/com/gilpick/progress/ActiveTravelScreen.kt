@@ -98,6 +98,7 @@ import kotlinx.coroutines.delay
  * @param onReturnToToday `오늘로 돌아가기`(UI-005).
  * @param onOpenAlternatives F009 변수 경고 배너 탭. 그 감지의 대체 장소 화면으로 간다(F009 FR-028).
  * @param onNotifications 헤더 알림 벨. F011 알림 목록으로 간다.
+ * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. F011 감지 목록(US6)으로 간다.
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -126,6 +127,7 @@ fun ActiveTravelScreen(
     onDismissDetectionNotice: () -> Unit = {},
     onOpenAlternatives: (detectionId: String) -> Unit = {},
     onNotifications: () -> Unit = {},
+    onOpenVariableMonitor: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -136,7 +138,14 @@ fun ActiveTravelScreen(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding(),
     ) {
-        Header(state = state, tripName = tripName, onSelectDate = onSelectDate, onReturnToToday = onReturnToToday, onNotifications = onNotifications)
+        Header(
+            state = state,
+            tripName = tripName,
+            onSelectDate = onSelectDate,
+            onReturnToToday = onReturnToToday,
+            onNotifications = onNotifications,
+            onOpenVariableMonitor = onOpenVariableMonitor,
+        )
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
                 ProgressUiState.Loading -> Loading()
@@ -178,6 +187,7 @@ private fun Header(
     onSelectDate: (LocalDate) -> Unit,
     onReturnToToday: () -> Unit,
     onNotifications: () -> Unit,
+    onOpenVariableMonitor: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -214,6 +224,15 @@ private fun Header(
                 contentDescription = stringResource(R.string.notification_open_bell),
                 onClick = onNotifications,
                 modifier = Modifier.testTag(TAG_NOTIFICATIONS),
+            )
+            // 가이드라인 7절 "경고 진입 버튼": warningContainer 상자 + warning 경고 삼각형. 순서는 알림 벨 → 변수 감지.
+            IconBoxButton(
+                icon = R.drawable.ic_lucide_triangle_alert,
+                contentDescription = stringResource(R.string.progress_open_monitor),
+                onClick = onOpenVariableMonitor,
+                tint = colors.warning,
+                boxColor = colors.warningContainer,
+                modifier = Modifier.testTag(TAG_VARIABLE_MONITOR),
             )
         }
         Text(
@@ -1419,6 +1438,7 @@ internal const val TAG_DAY_SUMMARY = "progress_day_summary"
 
 /** 헤더 알림 벨(F011). */
 internal const val TAG_NOTIFICATIONS = "progress_notifications"
+internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"
 internal const val TAG_CARD_ALL_DONE = "progress_card_all_done"

@@ -53,6 +53,7 @@ import com.gilpick.notification.GilpickMessagingService
 import com.gilpick.notification.NotificationListRoute
 import com.gilpick.notification.NotificationTarget
 import com.gilpick.notification.PendingNotificationTarget
+import com.gilpick.notification.VariableMonitorRoute
 import com.gilpick.notification.notificationGraph
 import com.gilpick.notification.tripNameOf
 import com.gilpick.replacement.RoutePreviewRoute
@@ -504,7 +505,12 @@ private fun TripRoute(
             // F006 진행 화면. destination 정의는 com.gilpick.progress가 소유한다. 여행 상세의
             // `오늘 여행 시작`·`여행 진행 화면으로`가 이 route로 들어오고, `장소 추가`·`경로 보기`는
             // 위 itineraryGraph·routeGraph로 간다.
-            progressGraph(navController, onSessionExpired = onSessionExpired, onNotifications = { navController.navigate(NotificationListRoute) })
+            progressGraph(
+                navController,
+                onSessionExpired = onSessionExpired,
+                onNotifications = { navController.navigate(NotificationListRoute) },
+                onOpenVariableMonitor = { tripId -> navController.navigate(VariableMonitorRoute(tripId)) },
+            )
 
             // F009 대체 장소. destination 정의는 com.gilpick.alternative가 소유한다. 진행 화면의 변수 경고
             // 배너가 이 route로 들어오고, `기존 일정 그대로 진행`은 진행 화면으로 돌아간다.

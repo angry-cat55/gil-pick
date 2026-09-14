@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import com.gilpick.alternative.AlternativeError
 import com.gilpick.ui.theme.GilpickTheme
 import java.io.File
 import org.junit.Rule
@@ -43,6 +44,14 @@ class VariableMonitorScreenshotTest {
 
     @Test
     fun 감지_없음_360dp_최대_글자배율() = capture("monitor_empty_360dp_fontscale2") { Narrow { Screen(VariableMonitorUiState.Empty) } }
+
+    @Test
+    fun 조회_실패() = capture("monitor_error") { Screen(VariableMonitorUiState.Error(AlternativeError.Network, retryable = true)) }
+
+    @Test
+    fun 조회_실패_360dp_최대_글자배율() = capture("monitor_error_360dp_fontscale2") {
+        Narrow { Screen(VariableMonitorUiState.Error(AlternativeError.Network, retryable = true)) }
+    }
 
     private fun content() = VariableMonitorUiState.Content(monitorDetections())
 
