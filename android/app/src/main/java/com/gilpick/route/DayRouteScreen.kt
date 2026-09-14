@@ -20,9 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,6 +51,12 @@ import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
 import com.gilpick.progress.progressIconRes
 import com.gilpick.progress.progressLabelRes
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.unit.sp
+import com.gilpick.ui.component.EmptyState
+import com.gilpick.ui.component.ErrorState
+import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSizing
@@ -92,6 +97,12 @@ fun DayRouteScreen(
 ) {
     val colors = LocalGilpickColors.current
 
+    // 오류는 화면 전체를 대신한다(가이드라인 9절 오류 화면, #434 결정: 어두운 변형은 빈 상태만 둔다).
+    if (state is RouteUiState.Error) {
+        ErrorState(problem = state.problem, onRetry = onRetry, onBack = onBack, onReauthenticate = onReauthenticate, modifier = modifier.fillMaxSize().statusBarsPadding())
+        return
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -108,12 +119,7 @@ fun DayRouteScreen(
             when (state) {
                 RouteUiState.Loading -> Loading()
                 RouteUiState.Empty -> EmptyState(onAddPlace = onAddPlace, onBack = onBack)
-                is RouteUiState.Error -> ErrorState(
-                    problem = state.problem,
-                    onRetry = onRetry,
-                    onBack = onBack,
-                    onReauthenticate = onReauthenticate,
-                )
+                is RouteUiState.Error -> Unit
 
                 is RouteUiState.Content -> Content(route = state.route, marks = state.marks, map = map)
             }
@@ -200,41 +206,43 @@ private fun Loading() {
 }
 
 /** 빈 상태(가이드라인 9절 형식): 64dp 원각 사각 안 `faint` 지도 아이콘, 제목, 설명, `장소 추가`·`돌아가기`. */
+/** 빈 상태: 공통 `EmptyState`의 어두운 배경 변형(#434), `장소 추가` 주버튼과 `돌아가기`. */
 @Composable
 private fun EmptyState(onAddPlace: () -> Unit, onBack: () -> Unit) {
-    DarkStateMessage(
+    val spacing = LocalGilpickSpacing.current
+    EmptyState(
+        icon = R.drawable.ic_map,
         title = stringResource(R.string.route_empty_title),
         body = stringResource(R.string.route_empty_body),
-        icon = R.drawable.ic_map,
-    ) {
-        Button(onClick = onAddPlace, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-            Text(stringResource(R.string.route_add_place))
-        }
-        BackButton(onBack)
-    }
+        onDark = true,
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        action = {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.space2), horizontalAlignment = Alignment.CenterHorizontally) {
+                GradientButton(label = stringResource(R.string.route_add_place), onClick = onAddPlace)
+                BackButton(onBack)
+            }
+        },
+    )
 }
 
 /** 오류 상태: 원인 문구와 `다시 시도`, `돌아가기`. 세션 만료는 `다시 로그인`으로 잇는다. */
+/**
+ * 오류 상태: 공통 오류 화면(가이드라인 9절). 원인 문구, `다시 시도`(세션 만료면 `다시 로그인`), 보조 `돌아가기`.
+ * 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
+ */
 @Composable
-private fun ErrorState(problem: RouteProblem, onRetry: () -> Unit, onBack: () -> Unit, onReauthenticate: () -> Unit) {
+private fun ErrorState(problem: RouteProblem, onRetry: () -> Unit, onBack: () -> Unit, onReauthenticate: () -> Unit, modifier: Modifier = Modifier) {
     val sessionExpired = (problem as? RouteProblem.Request)?.error == RouteError.SessionExpired
 
-    DarkStateMessage(
+    ErrorState(
         title = stringResource(R.string.route_error_title),
-        body = stringResource(problem.messageRes),
-        icon = R.drawable.ic_lucide_circle_x,
-    ) {
-        if (sessionExpired) {
-            Button(onClick = onReauthenticate, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.place_reauthenticate))
-            }
-        } else {
-            Button(onClick = onRetry, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.route_retry))
-            }
-        }
-        BackButton(onBack)
-    }
+        description = stringResource(problem.messageRes),
+        primaryLabel = stringResource(if (sessionExpired) R.string.place_reauthenticate else R.string.route_retry),
+        onPrimary = if (sessionExpired) onReauthenticate else onRetry,
+        secondaryLabel = stringResource(R.string.route_go_back),
+        onSecondary = onBack,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -248,53 +256,6 @@ private fun BackButton(onBack: () -> Unit) {
     }
 }
 
-/** 어두운 배경 위 가운데 안내. 아이콘·제목·설명·행동 순서는 가이드라인 9절 빈 상태 형식이다. */
-@Composable
-private fun DarkStateMessage(title: String, body: String, icon: Int, actions: @Composable () -> Unit) {
-    val spacing = LocalGilpickSpacing.current
-    val sizing = LocalGilpickSizing.current
-    val colors = LocalGilpickColors.current
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = spacing.space5 + spacing.space3, vertical = spacing.space6),
-        verticalArrangement = Arrangement.spacedBy(spacing.space3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(sizing.emptyIconCircle)
-                .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(LocalGilpickRadius.current.lg)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(icon),
-                contentDescription = null,
-                tint = colors.faint,
-                modifier = Modifier.size(sizing.emptyIcon),
-            )
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.onDarkMuted,
-            textAlign = TextAlign.Center,
-        )
-        Column(
-            verticalArrangement = Arrangement.spacedBy(spacing.space2),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(top = spacing.space2),
-        ) { actions() }
-    }
-}
 
 /**
  * 전체 화면 지도와 그 위에 겹치는 하단 sheet.
@@ -371,17 +332,19 @@ private fun RouteSheet(route: RouteDto, marks: RouteMarks, modifier: Modifier = 
                     .testTag(TAG_ATTRIBUTION),
             )
         }
+        // 상태 범례는 시작된 날짜에만 뜻이 있다. 시작 전에는 진행 상태를 지어내지 않고(UI-010) 지도 힌트만 둔다.
+        Legend(showStatuses = marks.statuses.isNotEmpty(), modifier = Modifier.padding(top = spacing.space3))
         Column(
             modifier = Modifier
-                // sheet 높이가 모자라면 합계·attribution이 아니라 목록이 줄어들며 스크롤한다.
+                // sheet 높이가 모자라면 합계·범례가 아니라 목록이 줄어들며 스크롤한다.
                 .weight(1f, fill = false)
                 .padding(top = spacing.space3, bottom = spacing.space4)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(spacing.space2),
         ) {
-            if (route.segments.isEmpty()) {
-                route.markers.forEach { MarkerRow(it, status = marks.statuses[it.itemId]) }
-            } else {
+            PlaceCards(markers = route.markers, statuses = marks.statuses)
+            if (route.segments.isNotEmpty()) {
+                // 구간 정보(이동수단·시간·거리)는 카드에 없으므로 보조 목록으로 유지한다(UI-005).
                 val byId = route.markers.associateBy { it.itemId }
                 route.segments.forEach { segment ->
                     SegmentRow(
@@ -393,6 +356,121 @@ private fun RouteSheet(route: RouteDto, marks: RouteMarks, modifier: Modifier = 
                     )
                 }
             }
+        }
+    }
+}
+
+/** 범례(Figma): `완료`·`이동 중`·`예정` 12dp 점 + 흰 60% 글자, 오른쪽 `지도 이동 가능`(흰 40%, 14dp 돋보기). */
+@Composable
+private fun Legend(showStatuses: Boolean, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+    ) {
+        if (showStatuses) {
+            LegendItem(color = colors.success, label = stringResource(R.string.route_legend_done))
+            LegendItem(color = MaterialTheme.colorScheme.primary, label = stringResource(R.string.route_legend_active))
+            LegendItem(color = UPCOMING_DOT, label = stringResource(R.string.route_legend_upcoming))
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_search),
+            contentDescription = null,
+            tint = Color.White.copy(alpha = HINT_ALPHA),
+            modifier = Modifier.size(LEGEND_HINT_ICON),
+        )
+        Text(
+            text = stringResource(R.string.route_legend_pan_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = HINT_ALPHA),
+        )
+    }
+}
+
+@Composable
+private fun LegendItem(color: Color, label: String) {
+    val spacing = LocalGilpickSpacing.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.space1 + 2.dp)) {
+        Box(modifier = Modifier.size(LEGEND_DOT).background(color, CircleShape))
+        Text(text = label, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = LEGEND_ALPHA))
+    }
+}
+
+/**
+ * 장소별 카드 가로 배치(Figma `flex-1`). 카드는 폭을 n등분하되 [CARD_MIN_WIDTH]보다 좁아지면 그 폭을 유지하고
+ * 가로로 스크롤한다 — 7곳 이상이거나 글자 2.0배에서도 잘리지 않는다(UI-008, PR 기록).
+ * 지도의 번호·상태를 지도 밖에서도 같은 순서로 제공한다(UI-005·UI-011).
+ */
+@Composable
+private fun PlaceCards(markers: List<RouteMarkerDto>, statuses: Map<String, ItemStatus>) {
+    val spacing = LocalGilpickSpacing.current
+    val gap = spacing.space2
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val share = (maxWidth - gap * (markers.size - 1)) / markers.size
+        val cardWidth = if (share < CARD_MIN_WIDTH) CARD_MIN_WIDTH else share
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            markers.forEach { marker -> PlaceCard(marker = marker, status = statuses[marker.itemId], modifier = Modifier.width(cardWidth)) }
+        }
+    }
+}
+
+/** 카드 한 장: 6dp 상태 점 + 번호, 장소명 11sp, 상태 문구 9sp. 이동 중이면 `primary` 20% 배경, 아니면 흰 5%. */
+@Composable
+private fun PlaceCard(marker: RouteMarkerDto, status: ItemStatus?, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val active = status == ItemStatus.EN_ROUTE
+    val done = status == ItemStatus.COMPLETED || status == ItemStatus.ARRIVED
+    val description = stringResource(R.string.route_marker_description, marker.sequence, statusName(marker.name, status))
+    val dot = when {
+        done -> colors.success
+        active -> MaterialTheme.colorScheme.primary
+        else -> Color.White.copy(alpha = LEGEND_ALPHA / 3)
+    }
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(radius.md))
+            .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = ACTIVE_CARD_ALPHA) else Color.White.copy(alpha = CARD_ALPHA))
+            .padding(horizontal = spacing.space2 + 2.dp, vertical = spacing.space2)
+            .semantics(mergeDescendants = true) { contentDescription = description }
+            .testTag("$TAG_MARKER_PREFIX${marker.sequence}"),
+        verticalArrangement = Arrangement.spacedBy(spacing.space1),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.space1)) {
+            Box(modifier = Modifier.size(CARD_DOT).background(dot, CircleShape))
+            Text(
+                text = marker.sequence.toString(),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp, letterSpacing = 0.sp),
+                fontFamily = marker.sequence.toString().displayFont(),
+                color = if (active) colors.primaryLight else Color.White.copy(alpha = HINT_ALPHA),
+            )
+        }
+        Text(
+            text = marker.name,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+            color = when {
+                active -> Color.White
+                done -> Color.White.copy(alpha = LEGEND_ALPHA)
+                else -> Color.White.copy(alpha = HINT_ALPHA)
+            },
+        )
+        // 도착 예정 시각은 F005 계약에 없어 지어내지 않고(UI-010) 진행 상태 문구만 둔다. 시작 전 날짜는 비운다.
+        if (status != null) {
+            Text(
+                text = stringResource(status.progressLabelRes),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 12.sp, letterSpacing = 0.sp),
+                color = if (active) colors.primaryLight else Color.White.copy(alpha = HINT_ALPHA * 0.75f),
+            )
         }
     }
 }
@@ -470,29 +548,6 @@ private fun SegmentRow(
     }
 }
 
-/** 장소가 한 곳일 때의 유일한 행. 구간이 없으므로 순서 번호와 이름만 보인다. */
-@Composable
-private fun MarkerRow(marker: RouteMarkerDto, status: ItemStatus? = null) {
-    val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
-    val description = stringResource(R.string.route_marker_description, marker.sequence, statusName(marker.name, status))
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(radius.md))
-            .background(Color.White.copy(alpha = 0.05f))
-            .padding(horizontal = spacing.space3, vertical = spacing.space2)
-            .semantics(mergeDescendants = true) { contentDescription = description }
-            .testTag("$TAG_MARKER_PREFIX${marker.sequence}"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-    ) {
-        SequenceDot(marker.sequence, status)
-        Text(text = marker.name, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-        StatusText(status)
-    }
-}
 
 /** 접근성 설명용 `장소명 상태`. 상태가 없으면 장소명만이다. */
 @Composable
@@ -563,3 +618,16 @@ private val HEADER_BUTTON: Dp = 36.dp
 
 /** sheet가 차지할 수 있는 최대 화면 높이 비율. 나머지는 지도 조작 영역이다(UI-009). */
 private const val SHEET_MAX_FRACTION = 0.45f
+
+/** Figma 실측(범례 12dp 점, 힌트 14dp 아이콘, 카드 6dp 점, 흰 60%·40%·5%, `primary` 20%). 화면 전용이라 토큰이 아니다. */
+private val LEGEND_DOT: Dp = 12.dp
+private val LEGEND_HINT_ICON: Dp = 14.dp
+private val CARD_DOT: Dp = 6.dp
+/** 카드 최소 폭. 이보다 좁아지면 n등분을 포기하고 가로 스크롤한다. */
+private val CARD_MIN_WIDTH: Dp = 88.dp
+private const val LEGEND_ALPHA = 0.6f
+private const val HINT_ALPHA = 0.4f
+private const val CARD_ALPHA = 0.05f
+private const val ACTIVE_CARD_ALPHA = 0.2f
+/** 범례 `예정` 점. Figma `#1E3A5F`(3절 darkMap 행의 도로색, 이름 붙은 토큰 없음)는 흰 20%와 같은 뜻으로 쓴다(PR 기록). */
+private val UPCOMING_DOT: Color = Color.White.copy(alpha = 0.2f)

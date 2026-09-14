@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gilpick.itinerary.TransportMode
+import com.gilpick.itinerary.ItemStatus
 import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
 import java.io.File
@@ -57,6 +58,35 @@ class DayRouteScreenshotTest {
 
     @Test
     fun 경로_content_1곳() = capture("route_content_single") { Screen(RouteUiState.Content(singleRoute())) }
+
+    @Test
+    fun 경로_content_진행_중() = capture("route_content_in_progress") { Screen(RouteUiState.Content(readyRoute(), inProgressMarks())) }
+
+    @Test
+    fun 경로_content_진행_중_360dp_최대_글자배율() = capture("route_content_in_progress_360dp_fontscale2") {
+        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(RouteUiState.Content(readyRoute(), inProgressMarks())) } }
+    }
+
+    @Test
+    fun 경로_content_7곳_360dp() = capture("route_content_seven_360dp") {
+        Box(modifier = Modifier.width(360.dp)) { Screen(RouteUiState.Content(sevenRoute())) }
+    }
+
+    private fun inProgressMarks() = RouteMarks(
+        start = listOf(126.97, 37.57),
+        statuses = mapOf(ITEM_A to ItemStatus.COMPLETED, ITEM_B to ItemStatus.EN_ROUTE, ITEM_C to ItemStatus.PLANNED),
+    )
+
+    /** 7곳: 카드 n등분이 최소 폭보다 좁아져 가로 스크롤로 넘어가는 경우. */
+    private fun sevenRoute(): RouteDto {
+        val base = readyRoute()
+        val names = listOf("경복궁", "북촌한옥마을", "인사동거리", "창덕궁", "덕수궁", "남산서울타워", "명동")
+        val markers = names.mapIndexed { i, name -> RouteMarkerDto("item-$i", i + 1, name, 37.57 + i * 0.001, 126.97 + i * 0.001) }
+        val segments = markers.zipWithNext().mapIndexed { i, (from, to) ->
+            base.segments.first().copy(sequence = i + 1, fromItemId = from.itemId, toItemId = to.itemId)
+        }
+        return base.copy(markers = markers, segments = segments)
+    }
 
     @Test
     fun 경로_content_360dp() = capture("route_content_360dp") {

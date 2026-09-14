@@ -157,9 +157,14 @@ class DayRouteScreenTest {
 
         composeRule.onNodeWithContentDescription("1번째 구간, 경복궁 완료에서 북촌한옥마을 이동 중까지 도보 10분 800m").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("2번째 구간, 북촌한옥마을 이동 중에서 인사동거리 예정까지 대중교통 15분 3.4km").assertIsDisplayed()
-        composeRule.onAllNodesWithText("완료").assertCountEquals(1)
-        composeRule.onAllNodesWithText("이동 중").assertCountEquals(2)
-        composeRule.onAllNodesWithText("예정").assertCountEquals(1)
+        // 범례 1 + 장소 카드 1 + 구간 목록(완료 1·이동 중 2·예정 1)
+        composeRule.onAllNodesWithText("완료").assertCountEquals(3)
+        composeRule.onAllNodesWithText("이동 중").assertCountEquals(4)
+        composeRule.onAllNodesWithText("예정").assertCountEquals(3)
+        composeRule.onNodeWithContentDescription("1번째 장소 경복궁 완료").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("2번째 장소 북촌한옥마을 이동 중").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("3번째 장소 인사동거리 예정").assertIsDisplayed()
+        composeRule.onNodeWithText("지도 이동 가능").assertIsDisplayed()
     }
 
     @Test
@@ -183,6 +188,7 @@ class DayRouteScreenTest {
 
         composeRule.onNodeWithContentDescription("1번째 장소 경복궁 도착").assertIsDisplayed()
         composeRule.onNodeWithText("도착").assertIsDisplayed()
+        composeRule.onNodeWithTag("${TAG_SEGMENT_PREFIX}1").assertDoesNotExist()
     }
 
     @Test
@@ -259,7 +265,10 @@ class DayRouteScreenTest {
         composeRule.onNodeWithTag(TAG_SUMMARY).assertIsDisplayed()
         val sheet = composeRule.onNodeWithTag(TAG_SHEET).getBoundsInRoot()
         assertTrue(sheet.right <= 360.dp)
-        val row = composeRule.onNodeWithTag("${TAG_SEGMENT_PREFIX}1").assertIsDisplayed().getBoundsInRoot()
+        // 장소 카드는 항상 보이고, 구간 목록은 세로 스크롤로 닿는다(가로 스크롤 없음).
+        val card = composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}1").assertIsDisplayed().getBoundsInRoot()
+        assertTrue(card.right <= 360.dp)
+        val row = composeRule.onNodeWithTag("${TAG_SEGMENT_PREFIX}1").performScrollTo().assertIsDisplayed().getBoundsInRoot()
         assertTrue(row.right <= 360.dp)
     }
 
