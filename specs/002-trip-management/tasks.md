@@ -375,19 +375,19 @@
 
 **Purpose**: 같은 사용자의 삭제되지 않은 여행 기간이 겹치지 않도록 DB·API·Android 계약을 확장하고, 오늘 날짜 기준 `여행 중` 여행을 최대 한 건으로 보장한다.
 
-- [ ] T050 [FR-002a] 사용자별 활성 여행 기간 exclusion migration과 ORM 제약 반영 in `api/migrations/versions/012_prevent_overlapping_trip_periods.py`, `api/app/models/trip.py`
+- [x] T050 [FR-002a] 사용자별 활성 여행 기간 exclusion migration과 ORM 제약 반영 in `api/migrations/versions/013_prevent_overlapping_trip_periods.py`, `api/app/models/trip.py`
   - 영역: BE
-  - 담당: 미정
+  - 담당: jh
   - 선행: 없음
   - 검증: 기존 충돌 데이터 사전 검사 후 자동 수정 없이 실패, 충돌이 없으면 `btree_gist`와 `ex_trips_user_active_period` 적용, downgrade에서 제약 제거
-- [ ] T051 [US1] [US4] [FR-002a] [FR-002b] 여행 생성·기간 수정의 `TRIP_PERIOD_CONFLICT` 처리 구현 in `api/app/services/trip.py`, `api/app/api/errors.py`
+- [x] T051 [US1] [US4] [FR-002a] [FR-002b] 여행 생성·기간 수정의 `TRIP_PERIOD_CONFLICT` 처리 구현 in `api/app/services/trip.py`, `api/app/api/errors.py`
   - 영역: BE
-  - 담당: 미정
+  - 담당: jh
   - 선행: T050
   - 검증: 같은 사용자 부분 중첩·포함·같은 날 경계는 `409`, 종료 다음 날·다른 사용자·논리 삭제 기간은 성공, 충돌 실패 시 기존 데이터 불변, 생성 멱등 재전송은 최초 결과 반환
-- [ ] T052 [P] [US1] [US4] [FR-002a] [FR-002b] 기간 중복 계약·service·동시성 회귀 테스트 구현 in `api/tests/contract/test_trip_contract.py`, `api/tests/unit/test_trip_service.py`, `api/tests/integration/test_trip_flow.py`, `api/tests/integration/test_migrations.py`
+- [x] T052 [P] [US1] [US4] [FR-002a] [FR-002b] 기간 중복 계약·service·동시성 회귀 테스트 구현 in `api/tests/contract/test_trip_contract.py`, `api/tests/unit/test_trip_service.py`, `api/tests/integration/test_trip_flow.py`, `api/tests/integration/test_migrations.py`
   - 영역: BE
-  - 담당: 미정
+  - 담당: jh
   - 선행: T050, T051
   - 검증: `contracts/trips.openapi.yaml`과 runtime 계약 일치, 동시 생성·수정 성공 최대 한 건, `VERSION_CONFLICT`·`CONFIRMATION_REQUIRED`·멱등성 회귀 통과
 - [ ] T053 [P] [US1] [US4] [FR-002a] Android 기간 충돌 오류 매핑과 생성·수정 안내 구현 in `android/app/src/main/java/com/gilpick/trip/TripApi.kt`, `android/app/src/main/java/com/gilpick/trip/TripRepository.kt`, `android/app/src/main/java/com/gilpick/trip/TripFormViewModel.kt`, `android/app/src/main/java/com/gilpick/trip/TripFormScreen.kt`
