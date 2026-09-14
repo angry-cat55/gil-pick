@@ -335,3 +335,13 @@ ODsay 원본 응답에는 경로 25개가 있으므로 인증 실패는 아니�
 AWS 개발 인프라, HTTPS API, RDS migration, Android 배포 API 연결, 카카오 실제 로그인, Firebase OAuth·FCM 전달, 알림 설정과 로그인 경계가 동작한다. 도착 확인과 장소 변경 제안 알림은 실제 Android에서 수신했고 각 도메인 화면으로 이동했다.
 
 배포 환경과 FCM 기반은 Issue #418의 완료 조건을 충족한다. ODsay TRANSIT 변환, 실제 geofence 자동 이벤트, 진행 알림 즉시 발송 transaction과 dispatch log 관찰성은 배포 구성과 분리해 후속 버그로 추적한다.
+
+## 13. Google Places AWS 연결 복구 (2026-09-14)
+
+- Firebase와 Google Places 리소스를 Google Cloud 프로젝트 `gilpick-85911`로 통합했다.
+- `Places API (New)`로 제한한 Backend 전용 key를 EC2 외부 환경 파일에 반영했다.
+- 이전 Google Cloud 프로젝트의 Places key는 폐기했다.
+- API container에서 key 원문과 provider 응답 본문을 출력하지 않는 Text Search smoke test를 실행해 HTTP 200과 결과 1건을 확인했다.
+- Android 앱에서 AWS API로 `Starbucks`·카페 검색을 실행해 20건과 Google 보완 필드인 평점·영업 상태 표시를 확인했고, 서버의 장소 검색 응답은 HTTP 200이었다.
+- 기존 장애 당시 provider HTTP 상태와 원본 응답이 보존되지 않아 이전 key의 정확한 실패 원인은 확정하지 못했다.
+- 이후 Google 보완 실패 로그에서 내부 오류 코드와 provider HTTP 상태를 함께 확인할 수 있도록 보강했다.

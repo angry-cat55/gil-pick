@@ -42,6 +42,29 @@ ANDROID_APP_LINK_HOST=gilpick.pages.dev
 
 DB 암호에 예약문자가 있으면 URL encoding한다. 나머지 API key와 FCM 값도 `/opt/gilpick/.env`에만 입력한다.
 
+### Google Places 설정
+
+공유 개발 환경의 Firebase와 Google Places는 Google Cloud 프로젝트 `gilpick-85911`에서 함께 관리한다. Android·Browser용 Firebase 자동 생성 key를 Backend에서 재사용하지 않고, Backend 전용 key를 별도로 만든다.
+
+- `Places API (New)`와 billing을 활성화한다.
+- 애플리케이션 제한은 EC2 탄력적 공인 IP로 설정한다.
+- API 제한은 `Places API (New)`로 설정한다.
+- key 원문은 `/opt/gilpick/.env`에만 저장하고 저장소·Issue·PR·로그에 남기지 않는다.
+- 설정 변경 후 API container를 강제 재생성해야 새 값이 주입된다.
+
+```bash
+docker compose -f deploy/aws/compose.yaml up -d --no-deps --force-recreate api
+docker compose -f deploy/aws/compose.yaml ps
+```
+
+Google Places smoke test는 key나 provider 응답 본문을 출력하지 않고 HTTP 상태와 결과 개수만 확인한다.
+
+```bash
+docker compose -f deploy/aws/compose.yaml exec -T api .venv/bin/python -c 'import json,os,urllib.request; body=json.dumps({"textQuery":"서울 카페","maxResultCount":1}).encode(); req=urllib.request.Request("https://places.googleapis.com/v1/places:searchText",data=body,headers={"Content-Type":"application/json","X-Goog-Api-Key":os.environ["GOOGLE_PLACES_API_KEY"],"X-Goog-FieldMask":"places.id"},method="POST"); res=urllib.request.urlopen(req,timeout=5); data=json.load(res); print({"status":res.status,"placeCount":len(data.get("places",[]))})'
+```
+
+정상 기준은 `status: 200`이고 `placeCount`가 1 이상인 것이다. 오류 로그에는 내부 `error_code`와 `provider_status`만 기록하며 key, 요청 header와 provider 응답 본문은 기록하지 않는다.
+
 ## 3. migration과 실행
 
 저장소 root에서 실행한다.
