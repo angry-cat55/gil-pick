@@ -21,6 +21,7 @@ users 1 ------------------------------- N trips
 | `end_date` | date | Y | 여행 종료일, `start_date` 이상, `end_date - start_date`는 0~6 |
 | `timezone` | string(40) | Y | 기본 `Asia/Seoul` |
 | `version` | integer | Y | 기본 1, 수정마다 +1. `PATCH` 요청의 낙관적 동시성 제어에 사용 |
+| `image_url` | text | N | 인증된 대표 이미지 조회 URL, 없으면 null |
 | `created_at` | timestamptz | Y | 생성 시각 |
 | `updated_at` | timestamptz | Y | 수정 시각 |
 | `deleted_at` | timestamptz | N | 논리 삭제 시각, null이면 활성 |

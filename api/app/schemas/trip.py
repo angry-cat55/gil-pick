@@ -64,6 +64,7 @@ class Trip(ApiModel):
     status: TripStatus
     day_count: int
     version: int
+    image_url: str | None = None
     created_at: datetime | None = None
 
 

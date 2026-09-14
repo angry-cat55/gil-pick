@@ -6,6 +6,10 @@ services:
       - ${GILPICK_ENV_FILE:-/opt/gilpick/.env}
     expose:
       - "8000"
+    environment:
+      TRIP_IMAGE_DIR: /data/trip-images
+    volumes:
+      - trip_images:/data/trip-images
     healthcheck:
       test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -33,3 +37,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  trip_images:

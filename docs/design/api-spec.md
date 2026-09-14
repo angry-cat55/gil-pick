@@ -141,6 +141,7 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | TRIP-003 | 여행 | 여행 상세 조회 | [ ] | [ ] | GET | `/api/v1/trips/{tripId}` |
 | TRIP-004 | 여행 | 여행 수정 | [ ] | [X] | PATCH | `/api/v1/trips/{tripId}` |
 | TRIP-005 | 여행 | 여행 삭제 | [ ] | [ ] | DELETE | `/api/v1/trips/{tripId}` |
+| TRIP-006 | 여행 | 대표 이미지 업로드·조회·삭제 | [ ] | [ ] | POST/GET/DELETE | `/api/v1/trips/{tripId}/image` |
 | ITIN-001 | 일정 | 날짜별 일정 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
 | ITIN-002 | 일정 | 날짜별 일정 저장 | [ ] | [X] | PUT | `/api/v1/trips/{tripId}/days/{date}/itinerary` |
 | ITIN-003 | 일정 | 여행 전체 날짜별 일정 개요 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/itinerary` |
@@ -582,6 +583,8 @@ Response `200`:
 
 ### TRIP-005 여행 삭제
 
+모든 여행 응답은 `imageUrl`을 포함하며 대표 이미지가 없으면 `null`이다.
+
 `DELETE /api/v1/trips/{tripId}`
 
 Response: `204 No Content`
@@ -595,6 +598,13 @@ Response: `204 No Content`
 - 이미 논리 삭제된 여행에 대한 반복 요청은 추가 부작용 없이 `204`를 반환한다(멱등).
 
 주요 오류: `400`, `401`, `403`, `404`
+
+### TRIP-006 여행 대표 이미지
+
+- `POST /api/v1/trips/{tripId}/image`: multipart `image`에 jpeg/png/webp(최대 5MB)를 업로드하거나 교체하고 갱신된 `TripEnvelope`를 반환한다.
+- `GET /api/v1/trips/{tripId}/image/content`: 인증·소유권 확인 후 원본 이미지 bytes를 반환한다.
+- `DELETE /api/v1/trips/{tripId}/image`: 기존 파일을 삭제하고 `imageUrl: null`인 `TripEnvelope`를 반환한다.
+- 형식 위반은 `415 UNSUPPORTED_IMAGE_TYPE`, 크기 초과는 `413 IMAGE_TOO_LARGE`, 이미지 없음은 `404 TRIP_IMAGE_NOT_FOUND`로 응답한다.
 
 ## 5. 일정·장소·경로
 

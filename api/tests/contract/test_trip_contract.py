@@ -8,10 +8,11 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_principal
 from app.api.errors import AppError
-from app.api.v1.trips import _trip_service
+from app.api.v1.trips import _trip_image_storage, _trip_service
 from app.core.security import AuthPrincipal
 from app.main import app
 from app.schemas.trip import Trip, TripStatus
+from app.services.trip_image import TripImageStorage
 
 
 class StubTripService:
@@ -55,6 +56,11 @@ class StubTripService:
             version=payload.version + 1,
             created_at=datetime.now(UTC),
         )
+
+    async def set_image_url(self, *, user_id, trip_id, image_url) -> Trip:
+        """대표 이미지 URL이 반영된 여행을 반환한다."""
+        trip = await self.get_trip(user_id=user_id, trip_id=trip_id)
+        return trip.model_copy(update={"image_url": image_url, "version": trip.version + 1})
 
     async def delete_trip(self, *, user_id, trip_id) -> None:
         """요청한 여행의 삭제가 성공한 것으로 처리한다."""
@@ -329,6 +335,7 @@ def test_get_trip_contract_returns_200_envelope(client: TestClient) -> None:
         "status": "UPCOMING",
         "dayCount": 3,
         "version": 1,
+        "imageUrl": None,
         "createdAt": response.json()["data"]["createdAt"],
     }
     assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
@@ -555,3 +562,67 @@ def test_delete_trip_openapi_declares_path_and_responses() -> None:
     assert trip_id["required"] is True
     assert trip_id["schema"]["format"] == "uuid"
     assert set(operation["responses"]) == {"204", "400", "401", "403", "404"}
+
+
+def test_trip_image_upload_delete_and_openapi_contract(
+    client: TestClient,
+    tmp_path,
+) -> None:
+    """대표 이미지 업로드·교체·삭제 경로와 nullable imageUrl 계약을 검증한다."""
+    app.dependency_overrides[_trip_image_storage] = lambda: TripImageStorage(tmp_path)
+    trip_id = uuid.uuid4()
+
+    uploaded = client.post(
+        f"/api/v1/trips/{trip_id}/image",
+        files={"image": ("cover.png", b"\x89PNG\r\n\x1a\ncontent", "image/png")},
+    )
+    content = client.get(f"/api/v1/trips/{trip_id}/image/content")
+    deleted = client.delete(f"/api/v1/trips/{trip_id}/image")
+
+    assert uploaded.status_code == 200
+    assert uploaded.json()["data"]["imageUrl"].endswith(
+        f"/api/v1/trips/{trip_id}/image/content"
+    )
+    assert content.status_code == 200
+    assert content.headers["content-type"] == "image/png"
+    assert content.content == b"\x89PNG\r\n\x1a\ncontent"
+    assert deleted.status_code == 200
+    assert deleted.json()["data"]["imageUrl"] is None
+    assert not list(tmp_path.iterdir())
+
+    schema = app.openapi()["components"]["schemas"]["Trip"]
+    assert schema["properties"]["imageUrl"]["anyOf"] == [
+        {"type": "string"},
+        {"type": "null"},
+    ]
+    assert set(app.openapi()["paths"]["/api/v1/trips/{tripId}/image"]) == {
+        "post",
+        "delete",
+    }
+
+
+@pytest.mark.parametrize(
+    ("status_code", "code"),
+    [(415, "UNSUPPORTED_IMAGE_TYPE"), (413, "IMAGE_TOO_LARGE")],
+)
+def test_trip_image_upload_rejects_invalid_files(
+    client: TestClient,
+    tmp_path,
+    status_code: int,
+    code: str,
+) -> None:
+    """지원하지 않는 형식과 5MB 초과 파일을 공통 4xx 오류로 거절한다."""
+    app.dependency_overrides[_trip_image_storage] = lambda: TripImageStorage(tmp_path)
+    payload = (
+        b"plain text"
+        if code == "UNSUPPORTED_IMAGE_TYPE"
+        else b"\x89PNG\r\n\x1a\n" + b"x" * (5 * 1024 * 1024)
+    )
+
+    response = client.post(
+        f"/api/v1/trips/{uuid.uuid4()}/image",
+        files={"image": ("cover", payload, "application/octet-stream")},
+    )
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == code
