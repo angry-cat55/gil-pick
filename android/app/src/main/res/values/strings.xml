@@ -221,7 +221,24 @@
 
     <!-- 여행 수정 모드 -->
     <string name="trip_form_edit_title">여행 수정</string>
-    <string name="trip_form_edit_submit">변경 사항 저장</string>
+    <string name="trip_form_edit_submit">저장</string>
+    <string name="trip_form_edit_submitting">저장하는 중</string>
+    <string name="trip_form_back">뒤로 가기</string>
+    <string name="trip_form_close">닫기</string>
+    <string name="trip_form_calendar_label">여행 일정</string>
+    <string name="trip_form_calendar_month">%1$d년 %2$d월</string>
+    <string name="trip_form_calendar_day">%1$d월 %2$d일</string>
+    <string name="trip_form_calendar_previous">이전 달</string>
+    <string name="trip_form_calendar_next">다음 달</string>
+    <string name="trip_form_summary_start">시작</string>
+    <string name="trip_form_summary_end">종료</string>
+    <string name="trip_form_summary_none">—</string>
+    <string name="trip_form_period_max_hint">최대 7일까지 설정할 수 있습니다</string>
+    <string name="trip_form_start_date">시작일 변경</string>
+    <string name="trip_form_end_date">종료일 변경</string>
+    <string name="trip_form_period_dash">–</string>
+    <string name="trip_form_shrink_warning_end">· 종료일을 줄이면 일부 일정이 삭제될 수 있어요</string>
+    <string name="trip_form_shrink_warning_start">· 시작일을 늦추면 일부 일정이 삭제될 수 있어요</string>
     <string name="trip_form_period_locked">완료된 여행은 이름만 수정할 수 있습니다. 기간은 최대 7일까지 설정할 수 있어요.</string>
     <string name="trip_form_period_locked_state">수정할 수 없음</string>
     <string name="trip_form_loading">여행 정보를 불러오는 중</string>

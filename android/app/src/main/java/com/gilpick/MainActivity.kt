@@ -398,6 +398,7 @@ private fun TripRoute(
                     onNameChange = viewModel::onNameChange,
                     onPeriodChange = viewModel::onPeriodChange,
                     onSubmit = viewModel::submit,
+                    onBack = { navController.popBackStack() },
                 )
             }
 
@@ -473,6 +474,14 @@ private fun TripRoute(
                 // 사이에 여행이 바뀌었을 수 있고, 그때 낡은 version으로 저장하면 실패한다.
                 LaunchedEffect(tripId) { viewModel.loadForEdit(tripId) }
 
+                // 수정 화면에서 여행을 삭제하면(#443) 상세도 사라진 여행이라 목록까지 돌아간다.
+                LaunchedEffect(state.deletion) {
+                    if (state.deletion is TripDeletePhase.Deleted) {
+                        viewModel.consumeDeleted()
+                        navController.popBackStack(TripListRoute, inclusive = false)
+                    }
+                }
+
                 // 저장에 성공하면 상세로 돌아간다. 상세는 진입할 때마다 다시 조회하므로
                 // 최신 version이 반영된다.
                 LaunchedEffect(state.savedTripId) {
@@ -491,6 +500,9 @@ private fun TripRoute(
                     // 없으므로 서버가 확인을 요구하지 않는다.
                     onConfirmDeleteOutOfRangeItems = viewModel::confirmDeleteOutOfRangeItems,
                     onCancelDeleteConfirmation = viewModel::cancelDeleteConfirmation,
+                    onBack = { navController.popBackStack() },
+                    onDelete = viewModel::delete,
+                    onDeleteErrorShown = viewModel::clearDeleteError,
                 )
             }
 

@@ -190,6 +190,9 @@ sealed interface FormMode {
  * @property deleteConfirmation 기간 축소로 삭제될 장소 수. `null`이면 확인 대화상자를
  *   띄우지 않는다. 서버가 `409 CONFIRMATION_REQUIRED`로 알려 준 값이며(FR-013),
  *   사용자가 동의해야만 같은 요청을 `confirmDeleteOutOfRangeItems=true`로 다시 보낸다.
+ * @property originalStartDate 수정 모드에서 조회한 원래 시작일. 저장 전 기간 축소 표시(Figma `EditTripScreen`)에만 쓴다.
+ * @property originalEndDate 수정 모드에서 조회한 원래 종료일.
+ * @property deletion 수정 화면 `여행 삭제` 요청 단계(Figma `EditTripScreen`, #443). 상세의 삭제와 같은 단계를 쓴다.
  */
 data class TripFormUiState(
     val name: String = "",
@@ -203,6 +206,9 @@ data class TripFormUiState(
     val mode: FormMode = FormMode.Create,
     val loading: Boolean = false,
     val deleteConfirmation: Int? = null,
+    val originalStartDate: LocalDate? = null,
+    val originalEndDate: LocalDate? = null,
+    val deletion: TripDeletePhase = TripDeletePhase.Idle,
 ) {
     /**
      * 기간 입력을 잠글지 여부.
@@ -212,6 +218,14 @@ data class TripFormUiState(
      */
     val periodLocked: Boolean
         get() = mode is FormMode.Edit && mode.status == TripStatus.COMPLETED
+
+    /** 수정 모드에서 시작일을 원래보다 늦췄는지. 줄어든 기간 밖 일정이 삭제될 수 있다(FR-012). */
+    val startShrunk: Boolean
+        get() = startDate != null && originalStartDate != null && startDate > originalStartDate
+
+    /** 수정 모드에서 종료일을 원래보다 앞당겼는지. */
+    val endShrunk: Boolean
+        get() = endDate != null && originalEndDate != null && endDate < originalEndDate
 }
 
 /**
@@ -294,6 +308,8 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
             name = trip.name,
             startDate = LocalDate.parse(trip.startDate),
             endDate = LocalDate.parse(trip.endDate),
+            originalStartDate = LocalDate.parse(trip.startDate),
+            originalEndDate = LocalDate.parse(trip.endDate),
             mode = FormMode.Edit(
                 tripId = trip.tripId,
                 version = trip.version,
@@ -426,6 +442,38 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
             copy(submitting = false, deleteConfirmation = deletedItemCount)
         } else {
             copy(submitting = false, submitError = error.toSubmitError())
+        }
+    }
+
+    /**
+     * 수정 중인 여행을 삭제한다(Figma `EditTripScreen` `여행 삭제`, #443). 확인 대화상자의 `삭제하기`에서만 호출한다.
+     *
+     * 상세 화면의 [TripDetailViewModel.delete]와 같은 규칙이다. 응답을 기다리는 사이 두 번 눌려 같은 삭제가
+     * 두 번 나가지 않게 막는다. 수정 모드가 아니면 아무 것도 하지 않는다.
+     */
+    fun delete() {
+        val mode = _state.value.mode as? FormMode.Edit ?: return
+        if (_state.value.deletion is TripDeletePhase.Deleting) return
+
+        _state.update { it.copy(deletion = TripDeletePhase.Deleting) }
+        viewModelScope.launch {
+            val deletion = when (val result = repository.deleteTrip(mode.tripId)) {
+                is AuthResult.Success -> TripDeletePhase.Deleted
+                is AuthResult.Failure -> TripDeletePhase.Failed(result.error.toDeleteError())
+            }
+            _state.update { it.copy(deletion = deletion) }
+        }
+    }
+
+    /** 삭제 완료 신호를 소비한다. 목록으로 돌아간 뒤 화면이 호출한다. */
+    fun consumeDeleted() {
+        _state.update { it.copy(deletion = TripDeletePhase.Idle) }
+    }
+
+    /** 삭제 실패 안내를 지운다. 사용자가 대화상자를 닫으면 화면이 호출한다. */
+    fun clearDeleteError() {
+        if (_state.value.deletion is TripDeletePhase.Failed) {
+            _state.update { it.copy(deletion = TripDeletePhase.Idle) }
         }
     }
 
