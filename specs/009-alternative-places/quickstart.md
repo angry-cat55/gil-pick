@@ -73,6 +73,7 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 3. 기존 장소 자신이 결과에 있으면 `inSchedule=true`, `visitable=false`.
 4. Google 병합 결과 `businessStatus=CLOSED_TEMPORARILY`면 결과에서 빠지지 않고 `operatingStatus=CLOSED`, `visitable=false`.
 5. 페이지 처리(`cursor`)와 TourAPI 실패 시 오류 형식이 PLACE-001과 같은지 확인한다.
+6. **FR-019 반경 제한은 백엔드 조율 후 확정 예정**: 확정 전에는 반경 제한 없이 결과가 오는 현재 동작을 확인한다. 확정 후에는 2km 밖 결과·좌표 없는 결과가 없는지, 페이지마다 `hasNext`와 개수가 일치하는지, 카테고리 필터 파라미터 동작을 확인하는 절차로 바꾼다(tasks Convergence).
 
 ### BE 8. 후보 식별자 (FR-013·FR-014)
 
@@ -97,7 +98,10 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 ### AND 2. 선택 전달·직접 검색·거절 (US2 Scenario 2·3, US3, FR-015·FR-016)
 
 1. 1위 `경로 비교`·다른 행 `비교` 탭 → `onSelectPlace(SelectedAlternative)`에 `detectionId`·`placeId`·`candidateId`·`name`·`distanceMeters`·`displayScore`가 전달된다(`AlternativeNavigationTest`).
-2. `직접 검색` → `AlternativeSearchScreen`; 2글자 미만은 검색하지 않고 안내; 결과 행에 `기존 장소에서 N m`·`방문 불가`/`이미 일정에 있음` 표시와 비활성; 방문 가능 행 선택 시 `candidateId=null`로 같은 콜백에 전달.
+2. `직접 검색` → `AlternativeSearchScreen`(지도형, #450); 2글자 미만은 검색하지 않고 안내; 결과 시트 행에 `기존 장소에서 N m`·`방문 불가`/`이미 일정에 있음` 표시와 비활성; 방문 가능 행의 `선택` 시 `candidateId=null`로 같은 콜백에 전달.
+   - **지도 확인**: 결과마다 지도에 번호 마커가 표시되고 결과 시트 행 번호와 같다. 행을 누르면 해당 마커가 선택 표시(`primary` 채움·halo)되고, 마커를 누르면 해당 행이 선택된다. 지도 정보(번호·장소명·거리)는 시트 목록에서도 모두 확인된다. 지도 SDK attribution이 시트에 가리지 않는다.
+   - **조건부 표시 확인**: 검색 API 응답에 카테고리 필터 지원 필드가 없으면 카테고리 칩이 보이지 않고, 결과 항목에 혼잡도·마감 여부 값이 없으면 `혼잡`·`마감` 배지가 보이지 않는다. fake 응답에 해당 필드를 넣으면 칩·배지가 보인다.
+   - **반경 확인 (FR-019 반경 제한은 백엔드 조율 후 확정 예정)**: 확정 전에는 시트에 "기준 2km 이내" 문구가 없다. 확정 후에는 문구가 기존 장소 이름으로 표시되고, 결과에 2km 밖 장소(`distanceMeters` > 2000)나 거리 없는 장소가 없는지 확인한다.
 3. `기존 일정 그대로 진행` → DETECT-004 호출, 성공 시 `onDismissed` 호출, 요청 중 버튼 비활성, 실패 시 오류 표시 후 화면 유지(`AlternativeViewModelTest`).
 
 ### AND 3. 진행 화면 배너 (UI-001, FR-028)
