@@ -200,7 +200,7 @@ class ReplacementNavigationTest {
         composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
         awaitPreview()
 
-        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performClick()
 
         composeRule.waitUntil(WAIT_MILLIS) {
             navController.currentBackStackEntry?.destination?.hasRoute<AlternativePlacesRoute>() == true

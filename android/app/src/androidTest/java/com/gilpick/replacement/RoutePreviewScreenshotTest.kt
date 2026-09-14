@@ -75,7 +75,7 @@ class RoutePreviewScreenshotTest {
         }
 
     @Test
-    fun 미리보기_content_행동_360dp_최대_글자배율() = capture("replacement_preview_actions_360dp_fontscale2", scrollTo = TAG_OTHER_CANDIDATES) {
+    fun 미리보기_content_행동_360dp_최대_글자배율() = capture("replacement_preview_actions_360dp_fontscale2") {
         Narrow { Screen(content()) }
     }
 
