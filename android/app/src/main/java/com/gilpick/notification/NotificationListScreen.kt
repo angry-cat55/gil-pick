@@ -16,14 +16,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +43,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gilpick.R
 import com.gilpick.progress.StateMessage
+import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.GradientButtonWidth
+import com.gilpick.ui.component.SecondaryButton
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -124,7 +124,8 @@ private fun Header(onBack: () -> Unit, onMarkAllRead: () -> Unit, hasUnread: Boo
         )
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            // Page title 18sp 900(가이드라인 4절, Figma `text-[18px] font-black`).
+            style = MaterialTheme.typography.titleMedium,
             fontFamily = title.displayFont(),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
@@ -205,7 +206,12 @@ private fun DelayedLoading() {
     }
 }
 
-/** 받은 알림 0(UI-004): 아이콘 상자·제목·설명·`돌아가기`. */
+/**
+ * 받은 알림 0(UI-004): 아이콘 상자·제목·설명·`돌아가기`.
+ *
+ * 유일한 행동이라 주버튼인 [GradientButton](빈 상태 가운데 너비 자동, 16dp)으로 둔다(#445). 형식 자체의 공통 컴포넌트
+ * 교체(#434)는 비차단 권장이라 이번에는 하지 않았다.
+ */
 @Composable
 private fun EmptyState(onBack: () -> Unit) {
     StateMessage(
@@ -213,9 +219,13 @@ private fun EmptyState(onBack: () -> Unit) {
         body = stringResource(R.string.notification_empty_body),
         icon = R.drawable.ic_lucide_bell,
     ) {
-        OutlinedButton(onClick = onBack, modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_EMPTY)) {
-            Text(stringResource(R.string.notification_go_back))
-        }
+        GradientButton(
+            label = stringResource(R.string.notification_go_back),
+            onClick = onBack,
+            width = GradientButtonWidth.Standalone,
+            height = STATE_BUTTON_HEIGHT,
+            modifier = Modifier.testTag(TAG_EMPTY),
+        )
     }
 }
 
@@ -227,17 +237,23 @@ private fun ErrorState(state: NotificationUiState.Error, onRetry: () -> Unit, on
         body = stringResource(state.error.messageRes),
         icon = R.drawable.ic_lucide_circle_x,
     ) {
+        // 주버튼은 [GradientButton], `돌아가기`는 보조 버튼이다(#445, 가이드라인 9절 오류 화면 행동 구분).
         when {
-            state.error == NotificationError.SessionExpired -> Button(onClick = onReauthenticate, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.place_reauthenticate))
-            }
-            state.retryable -> Button(onClick = onRetry, modifier = Modifier.heightIn(min = MIN_TOUCH).testTag(TAG_RETRY)) {
-                Text(stringResource(R.string.notification_retry))
-            }
+            state.error == NotificationError.SessionExpired -> GradientButton(
+                label = stringResource(R.string.place_reauthenticate),
+                onClick = onReauthenticate,
+                width = GradientButtonWidth.Standalone,
+                height = STATE_BUTTON_HEIGHT,
+            )
+            state.retryable -> GradientButton(
+                label = stringResource(R.string.notification_retry),
+                onClick = onRetry,
+                width = GradientButtonWidth.Standalone,
+                height = STATE_BUTTON_HEIGHT,
+                modifier = Modifier.testTag(TAG_RETRY),
+            )
         }
-        TextButton(onClick = onBack, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-            Text(stringResource(R.string.notification_go_back))
-        }
+        SecondaryButton(label = stringResource(R.string.notification_go_back), onClick = onBack)
     }
 }
 
@@ -299,6 +315,9 @@ private val ICON: Dp = 18.dp
 
 /** 헤더 오른쪽 보조 행동 아이콘(`모두 읽음`, 가이드라인 7절 표). */
 private val ACTION_ICON: Dp = 16.dp
+
+/** 빈·오류 상태 주버튼 높이(가이드라인 6절 R2 빈 상태 가운데 버튼, Figma 52). */
+private val STATE_BUTTON_HEIGHT: Dp = 52.dp
 
 /** 비활성 헤더 아이콘 버튼 투명도(7절 헤더 아이콘 버튼 `opacity 40%`). */
 private const val DISABLED_ALPHA = 0.4f
