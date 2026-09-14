@@ -77,9 +77,10 @@ import kotlinx.coroutines.delay
  * (사용자 결정: pen 정본보다 Figma 우선, UI-010·UI-013·UI-014). 색·곡률·타입 역할은
  * `Theme.kt`(Figma 값을 옮긴 토큰)에서 읽고, 토큰에 자리가 없는 크기만 Figma 값을 그대로 쓴다.
  *
- * Figma에 있지만 API(`PlaceDto`)에 없는 값(입장료·혼잡도·날씨·운영시간 요약)은 지어내지
- * 않고 `정보 없음`으로 둔다(FR-007). Google 평점·영업정보 attribution은 Google 약관상
- * 필수라 Figma에 없어도 붙인다(FR-021).
+ * Figma의 평점·운영시간·입장료 3열과 혼잡도·날씨 행은 그리지 않는다(#481, 선택지 A): 입장료·혼잡도·날씨는
+ * API(`PlaceDto`)에 원천이 없어 늘 `정보 없음`이었고, 운영시간은 정보 행에 이미 있다. 평점은 정보 행 맨 위로
+ * 옮긴다. 주소·운영시간처럼 계약에 있는 값이 비면 지어내지 않고 `정보 없음`으로 둔다(FR-007).
+ * Google 평점·영업정보 attribution은 Google 약관상 필수라 Figma에 없어도 붙인다(FR-021).
  *
  * @param state 현재 상세 상태.
  * @param onBack 이전 화면(검색 결과)으로 돌아간다.
@@ -243,7 +244,7 @@ internal fun StateMessage(
 }
 
 /**
- * Figma `PlaceDetailScreen`: hero(고정) → 스크롤(stats·정보 행·지도) → 하단 CTA.
+ * Figma `PlaceDetailScreen`: hero(고정) → 스크롤(정보 행·지도) → 하단 CTA.
  * Figma처럼 hero와 CTA는 스크롤되지 않는다. `일정에 추가`는 이동 수단·체류 시간 시트를 연다.
  */
 @Composable
@@ -282,7 +283,6 @@ private fun Content(
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Stats(place = place)
             InfoRows(place = place)
             MapPreview(place = place)
             Spacer(modifier = Modifier.height(96.dp))
@@ -397,68 +397,15 @@ private fun CircleIconButton(
     }
 }
 
-/** Figma `Stats`: 평점·운영시간·입장료 3열. 입장료는 API에 없어 `정보 없음`이다. */
-@Composable
-private fun Stats(place: PlaceDto) {
-    val missing = stringResource(R.string.place_detail_missing)
-    val ratingText = place.rating?.toRatingText()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space4),
-        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space4),
-    ) {
-        Stat(
-            value = ratingText ?: missing,
-            label = stringResource(R.string.place_detail_stat_rating),
-            description = ratingText?.let { stringResource(R.string.place_rating_description, it) },
-            modifier = Modifier.weight(1f),
-        )
-        Stat(
-            // 최대 글자 배율에서 3열에 안 들어가면 `09:00~1|8:00`처럼 숫자 중간이 아니라 `~` 뒤에서 줄바꿈되도록 zero-width space를 둔다.
-            value = place.openingHoursSummary()?.replace("~", "~​") ?: missing,
-            label = stringResource(R.string.place_detail_stat_hours),
-            modifier = Modifier.weight(1f),
-        )
-        Stat(
-            value = missing,
-            label = stringResource(R.string.place_detail_stat_fee),
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun Stat(value: String, label: String, modifier: Modifier = Modifier, description: String? = null) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black,
-            fontFamily = value.displayFont(),
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            modifier = if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
-        )
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = LocalGilpickColors.current.muted,
-        )
-    }
-}
-
 /**
- * Figma `Info rows`: 주소·운영시간·혼잡도·날씨. 혼잡도·날씨는 API에 없어 `정보 없음`이다.
- * 운영시간은 상단 `Stats`와 같은 규칙([openingHoursDetail])로 그린다(#480).
+ * Figma `Info rows` 틀에 평점·주소·운영시간을 쓴다(#481). 평점은 검색 행처럼 없으면 행 자체를 두지 않고,
+ * 있으면 평점 수를 함께 쓴다(FR-017). 운영시간은 [openingHoursDetail] 규칙이다(#480).
  */
 @Composable
 private fun InfoRows(place: PlaceDto) {
     val missing = stringResource(R.string.place_detail_missing)
     val hours = place.openingHoursDetail ?: missing
+    val ratingText = place.rating?.toRatingText()
 
     Column(
         modifier = Modifier
@@ -466,13 +413,19 @@ private fun InfoRows(place: PlaceDto) {
             .padding(top = LocalGilpickSpacing.current.space2)
             .background(MaterialTheme.colorScheme.surface),
     ) {
+        if (ratingText != null) {
+            val count = place.userRatingCount?.let { String.format(java.util.Locale.KOREA, "%,d", it) }
+            InfoRow(
+                icon = R.drawable.ic_lucide_star,
+                label = stringResource(R.string.place_detail_rating_label),
+                value = if (count != null) stringResource(R.string.place_detail_rating_with_count, ratingText, count) else ratingText,
+                description = stringResource(R.string.place_rating_description, ratingText),
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.background)
+        }
         InfoRow(R.drawable.ic_lucide_map_pin, stringResource(R.string.place_detail_address_label), place.address ?: missing)
         HorizontalDivider(color = MaterialTheme.colorScheme.background)
         InfoRow(R.drawable.ic_lucide_clock, stringResource(R.string.place_detail_hours_label), hours)
-        HorizontalDivider(color = MaterialTheme.colorScheme.background)
-        InfoRow(R.drawable.ic_lucide_users, stringResource(R.string.place_detail_crowd_label), missing)
-        HorizontalDivider(color = MaterialTheme.colorScheme.background)
-        InfoRow(R.drawable.ic_lucide_cloud_drizzle, stringResource(R.string.place_detail_weather_label), missing)
         if (place.hasGoogleData) {
             val attribution = place.googleAttributions
                 ?.filter { it.isNotBlank() }
@@ -490,7 +443,7 @@ private fun InfoRows(place: PlaceDto) {
 }
 
 @Composable
-private fun InfoRow(@DrawableRes icon: Int, label: String, value: String) {
+private fun InfoRow(@DrawableRes icon: Int, label: String, value: String, description: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -517,6 +470,7 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String) {
                 text = value,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
+                modifier = if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
             )
         }
     }

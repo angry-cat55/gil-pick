@@ -61,8 +61,9 @@ class PlaceDetailScreenTest {
         composeRule.onAllNodes(hasText("경복궁")).onFirst().assertIsDisplayed()
         // hero와 주소 행에 한 번씩.
         composeRule.onAllNodes(hasText("서울특별시 종로구 사직로 161")).assertCountEquals(2)
-        // Google 영업시간이 없으면 상단 운영시간 통계와 하단 운영시간 행이 같은 TourAPI 안내를 보여준다(#480).
-        composeRule.onAllNodes(hasText("매주 화요일 휴무")).assertCountEquals(2)
+        composeRule.onNodeWithText("매주 화요일 휴무").performScrollTo().assertIsDisplayed()
+        // 평점이 없으면 `정보 없음` 대신 행 자체가 없다(#481).
+        composeRule.onAllNodes(hasText("평점")).assertCountEquals(0)
         composeRule.onNodeWithContentDescription("경복궁 대표 사진").assertIsDisplayed()
         composeRule.onNodeWithText("일정에 추가").assertIsDisplayed()
     }
@@ -71,8 +72,8 @@ class PlaceDetailScreenTest {
     fun 누락된_정보는_지어내지_않고_정보_없음으로_구분한다() {
         setScreen(content(testPlace("tourapi:1", name = "정보 적은 장소", address = null, imageUrl = null)))
 
-        // hero 주소 1 + stats(평점·운영시간·입장료) 3 + 행(주소·운영시간·혼잡도·날씨) 4.
-        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(8)
+        // hero 주소 1 + 행(주소·운영시간) 2. 입장료·혼잡도·날씨는 원천이 없어 그리지 않는다(#481).
+        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(3)
         composeRule.onNodeWithContentDescription("대표 사진 없음").assertIsDisplayed()
     }
 
@@ -92,7 +93,9 @@ class PlaceDetailScreenTest {
             ),
         )
 
-        composeRule.onNodeWithText("4.6").assertIsDisplayed()
+        // 평점 행: 평점과 평점 수(FR-017)를 함께 쓴다.
+        composeRule.onNodeWithText("4.6 · 평가 12,450개").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("평점 4.6점").assertIsDisplayed()
         composeRule.onNodeWithText("운영 중").assertIsDisplayed()
         composeRule.onNodeWithText("월요일: 오전 10:00~오후 8:00").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("평점·영업정보 제공: Google").performScrollTo().assertIsDisplayed()
@@ -116,9 +119,9 @@ class PlaceDetailScreenTest {
         )
 
         composeRule.onAllNodes(hasText("구글 카페")).onFirst().assertIsDisplayed()
-        composeRule.onNodeWithText("4.3").assertIsDisplayed()
-        // stats 운영시간·입장료 2 + 행 운영시간·혼잡도·날씨 3.
-        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(5)
+        composeRule.onNodeWithText("4.3 · 평가 12개").assertIsDisplayed()
+        // 행 운영시간 1.
+        composeRule.onAllNodes(hasText("정보 없음")).assertCountEquals(1)
     }
 
     @Test

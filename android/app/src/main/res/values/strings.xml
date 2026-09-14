@@ -194,13 +194,10 @@
     <string name="place_detail_image_description">%1$s 대표 사진</string>
     <string name="place_detail_no_image">대표 사진 없음</string>
     <string name="place_detail_missing">정보 없음</string>
-    <string name="place_detail_stat_rating">평점</string>
-    <string name="place_detail_stat_hours">운영시간</string>
-    <string name="place_detail_stat_fee">입장료</string>
+    <string name="place_detail_rating_label">평점</string>
+    <string name="place_detail_rating_with_count">%1$s · 평가 %2$s개</string>
     <string name="place_detail_address_label">주소</string>
     <string name="place_detail_hours_label">운영시간</string>
-    <string name="place_detail_crowd_label">혼잡도</string>
-    <string name="place_detail_weather_label">날씨</string>
     <string name="place_detail_open_map">지도에서 보기</string>
     <string name="place_map_description">%1$s 위치 지도</string>
     <string name="place_map_no_coordinates">위치 정보가 없어 지도를 표시할 수 없어요</string>

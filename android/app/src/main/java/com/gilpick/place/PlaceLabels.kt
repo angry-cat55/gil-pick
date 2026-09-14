@@ -67,38 +67,14 @@ val PlaceError.searchMessageRes: Int
     }
 
 /**
- * 운영시간 표시 규칙(#480). 상단 요약과 하단 상세가 같은 원천·같은 우선순위를 쓴다:
- * Google `currentOpeningHours` > Google `regularOpeningHours` > TourAPI `operatingGuide`.
+ * 운영시간 표시 규칙(#480): Google `currentOpeningHours` > Google `regularOpeningHours`, 그 뒤에 TourAPI `operatingGuide`.
+ * 상세의 운영시간 행 하나만 이 규칙을 쓴다(#481에서 상단 요약을 없앴다).
  */
 internal val PlaceDto.openingHours: List<String>?
     get() = currentOpeningHours?.takeIf { it.isNotEmpty() } ?: regularOpeningHours?.takeIf { it.isNotEmpty() }
 
-/** 상단 `Stats` 칸: Google 오늘 줄, 없으면 TourAPI 안내의 첫 항목(server가 `opentime, usetime, restdate` 순으로 잇는다). */
-internal fun PlaceDto.openingHoursSummary(today: java.time.DayOfWeek = java.time.LocalDate.now().dayOfWeek): String? =
-    todayHoursLabel(openingHours, today) ?: operatingGuide?.substringBefore(", ")?.takeIf { it.isNotBlank() }
-
-/** 하단 `Info rows` 행: Google 영업시간 전체와 TourAPI 운영 안내를 줄바꿈으로 함께 쓴다(FR-006). */
+/** 운영시간 행: Google 영업시간 전체와 TourAPI 운영 안내를 줄바꿈으로 함께 쓴다(FR-006). */
 internal val PlaceDto.openingHoursDetail: String?
     get() = listOfNotNull(openingHours?.joinToString("\n"), operatingGuide?.takeIf { it.isNotBlank() })
         .joinToString("\n")
         .ifEmpty { null }
-
-/**
- * Figma `Stats`의 `운영시간` 칸: Google `weekdayDescriptions`(월요일부터 7줄)에서 오늘 줄을 고르고
- * `월요일: ` 같은 요일 접두어를 뗀다. 7줄이 아니면 첫 줄을 쓴다. 영업 여부를 계산하지는 않는다(FR-007).
- */
-internal fun todayHoursLabel(
-    hours: List<String>?,
-    today: java.time.DayOfWeek = java.time.LocalDate.now().dayOfWeek,
-): String? {
-    if (hours.isNullOrEmpty()) return null
-    val line = hours.getOrNull(today.value - 1)?.takeIf { hours.size == 7 } ?: hours.first()
-    // Figma stats 열은 `09:00~18:00`처럼 짧다. Google 원문 `오전 9:00~오후 6:00`은 3열 안에서 줄바꿈되므로 24시간제로 줄인다.
-    return AM_PM_TIME.replace(line.substringAfter(": ", line)) { m ->
-        val (period, hour, minute) = m.destructured
-        val h = hour.toInt() % 12 + if (period == "오후") 12 else 0
-        "%02d:%s".format(h, minute)
-    }
-}
-
-private val AM_PM_TIME = Regex("""(오전|오후) (\d{1,2}):(\d{2})""")
