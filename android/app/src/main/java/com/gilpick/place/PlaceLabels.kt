@@ -67,6 +67,23 @@ val PlaceError.searchMessageRes: Int
     }
 
 /**
+ * 운영시간 표시 규칙(#480). 상단 요약과 하단 상세가 같은 원천·같은 우선순위를 쓴다:
+ * Google `currentOpeningHours` > Google `regularOpeningHours` > TourAPI `operatingGuide`.
+ */
+internal val PlaceDto.openingHours: List<String>?
+    get() = currentOpeningHours?.takeIf { it.isNotEmpty() } ?: regularOpeningHours?.takeIf { it.isNotEmpty() }
+
+/** 상단 `Stats` 칸: Google 오늘 줄, 없으면 TourAPI 안내의 첫 항목(server가 `opentime, usetime, restdate` 순으로 잇는다). */
+internal fun PlaceDto.openingHoursSummary(today: java.time.DayOfWeek = java.time.LocalDate.now().dayOfWeek): String? =
+    todayHoursLabel(openingHours, today) ?: operatingGuide?.substringBefore(", ")?.takeIf { it.isNotBlank() }
+
+/** 하단 `Info rows` 행: Google 영업시간 전체와 TourAPI 운영 안내를 줄바꿈으로 함께 쓴다(FR-006). */
+internal val PlaceDto.openingHoursDetail: String?
+    get() = listOfNotNull(openingHours?.joinToString("\n"), operatingGuide?.takeIf { it.isNotBlank() })
+        .joinToString("\n")
+        .ifEmpty { null }
+
+/**
  * Figma `Stats`의 `운영시간` 칸: Google `weekdayDescriptions`(월요일부터 7줄)에서 오늘 줄을 고르고
  * `월요일: ` 같은 요일 접두어를 뗀다. 7줄이 아니면 첫 줄을 쓴다. 영업 여부를 계산하지는 않는다(FR-007).
  */

@@ -23,4 +23,23 @@ class PlaceLabelsTest {
         assertNull(todayHoursLabel(emptyList(), DayOfWeek.FRIDAY))
         assertNull(todayHoursLabel(null, DayOfWeek.FRIDAY))
     }
+
+    @Test
+    fun 운영시간_요약과_상세는_같은_우선순위를_쓴다() {
+        val google = place("tourapi:1", currentOpeningHours = week, regularOpeningHours = listOf("월요일: 09:00~10:00"), operatingGuide = "매주 화요일 휴무")
+        assertEquals("휴무", google.openingHoursSummary(DayOfWeek.TUESDAY))
+        assertEquals(week.joinToString("\n") + "\n매주 화요일 휴무", google.openingHoursDetail)
+
+        val regularOnly = place("tourapi:1", currentOpeningHours = emptyList(), regularOpeningHours = listOf("오전 9:00~오후 6:00"))
+        assertEquals("09:00~18:00", regularOnly.openingHoursSummary(DayOfWeek.TUESDAY))
+        assertEquals("오전 9:00~오후 6:00", regularOnly.openingHoursDetail)
+
+        val guideOnly = place("tourapi:1", operatingGuide = "09:00~18:00, 매주 월요일 휴무")
+        assertEquals("09:00~18:00", guideOnly.openingHoursSummary(DayOfWeek.TUESDAY))
+        assertEquals("09:00~18:00, 매주 월요일 휴무", guideOnly.openingHoursDetail)
+
+        val none = place("tourapi:1", operatingGuide = " ")
+        assertNull(none.openingHoursSummary(DayOfWeek.TUESDAY))
+        assertNull(none.openingHoursDetail)
+    }
 }
