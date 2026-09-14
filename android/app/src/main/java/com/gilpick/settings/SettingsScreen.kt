@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -97,7 +95,7 @@ fun AccountSection(
             // 바로 옆에 닉네임이 있어 읽어 줄 내용이 겹친다. 장식으로 둔다(ui-guidelines 10절).
             contentDescription = null,
             shape = RoundedCornerShape(LocalGilpickRadius.current.lg),
-            fallbackIcon = Icons.Filled.Person,
+            fallbackIcon = R.drawable.ic_lucide_user,
             fallbackIconSize = AVATAR_FALLBACK_ICON,
             modifier = Modifier.size(AVATAR_SIZE),
         )

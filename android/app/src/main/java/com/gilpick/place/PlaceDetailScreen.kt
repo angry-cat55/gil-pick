@@ -22,8 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -182,9 +180,10 @@ private fun WithAppBar(
             navigationIcon = {
                 IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH)) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        painter = painterResource(R.drawable.ic_lucide_arrow_left),
                         // 아이콘 전용 버튼이므로 설명이 필수다(가이드라인 10절).
                         contentDescription = stringResource(R.string.place_detail_back),
+                        modifier = Modifier.size(BACK_ICON),
                     )
                 }
             },
@@ -874,6 +873,9 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 /** 가이드라인 5절·10절: 주요 CTA 52~56dp, 터치 영역 48dp 이상. */
 private val PRIMARY_BUTTON_HEIGHT = 56.dp
 private val MIN_TOUCH = 48.dp
+
+/** 로딩·오류 AppBar 뒤로 가기 아이콘(Figma PlaceDetailScreen 뒤로 가기 18). */
+private val BACK_ICON = 18.dp
 
 /** Figma 체류 시간 stepper 범위: 30~360분, 30분 단위. */
 private const val STAY_MIN = 30

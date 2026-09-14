@@ -1,12 +1,11 @@
 package com.gilpick.ui.component
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -14,12 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImage
+import com.gilpick.R
 
 /**
  * 원격 이미지와 그 대체 표현.
@@ -36,7 +36,7 @@ import coil3.compose.AsyncImage
  * @param contentDescription 화면 판독기가 읽을 설명. 장식용이면 `null`.
  * @param modifier 크기는 호출자가 정한다.
  * @param shape 모서리 곡률.
- * @param fallbackIcon 이미지가 없거나 실패했을 때 보일 아이콘. 기본값은 장소 썸네일용
+ * @param fallbackIcon 이미지가 없거나 실패했을 때 보일 아이콘(프로젝트 lucide drawable, 가이드라인 7절). 기본값은 장소 썸네일용
  *   지도 핀이고, 사람 아바타처럼 뜻이 다른 자리에서는 호출자가 바꾼다(#402 설정 계정 헤더).
  * @param fallbackIconSize 대체 표현 아이콘 크기.
  */
@@ -46,7 +46,7 @@ fun RemoteImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(0),
-    fallbackIcon: ImageVector = Icons.Filled.Place,
+    @DrawableRes fallbackIcon: Int = R.drawable.ic_lucide_map_pin,
     fallbackIconSize: Dp = FALLBACK_ICON_SIZE,
 ) {
     Box(
@@ -65,7 +65,7 @@ fun RemoteImage(
     ) {
         // 대체 표현. 이미지가 없거나 실패한 동안 이것이 보인다.
         Icon(
-            imageVector = fallbackIcon,
+            painter = painterResource(fallbackIcon),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(fallbackIconSize),
