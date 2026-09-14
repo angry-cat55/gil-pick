@@ -5,12 +5,12 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Path, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Depends, File, Header, Path, Query, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_principal
-from app.api.errors import get_request_id, success_response
+from app.api.errors import AppError, get_request_id, success_response
 from app.core.config import Settings, get_settings
 from app.core.security import AuthPrincipal
 from app.db import get_session
@@ -26,6 +26,7 @@ from app.schemas.trip import (
     UpdateTripRequest,
 )
 from app.services.trip import TripService
+from app.services.trip_image import TripImageStorage
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
@@ -39,6 +40,13 @@ def _trip_service(
         session,
         cursor_secret=settings.jwt_signing_secret.get_secret_value(),
     )
+
+
+def _trip_image_storage(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TripImageStorage:
+    """설정된 영속 경로를 사용하는 여행 이미지 저장소를 제공한다."""
+    return TripImageStorage(settings.trip_image_dir)
 
 
 @router.get(
@@ -132,6 +140,91 @@ async def create_trip(
         idempotency_key=idempotency_key,
     )
     return success_response(request, trip, status_code=201)
+
+
+@router.post(
+    "/{tripId}/image",
+    response_model=TripEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        413: {"model": ErrorEnvelope},
+        415: {"model": ErrorEnvelope},
+    },
+)
+async def upload_trip_image(
+    trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
+    request: Request,
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[TripService, Depends(_trip_service)],
+    storage: Annotated[TripImageStorage, Depends(_trip_image_storage)],
+    image: Annotated[UploadFile, File()],
+) -> JSONResponse:
+    """소유한 여행의 대표 이미지를 업로드하거나 교체한다."""
+    await service.get_trip(user_id=principal.user_id, trip_id=trip_id)
+    await storage.save(trip_id, image)
+    image_url = str(request.url_for("get_trip_image_content", tripId=str(trip_id)))
+    trip = await service.set_image_url(
+        user_id=principal.user_id,
+        trip_id=trip_id,
+        image_url=image_url,
+    )
+    return success_response(request, trip)
+
+
+@router.get(
+    "/{tripId}/image/content",
+    name="get_trip_image_content",
+    response_model=None,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+    },
+)
+async def get_trip_image_content(
+    trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[TripService, Depends(_trip_service)],
+    storage: Annotated[TripImageStorage, Depends(_trip_image_storage)],
+) -> FileResponse:
+    """소유한 여행의 대표 이미지 파일을 반환한다."""
+    await service.get_trip(user_id=principal.user_id, trip_id=trip_id)
+    stored = storage.find(trip_id)
+    if stored is None:
+        raise AppError(404, "TRIP_IMAGE_NOT_FOUND", "여행 대표 이미지를 찾을 수 없습니다.")
+    path, media_type = stored
+    return FileResponse(path, media_type=media_type)
+
+
+@router.delete(
+    "/{tripId}/image",
+    response_model=TripEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+    },
+)
+async def delete_trip_image(
+    trip_id: Annotated[uuid.UUID, Path(alias="tripId")],
+    request: Request,
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    service: Annotated[TripService, Depends(_trip_service)],
+    storage: Annotated[TripImageStorage, Depends(_trip_image_storage)],
+) -> JSONResponse:
+    """소유한 여행의 대표 이미지를 삭제한다."""
+    trip = await service.set_image_url(
+        user_id=principal.user_id,
+        trip_id=trip_id,
+        image_url=None,
+    )
+    storage.delete(trip_id)
+    return success_response(request, trip)
 
 
 @router.get(

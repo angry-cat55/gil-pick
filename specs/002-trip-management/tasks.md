@@ -405,6 +405,29 @@
 
 ---
 
+## Phase 10: 여행 대표 이미지
+
+- [x] T055 [FR-019] 여행 대표 이미지 nullable DB·응답 계약 추가 in `api/migrations/versions/014_add_trip_image_url.py`, `api/app/models/trip.py`, `api/app/schemas/trip.py`
+  - 영역: BE
+  - 담당: jh
+  - 선행: T050
+  - 검증: migration offline SQL 생성과 모든 `Trip.imageUrl` 응답 contract test 통과
+- [x] T056 [FR-019] multipart 업로드·교체·삭제·인증 조회 구현 in `api/app/api/v1/trips.py`, `api/app/services/trip.py`, `api/app/services/trip_image.py`
+  - 영역: BE
+  - 담당: jh
+  - 선행: T055
+  - 검증: jpeg/png/webp·5MB 제한, 교체 시 이전 파일 정리, 소유권 오류 contract/unit test 통과
+- [x] T057 [FR-019] 단일 인스턴스 영속 volume 설정 in `api/app/core/config.py`, `api/.env.example`, `deploy/aws/compose.yaml`
+  - 영역: BE
+  - 담당: jh
+  - 선행: T056
+  - 검증: API container의 `/data/trip-images` named volume mount 확인
+- [x] T058 [FR-019] 대표 이미지 API 계약·설계 문서 동기화 in `specs/002-trip-management/contracts/trips.openapi.yaml`, `docs/design/api-spec.md`, `docs/design/er-schema.md`
+  - 영역: BE
+  - 담당: jh
+  - 선행: T056
+  - 검증: runtime OpenAPI와 문서의 endpoint·오류·nullable 필드 일치
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

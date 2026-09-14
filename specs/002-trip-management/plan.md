@@ -19,7 +19,7 @@
 
 **Primary Dependencies**: Backend는 F001과 동일한 FastAPI 0.141.1, SQLAlchemy 2.0.52 async, Alembic, asyncpg, PyJWT(기존 인증 dependency 재사용). Android는 F001과 동일한 `compileSdk 37`·`targetSdk 36`, Jetpack Compose BOM 2026.08.00, Lifecycle/ViewModel, Retrofit·OkHttp에 더해, F001에서 새로 만든 `com.gilpick.ui.theme`(`GilpickTheme`, 색상·타이포·간격·곡률 토큰)와 `com.gilpick.ui.component`(공통 컴포넌트)를 재사용한다
 
-**Storage**: PostgreSQL 18.6 (`trips` 테이블). `btree_gist`와 partial exclusion constraint로 사용자별 활성 여행 기간 중복을 방지한다. `trip_days`/`itinerary_items`는 F004에서 추가한다([research.md](research.md) 2절)
+**Storage**: PostgreSQL 18.6 (`trips` 테이블)과 API 단일 인스턴스에 mount한 영속 volume(여행 대표 이미지). `btree_gist`와 partial exclusion constraint로 사용자별 활성 여행 기간 중복을 방지한다. 대표 이미지는 `TRIP_IMAGE_DIR` 아래에 저장하고 인증된 이미지 조회 endpoint로 제공한다. 수평 확장 전에는 object storage로 교체한다. `trip_days`/`itinerary_items`는 F004에서 추가한다([research.md](research.md) 2절)
 
 **Testing**: Backend pytest, pytest-asyncio, HTTPX ASGI client, PostgreSQL integration/contract tests; Android JUnit, kotlinx-coroutines-test, MockWebServer, Compose UI tests
 

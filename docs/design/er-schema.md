@@ -165,6 +165,7 @@ erDiagram
 | `end_date` | date | N | 여행 종료일 |
 | `timezone` | varchar(40) | N | 기본 `Asia/Seoul` |
 | `version` | integer | N | 여행 기본정보 동시 수정 방지, 기본 1 |
+| `image_url` | text | Y | 인증된 여행 대표 이미지 조회 URL |
 | `created_at` | timestamptz | N | 생성 시각 |
 | `updated_at` | timestamptz | N | 수정 시각 |
 | `deleted_at` | timestamptz | Y | soft delete 시각 |

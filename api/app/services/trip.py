@@ -388,6 +388,25 @@ class TripService:
             .values(deleted_at=func.now())
         )
 
+    async def set_image_url(
+        self,
+        *,
+        user_id: uuid.UUID,
+        trip_id: uuid.UUID,
+        image_url: str | None,
+    ) -> Trip:
+        """소유한 활성 여행의 대표 이미지 URL을 변경한다."""
+        await self._get_owned_active_trip(user_id=user_id, trip_id=trip_id)
+        updated = await self.session.scalar(
+            update(TripModel)
+            .where(TripModel.trip_id == trip_id, TripModel.user_id == user_id)
+            .values(image_url=image_url, version=TripModel.version + 1)
+            .returning(TripModel)
+        )
+        if updated is None:
+            raise RuntimeError("여행 대표 이미지 변경 결과를 조회할 수 없습니다.")
+        return _to_schema(updated)
+
     async def _get_owned_active_trip(
         self,
         *,
@@ -570,5 +589,6 @@ def _to_schema(trip: TripModel, *, today: date | None = None) -> Trip:
         status=status,
         day_count=(trip.end_date - trip.start_date).days + 1,
         version=trip.version,
+        image_url=trip.image_url,
         created_at=trip.created_at,
     )

@@ -117,6 +117,110 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/image:
+    parameters:
+      - name: tripId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: uploadTripImage
+      summary: 여행 대표 이미지 업로드 또는 교체
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 대표 이미지 갱신 완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: 이미지가 5MB를 초과함
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '415':
+          description: jpeg, png, webp 이외의 이미지 형식
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      operationId: deleteTripImage
+      summary: 여행 대표 이미지 삭제
+      responses:
+        '200':
+          description: 대표 이미지 삭제 완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/image/content:
+    parameters:
+      - name: tripId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getTripImageContent
+      summary: 여행 대표 이미지 원본 조회
+      responses:
+        '200':
+          description: 대표 이미지 원본
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     patch:
       operationId: updateTrip
       summary: 여행 이름·기간 수정
@@ -190,7 +294,7 @@ components:
 
     Trip:
       type: object
-      required: [tripId, name, startDate, endDate, status, dayCount, version]
+      required: [tripId, name, startDate, endDate, status, dayCount, version, imageUrl]
       properties:
         tripId:
           type: string
@@ -210,6 +314,9 @@ components:
           description: 'endDate - startDate + 1'
         version:
           type: integer
+        imageUrl:
+          type: [string, 'null']
+          format: uri
         createdAt:
           type: string
           format: date-time
@@ -327,6 +434,9 @@ components:
                 - VERSION_CONFLICT
                 - CONFIRMATION_REQUIRED
                 - FORBIDDEN
+                - IMAGE_TOO_LARGE
+                - UNSUPPORTED_IMAGE_TYPE
+                - TRIP_IMAGE_NOT_FOUND
             message:
               type: string
             details:

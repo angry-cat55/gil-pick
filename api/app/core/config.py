@@ -1,6 +1,7 @@
 """Environment-backed application configuration."""
 
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -51,6 +52,7 @@ class Settings(BaseSettings):
     notification_retention_days: int = Field(default=90, gt=0)
     notification_dispatch_interval_seconds: int = Field(default=30, gt=0)
     notification_cleanup_interval_seconds: int = Field(default=3600, gt=0)
+    trip_image_dir: Path = Path(".runtime/trip-images")
 
     @field_validator("jwt_signing_secret")
     @classmethod
