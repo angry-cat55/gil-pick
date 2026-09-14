@@ -317,6 +317,11 @@
     <string name="route_segment_detail">%1$s · %2$s · %3$s</string>
     <string name="route_marker_description">%1$d번째 장소 %2$s</string>
     <string name="route_marker_start">현위치</string>
+    <!-- 일자 경로 sheet 범례(Figma DayRouteScreen). 상태 문구는 progress_status_*·itinerary_edit_status_*와 같다. -->
+    <string name="route_legend_done">완료</string>
+    <string name="route_legend_active">이동 중</string>
+    <string name="route_legend_upcoming">예정</string>
+    <string name="route_legend_pan_hint">지도 이동 가능</string>
     <string name="route_status_name">%1$s %2$s</string>
     <string name="route_duration_minutes">%1$d분</string>
     <string name="route_duration_hours">%1$d시간</string>
