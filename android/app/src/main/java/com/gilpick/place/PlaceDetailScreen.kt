@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.gilpick.R
+import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -115,15 +116,14 @@ fun PlaceDetailScreen(
 
         PlaceDetailPhase.Loading -> WithAppBar(onBack = onBack, modifier = modifier) { LoadingState() }
 
+        // 공통 오류 화면(가이드라인 9절, #446). 없는 장소는 다시 시도해도 같아 `검색으로 돌아가기`만 주버튼이다.
         PlaceDetailPhase.NotFound -> WithAppBar(onBack = onBack, modifier = modifier) {
-            StateMessage(
+            CommonErrorState(
                 title = stringResource(R.string.place_detail_not_found_title),
-                body = stringResource(R.string.place_detail_not_found_hint),
-                action = {
-                    Button(onClick = onBack, modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT)) {
-                        Text(stringResource(R.string.place_detail_back_to_search))
-                    }
-                },
+                description = stringResource(R.string.place_detail_not_found_hint),
+                primaryLabel = stringResource(R.string.place_detail_back_to_search),
+                onPrimary = onBack,
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
@@ -131,31 +131,24 @@ fun PlaceDetailScreen(
             // 재시도해도 결과가 같은 실패(호출 한도 등)에는 검색으로 돌아가는 길을, 로그인 만료에는 재인증을 준다.
             val retryable = phase.error.retryable
             val sessionExpired = phase.error.kind == PlaceErrorKind.SESSION_EXPIRED
-            StateMessage(
-                title = stringResource(phase.error.detailMessageRes),
-                titleColor = MaterialTheme.colorScheme.error,
-                body = null,
-                live = true,
-                action = {
-                    Button(
-                        onClick = when {
-                            sessionExpired -> onReauthenticate
-                            retryable -> onRetry
-                            else -> onBack
-                        },
-                        modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT),
-                    ) {
-                        Text(
-                            stringResource(
-                                when {
-                                    sessionExpired -> R.string.place_reauthenticate
-                                    retryable -> R.string.place_detail_retry
-                                    else -> R.string.place_detail_back_to_search
-                                },
-                            ),
-                        )
-                    }
+            val back = stringResource(R.string.place_detail_back_to_search)
+            // 공통 오류 화면(가이드라인 9절, #446). 주버튼이 돌아가기가 아니면 `검색으로 돌아가기`를 보조 버튼으로 둔다.
+            // 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
+            CommonErrorState(
+                description = stringResource(phase.error.detailMessageRes),
+                primaryLabel = when {
+                    sessionExpired -> stringResource(R.string.place_reauthenticate)
+                    retryable -> stringResource(R.string.place_detail_retry)
+                    else -> back
                 },
+                onPrimary = when {
+                    sessionExpired -> onReauthenticate
+                    retryable -> onRetry
+                    else -> onBack
+                },
+                secondaryLabel = back.takeIf { sessionExpired || retryable },
+                onSecondary = onBack,
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }

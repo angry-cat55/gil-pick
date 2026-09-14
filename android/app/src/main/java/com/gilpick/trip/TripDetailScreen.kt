@@ -79,6 +79,7 @@ import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.route.messageRes
 import com.gilpick.ui.component.BadgeTone
+import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.component.GradientButtonWidth
 import com.gilpick.ui.component.StatusBadge
@@ -210,7 +211,6 @@ fun TripDetailScreen(
                         error = phase.error,
                         onRetry = onRetry,
                         onBack = onBack,
-                        modifier = Modifier.padding(horizontal = spacing.space5),
                     )
                 }
             }
@@ -1495,31 +1495,19 @@ private fun ErrorState(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val spacing = LocalGilpickSpacing.current
     val retryable = error == TripDetailError.NETWORK || error == TripDetailError.UNEXPECTED
+    val back = stringResource(R.string.trip_detail_back_to_list)
 
-    Column(
+    // 공통 오류 화면(가이드라인 9절, #446). 재시도할 수 있으면 `다시 시도` + `목록으로 돌아가기`, 없는 여행·권한 없음은
+    // 몇 번을 다시 보내도 결과가 같아 `목록으로 돌아가기`만 주버튼이다. 발생 시각·마지막 동작은 모르는 값이라 원인 카드를 그리지 않는다.
+    CommonErrorState(
+        description = stringResource(error.messageRes),
+        primaryLabel = if (retryable) stringResource(R.string.trips_retry) else back,
+        onPrimary = if (retryable) onRetry else onBack,
+        secondaryLabel = back.takeIf { retryable },
+        onSecondary = onBack,
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(spacing.space3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(error.messageRes),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.error,
-            textAlign = TextAlign.Center,
-        )
-        Button(
-            onClick = if (retryable) onRetry else onBack,
-            modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT),
-        ) {
-            Text(
-                stringResource(
-                    if (retryable) R.string.trips_retry else R.string.trip_detail_back_to_list,
-                ),
-            )
-        }
-    }
+    )
 }
 
 /** 실패 원인별 안내 문구. 원인을 뭉뚱그리지 않는다(가이드라인 9절). */

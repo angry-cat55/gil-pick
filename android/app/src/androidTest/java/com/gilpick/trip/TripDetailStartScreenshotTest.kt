@@ -100,6 +100,10 @@ class TripDetailStartScreenshotTest {
     @Test
     fun 조회_오류() = capture("trip_detail_error") { Screen(TripStartPhase.Loading, phase = TripDetailPhase.Failed(TripDetailError.NETWORK)) }
 
+    /** #446: 권한 없음은 재시도 없이 `목록으로 돌아가기`만 주버튼인 공통 오류 화면이다. */
+    @Test
+    fun 조회_권한_없음() = capture("trip_detail_error_forbidden") { Screen(TripStartPhase.Loading, phase = TripDetailPhase.Failed(TripDetailError.FORBIDDEN)) }
+
     @Composable
     private fun Screen(start: TripStartPhase, phase: TripDetailPhase? = null) {
         val days = (1..3).map { DayItineraryDto("2026-09-0$it", it, 0, RouteStatus.NOT_CALCULATED, emptyList()) }

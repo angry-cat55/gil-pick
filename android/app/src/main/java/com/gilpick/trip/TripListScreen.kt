@@ -55,6 +55,7 @@ import com.gilpick.ui.component.ActiveTripCard
 import com.gilpick.ui.component.CompletedTripCard
 import com.gilpick.ui.component.EmptyState
 import com.gilpick.ui.component.EmptyStateSize
+import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.component.GradientButtonWidth
 import com.gilpick.ui.component.SecondaryButton
@@ -140,12 +141,16 @@ fun TripListScreen(
             }
         }
 
-        CreateTripFab(
-            onClick = onCreateTrip,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = LocalGilpickSpacing.current.space6),
-        )
+        // 조회 실패는 공통 오류 화면이 목록 자리를 대신하고 하단에 `다시 시도`가 고정돼 있어, 떠 있는 FAB가 그 버튼을 가린다.
+        // 실패 동안에는 FAB를 두지 않는다(Figma `ErrorScreen`에도 없음, #446).
+        if (state.phase !is TripListPhase.Failed) {
+            CreateTripFab(
+                onClick = onCreateTrip,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = LocalGilpickSpacing.current.space6),
+            )
+        }
     }
 }
 
@@ -462,31 +467,25 @@ private fun TripsEmptyState(
     )
 }
 
-/** 실패 상태. 원인과 다음 행동을 함께 쓴다(가이드라인 9절). 공통 오류 화면 형식 정렬은 #446 범위다. */
+/**
+ * 목록 조회 실패(공통 오류 화면, 가이드라인 9절, #446).
+ *
+ * 두 원인 모두 같은 요청을 다시 보내면 되므로 `다시 시도`가 주버튼이다. 최상위 탭이라 돌아갈 곳이 없어 보조 버튼은 두지 않는다.
+ * 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다(12절). 검색어·필터 헤더는 그대로 남는다.
+ */
 @Composable
 private fun ErrorState(error: TripListError, onRetry: () -> Unit) {
-    val spacing = LocalGilpickSpacing.current
-
-    Column(
+    CommonErrorState(
+        description = stringResource(
+            when (error) {
+                TripListError.NETWORK -> R.string.trips_error_network
+                TripListError.UNEXPECTED -> R.string.trips_error_unexpected
+            },
+        ),
+        primaryLabel = stringResource(R.string.trips_retry),
+        onPrimary = onRetry,
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(spacing.space3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(
-                when (error) {
-                    TripListError.NETWORK -> R.string.trips_error_network
-                    TripListError.UNEXPECTED -> R.string.trips_error_unexpected
-                },
-            ),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.error,
-            textAlign = TextAlign.Center,
-        )
-        Button(onClick = onRetry, modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT)) {
-            Text(stringResource(R.string.trips_retry))
-        }
-    }
+    )
 }
 
 /** 여행 목록. 끝에 닿으면 다음 페이지를 요청한다. */
