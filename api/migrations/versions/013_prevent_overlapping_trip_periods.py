@@ -53,4 +53,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """사용자별 활성 여행 기간 중복 제약을 제거한다."""
-    op.drop_constraint("ex_trips_user_active_period", "trips", type_="exclude")
+    op.execute("ALTER TABLE trips DROP CONSTRAINT ex_trips_user_active_period")

@@ -152,8 +152,20 @@ async def test_duplicate_names_with_different_keys_create_two_trips(
     """동일 사용자의 같은 여행명에 unique 제약이 적용되지 않는지 확인한다."""
     user_id = await create_user(session_factory)
 
-    first = await create_trip(session_factory, user_id, idempotency_key=str(uuid.uuid4()))
-    second = await create_trip(session_factory, user_id, idempotency_key=str(uuid.uuid4()))
+    first = await create_trip(
+        session_factory,
+        user_id,
+        start_date=date(2026, 9, 1),
+        end_date=date(2026, 9, 3),
+        idempotency_key=str(uuid.uuid4()),
+    )
+    second = await create_trip(
+        session_factory,
+        user_id,
+        start_date=date(2026, 9, 4),
+        end_date=date(2026, 9, 6),
+        idempotency_key=str(uuid.uuid4()),
+    )
 
     assert first.trip_id != second.trip_id
 
