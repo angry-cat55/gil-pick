@@ -3,6 +3,9 @@ package com.gilpick.replacement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -49,6 +52,53 @@ class RoutePreviewScreenTest {
 
         composeRule.mainClock.advanceTimeBy(600)
         composeRule.onNodeWithContentDescription("비교를 만드는 중").assertIsDisplayed()
+        composeRule.onNodeWithText("경로를 다시 계산하고 있습니다").assertIsDisplayed()
+        composeRule.onNodeWithText("계산에 실패해도 기존 일정은 그대로 유지됩니다").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("뒤로 가기").assertExists()
+    }
+
+    @Test
+    fun loading_설명은_대체_장소_이름을_알면_넣고_모르면_이름_없는_문장을_쓴다() {
+        composeRule.mainClock.autoAdvance = false
+        var placeName by mutableStateOf<String?>("창덕궁")
+        composeRule.setContent {
+            GilpickTheme { RouteRecalculatingContent(placeName = placeName) }
+        }
+
+        composeRule.onNodeWithText("창덕궁(으)로 변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요").assertExists()
+
+        placeName = null
+        composeRule.mainClock.advanceTimeByFrame()
+
+        composeRule.onNodeWithText("변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요").assertExists()
+    }
+
+    @Test
+    fun 응답이_오면_로딩_요소가_사라지고_content가_보인다() {
+        composeRule.mainClock.autoAdvance = false
+        var state by mutableStateOf<PreviewUiState>(PreviewUiState.Loading)
+        composeRule.setContent {
+            GilpickTheme {
+                RoutePreviewScreen(
+                    state = state,
+                    onBack = {},
+                    onRetry = {},
+                    onApprove = {},
+                    onOtherCandidates = {},
+                    onReauthenticate = {},
+                    map = { _, modifier -> Box(modifier.fillMaxSize().testTag(TAG_MAP_SLOT)) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        composeRule.mainClock.advanceTimeBy(1_100)
+        composeRule.onNodeWithText("경로를 다시 계산하고 있습니다").assertIsDisplayed()
+
+        state = content()
+        composeRule.mainClock.advanceTimeByFrame()
+
+        composeRule.onNodeWithText("경로를 다시 계산하고 있습니다").assertDoesNotExist()
+        composeRule.onNodeWithText("변경 승인").assertExists()
     }
 
     @Test

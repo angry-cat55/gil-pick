@@ -38,6 +38,8 @@ data class RoutePreviewRoute(
     val detectionId: String,
     val placeId: String,
     val candidateId: String?,
+    /** 대체 장소명. 로딩 안내 문장에만 쓰며 모르면 이름 없는 문장을 보인다(UI-004). */
+    val placeName: String? = null,
 )
 
 /**
@@ -111,6 +113,7 @@ fun NavGraphBuilder.replacementGraph(
 
         RoutePreviewScreen(
             state = state,
+            placeName = route.placeName,
             onBack = leave,
             onRetry = viewModel::load,
             onApprove = viewModel::approve,

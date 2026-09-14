@@ -82,15 +82,38 @@ class RoutePreviewScreenshotTest {
     @Test
     fun 승인_중() = capture("replacement_approving") { Screen(content().copy(approving = true)) }
 
+    @Test
+    fun 로딩_대체_장소_이름_있음() = captureLoading("replacement_recalculating") { Screen(PreviewUiState.Loading, placeName = "창덕궁") }
+
+    @Test
+    fun 로딩_대체_장소_이름_없음() = captureLoading("replacement_recalculating_unnamed") { Screen(PreviewUiState.Loading) }
+
+    @Test
+    fun 로딩_360dp_최대_글자배율() = captureLoading("replacement_recalculating_360dp_fontscale2") {
+        Narrow { Screen(PreviewUiState.Loading, placeName = "창덕궁") }
+    }
+
+    /** 1초 지연 뒤의 모양을 찍는다. 원호는 회전 중이라 각도가 캡처마다 다를 수 있다. */
+    private fun captureLoading(name: String, content: @Composable () -> Unit) {
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent { GilpickTheme { content() } }
+        composeRule.mainClock.advanceTimeBy(1_100)
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val dir = File(context.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
+        File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
     private fun content(json: String = routePreviewJson()) = PreviewUiState.Content(
         preview = previewJson.decodeFromString<SuccessEnvelope<RoutePreviewDto>>(json).data,
         originalRoute = readyRoute(),
     )
 
     @Composable
-    private fun Screen(state: PreviewUiState) {
+    private fun Screen(state: PreviewUiState, placeName: String? = null) {
         RoutePreviewScreen(
             state = state,
+            placeName = placeName,
             onBack = {},
             onRetry = {},
             onApprove = {},
