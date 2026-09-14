@@ -209,6 +209,23 @@ AND 4 screenshot(`/sdcard/Android/data/com.gilpick/files/screenshots/alternative
 
 발견(BE, F006/F008 범위, `jh`): `POST /trips/{tripId}/days/{date}/progress/start`(currentLocation 포함, WALK 3곳)가 `500 INTERNAL_ERROR`(`exception_type=InvalidRequestError`, requestId `15a9adcf-95e7-4881-a2a0-7cb658656be9`, 재현 `e2c7c011-a99a-4ba5-be0c-5fafe1fb8468`)를 돌려주지만 DB에는 `IN_PROGRESS v1`·ETA가 정상 반영된다(응답 직렬화 또는 commit 이후 단계의 오류로 추정, 원인 미확인). F009 검증에는 영향 없음. BE Issue #359로 올렸다.
 
+### Android 실기기 확인 (2026-09-14, T047 직접 검색 지도형, AND 2 지도 확인)
+
+환경: `gilpick_api36_play`(Naver 키는 `~/.gradle/gradle.properties`), 임시 androidTest(커밋 안 함)로 `AlternativeSearchScreen`을 실제 `AlternativeSearchMap`과 함께 `ComponentActivity`에 띄우고 `adb screencap`·`input tap`으로 확인. 결과는 ALT-002 fixture 3건(창덕궁·이름만 있는 카페(좌표 없음)·경복궁)이며 fixture 좌표가 전부 같아 확인용으로만 결과마다 좌표를 벌렸다. 서버 호출은 없다(ALT-002 실서버 호출은 2026-09-09 AND 5.4에서 확인).
+
+| 항목 | 결과 |
+|---|---|
+| 번호 마커 | 결과 순서대로 `1`·`3` 마커(좌표 없는 `2`는 지도에 없음, 시트에는 있음)가 실제 좌표에 그려지고 caption에 장소명이 붙는다. 흰 원 + `primary` 테두리·번호, 선택은 `primary` 채움·흰 번호·20% halo(`issue-4xx-screenshots/450/t047_search_map_fixed.png`). |
+| 마커 → 행 | 마커 `1` 탭 → 시트 행 1이 선택 상태(번호 상자 `primary`)가 되고 마커 `3`은 해제된다(`t047_marker_tap.png`). |
+| 행 → 마커 | 행 3 탭 → 마커 `3`이 선택 표시로 바뀌고 행 1은 해제된다(`t047_row_tap.png`). |
+| attribution | Naver 로고와 축척이 결과 시트 위(화면 45% 지점)에 보인다. 시트가 최대 높이(55%)보다 낮으면 로고가 시트보다 조금 위에 떠 있다. |
+| 시트 목록 | 지도 정보(번호·이름·거리)가 시트 행에 모두 있다. `방문 불가`·`이미 일정에 있음` 행은 흐림 + 문구, `선택` 비활성. |
+| 조건부 표시 | fixture 응답에 카테고리·혼잡·마감 필드가 없어 칩·배지·반경 부제가 보이지 않는다(자동 test와 같음). |
+
+**발견·수정(같은 PR)**: 처음 확인에서 두 결함이 있었다. (1) `searchMarker`의 `TextView`에 최소 크기가 없어 `OverlayImage.fromView`가 글자 크기 비트맵을 만들고 마커 크기로 늘려 원이 사라지고 숫자만 거대하게 보였다(`t047_search_map_spread.png`) → F005 `markerView`처럼 `minimumWidth/Height`를 둔다. (2) 지도에 content padding이 없어 Naver 로고가 결과 시트 아래에 숨고 카메라 범위가 시트 뒤까지 잡혔다(`t047_search_map.png`) → 위 검색창(96dp)·아래 시트 최대 높이(55%)만큼 `setContentPadding`을 둔다(F005 `RouteMap`과 같은 방식). 둘 다 지도를 자리 표시로 바꾸는 자동 test로는 잡히지 않는 결함이다.
+
+반경 확인(FR-019 확정 전): 시트에 "기준 2km 이내" 문구가 없다. 확정 후 확인은 T040 병합 뒤 다시 기록한다.
+
 ### 미실행
 
 - `KMA`·`SEOUL` 실키 연동(`.env`에 키 없음). 결손 격리 경로로만 확인됐다.

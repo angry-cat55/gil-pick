@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.gilpick.R
 import com.gilpick.route.BOUNDS_PADDING
 import com.gilpick.route.NaverMapHost
@@ -52,13 +53,17 @@ fun AlternativeSearchMap(
     val description = stringResource(R.string.alternative_search_map_description, results.size)
     val markers = remember { mutableListOf<Marker>() }
     val boundsPaddingPx = with(density) { BOUNDS_PADDING.roundToPx() }
+    val topInsetPx = with(density) { MAP_TOP_INSET.roundToPx() }
 
     NaverMapHost(
         modifier = modifier,
         description = description,
         drawKey = results to selectedPlaceId,
         onDispose = { markers.detach() },
-    ) { map, _ ->
+    ) { map, size ->
+        // 하단 결과 시트(최대 55%)와 위 검색창만큼 content padding을 둬 카메라 범위와 Naver 로고가 시트·검색창 아래에
+        // 숨지 않게 한다(UI-010, F005 RouteMap과 같은 방식). 시트가 그보다 낮으면 로고가 시트 위에 조금 떠 있다.
+        map.setContentPadding(0, topInsetPx, 0, (size.height * SHEET_MAX_FRACTION).toInt())
         markers.detach()
         val bounds = LatLngBounds.Builder()
         results.forEachIndexed { index, item ->
@@ -125,6 +130,10 @@ private fun searchMarker(context: Context, label: String, primary: Int, selected
         setTextSize(TypedValue.COMPLEX_UNIT_SP, MARKER_TEXT_SP)
         gravity = Gravity.CENTER
         this.background = background
+        // OverlayImage.fromView는 view를 다시 wrap_content로 재는다. 최소 크기가 없으면 글자 크기의 비트맵이
+        // 만들어져 마커 크기로 늘어나며 원이 사라진다(T047 실기기 확인). F005 markerView와 같은 처리다.
+        minimumWidth = size
+        minimumHeight = size
         layoutParams = android.view.ViewGroup.LayoutParams(size, size)
         measure(
             android.view.View.MeasureSpec.makeMeasureSpec(size, android.view.View.MeasureSpec.EXACTLY),
@@ -142,3 +151,6 @@ private const val SELECTED_MARKER_DP = 56
 private const val MARKER_TEXT_SP = 11f
 private const val HALO_ALPHA = 0x33
 private const val SINGLE_ZOOM = 15.0
+
+/** 떠 있는 검색창이 덮는 위쪽 높이(상태 표시줄 + 16 + 52). */
+private val MAP_TOP_INSET = 96.dp

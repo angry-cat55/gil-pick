@@ -670,7 +670,7 @@ internal const val TAG_SEARCH_CHIPS = "alternative_search_chips"
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 
 /** 시트가 차지할 수 있는 최대 화면 높이 비율(Figma `maxHeight: 55%`). 나머지는 지도 조작 영역이다. */
-private const val SHEET_MAX_FRACTION = 0.55f
+internal const val SHEET_MAX_FRACTION = 0.55f
 
 /** 가이드라인 10절 최소 터치 영역. */
 private val MIN_TOUCH: Dp = 48.dp
