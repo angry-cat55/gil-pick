@@ -223,7 +223,7 @@ fun TripDetailScreen(
 
     val phase = state.phase
     if (confirmOpen && phase is TripDetailPhase.Content) {
-        DeleteConfirmDialog(
+        TripDeleteConfirmDialog(
             tripName = phase.trip.name,
             deletion = state.deletion,
             onConfirm = onDelete,
@@ -244,7 +244,7 @@ fun TripDetailScreen(
  *
  * Figma대로 48dp `errorContainer` 아이콘 상자, 제목, 본문 아래에 파란 `취소`(폭을 채움)와 빨간 글자
  * `삭제하기`를 세로로 둔다. 되돌릴 수 없는 행동이라 강조는 `취소`에 준다. 본문은 여행명을 인용하는
- * 기존 문장을 유지한다(#442 결정).
+ * 기존 문장을 유지한다(#442 결정). 여행 수정 화면의 `여행 삭제`(#443)도 같은 대화상자를 쓴다.
  *
  * @param tripName 본문에 인용할 여행명.
  * @param deletion 삭제 요청의 진행 단계. 진행 중에는 버튼을 잠그고 실패하면 안내를 붙인다.
@@ -253,7 +253,7 @@ fun TripDetailScreen(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeleteConfirmDialog(
+internal fun TripDeleteConfirmDialog(
     tripName: String,
     deletion: TripDeletePhase,
     onConfirm: () -> Unit,

@@ -6,6 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -388,7 +389,8 @@ class TripEditFlowTest {
     private fun rename(name: String) {
         awaitTrip()
         composeRule.onNodeWithText(storedName).performTextClearance()
-        composeRule.onNodeWithText(string(R.string.trip_form_name_label)).performTextInput(name)
+        // 폼 입력창에는 떠오르는 라벨이 없다(#443, 가이드라인 7절). 입력 가능한 노드를 직접 찾는다.
+        composeRule.onNode(hasSetTextAction()).performTextInput(name)
     }
 
     /** 상세와 수정을 실제 view model로 연결한 graph를 띄운다. */
