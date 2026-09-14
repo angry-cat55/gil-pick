@@ -43,7 +43,14 @@ Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log
 - 빈 PostgreSQL/PostGIS에 migration `001`부터 `012_add_kakao_route_provider`까지 적용하고 API 전체 테스트를 실행해 `741 passed, 3 skipped`를 확인했다. skip 3건은 명시적 opt-in이 필요한 실제 provider smoke test다.
 - `ck_routes_provider`와 `ck_progress_segments_provider`가 신규 `KAKAO`와 기존 `ODSAY` 값을 함께 허용하는 PostgreSQL 계약 테스트가 통과했다.
 - Android `RouteApiTest` 8건이 통과해 신규 `KAKAO`와 기존 `ODSAY` provider 역직렬화 호환성을 확인했다.
-- 실제 Kakao adapter를 사용한 AWS 일정 계산과 Android 지도 화면 종단 검증은 T040에서 수행한다.
+
+#### T040 AWS 실제 환경 종단 검증 (2026-09-15)
+
+- AWS EC2 배포(`deploy/aws/compose.yaml`) 후 `alembic upgrade head`로 migration `012_add_kakao_route_provider`까지 적용했다.
+- 서울 시내 실제 두 장소(경복궁 → 서울숲, 직선 인접)로 새 일정을 저장하자 TRANSIT 구간이 `READY`로 계산됐다. Android 상세 화면에 `대중교통 41분 · 10.0km`, 경로 화면에 형상(polyline)·`출처: Kakao Maps` attribution이 정상 표시됐다.
+- 배포 직후 첫 시도에서 Android가 크래시했다: 에뮬레이터에 설치된 APK가 PR #511 merge 전 빌드라 `RouteProvider` enum에 `KAKAO`가 없어 `SerializationException`이 발생했다. 최신 `main`으로 재빌드·재설치한 뒤 정상 동작을 확인했다 — 이 크래시 자체가 서버가 실제로 `provider: "KAKAO"`를 반환했다는 방증이었다.
+- 원거리 좌표 쌍(부산 ↔ 평택·오산권, 약 250~280km)으로 저장된 기존 테스트 일정은 Kakao 응답 `status=NO_RESULTS`류를 `ROUTE_NOT_FOUND`(재시도 불가)로 정확히 분류해 `FAILED`로 저장했다. 실제 서비스 시나리오가 아닌 테스트 데이터였으나, 실서버에서 실패 분류 경로도 함께 검증됐다.
+- key 원문과 정밀 좌표, DB 원본 응답 본문은 로그·문서에 남기지 않았다.
 
 ### 교체 전 ODsay 불연속 형상 회귀 검증 (#421, 2026-09-14, 이력)
 

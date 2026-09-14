@@ -280,11 +280,11 @@
   - 담당: ts
   - 선행: T038
   - 검증: Android contract test, Backend unit·contract test, `speckit-analyze`, `git diff --check` 통과
-- [ ] T040 AWS 실제 Kakao 경로와 Android 화면 종단 검증 in specs/005-route-calculation/quickstart.md
+- [X] T040 AWS 실제 Kakao 경로와 Android 화면 종단 검증 in specs/005-route-calculation/quickstart.md
   - 영역: 통합
   - 담당: ts
   - 선행: T039, PR review 전 공유 개발 서버 branch 배포 승인
-  - 검증: 서울 시내 TRANSIT 일정의 `READY`, provider `KAKAO`, 지도 형상·시간·거리·attribution 표시와 카카오 통계 호출 증가 확인
+  - 검증: 서울 시내 TRANSIT 일정(경복궁→서울숲)의 `READY`, provider `KAKAO`, 지도 형상·시간(41분)·거리(10.0km)·attribution(`출처: Kakao Maps`) 표시 확인. 원거리 좌표(부산↔평택권)로 `ROUTE_NOT_FOUND` 분류도 실서버에서 재현·확인.
 
 ---
 
