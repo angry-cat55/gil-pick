@@ -1,12 +1,15 @@
 package com.gilpick.settings
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,18 +17,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,20 +37,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gilpick.BuildConfig
 import com.gilpick.R
 import com.gilpick.ui.component.RemoteImage
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
+import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import kotlinx.coroutines.delay
 
@@ -138,7 +146,8 @@ private fun KakaoBadge() {
         Spacer(Modifier.width(spacing.space1))
         Text(
             text = stringResource(R.string.settings_account_kakao_connected),
-            style = MaterialTheme.typography.labelMedium,
+            // Figma `text-[12px] font-medium`.
+            style = MaterialTheme.typography.bodySmall,
             color = colors.muted,
         )
     }
@@ -177,25 +186,15 @@ fun NotificationPreferenceSection(
             .background(MaterialTheme.colorScheme.surface)
             .testTag(TAG_PREFERENCE_SECTION),
     ) {
-        Text(
-            text = stringResource(R.string.settings_notification_section),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Black,
-            color = LocalGilpickColors.current.muted,
-            modifier = Modifier.padding(
-                start = spacing.space5,
-                end = spacing.space5,
-                top = spacing.space4,
-                bottom = spacing.space2,
-            ),
-        )
+        SectionLabel(stringResource(R.string.settings_notification_section))
 
         when (phase) {
             PreferencePhase.Loading -> PreferenceRow(
                 checked = false,
                 enabled = false,
                 onToggle = onToggle,
-                trailing = { DelayedLoading() },
+                // Figma: thumb 대신 꺼짐 트랙 가운데 대기 표시(7절 토글 "불러오는 중"). 트랙은 바로 보이고 표시는 1초 뒤다.
+                trailing = { LoadingTrack() },
             )
 
             is PreferencePhase.Content -> PreferenceRow(
@@ -266,15 +265,16 @@ private fun PreferenceRow(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 badge?.let {
+                    // 7절 토글 "저장 중" 배지: 10sp 700 `muted`, `background`, 작은 배지 곡률(Figma `rounded-md`).
                     Text(
                         text = it,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = BADGE_TEXT_SIZE, letterSpacing = 0.sp),
                         fontWeight = FontWeight.Bold,
                         color = colors.muted,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(LocalGilpickRadius.current.sm))
+                            .clip(RoundedCornerShape(LocalGilpickRadius.current.xs))
                             .background(MaterialTheme.colorScheme.background)
-                            .padding(horizontal = spacing.space2, vertical = spacing.space1)
+                            .padding(horizontal = spacing.space2, vertical = BADGE_VERTICAL_PADDING)
                             .testTag(TAG_SAVING_BADGE),
                     )
                 }
@@ -289,18 +289,16 @@ private fun PreferenceRow(
 
         if (trailing != null) {
             Box(
-                modifier = Modifier.size(MIN_TOUCH),
+                modifier = Modifier.heightIn(min = MIN_TOUCH),
                 contentAlignment = Alignment.Center,
                 content = { trailing() },
             )
         } else {
-            Switch(
+            GilpickToggle(
                 checked = checked,
-                onCheckedChange = onToggle,
                 enabled = enabled,
-                modifier = Modifier
-                    .heightIn(min = MIN_TOUCH)
-                    .testTag(TAG_TOGGLE),
+                onToggle = onToggle,
+                modifier = Modifier.testTag(TAG_TOGGLE),
             )
         }
     }
@@ -319,11 +317,162 @@ private fun DelayedLoading() {
 
     if (visible) {
         CircularProgressIndicator(
+            color = LocalGilpickColors.current.muted,
             strokeWidth = SPINNER_STROKE,
             modifier = Modifier
                 .size(SPINNER_SIZE)
                 .clearAndSetSemantics { contentDescription = label },
         )
+    }
+}
+
+/** 설정 조회 중 토글 자리: 꺼짐 트랙과 그 가운데 대기 표시(7절 토글 "불러오는 중"). 누를 것이 없어 토글 tag를 두지 않는다. */
+@Composable
+private fun LoadingTrack() {
+    Box(
+        modifier = Modifier
+            .size(TOGGLE_TRACK_WIDTH, TOGGLE_TRACK_HEIGHT)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+        contentAlignment = Alignment.Center,
+    ) { DelayedLoading() }
+}
+
+/**
+ * Figma 토글(가이드라인 7절 "토글"). M3 `Switch`(52×32, 테두리)와 모양이 달라 직접 그린다.
+ *
+ * 48×24 트랙(켜짐 `primary`, 꺼짐 `outlineVariant`), 20dp 흰 thumb + `shadow-sm` 토큰, 비활성 50%. 보이는 트랙은 24dp지만
+ * 터치 영역은 48dp다(10절). `Role.Switch`로 켜짐·꺼짐 상태를 semantics에 싣는다(색만으로 전달하지 않음).
+ */
+@Composable
+private fun GilpickToggle(
+    checked: Boolean,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val thumbShape = CircleShape
+    val thumbX by animateDpAsState(if (checked) TOGGLE_THUMB_ON else TOGGLE_THUMB_INSET, label = "toggleThumb")
+    val shadowed = LocalGilpickShadows.current.toggleThumb.fold(Modifier as Modifier) { acc, shadow -> acc.dropShadow(thumbShape, shadow) }
+
+    Box(
+        modifier = modifier
+            // 보이는 크기보다 큰 48dp 누르는 영역을 노드 자체에 준다(10절, 기존 48dp test가 노드 크기를 잰다).
+            .sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onToggle),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(TOGGLE_TRACK_WIDTH, TOGGLE_TRACK_HEIGHT)
+                .alpha(if (enabled) 1f else TOGGLE_DISABLED_ALPHA)
+                .clip(CircleShape)
+                .background(if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset(x = thumbX, y = TOGGLE_THUMB_INSET)
+                    .then(shadowed)
+                    .size(TOGGLE_THUMB)
+                    .background(MaterialTheme.colorScheme.surface, thumbShape),
+            )
+        }
+    }
+}
+
+/** 섹션 라벨: Caption 11sp 900 `muted` 자간(가이드라인 4절, Figma `text-[11px] font-black uppercase tracking-wider`). */
+@Composable
+private fun SectionLabel(text: String) {
+    val spacing = LocalGilpickSpacing.current
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Black,
+        color = LocalGilpickColors.current.muted,
+        modifier = Modifier.padding(start = spacing.space5, end = spacing.space5, top = spacing.space4, bottom = spacing.space2),
+    )
+}
+
+/** 앱 정보 행 사이 1dp `background` 구분선(Figma `border-b border-[#F4F6FB]`). */
+@Composable
+private fun RowDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DIVIDER)
+            .background(MaterialTheme.colorScheme.background),
+    )
+}
+
+/**
+ * 실패 안내 박스 인라인형(가이드라인 9절, Figma `SettingsScreen` 설정 불러오기 실패).
+ *
+ * `warningContainer` + 1dp `warningBorder`, `radiusMd`, 좌우 16·위아래 12, 16dp `warning` 경고 삼각형, 제목 12sp 600
+ * `onWarningContainer`, 오른쪽 32dp `warning` 채움 버튼(터치 48dp). 원인 문장은 F012 UI-003이 요구해 제목 아래 같은 크기로
+ * 둔다(Figma는 제목 한 줄, #444 결정). 색만으로 알리지 않도록 아이콘과 문구를 함께 둔다(UI-005).
+ */
+@Composable
+private fun InlineFailureBox(
+    title: String,
+    cause: String,
+    actionLabel: String,
+    actionTag: String,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+    secondary: (@Composable () -> Unit)? = null,
+) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val shape = RoundedCornerShape(radius.md)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.space5)
+            .padding(bottom = spacing.space4)
+            .clip(shape)
+            .background(colors.warningContainer)
+            .border(DIVIDER, colors.warningBorder, shape)
+            .padding(horizontal = spacing.space4, vertical = spacing.space1),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_triangle_alert),
+            contentDescription = null,
+            tint = colors.warning,
+            modifier = Modifier.size(ERROR_ICON),
+        )
+        Column(modifier = Modifier.weight(1f).padding(vertical = spacing.space2)) {
+            Text(text = title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = colors.onWarningContainer)
+            Text(text = cause, style = MaterialTheme.typography.bodySmall, color = colors.onWarningContainer)
+        }
+        Box(
+            modifier = Modifier
+                // 보이는 크기보다 큰 48dp 누르는 영역을 노드 자체에 준다(10절, 기존 48dp test가 노드 크기를 잰다).
+            .sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+                .clickable(onClick = onAction, role = Role.Button)
+                .testTag(actionTag),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .heightIn(min = FAILURE_ACTION_HEIGHT)
+                    .clip(RoundedCornerShape(radius.sm))
+                    .background(colors.warning)
+                    .padding(horizontal = spacing.space3),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = actionLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
+        secondary?.invoke()
     }
 }
 
@@ -342,66 +491,21 @@ private fun ErrorBar(
     onRetrySave: () -> Unit,
     onReauthenticate: () -> Unit,
 ) {
-    val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
-    val colors = LocalGilpickColors.current
     val isLoadFailure = phase.lastConfirmedValue == null
+    val sessionExpired = phase.error == SettingsError.SessionExpired
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = spacing.space5)
-            .padding(bottom = spacing.space4)
-            .clip(RoundedCornerShape(radius.md))
-            .background(colors.warningContainer)
-            .padding(spacing.space3)
-            .testTag(TAG_ERROR_BAR),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_lucide_triangle_alert),
-            contentDescription = null,
-            tint = colors.warning,
-            modifier = Modifier.size(ERROR_ICON),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(
-                    if (isLoadFailure) R.string.settings_load_failed else R.string.settings_save_failed,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(phase.error.messageRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.muted,
-            )
-        }
-        // Figma의 `다시 시도`는 32dp지만 터치 영역은 48dp를 지킨다(UI-005, AGENTS.md 6절).
-        TextButton(
-            onClick = when {
-                phase.error == SettingsError.SessionExpired -> onReauthenticate
-                isLoadFailure -> onRetryLoad
-                else -> onRetrySave
-            },
-            modifier = Modifier
-                .heightIn(min = MIN_TOUCH)
-                .widthIn(min = MIN_TOUCH)
-                .testTag(TAG_RETRY),
-        ) {
-            Text(
-                text = stringResource(
-                    if (phase.error == SettingsError.SessionExpired) R.string.place_reauthenticate else R.string.settings_retry,
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = colors.warning,
-            )
-        }
-    }
+    InlineFailureBox(
+        title = stringResource(if (isLoadFailure) R.string.settings_load_failed else R.string.settings_save_failed),
+        cause = stringResource(phase.error.messageRes),
+        actionLabel = stringResource(if (sessionExpired) R.string.place_reauthenticate else R.string.settings_retry),
+        actionTag = TAG_RETRY,
+        onAction = when {
+            sessionExpired -> onReauthenticate
+            isLoadFailure -> onRetryLoad
+            else -> onRetrySave
+        },
+        modifier = Modifier.testTag(TAG_ERROR_BAR),
+    )
 }
 
 
@@ -438,24 +542,15 @@ fun PolicyDocumentSection(
             .background(MaterialTheme.colorScheme.surface)
             .testTag(TAG_POLICY_SECTION),
     ) {
-        Text(
-            text = stringResource(R.string.settings_app_section),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Black,
-            color = LocalGilpickColors.current.muted,
-            modifier = Modifier.padding(
-                start = spacing.space5,
-                end = spacing.space5,
-                top = spacing.space4,
-                bottom = spacing.space2,
-            ),
-        )
+        SectionLabel(stringResource(R.string.settings_app_section))
         VersionRow(versionName = versionName)
+        RowDivider()
         PolicyRow(
             label = stringResource(R.string.settings_privacy_policy),
             tag = TAG_PRIVACY_POLICY,
             onClick = { onOpen(PolicyDocument.PRIVACY_POLICY) },
         )
+        RowDivider()
         PolicyRow(
             label = stringResource(R.string.settings_terms_of_service),
             tag = TAG_TERMS_OF_SERVICE,
@@ -536,63 +631,32 @@ private fun PolicyRow(label: String, tag: String, onClick: () -> Unit) {
  */
 @Composable
 private fun PolicyErrorBar(failure: PolicyOpenFailure, onRetry: () -> Unit, onDismiss: () -> Unit) {
-    val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
-    val colors = LocalGilpickColors.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = spacing.space5)
-            .padding(bottom = spacing.space4)
-            .clip(RoundedCornerShape(radius.md))
-            .background(colors.warningContainer)
-            .padding(spacing.space3)
-            .testTag(TAG_POLICY_ERROR),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_lucide_triangle_alert),
-            contentDescription = null,
-            tint = colors.warning,
-            modifier = Modifier.size(ERROR_ICON),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.settings_policy_open_failed),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(failure.messageRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.muted,
-            )
-        }
-        TextButton(
-            onClick = onRetry,
-            modifier = Modifier.heightIn(min = MIN_TOUCH).widthIn(min = MIN_TOUCH).testTag(TAG_POLICY_RETRY),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_retry),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = colors.warning,
-            )
-        }
-        TextButton(
-            onClick = onDismiss,
-            modifier = Modifier.heightIn(min = MIN_TOUCH).widthIn(min = MIN_TOUCH).testTag(TAG_POLICY_DISMISS),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_policy_dismiss),
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.muted,
-            )
-        }
-    }
+    // 설정 실패와 같은 인라인형 박스다(#444 결정). `닫기`는 이 상태에만 있어 오른쪽에 글자 버튼으로 둔다.
+    InlineFailureBox(
+        title = stringResource(R.string.settings_policy_open_failed),
+        cause = stringResource(failure.messageRes),
+        actionLabel = stringResource(R.string.settings_retry),
+        actionTag = TAG_POLICY_RETRY,
+        onAction = onRetry,
+        modifier = Modifier.testTag(TAG_POLICY_ERROR),
+        secondary = {
+            Box(
+                modifier = Modifier
+                    // 보이는 크기보다 큰 48dp 누르는 영역을 노드 자체에 준다(10절, 기존 48dp test가 노드 크기를 잰다).
+            .sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+                    .clickable(onClick = onDismiss, role = Role.Button)
+                    .testTag(TAG_POLICY_DISMISS),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_policy_dismiss),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = LocalGilpickColors.current.onWarningContainer,
+                )
+            }
+        },
+    )
 }
 
 /** 문서를 열지 못한 이유 문구(FR-008). 원인마다 사용자가 이해할 말이 다르다. */
@@ -630,7 +694,7 @@ internal const val TAG_POLICY_DISMISS = "settings_policy_dismiss"
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 private val MIN_TOUCH: Dp = 48.dp
 private val ROW_MIN_HEIGHT: Dp = 72.dp
-private val SPINNER_SIZE: Dp = 20.dp
+private val SPINNER_SIZE: Dp = 14.dp
 private val SPINNER_STROKE: Dp = 2.dp
 private val ERROR_ICON: Dp = 16.dp
 private val POLICY_ROW_HEIGHT: Dp = 56.dp
@@ -639,3 +703,19 @@ private val AVATAR_SIZE: Dp = 56.dp
 private val AVATAR_FALLBACK_ICON: Dp = 28.dp
 private val KAKAO_BADGE: Dp = 16.dp
 private val KAKAO_GLYPH: Dp = 10.dp
+
+/** 가이드라인 7절 토글: 트랙 48×24, thumb 20(위·꺼짐 왼쪽 2, 켜짐 왼쪽 26), 비활성 50%. */
+private val TOGGLE_TRACK_WIDTH: Dp = 48.dp
+private val TOGGLE_TRACK_HEIGHT: Dp = 24.dp
+private val TOGGLE_THUMB: Dp = 20.dp
+private val TOGGLE_THUMB_INSET: Dp = 2.dp
+private val TOGGLE_THUMB_ON: Dp = 26.dp
+private const val TOGGLE_DISABLED_ALPHA = 0.5f
+
+/** 7절 저장 중 배지 10sp·위아래 2dp(Figma `text-[10px] py-0.5`). */
+private val BADGE_TEXT_SIZE = 10.sp
+private val BADGE_VERTICAL_PADDING: Dp = 2.dp
+
+/** 9절 인라인 실패 박스 행동 버튼 32dp, 박스 테두리·앱 정보 구분선 1dp. */
+private val FAILURE_ACTION_HEIGHT: Dp = 32.dp
+private val DIVIDER: Dp = 1.dp
