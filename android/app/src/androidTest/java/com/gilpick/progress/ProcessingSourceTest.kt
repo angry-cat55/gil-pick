@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -74,7 +75,7 @@ class ProcessingSourceTest {
             .assertIsDisplayed()
         // 사용자가 권한으로 풀 수 있는 문제가 아니므로 켜는 행동을 주지 않는다.
         composeRule.onNodeWithText("권한 허용").assertDoesNotExist()
-        composeRule.onNodeWithText("닫기").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("닫기").assertIsDisplayed()
     }
 
     @Test

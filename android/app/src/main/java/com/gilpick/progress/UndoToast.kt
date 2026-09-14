@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import com.gilpick.R
 import com.gilpick.replacement.ReplacementError
@@ -136,9 +137,11 @@ private fun UndoToastShell(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.space2),
         ) {
+            // Figma: 13sp 500 흰 문구, 12sp 500 흰 50% 남은 초, 13sp 900 `toastAction` 되돌리기.
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.weight(1f),
             )
@@ -157,8 +160,9 @@ private fun UndoToastShell(
                 ) {
                     Text(
                         text = stringResource(R.string.detection_undo),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.success,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Black,
+                        color = colors.toastAction,
                     )
                 }
             }

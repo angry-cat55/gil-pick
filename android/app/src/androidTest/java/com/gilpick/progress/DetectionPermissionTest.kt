@@ -68,7 +68,7 @@ class DetectionPermissionTest {
         var dismissed = 0
         setScreen(permissionMissing(), onDismissDetectionNotice = { dismissed++ })
 
-        composeRule.onNodeWithText("닫기").performClick()
+        composeRule.onNodeWithContentDescription("닫기").performClick()
 
         assertEquals(1, dismissed)
     }
@@ -140,7 +140,7 @@ class DetectionPermissionTest {
         setScreen(permissionMissing())
 
         composeRule.onNodeWithText("권한 허용").assertHeightIsAtLeast(48.dp)
-        composeRule.onNodeWithText("닫기").assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithContentDescription("닫기").assertHeightIsAtLeast(48.dp)
     }
 
     private fun permissionMissing() = content().copy(detectionOff = DetectionOffReason.PermissionMissing)
