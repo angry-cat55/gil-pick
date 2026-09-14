@@ -44,11 +44,11 @@ class TripEmptyStateTest {
     }
 
     @Test
-    fun 여행이_하나도_없으면_헤더의_여행_만들기와_다른_문구를_쓴다() {
+    fun 여행이_하나도_없으면_FAB의_새_여행_만들기와_다른_문구를_쓴다() {
         setScreen(TripListUiState(phase = TripListPhase.Empty))
 
-        // 헤더 버튼은 그대로 "여행 만들기"다. 빈 상태 버튼만 "첫 여행 만들기"로 바뀐다.
-        composeRule.onNodeWithText("여행 만들기").assertIsDisplayed()
+        // 하단 FAB는 "새 여행 만들기"다(#441, Figma). 빈 상태 버튼만 "첫 여행 만들기"다.
+        composeRule.onNodeWithText("새 여행 만들기").assertIsDisplayed()
         composeRule.onNodeWithText("첫 여행 만들기").assertIsDisplayed()
     }
 
@@ -110,7 +110,12 @@ class TripEmptyStateTest {
 
         // 병합된 트리는 자식 semantics를 감추므로 원본 트리를 본다.
         walk(composeRule.onRoot(useUnmergedTree = true).fetchSemanticsNode())
-        return found
+        // 헤더의 알림 벨과 검색 입력란은 뜻이 있는 컨트롤이라 설명이 있어야 한다(#441, 가이드라인 10절). 빈 상태 아이콘만 본다.
+        return found - HEADER_CONTROL_DESCRIPTIONS
+    }
+
+    private companion object {
+        val HEADER_CONTROL_DESCRIPTIONS = setOf("알림 보기", "여행 이름 검색")
     }
 
     private fun setScreen(state: TripListUiState) {

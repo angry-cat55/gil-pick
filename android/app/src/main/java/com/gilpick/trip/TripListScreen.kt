@@ -1,30 +1,31 @@
 package com.gilpick.trip
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,33 +35,49 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.gilpick.R
 import com.gilpick.notification.IconBoxButton
-import com.gilpick.ui.component.BadgeTone
-import com.gilpick.ui.component.TripCard
+import com.gilpick.ui.component.ActiveTripCard
+import com.gilpick.ui.component.CompletedTripCard
+import com.gilpick.ui.component.EmptyState
+import com.gilpick.ui.component.EmptyStateSize
+import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.GradientButtonWidth
+import com.gilpick.ui.component.SecondaryButton
+import com.gilpick.ui.component.UpcomingTripCard
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
+import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickSizing
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * 여행 목록 화면.
+ * 여행 목록 화면(Figma `MyTripsScreen`, #441).
  *
- * 검색어와 상태 필터는 어떤 표시 단계에서도 남아 있다. 조회에 실패했다고 사용자가
- * 입력한 조건이 사라지면 다시 입력해야 한다.
+ * 흰 헤더(윗제목·Hero title·알림 벨, 검색창, 필터 칩) 아래에 그룹별 카드 목록이 있고, 화면 하단 가운데에 `새 여행 만들기`
+ * FAB가 떠 있다. 검색어와 상태 필터는 어떤 표시 단계에서도 남아 있다. 조회에 실패했다고 사용자가 입력한 조건이 사라지면
+ * 다시 입력해야 한다.
  *
- * 표시 단계는 `docs/design/ui-guidelines.md` 9절의 네 상태를 따른다. 색상·간격·곡률은
- * `com.gilpick.ui.theme` 토큰에서만 읽는다.
+ * 표시 단계는 `docs/design/ui-guidelines.md` 9절의 네 상태를 따른다. 색상·간격·곡률은 `com.gilpick.ui.theme` 토큰에서만 읽는다.
  *
  * @param state 현재 목록 상태.
  * @param onQueryChange 검색어 입력을 반영한다.
@@ -83,161 +100,258 @@ fun TripListScreen(
     modifier: Modifier = Modifier,
     onNotifications: () -> Unit = {},
 ) {
-    val spacing = LocalGilpickSpacing.current
-
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = spacing.space5),
-        verticalArrangement = Arrangement.spacedBy(spacing.space4),
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        Header(onCreateTrip = onCreateTrip, onNotifications = onNotifications)
-        SearchField(query = state.query, onQueryChange = onQueryChange)
-        StatusFilters(selected = state.statusFilter, onSelect = onStatusFilterChange)
+        Column(modifier = Modifier.fillMaxSize()) {
+            Header(
+                query = state.query,
+                onQueryChange = onQueryChange,
+                selected = state.statusFilter,
+                onSelect = onStatusFilterChange,
+                onNotifications = onNotifications,
+            )
 
-        Box(modifier = Modifier.weight(1f)) {
-            when (val phase = state.phase) {
-                TripListPhase.Loading -> LoadingState()
+            Box(modifier = Modifier.weight(1f)) {
+                when (val phase = state.phase) {
+                    TripListPhase.Loading -> LoadingState()
 
-                TripListPhase.Empty -> EmptyState(
-                    filtered = state.filtered,
-                    onCreateTrip = onCreateTrip,
-                    onResetFilters = {
-                        onQueryChange("")
-                        onStatusFilterChange(null)
-                    },
-                )
+                    TripListPhase.Empty -> TripsEmptyState(
+                        filtered = state.filtered,
+                        onCreateTrip = onCreateTrip,
+                        onResetFilters = {
+                            onQueryChange("")
+                            onStatusFilterChange(null)
+                        },
+                    )
 
-                is TripListPhase.Failed -> ErrorState(error = phase.error, onRetry = onRetry)
+                    is TripListPhase.Failed -> ErrorState(error = phase.error, onRetry = onRetry)
 
-                TripListPhase.Content -> TripList(
-                    trips = state.trips,
-                    loadingMore = state.loadingMore,
-                    hasNext = state.hasNext,
-                    onLoadMore = onLoadMore,
-                    onTripClick = onTripClick,
-                )
+                    TripListPhase.Content -> TripList(
+                        trips = state.trips,
+                        loadingMore = state.loadingMore,
+                        hasNext = state.hasNext,
+                        onLoadMore = onLoadMore,
+                        onTripClick = onTripClick,
+                    )
+                }
             }
         }
+
+        CreateTripFab(
+            onClick = onCreateTrip,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = LocalGilpickSpacing.current.space6),
+        )
     }
 }
 
-/** 화면 제목과 주요 행동. 오른쪽 끝의 알림 벨은 F011 알림 목록 진입점이다(Figma `MyTripsScreen` 헤더). */
+/**
+ * 흰 헤더(Figma `MyTripsScreen` 상단): `MY TRIPS` 윗제목 + 26sp Hero title, 40dp 알림 벨, 검색창, 필터 칩.
+ *
+ * 알림 벨의 새 알림 점은 두지 않는다. 이 화면은 읽지 않은 알림 여부를 받지 않으므로 점을 그리면 사실과 다를 수 있다(12절).
+ * 앱이 edge-to-edge라 흰 배경을 상태 표시줄 뒤까지 잇는다.
+ */
 @Composable
-private fun Header(onCreateTrip: () -> Unit, onNotifications: () -> Unit) {
+private fun Header(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selected: TripStatus?,
+    onSelect: (TripStatus?) -> Unit,
+    onNotifications: () -> Unit,
+) {
     val spacing = LocalGilpickSpacing.current
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = spacing.space5),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .background(MaterialTheme.colorScheme.surface)
+            .statusBarsPadding()
+            .padding(start = spacing.space5, end = spacing.space5, top = spacing.space5, bottom = spacing.space4),
     ) {
-        Text(
-            text = stringResource(R.string.trips_title),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onCreateTrip, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                Text(stringResource(R.string.trips_create))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = spacing.space5),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.trips_overline),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = spacing.space1),
+                )
+                Text(
+                    text = stringResource(R.string.trips_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
             IconBoxButton(
                 icon = R.drawable.ic_lucide_bell,
                 contentDescription = stringResource(R.string.notification_open_bell),
                 onClick = onNotifications,
                 box = BELL_BOX,
+                iconSize = BELL_ICON,
                 modifier = Modifier.testTag(TAG_NOTIFICATIONS),
             )
         }
+        SearchField(query = query, onQueryChange = onQueryChange)
+        StatusFilters(selected = selected, onSelect = onSelect)
     }
 }
 
-/** 여행명 검색. 라벨을 placeholder로 대체하지 않는다(가이드라인 7절). */
+/**
+ * 검색 입력창(가이드라인 7절 "입력창" 검색형): 44dp `background` 채움, 테두리 없음, 앞 16dp `muted` 돋보기, placeholder만.
+ *
+ * 떠오르는 라벨이 없어 입력란 자체에 설명(`여행 이름 검색`)을 붙인다(10절).
+ */
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    val radius = LocalGilpickRadius.current
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+    val label = stringResource(R.string.trips_search_label)
 
-    OutlinedTextField(
+    BasicTextField(
         value = query,
         onValueChange = onQueryChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = MIN_FIELD_HEIGHT),
-        label = { Text(stringResource(R.string.trips_search_label)) },
-        singleLine = true,
-        shape = RoundedCornerShape(radius.sm),
+            .padding(bottom = spacing.space4)
+            .semantics { contentDescription = label },
+        decorationBox = { inner ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = SEARCH_HEIGHT)
+                    .background(MaterialTheme.colorScheme.background, RoundedCornerShape(LocalGilpickRadius.current.md))
+                    .padding(horizontal = SEARCH_HORIZONTAL_PADDING),
+                horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_search),
+                    contentDescription = null,
+                    tint = colors.muted,
+                    modifier = Modifier.size(SEARCH_ICON),
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    if (query.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.trips_search_placeholder),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
+                            color = colors.muted,
+                        )
+                    }
+                    inner()
+                }
+            }
+        },
     )
 }
 
-/** 상태 필터. 선택된 칩을 다시 누르면 해제해 전체로 돌아간다. */
+/**
+ * 상태 필터. 선택된 칩을 다시 누르면 해제해 전체로 돌아간다.
+ *
+ * 글자 배율이 크면 한 줄에 네 칩이 들어가지 않아 다음 줄로 넘긴다(가로 스크롤·잘림 없음, 10절).
+ */
 @Composable
 private fun StatusFilters(selected: TripStatus?, onSelect: (TripStatus?) -> Unit) {
     val spacing = LocalGilpickSpacing.current
-    val colors = filterChipColors()
 
-    Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
         StatusFilterChip(
             selected = selected == null,
             onClick = { onSelect(null) },
             labelRes = R.string.trips_filter_all,
-            colors = colors,
         )
         TripStatus.entries.forEach { status ->
             StatusFilterChip(
                 selected = selected == status,
                 onClick = { onSelect(if (selected == status) null else status) },
                 labelRes = status.filterLabelRes,
-                colors = colors,
             )
         }
     }
 }
 
 /**
- * 상태 필터 칩 하나.
+ * 상태 필터 칩 하나(Figma `px-4 py-2 rounded-xl text-[13px] font-semibold`, 가이드라인 3절 D1).
  *
- * 경계는 Material 3 기본값인 `outlineVariant` 대신 `outline`을 쓴다. 기본값은 화면
- * 바탕 대비 1.31:1이라 가이드라인 10절의 컨트롤 경계 3:1을 만족하지 못한다.
- * 선택 상태는 `FilterChip`이 semantics로 노출하므로 색 단독 전달이 아니다.
+ * 선택은 `onSurface` 배경·흰 글자(17.74:1), 비선택은 `background` 배경·`onSurfaceVariant`, 테두리 없음(3절 컨트롤 경계).
+ * 선택 여부는 색만이 아니라 `selectable` semantics로 전달한다(10절). 누르는 영역은 48dp 높이다.
  */
 @Composable
 private fun StatusFilterChip(
     selected: Boolean,
     onClick: () -> Unit,
     labelRes: Int,
-    colors: SelectableChipColors,
 ) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(stringResource(labelRes)) },
-        modifier = Modifier.heightIn(min = MIN_TOUCH),
-        colors = colors,
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = MaterialTheme.colorScheme.outline,
-        ),
-    )
+    val spacing = LocalGilpickSpacing.current
+    val scheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = Modifier
+            .heightIn(min = MIN_TOUCH)
+            .selectable(selected = selected, onClick = onClick, role = Role.Tab),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(labelRes),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) scheme.surface else scheme.onSurfaceVariant,
+            modifier = Modifier
+                .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
+                .background(if (selected) scheme.onSurface else scheme.background)
+                .padding(horizontal = spacing.space4, vertical = spacing.space2),
+        )
+    }
 }
 
 /**
- * 필터 칩의 색.
+ * 하단 가운데 FAB `새 여행 만들기`(Figma): 52dp, `primary`, 16dp 곡률, FAB 그림자 토큰(6절), 18dp 흰 `+`.
  *
- * pen `02. 여행 목록 화면`의 `Filters`를 따른다. 선택은 `primary` 배경에 `onPrimary`
- * 라벨(5.80:1), 비선택은 `surfaceVariant` 배경에 `onSurfaceVariant` 라벨(4.65:1)이다.
- * Material 3 기본값은 이 앱이 정의하지 않은 `secondaryContainer`로 떨어져 연보라가
- * 나온다(#153).
+ * 헤더의 글자 버튼을 대신한다. 목록 마지막 카드가 가리지 않도록 목록 아래에 여백을 둔다.
  */
 @Composable
-private fun filterChipColors(): SelectableChipColors = FilterChipDefaults.filterChipColors(
-    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    selectedContainerColor = MaterialTheme.colorScheme.primary,
-    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-)
+private fun CreateTripFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
+    val shadowed = LocalGilpickShadows.current.fab.fold(modifier) { acc, shadow -> acc.dropShadow(shape, shadow) }
+
+    Row(
+        modifier = shadowed
+            .heightIn(min = FAB_HEIGHT)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.primary)
+            .clickable(onClick = onClick, role = Role.Button)
+            .padding(horizontal = FAB_HORIZONTAL_PADDING),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_lucide_plus),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(FAB_ICON),
+        )
+        Text(
+            text = stringResource(R.string.trips_create),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
 
 /**
  * 목록 그룹 헤더.
@@ -315,87 +429,40 @@ private fun LoadingState() {
 }
 
 /**
- * 결과가 없는 상태.
+ * 결과가 없는 상태(공통 [EmptyState], 가이드라인 5절 "화면 전체 빈 상태" 80dp).
  *
- * 여행이 아예 없는 경우와 조건에 맞는 결과가 없는 경우는 다음 행동이 다르다.
+ * 여행이 아예 없는 경우와 조건에 맞는 결과가 없는 경우는 다음 행동이 다르다. 여행이 없으면 `첫 여행 만들기`
+ * [GradientButton](Figma, 너비 자동 16dp), 조건에 맞는 결과가 없으면 조건 초기화 보조 버튼이다(Figma에 없는 상태라 공통 보조 버튼).
  */
 @Composable
-private fun EmptyState(
+private fun TripsEmptyState(
     filtered: Boolean,
     onCreateTrip: () -> Unit,
     onResetFilters: () -> Unit,
 ) {
-    val spacing = LocalGilpickSpacing.current
-    val sizing = LocalGilpickSizing.current
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = sizing.emptyBottomPadding),
-        verticalArrangement = Arrangement.spacedBy(spacing.space3, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        EmptyStateIcon(filtered = filtered)
-        Text(
-            text = stringResource(
-                if (filtered) R.string.trips_no_results else R.string.trips_empty,
-            ),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = stringResource(
-                if (filtered) R.string.trips_no_results_hint else R.string.trips_empty_hint,
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Button(
-            onClick = if (filtered) onResetFilters else onCreateTrip,
-            modifier = Modifier.heightIn(min = PRIMARY_BUTTON_HEIGHT),
-        ) {
-            Text(
-                stringResource(
-                    if (filtered) R.string.trips_reset_filters else R.string.trips_empty_create,
-                ),
-            )
-        }
-    }
+    EmptyState(
+        icon = if (filtered) R.drawable.ic_lucide_search_x else R.drawable.ic_map,
+        title = stringResource(if (filtered) R.string.trips_no_results else R.string.trips_empty),
+        body = stringResource(if (filtered) R.string.trips_no_results_hint else R.string.trips_empty_hint),
+        modifier = Modifier.fillMaxSize(),
+        size = EmptyStateSize.Screen,
+        titleStyle = MaterialTheme.typography.titleMedium,
+        action = {
+            if (filtered) {
+                SecondaryButton(label = stringResource(R.string.trips_reset_filters), onClick = onResetFilters)
+            } else {
+                GradientButton(
+                    label = stringResource(R.string.trips_empty_create),
+                    onClick = onCreateTrip,
+                    width = GradientButtonWidth.Standalone,
+                    height = EMPTY_BUTTON_HEIGHT,
+                )
+            }
+        },
+    )
 }
 
-/**
- * 빈 상태 아이콘.
- *
- * pen `23. 빈 상태 – 여행 0개`와 `24. 빈 상태 – 검색 0건`의 `IconCircle > I` 구조다.
- * `surfaceVariant` 원 위에 `outline` 색 아이콘을 올린다.
- *
- * 아이콘은 장식이므로 `contentDescription`을 비운다(가이드라인 10절). 왜 비었는지는
- * 아래 제목과 본문이 이미 전달하므로, 아이콘까지 읽으면 같은 뜻을 두 번 듣게 된다.
- */
-@Composable
-private fun EmptyStateIcon(filtered: Boolean) {
-    val sizing = LocalGilpickSizing.current
-
-    Box(
-        modifier = Modifier
-            .size(sizing.emptyIconCircle)
-            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(
-                if (filtered) R.drawable.ic_search_x else R.drawable.ic_map,
-            ),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(sizing.emptyIcon),
-        )
-    }
-}
-
-/** 실패 상태. 원인과 다음 행동을 함께 쓴다(가이드라인 9절). */
+/** 실패 상태. 원인과 다음 행동을 함께 쓴다(가이드라인 9절). 공통 오류 화면 형식 정렬은 #446 범위다. */
 @Composable
 private fun ErrorState(error: TripListError, onRetry: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
@@ -461,7 +528,8 @@ private fun TripList(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(spacing.space3),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = spacing.space6),
+        // 아래 여백은 떠 있는 FAB가 마지막 카드를 가리지 않게 한다(Figma `h-28`).
+        contentPadding = PaddingValues(start = spacing.space4, end = spacing.space4, top = spacing.space4, bottom = FAB_CLEARANCE),
     ) {
         sections.forEach { section ->
             // 빈 그룹은 groupTrips가 이미 걸렀다. 헤더만 남는 구획은 생기지 않는다.
@@ -471,16 +539,9 @@ private fun TripList(
             items(
                 items = section.trips,
                 key = { it.tripId },
-                contentType = { TRIP_CARD_TYPE },
+                contentType = { it.status },
             ) { trip ->
-                TripCard(
-                    title = trip.name,
-                    period = stringResource(R.string.trips_period, trip.startDate, trip.endDate),
-                    supporting = trip.supportingText(today),
-                    badgeLabel = stringResource(trip.status.labelRes),
-                    badgeTone = trip.status.tone,
-                    onClick = { onTripClick(trip.tripId) },
-                )
+                TripItem(trip = trip, today = today, onClick = { onTripClick(trip.tripId) })
             }
         }
         if (loadingMore) {
@@ -502,18 +563,69 @@ private fun TripList(
 }
 
 /**
- * 카드 아래 한 줄 부가 정보.
+ * 상태별 카드(Figma 3종).
  *
- * 진행 중인 여행만 `며칠째`를 쓴다. 진행 중일 때 알고 싶은 것은 여행이 며칠짜리인지가
- * 아니라 지금 몇째 날인지다(pen `02. 여행 목록 화면`의 `현재 진행 중인 여행` 그룹).
+ * `TripDto`에 커버 이미지·지역명·장소 수·건너뜀 수가 없다. 지어내지 않고 이미지는 대체 배경, 지역은 `정보 없음`, 장소·건너뜀
+ * 수는 자리를 비운다(12절, Backend 계약 추가 요청 필요). 기간·일수·D-day는 받은 날짜로 계산한다.
  */
 @Composable
-private fun TripDto.supportingText(today: LocalDate): String =
-    if (status == TripStatus.IN_PROGRESS) {
-        stringResource(R.string.trips_day_index, tripDayIndex(startDate, today))
-    } else {
-        stringResource(R.string.trips_day_count, dayCount)
+private fun TripItem(trip: TripDto, today: LocalDate, onClick: () -> Unit) {
+    val period = periodLabel(trip.startDate, trip.endDate, today)
+    val length = lengthLabel(trip.dayCount)
+    val badge = stringResource(trip.status.labelRes)
+
+    when (trip.status) {
+        TripStatus.IN_PROGRESS -> ActiveTripCard(
+            title = trip.name,
+            region = stringResource(R.string.trip_detail_value_unknown),
+            period = period,
+            length = length,
+            badgeLabel = badge,
+            onClick = onClick,
+        )
+
+        TripStatus.UPCOMING -> UpcomingTripCard(
+            title = trip.name,
+            badgeLabel = ddayLabel(trip.startDate, today),
+            period = period,
+            meta = length,
+            onClick = onClick,
+        )
+
+        TripStatus.COMPLETED -> CompletedTripCard(
+            title = trip.name,
+            period = period,
+            badgeLabel = badge,
+            onClick = onClick,
+        )
     }
+}
+
+/** `5월 21일 – 5월 25일`. 올해가 아니면 Figma 지난 여행처럼 연도를 붙인다(`2024. 11. 3 – 11. 10`). 형식이 어긋나면 원문을 쓴다. */
+@Composable
+private fun periodLabel(startDate: String, endDate: String, today: LocalDate): String {
+    val start = runCatching { LocalDate.parse(startDate) }.getOrNull()
+    val end = runCatching { LocalDate.parse(endDate) }.getOrNull()
+    if (start == null || end == null) return stringResource(R.string.trips_period, startDate, endDate)
+    return if (start.year == today.year) {
+        stringResource(R.string.trips_period_range, start.format(THIS_YEAR_DATE), end.format(THIS_YEAR_DATE))
+    } else {
+        stringResource(R.string.trips_period_range, start.format(OTHER_YEAR_DATE), end.format(SHORT_DATE))
+    }
+}
+
+/** `4박 5일`. 하루짜리 여행은 `당일`이다. */
+@Composable
+private fun lengthLabel(dayCount: Int): String =
+    if (dayCount <= 1) stringResource(R.string.trips_length_single) else stringResource(R.string.trips_length, dayCount - 1, dayCount)
+
+/** 시작일까지 남은 날(`D-7`). 오늘 시작이면 `D-day`. */
+@Composable
+private fun ddayLabel(startDate: String, today: LocalDate): String {
+    val start = runCatching { LocalDate.parse(startDate) }.getOrNull() ?: return stringResource(R.string.trips_status_upcoming)
+    val days = ChronoUnit.DAYS.between(today, start)
+    return if (days <= 0) stringResource(R.string.trips_dday_today) else stringResource(R.string.trips_dday, days.toInt())
+}
 
 /** 상태 뱃지 문구. 색 없이도 뜻이 통해야 한다. */
 private val TripStatus.labelRes: Int
@@ -531,30 +643,35 @@ private val TripStatus.filterLabelRes: Int
         TripStatus.COMPLETED -> R.string.trips_filter_completed
     }
 
-/**
- * 상태 뱃지 강조 수준.
- *
- * 지금 진행 중인 여행만 강조한다. 예정과 완료는 같은 색을 쓰고 문구로 구분한다.
- * 가이드라인 3절이 대비를 검증한 뱃지 조합이 두 가지뿐이라, 검증되지 않은 색을
- * 새로 만들기보다 색 역할을 줄였다.
- */
-private val TripStatus.tone: BadgeTone
-    get() = if (this == TripStatus.IN_PROGRESS) BadgeTone.ACCENT else BadgeTone.NEUTRAL
+private val THIS_YEAR_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("M월 d일")
+private val OTHER_YEAR_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy. M. d")
+private val SHORT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("M. d")
 
 /** 가이드라인 9절: 1초를 넘길 때만 대기 표시를 띄운다. */
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 
 /** 가이드라인 5절·10절: 주요 CTA 52~56dp, 터치 영역 48dp 이상. */
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
-private val MIN_FIELD_HEIGHT = Dp(56f)
 private val MIN_TOUCH = Dp(48f)
 
-/** Figma `MyTripsScreen` 알림 버튼 상자(40dp). */
+/** Figma `MyTripsScreen` 알림 버튼 상자(40dp)와 벨(20dp). */
 private val BELL_BOX = Dp(40f)
+private val BELL_ICON = 20.dp
+
+/** 가이드라인 7절 검색 입력창: 44dp, 좌우 14, 돋보기 16. */
+private val SEARCH_HEIGHT = 44.dp
+private val SEARCH_HORIZONTAL_PADDING = 14.dp
+private val SEARCH_ICON = 16.dp
+
+/** Figma FAB(`h-[52px] px-7`, `+` 18)와 목록 아래 여백(`h-28`), 빈 상태 버튼 52dp. */
+private val FAB_HEIGHT = 52.dp
+private val FAB_HORIZONTAL_PADDING = 28.dp
+private val FAB_ICON = 18.dp
+private val FAB_CLEARANCE = 112.dp
+private val EMPTY_BUTTON_HEIGHT = 52.dp
 
 /** 헤더 알림 벨 test tag. */
 const val TAG_NOTIFICATIONS = "trips_notifications"
 
 /** LazyColumn이 같은 종류의 항목끼리 layout을 재사용하도록 구분한다. */
 private const val GROUP_HEADER_TYPE = "group-header"
-private const val TRIP_CARD_TYPE = "trip-card"

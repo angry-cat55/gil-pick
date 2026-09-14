@@ -30,7 +30,14 @@
     <string name="trips_empty_hint">여행을 만들면 날짜별 일정과 이동 경로를 한 번에 정리할 수 있어요.</string>
     <!-- 빈 상태 전용. 헤더의 trips_create와 문구가 다르다. -->
     <string name="trips_empty_create">첫 여행 만들기</string>
-    <string name="trips_create">여행 만들기</string>
+    <string name="trips_create">새 여행 만들기</string>
+    <string name="trips_overline">MY TRIPS</string>
+    <string name="trips_search_placeholder">여행 이름으로 검색</string>
+    <string name="trips_period_range">%1$s – %2$s</string>
+    <string name="trips_length">%1$d박 %2$d일</string>
+    <string name="trips_length_single">당일</string>
+    <string name="trips_dday">D-%1$d</string>
+    <string name="trips_dday_today">D-day</string>
     <string name="trips_search_label">여행 이름 검색</string>
     <!-- 목록 그룹 헤더. Figma MyTripsScreen의 section 라벨과 같다. -->
     <string name="trips_group_in_progress">진행 중</string>
