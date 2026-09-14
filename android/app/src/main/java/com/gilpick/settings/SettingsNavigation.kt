@@ -185,7 +185,8 @@ private fun LogoutSection(onLogout: () -> Unit) {
     ) {
         Text(
             text = stringResource(R.string.logout),
-            style = MaterialTheme.typography.labelLarge,
+            // Figma `text-[14px] font-bold`.
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
         )
     }
