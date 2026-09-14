@@ -37,6 +37,14 @@ cd ..\android
 
 Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log·fixture에 key나 불필요한 정밀 좌표를 남기지 않는다.
 
+### ODsay 불연속 형상 회귀 검증 (#421, 2026-09-14)
+
+- 실제 `loadLane` 응답은 동일한 `result.lane[].section[].graphPos[]` 형식이지만 환승이 포함된 경로에서는 선 조각의 경계 좌표가 서로 다를 수 있음을 확인했다.
+- 실제 응답과 같은 구조의 fixture로 불연속 선 조각을 입력해도 제공 순서, 시간, 거리와 전체 좌표를 보존하는 adapter 단위 테스트를 추가했다.
+- 수정 전에는 같은 fixture가 `ROUTE_INVALID_RESULT`로 실패했고, 수정 후 ODsay 단위 테스트와 실제 환승 경로 호출이 성공했다.
+- 실제 환승 경로는 4개 선 조각과 648개 좌표로 변환됐으며, key와 원본 응답 및 불필요한 정밀 좌표는 기록하지 않았다.
+- 반복 진단 뒤 ODsay가 HTTP 200 응답 본문에 `error.code=429`를 반환하는 경우를 확인했다. 이 응답은 일반 장애가 아니라 재시도 가능한 `ROUTE_PROVIDER_RATE_LIMITED`로 분류하도록 회귀 테스트를 추가했다.
+
 ## Backend 최종 검증 기록 (2026-09-06)
 
 - 전체 자동 테스트: `python -m pytest -q` → `352 passed, 2 skipped`

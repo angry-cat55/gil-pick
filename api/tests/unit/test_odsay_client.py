@@ -8,7 +8,12 @@ import httpx2
 import pytest
 
 from app.clients.odsay import OdsayClient
-from app.clients.route_provider import Coordinate, RouteProviderError, TransportMode
+from app.clients.route_provider import (
+    Coordinate,
+    Provider,
+    RouteProviderError,
+    TransportMode,
+)
 from app.core.config import Settings
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "odsay"
@@ -41,6 +46,30 @@ async def test_odsay_uses_first_recommended_path_and_loads_its_geometry() -> Non
     assert route.duration_seconds == 1500
     assert route.distance_meters == 8400
     assert len(route.coordinates) == 3
+
+
+@pytest.mark.asyncio
+async def test_odsay_keeps_discontinuous_lane_sections_in_route_order() -> None:
+    search = json.loads((FIXTURES / "search_success.json").read_text(encoding="utf-8"))
+    lane = json.loads((FIXTURES / "lane_discontinuous_success.json").read_text(encoding="utf-8"))
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=search if request.url.path.endswith("searchPubTransPathT") else lane)
+
+    client = OdsayClient(settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+    route = await client.calculate(Coordinate(longitude=126.97, latitude=37.57), Coordinate(longitude=126.98, latitude=37.578), TransportMode.TRANSIT, deadline=time.monotonic() + 10)
+
+    assert route.provider is Provider.ODSAY
+    assert route.duration_seconds == 1500
+    assert route.distance_meters == 8400
+    assert [(point.longitude, point.latitude) for point in route.coordinates] == [
+        (126.9700, 37.5700),
+        (126.9730, 37.5730),
+        (126.9732, 37.5732),
+        (126.9760, 37.5750),
+        (126.9763, 37.5752),
+        (126.9800, 37.5780),
+    ]
 
 
 @pytest.mark.asyncio
@@ -77,6 +106,17 @@ async def test_odsay_classifies_http_errors(status: int, code: str, retryable: b
     with pytest.raises(RouteProviderError, match=code) as caught:
         await client.calculate(Coordinate(longitude=126.97, latitude=37.57), Coordinate(longitude=126.976, latitude=37.575), TransportMode.TRANSIT, deadline=time.monotonic() + 10)
     assert caught.value.retryable is retryable
+
+
+@pytest.mark.asyncio
+async def test_odsay_classifies_body_rate_limit_as_retryable() -> None:
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"error": {"code": "429"}})
+
+    client = OdsayClient(settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+    with pytest.raises(RouteProviderError, match="ROUTE_PROVIDER_RATE_LIMITED") as caught:
+        await client.calculate(Coordinate(longitude=126.97, latitude=37.57), Coordinate(longitude=126.976, latitude=37.575), TransportMode.TRANSIT, deadline=time.monotonic() + 10)
+    assert caught.value.retryable
 
 
 @pytest.mark.asyncio
