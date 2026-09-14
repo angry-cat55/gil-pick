@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.gilpick.R
+import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.place.LoadingState
 import com.gilpick.place.StateMessage
 import com.gilpick.place.StepButton
@@ -321,25 +322,19 @@ private fun DayTabs(
     HorizontalDivider(color = MaterialTheme.colorScheme.background)
 }
 
-/** 조회 실패 안내. 원인과 `다시 시도`를 제공하고 세션 만료는 `다시 로그인`으로 잇는다. */
+/**
+ * 조회 실패 안내(공통 오류 화면, 가이드라인 9절, #446). 원인과 `다시 시도`를 제공하고 세션 만료는 `다시 로그인`으로 잇는다.
+ *
+ * 나가는 길은 헤더 ✕가 이미 있어 보조 버튼을 두지 않는다. 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
+ */
 @Composable
 private fun FailedState(error: ItineraryError, onRetry: () -> Unit, onReauthenticate: () -> Unit) {
-    StateMessage(
-        title = stringResource(error.messageRes),
-        body = null,
-        titleColor = MaterialTheme.colorScheme.error,
-        live = true,
-        action = {
-            if (error == ItineraryError.SessionExpired) {
-                Button(onClick = onReauthenticate, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                    Text(stringResource(R.string.place_reauthenticate))
-                }
-            } else {
-                Button(onClick = onRetry, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                    Text(stringResource(R.string.itinerary_edit_retry))
-                }
-            }
-        },
+    val sessionExpired = error == ItineraryError.SessionExpired
+    CommonErrorState(
+        description = stringResource(error.messageRes),
+        primaryLabel = stringResource(if (sessionExpired) R.string.place_reauthenticate else R.string.itinerary_edit_retry),
+        onPrimary = if (sessionExpired) onReauthenticate else onRetry,
+        modifier = Modifier.fillMaxSize(),
     )
 }
 
