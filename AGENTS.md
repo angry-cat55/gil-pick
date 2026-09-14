@@ -8,6 +8,7 @@
 - 작업을 시작하기 전에 이 파일, 관련 `docs/` 문서, 해당 feature의 `spec.md`, `plan.md`, `tasks.md`를 먼저 읽는다. 산출물이 없거나 서로 충돌하면 임의로 보완하지 말고 누락·충돌을 먼저 알린다.
 - 불확실한 내용은 확인된 사실, 근거가 있는 추론, 검증되지 않은 추측으로 구분한다. 확인할 수 없는 내용은 모른다고 명시한다.
 - `.agents/skills/`, `.claude/skills/`, `.specify/templates/`, `.specify/scripts/`, `.specify/workflows/` 등 Spec Kit 생성·관리 파일은 도구 설정 변경이나 업그레이드가 작업 범위인 경우에만 수정한다. `.specify/memory/constitution.md`는 팀이 원칙을 합의한 뒤 constitution 작업으로 수정한다.
+- AI는 `.env`, `.env.*`처럼 실제 secret·credential 값이 담긴 파일의 내용을 Read·Grep·cat 등 어떤 방식으로도 열람하거나 대화에 노출하지 않는다. 필요한 환경변수 이름과 형식은 `.env.example`로 확인한다. 값 확인·추가·삭제가 필요하면 해당 파일을 열람하지 않고 요청받은 key만 대상으로 blind하게 추가·삭제·치환하거나, 담당자에게 직접 처리를 요청한다.
 
 ### 팀원 식별과 담당 영역
 
