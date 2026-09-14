@@ -310,7 +310,7 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 
 - 목록 행은 카드로 감싸지 않는다. 흰 블록 안에서 1dp `background` 색 구분선(좌우 여백 16~20dp)으로 잇는다.
 - bottom sheet는 상단 모서리만 둥글게 하고 40 × 4dp `outlineVariant` handle을 둔다.
-- Compose에서 그림자는 `Modifier.shadow`로 근사한다. 색 있는 그림자(주버튼·FAB)는 `ambientColor`·`spotColor`에 `primary`를 준다.
+- Compose에서 그림자는 `LocalGilpickShadows`의 토큰을 `Modifier.dropShadow(shape, shadow)`(`androidx.compose.ui.draw`, 정식 API)로 적용한다. 토큰은 CSS 값을 그대로 담은 `List<Shadow>`이므로 겹 순서대로 적용하고, `shape`는 그 요소의 곡률 토큰과 같게 준다. 색 있는 그림자(주버튼·FAB 등)도 색이 토큰에 들어 있어 따로 지정하지 않는다. elevation 근사(`Modifier.shadow`)는 blur·spread·offset을 표와 맞출 수 없어 쓰지 않는다(2026-09-14, #430).
 
 ## 7. 공통 컴포넌트와 아이콘
 
@@ -644,7 +644,10 @@ feature 패키지가 아니라 중립 위치에 둔다. 특정 feature가 소유
 
 **Material 3에 없는 값**
 
-`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`와 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
+`muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`, `headerIcon`(7절 헤더 아이콘 색, `onSurfaceVariant`와 같은 값)과 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
+
+- 그림자는 `GilpickShadows`(`LocalGilpickShadows`)다. 6절 표에서 값이 있는 행마다 토큰 하나(`card`, `floatingCard`, `primaryButton`, `fab`, `sheetOverMap`, `sheetBelowMap`, `dialog`, `dropdownMenu`, `listPrimaryAction`, `calendarSelected`, `mapFloatingButton`, `stayMinusSheet`, `stayMinusDialog`, `stayPlusDialog`, `activeTripCard`, `mapSmallButton`(`shadow-md`), `toggleThumb`(`shadow-sm`))이며, 각 토큰은 CSS 겹 순서대로 `List<Shadow>`다. 모달 bottom sheet는 그림자가 없어 토큰이 없다.
+- 환산: px → dp 1:1, `blur` → `radius`, `spread` → `spread`, `x y` → `offset`, `rgba` alpha → 색의 alpha. 화면은 `Modifier.dropShadow(shape, shadow)`를 겹 순서대로 적용한다.
 
 ```kotlin
 data class GilpickColors(val muted: Color, val faint: Color, val primaryDark: Color, /* … */ val success: Color)
