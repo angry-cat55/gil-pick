@@ -202,6 +202,8 @@
     <string name="place_detail_crowd_label">혼잡도</string>
     <string name="place_detail_weather_label">날씨</string>
     <string name="place_detail_open_map">지도에서 보기</string>
+    <string name="place_map_description">%1$s 위치 지도</string>
+    <string name="place_map_no_coordinates">위치 정보가 없어 지도를 표시할 수 없어요</string>
     <string name="place_detail_add_to_schedule">일정에 추가</string>
     <string name="place_detail_sheet_title">이동 수단 선택</string>
     <string name="place_detail_sheet_subtitle">%1$s까지 어떻게 이동하시겠어요?</string>
