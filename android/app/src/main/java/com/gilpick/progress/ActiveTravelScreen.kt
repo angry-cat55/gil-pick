@@ -35,6 +35,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -1386,7 +1393,9 @@ internal fun StatusChip(status: ItemStatus, label: String) {
 private fun AddPlaceButton(onAddPlace: () -> Unit, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
-    val shape = RoundedCornerShape(radius.md)
+    // 폭을 채우는 버튼이라 16dp(가이드라인 6절 R1, D4).
+    val shape = RoundedCornerShape(radius.lg)
+    val dashColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
 
     Row(
         modifier = modifier
@@ -1394,7 +1403,7 @@ private fun AddPlaceButton(onAddPlace: () -> Unit, modifier: Modifier = Modifier
             .heightIn(min = MIN_TOUCH)
             .clip(shape)
             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-            .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), shape)
+            .drawBehind { drawDashedBorder(dashColor, radius.lg) }
             .clickable(onClick = onAddPlace, role = Role.Button)
             .testTag(TAG_ADD_PLACE),
         horizontalArrangement = Arrangement.spacedBy(spacing.space2, Alignment.CenterHorizontally),
@@ -1415,6 +1424,29 @@ private fun AddPlaceButton(onAddPlace: () -> Unit, modifier: Modifier = Modifier
     }
 }
 
+/**
+ * Figma `border-2 border-dashed border-[#3B7BF8]/30`. 테두리가 버튼 안쪽에 오도록 선 두께 절반만큼 들여 그린다.
+ *
+ * CSS 점선의 대시·간격은 브라우저가 정한다. Chrome 렌더링(두께 × 3)에 맞춰 대시·간격 모두 6dp로 둔다.
+ */
+private fun DrawScope.drawDashedBorder(color: Color, cornerRadius: Dp) {
+    val stroke = DASHED_BORDER_WIDTH.toPx()
+    val inset = stroke / 2
+    val dash = DASHED_BORDER_DASH.toPx()
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius((cornerRadius.toPx() - inset).coerceAtLeast(0f)),
+        style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))),
+    )
+}
+
+/** `장소 추가` 점선 테두리 두께(Figma `border-2`). */
+private val DASHED_BORDER_WIDTH = 2.dp
+
+/** `장소 추가` 점선의 대시·간격 길이. */
+private val DASHED_BORDER_DASH = 6.dp
 /** UI test가 찾는 tag. */
 internal const val TAG_DAY_SUMMARY = "progress_day_summary"
 

@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.Density
 import androidx.test.platform.app.InstrumentationRegistry
@@ -75,6 +76,20 @@ class PlaceDetailScreenshotTest {
             ),
         ),
     )
+
+    /**
+     * #432: 일정 추가 시트(장소 추가·장소 상세 공용)의 `취소`·`일정에 추가` 곡률 기록.
+     * [AddToScheduleSheet]는 별도 window의 ModalBottomSheet라 화면 root로는 찍히지 않아 `일정에 추가` 버튼 node를 직접 찍는다.
+     */
+    @Test
+    fun 일정_추가_시트() {
+        composeRule.setContent { GilpickTheme { AddToScheduleSheet(placeName = "경복궁", defaultMinutes = 90, onDismiss = {}, onConfirm = {}) } }
+        composeRule.waitForIdle()
+        val bitmap = composeRule.onNodeWithTag(ADD_TO_SCHEDULE_CONFIRM_TAG).captureToImage().asAndroidBitmap()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val dir = File(context.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
+        File(dir, "place_add_to_schedule_sheet.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
 
     @Composable
     private fun Screen(state: PlaceDetailUiState) {
