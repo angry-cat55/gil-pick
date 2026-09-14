@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gilpick.R
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
@@ -81,9 +82,10 @@ fun NotificationRow(item: NotifItemUi, now: Instant, onClick: () -> Unit, modifi
             Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
                 Text(
                     text = item.title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    // Figma 제목 14sp. 안 읽음은 700 `onSurface`, 읽음은 600 `onSurfaceVariant`로 굵기·색을 함께 바꾼다(UI-002).
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (item.unread) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (item.unread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                    color = if (item.unread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 if (item.unread) {
@@ -99,13 +101,15 @@ fun NotificationRow(item: NotifItemUi, now: Instant, onClick: () -> Unit, modifi
             }
             Text(
                 text = item.body,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (item.unread) MaterialTheme.colorScheme.outline else colors.muted,
+                // Figma 본문 13sp. 안 읽음 `onSurfaceVariant`, 읽음 `muted`.
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (item.unread) MaterialTheme.colorScheme.onSurfaceVariant else colors.muted,
                 modifier = Modifier.padding(top = 2.dp),
             )
             Text(
                 text = relativeTimeLabel(item.createdAt, now),
-                style = MaterialTheme.typography.labelSmall,
+                // Figma 시각 11sp 500 `faint`. Caption 자간은 두지 않는다.
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
                 fontWeight = FontWeight.Medium,
                 color = colors.faint,
                 modifier = Modifier.padding(top = spacing.space1),
