@@ -107,6 +107,37 @@ docker compose -f deploy/aws/compose.yaml up -d --build
 
 문제가 생기면 직전 검증 commit을 checkout하고 다시 build한다. DB migration downgrade는 데이터 손실 가능성이 있어 자동 rollback하지 않는다.
 
+## 5-1. GitHub Actions로 배포(수동 트리거)
+
+Issue #523. 위 5절과 같은 절차(migration → build → 재기동 → health check)를 GitHub Actions 탭에서 버튼 한 번으로 실행할 수 있다. `.github/workflows/deploy-aws.yml`이 `workflow_dispatch`로만 동작하며, main merge마다 자동으로는 실행되지 않는다 — 공유 PoC 서버가 무관한 merge로 재시작돼 다른 팀원의 검증을 끊는 걸 피하기 위해서다.
+
+### 최초 1회: repository secret 등록
+
+AI는 이 secret들의 실제 값을 다루지 않는다. 담당자가 직접 등록한다.
+
+```bash
+gh secret set AWS_DEV_SSH_KEY < /path/to/ec2-key.pem
+gh secret set AWS_DEV_SSH_USER --body "ubuntu"
+gh secret set AWS_DEV_HOST --body "<EC2 탄력적 IP 또는 SSH 접속에 쓰는 host>"
+```
+
+### 실행
+
+1. GitHub repository → Actions 탭 → `Deploy to AWS (dev)` workflow → `Run workflow`.
+2. `confirm` 입력란에 정확히 `deploy`를 입력해야 실행된다. 다른 값이면 즉시 실패한다.
+3. 실행 후 health check까지 통과하면 초록불, 실패하면 빨간불로 멈춘다.
+
+### 실패했을 때
+
+자동 rollback은 하지 않는다. EC2에 직접 접속해 원인을 본다.
+
+```bash
+docker compose -f deploy/aws/compose.yaml logs api
+docker compose -f deploy/aws/compose.yaml run --rm api .venv/bin/alembic current
+```
+
+migration까지는 성공하고 build·health check만 실패했다면 원인 수정 후 5절 절차나 workflow를 다시 실행하면 된다. migration 자체가 문제라면 downgrade는 데이터 손실 위험이 있으므로 팀 논의 후 수동으로 판단한다.
+
 ## 6. 공모전 종료
 
 1. 필요한 RDS snapshot을 만들고 개인정보 보존·삭제 정책을 처리한다.
