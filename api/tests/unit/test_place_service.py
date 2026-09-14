@@ -555,6 +555,23 @@ async def test_google_enrichment_failure_keeps_tour_detail() -> None:
     assert detail.google_attributions is None
 
 
+def test_google_degradation_log_keeps_status_without_provider_body(caplog) -> None:
+    """Google 부분 실패 로그에는 분류 코드와 HTTP 상태만 남긴다."""
+    error = GooglePlacesClientError(
+        "GOOGLE_PLACES_FAILED",
+        status_code=403,
+    )
+
+    with caplog.at_level("WARNING", logger="gilpick.place"):
+        PlaceService._log_google_degradation("SEARCH_SUPPLEMENT", error)
+
+    record = caplog.records[-1]
+    assert record.operation == "SEARCH_SUPPLEMENT"
+    assert record.result == "DEGRADED"
+    assert record.error_code == "GOOGLE_PLACES_FAILED"
+    assert record.provider_status == 403
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("place_id", ["tourapi:missing", "google:missing"])
 async def test_detail_maps_empty_provider_result_to_not_found(place_id: str) -> None:

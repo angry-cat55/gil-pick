@@ -362,6 +362,7 @@ class PlaceService:
                 "operation": operation,
                 "result": "DEGRADED",
                 "error_code": exc.code,
+                "provider_status": exc.status_code,
             },
         )
 
