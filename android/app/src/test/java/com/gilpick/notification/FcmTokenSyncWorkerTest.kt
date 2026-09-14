@@ -96,6 +96,23 @@ class FcmTokenSyncWorkerTest {
     }
 
     @Test
+    fun `단계별 로그에 실패 원인과 재시도 여부가 남고 토큰 원문은 없다`() = runTest {
+        signIn()
+        val lines = mutableListOf<String>()
+        server.enqueue(MockResponse(code = 503, body = errorJson("INTERNAL_ERROR", retryable = true)))
+
+        syncFcmToken(repository, log = lines::add) { throw IOException("SERVICE_NOT_AVAILABLE") }
+        syncFcmToken(repository, log = lines::add) { throw IllegalStateException("FirebaseApp 없음") }
+        syncFcmToken(repository, log = lines::add) { "secret-fcm-token" }
+
+        assertEquals("token fetch failed -> RETRY: IOException: SERVICE_NOT_AVAILABLE", lines[0])
+        assertEquals("token unavailable -> TERMINAL (Firebase 미초기화 또는 Play 서비스 없음): IllegalStateException: FirebaseApp 없음", lines[1])
+        assertEquals("token fetch ok (length=16)", lines[2])
+        assertEquals("DEV-001 register server http=503 code=INTERNAL_ERROR retryable=true -> RETRY", lines[3])
+        assertTrue(lines.none { it.contains("secret-fcm-token") })
+    }
+
+    @Test
     fun `로그인 전이면 요청 없이 끝낸다`() = runTest {
         assertEquals(FcmTokenOutcome.TERMINAL, syncFcmToken(repository) { "t" })
         assertEquals(0, server.requestCount)

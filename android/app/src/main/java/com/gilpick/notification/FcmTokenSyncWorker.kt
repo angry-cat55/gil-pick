@@ -1,6 +1,7 @@
 package com.gilpick.notification
 
 import android.content.Context
+import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -37,18 +38,48 @@ enum class FcmTokenOutcome {
  */
 internal suspend fun syncFcmToken(
     repository: NotificationRepository,
+    log: (String) -> Unit = ::logFcm,
     fetchToken: suspend () -> String,
 ): FcmTokenOutcome {
     val token = try {
-        fetchToken()
+        fetchToken().also { log("token fetch ok (length=${it.length})") }
     } catch (e: IOException) {
         // FCM `SERVICE_NOT_AVAILABLE` 등 일시 장애.
+        log("token fetch failed -> RETRY: ${e.describe()}")
         return FcmTokenOutcome.RETRY
     } catch (e: Exception) {
         // Firebase 미초기화(`google-services.json` 없음)·Play 서비스 없음. 재시도해도 같다.
+        log("token unavailable -> TERMINAL (Firebase 미초기화 또는 Play 서비스 없음): ${e.describe()}")
         return FcmTokenOutcome.TERMINAL
     }
-    return repository.registerFcmToken(token).toOutcome()
+    val result = repository.registerFcmToken(token)
+    val outcome = result.toOutcome()
+    log("DEV-001 register ${result.describe()} -> $outcome")
+    return outcome
+}
+
+/** logcat 진단용 tag(#424). `adb logcat -s GilpickFcm`. */
+internal const val FCM_LOG_TAG = "GilpickFcm"
+
+private fun logFcm(message: String) {
+    Log.i(FCM_LOG_TAG, message)
+}
+
+/** 예외 종류와 메시지만 남긴다. FCM 예외 메시지에는 토큰이 들어 있지 않다. */
+private fun Throwable.describe(): String = "${javaClass.simpleName}: $message"
+
+/**
+ * 등록 결과를 원인 식별이 가능하게 요약한다. 토큰·access token·요청 본문은 담지 않는다.
+ * 로그인 전(session 없음)은 [AuthError.Callback]로 오므로 그 code가 그대로 보인다.
+ */
+private fun AuthResult<*>.describe(): String = when (this) {
+    is AuthResult.Success -> "ok"
+    is AuthResult.Failure -> when (val error = error) {
+        is AuthError.Offline -> "offline (${error.cause.javaClass.simpleName})"
+        is AuthError.Server -> "server http=${error.httpStatus} code=${error.code} retryable=${error.retryable}"
+        is AuthError.Malformed -> "malformed response (${error.cause.javaClass.simpleName})"
+        is AuthError.Callback -> "no session or callback error code=${error.code}"
+    }
 }
 
 internal fun AuthResult<*>.toOutcome(): FcmTokenOutcome = when (this) {
@@ -71,10 +102,15 @@ internal fun FcmTokenOutcome.toResult(): ListenableWorker.Result = when (this) {
 /** 로그인·토큰 갱신·`onNewToken` 뒤 이 기기의 FCM 토큰을 DEV-001로 등록하는 durable 작업. */
 class FcmTokenSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result = syncFcmToken(
-        repository = NotificationRepository.default(applicationContext),
-        fetchToken = { FirebaseMessaging.getInstance().token.await() },
-    ).toResult()
+    override suspend fun doWork(): Result {
+        logFcm("sync start attempt=${runAttemptCount + 1}")
+        val outcome = syncFcmToken(
+            repository = NotificationRepository.default(applicationContext),
+            fetchToken = { FirebaseMessaging.getInstance().token.await() },
+        )
+        logFcm("sync end -> $outcome (${if (outcome == FcmTokenOutcome.RETRY) "backoff 후 재시도" else "종료"})")
+        return outcome.toResult()
+    }
 
     companion object {
         fun enqueue(context: Context) = enqueueFcmTokenWork<FcmTokenSyncWorker>(context)
