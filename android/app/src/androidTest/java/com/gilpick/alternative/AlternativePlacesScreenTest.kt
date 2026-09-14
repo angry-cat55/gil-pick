@@ -161,7 +161,7 @@ class AlternativePlacesScreenTest {
 
         composeRule.onNodeWithText("대체 장소를 추천할 수 없어요").assertIsDisplayed()
         composeRule.onNodeWithText("지금은 주변 장소를 가져올 수 없어요. 기존 일정은 그대로예요.").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_RETRY).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithText("다시 시도하기").assertHeightIsAtLeast(48.dp).performClick()
         composeRule.onNodeWithText("돌아가기").assertHeightIsAtLeast(48.dp).performClick()
         composeRule.runOnIdle {
             assertEquals(1, retries)
@@ -174,7 +174,7 @@ class AlternativePlacesScreenTest {
         setScreen(AlternativeUiState.Error(AlternativeError.NotFound, retryable = false))
 
         composeRule.onNodeWithText("이미 삭제되었거나 없는 감지예요.").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_RETRY).assertDoesNotExist()
+        composeRule.onNodeWithText("다시 시도하기").assertDoesNotExist()
         composeRule.onNodeWithText("돌아가기").assertIsDisplayed()
     }
 
