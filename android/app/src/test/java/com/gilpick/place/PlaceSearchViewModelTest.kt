@@ -59,11 +59,10 @@ class PlaceSearchViewModelTest {
     // --- 명시적 검색: Scenario 7, FR-003a ---
 
     @Test
-    fun `입력과 칩 변경만으로는 검색하지 않는다`() = runTest {
+    fun `입력 변경만으로는 검색하지 않는다`() = runTest {
         val viewModel = newViewModel()
 
         viewModel.onQueryChange("경복궁")
-        viewModel.onCategoryChange(PlaceCategory.HISTORY_CULTURE)
         advanceUntilIdle()
 
         assertEquals(PlaceSearchPhase.Idle, viewModel.state.value.phase)
@@ -71,13 +70,12 @@ class PlaceSearchViewModelTest {
     }
 
     @Test
-    fun `검색을 실행하면 공백을 뗀 draft 조건이 committed가 되어 요청된다`() = runTest {
+    fun `칩을 고르면 공백을 뗀 현재 검색어와 category로 곧바로 요청된다`() = runTest {
         service.onSearch = { placePage(listOf(place("tourapi:1", name = "경복궁"))) }
         val viewModel = newViewModel()
         viewModel.onQueryChange("  경복궁 ")
-        viewModel.onCategoryChange(PlaceCategory.HISTORY_CULTURE)
 
-        viewModel.search()
+        viewModel.onCategoryChange(PlaceCategory.HISTORY_CULTURE)
         assertEquals(PlaceSearchPhase.Loading, viewModel.state.value.phase)
         advanceUntilIdle()
 
@@ -98,7 +96,6 @@ class PlaceSearchViewModelTest {
         advanceUntilIdle()
 
         viewModel.onQueryChange("남산")
-        viewModel.onCategoryChange(PlaceCategory.NATURE)
 
         val state = viewModel.state.value
         assertEquals("남산", state.query)
@@ -134,16 +131,56 @@ class PlaceSearchViewModelTest {
     }
 
     @Test
-    fun `category만으로는 키워드 없이 검색한다`() = runTest {
+    fun `검색어가 없으면 칩만으로 키워드 없이 검색한다`() = runTest {
         service.onSearch = { placePage(listOf(place("tourapi:1"))) }
         val viewModel = newViewModel()
-        viewModel.onCategoryChange(PlaceCategory.CAFE)
 
-        viewModel.search()
+        viewModel.onCategoryChange(PlaceCategory.CAFE)
         advanceUntilIdle()
 
         assertEquals(FakePlaceService.SearchCall(null, PlaceCategory.CAFE, null), service.searchCalls.single())
         assertEquals(PlaceSearchPhase.Content, viewModel.state.value.phase)
+    }
+
+    @Test
+    fun `칩을 바꾸면 결과가 새 category 결과로 바뀌고 같은 칩 재선택은 요청하지 않는다`() = runTest {
+        service.onSearch = { call -> placePage(listOf(place("tourapi:${call.category}"))) }
+        val viewModel = newViewModel()
+        viewModel.onQueryChange("서울")
+        viewModel.search()
+        advanceUntilIdle()
+
+        viewModel.onCategoryChange(PlaceCategory.FOOD)
+        advanceUntilIdle()
+        viewModel.onCategoryChange(PlaceCategory.FOOD)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(PlaceCategory.FOOD, state.committedCategory)
+        assertEquals("tourapi:FOOD", state.results.single().placeId)
+        assertEquals(
+            listOf(
+                FakePlaceService.SearchCall("서울", null, null),
+                FakePlaceService.SearchCall("서울", PlaceCategory.FOOD, null),
+            ),
+            service.searchCalls,
+        )
+    }
+
+    @Test
+    fun `검색어 없이 전체로 돌아가면 요청하지 않고 검색 전 화면이 된다`() = runTest {
+        service.onSearch = { placePage(listOf(place("tourapi:1"))) }
+        val viewModel = newViewModel()
+        viewModel.onCategoryChange(PlaceCategory.CAFE)
+        advanceUntilIdle()
+
+        viewModel.onCategoryChange(null)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(PlaceSearchPhase.Idle, state.phase)
+        assertTrue(state.results.isEmpty())
+        assertEquals(1, service.searchCalls.size)
     }
 
     // --- 빈 결과: Scenario 6 ---
