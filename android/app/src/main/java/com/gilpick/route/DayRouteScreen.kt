@@ -521,7 +521,11 @@ private fun SheetHandle(anchor: SheetAnchor, onAnchorChange: (SheetAnchor) -> Un
     }
 }
 
-/** 범례(Figma): `완료`·`이동 중`·`예정` 12dp 점 + 흰 60% 글자, 오른쪽 `지도 이동 가능`(흰 40%, 14dp 돋보기). */
+/**
+ * 범례(Figma): `완료`·`이동 중`·`예정` 12dp 점 + 흰 60% 글자, 오른쪽 `지도 이동 가능`(흰 40%).
+ *
+ * Figma의 14dp 돋보기는 두지 않는다. 누를 수 있는 검색이 없는데 검색처럼 보여 혼란을 줬다(#592, QA 2026-09-16).
+ */
 @Composable
 private fun Legend(showStatuses: Boolean, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
@@ -538,12 +542,6 @@ private fun Legend(showStatuses: Boolean, modifier: Modifier = Modifier) {
             LegendItem(color = UPCOMING_DOT, label = stringResource(R.string.route_legend_upcoming))
         }
         Spacer(modifier = Modifier.weight(1f))
-        Icon(
-            painter = painterResource(R.drawable.ic_lucide_search),
-            contentDescription = null,
-            tint = Color.White.copy(alpha = HINT_ALPHA),
-            modifier = Modifier.size(LEGEND_HINT_ICON),
-        )
         Text(
             text = stringResource(R.string.route_legend_pan_hint),
             style = MaterialTheme.typography.bodySmall,
@@ -788,9 +786,8 @@ private const val SHEET_EXPANDED_FRACTION = 0.85f
 private val SHEET_FLING_VELOCITY: Dp = 400.dp
 private val SHEET_STEP_DISTANCE: Dp = 48.dp
 
-/** Figma 실측(범례 12dp 점, 힌트 14dp 아이콘, 카드 6dp 점, 흰 60%·40%·5%, `primary` 20%). 화면 전용이라 토큰이 아니다. */
+/** Figma 실측(범례 12dp 점, 카드 6dp 점, 흰 60%·40%·5%, `primary` 20%). 화면 전용이라 토큰이 아니다. */
 private val LEGEND_DOT: Dp = 12.dp
-private val LEGEND_HINT_ICON: Dp = 14.dp
 private val CARD_DOT: Dp = 6.dp
 /** 카드 최소 폭. 이보다 좁아지면 n등분을 포기하고 가로 스크롤한다. */
 private val CARD_MIN_WIDTH: Dp = 88.dp
