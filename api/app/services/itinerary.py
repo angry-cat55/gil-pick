@@ -179,12 +179,31 @@ class ItineraryService:
             if item.item_id in current_by_id
             and _item_state(item) == _item_state(current_by_id[item.item_id])
         }
-        delete_statement = delete(ItemModel).where(ItemModel.trip_day_id == day.trip_day_id)
-        if unchanged_ids:
-            delete_statement = delete_statement.where(ItemModel.item_id.not_in(unchanged_ids))
-        await self.session.execute(delete_statement)
-        await self.session.flush()
-        self.session.add_all([item for item in desired if item.item_id not in unchanged_ids])
+        removed_ids = set(current_by_id) - {item.item_id for item in desired}
+        if removed_ids:
+            await self.session.execute(
+                delete(ItemModel).where(ItemModel.item_id.in_(removed_ids))
+            )
+        # 기존 item_id는 delete·재삽입하지 않고 update한다. 그렇지 않으면
+        # progress_transitions.primary_item_id 같은 참조가 FK 위반으로 막힌다(#582).
+        # 순서를 맞바꾸는 update는 (trip_day_id, sequence) unique 제약을 일시적으로
+        # 어길 수 있어 그 제약을 DEFERRABLE INITIALLY DEFERRED로 둔다(migration 016).
+        for item in desired:
+            if item.item_id in current_by_id and item.item_id not in unchanged_ids:
+                await self.session.execute(
+                    update(ItemModel)
+                    .where(ItemModel.item_id == item.item_id)
+                    .values(
+                        place_id=item.place_id,
+                        sequence=item.sequence,
+                        planned_stay_minutes=item.planned_stay_minutes,
+                        stay_source=item.stay_source,
+                        transport_mode_to_next=item.transport_mode_to_next,
+                    )
+                )
+        new_items = [item for item in desired if item.item_id not in current_by_id]
+        if new_items:
+            self.session.add_all(new_items)
         await self.session.flush()
         day = await self._load_day(trip_id=trip_id, visit_date=visit_date, refresh=True)
         if day is None:  # pragma: no cover - transaction invariant
@@ -373,10 +392,16 @@ def _validate_locked_items(day: TripDay, items: list[SaveItem]) -> None:
             if incoming and incoming.transport_mode_to_next
             else None
         )
+        # 처리된 마지막 장소 뒤에 새 장소를 붙이면 그 장소의 이동 수단이 null → 값으로
+        # 채워진다. 이 전이는 허용하고, 이미 있던 이동 수단을 바꾸거나 지우는 것만 막는다(#582).
+        transport_locked = (
+            stored.transport_mode_to_next is not None
+            and incoming_transport != stored.transport_mode_to_next
+        )
         if (
             incoming is None
             or incoming.place_id != stored_place_id
-            or incoming_transport != stored.transport_mode_to_next
+            or transport_locked
             or incoming.sequence != stored.sequence
         ):
             raise AppError(
