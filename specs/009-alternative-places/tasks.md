@@ -318,7 +318,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 - **Foundational (Phase 2)**: T001 완료 후. BE T004·T005·T006·T007 병렬 → T008(T002 후) → T009. FE T010(T001 후) → T011
 - **User Stories (Phase 3~6)**: Foundational 완료 후. US1(BE)과 US2(FE 대부분)는 **다른 담당·다른 파일이라 병렬 진행** 가능. US3는 US1 endpoint(T017)·US2 navigation(T026) 후. US4는 US1 파이프라인(T016·T017) 후
 - **Polish (Phase 7)**: 관련 story 완료 후. T035·T036 병렬, T037 → T038 → T039 순
-- **Convergence (Phase 8)**: FE T045(선행 없음) → T043(#434 후) → T044 → T046 → T047. BE T041 → T040 완료, T042는 별도 정책 합의 후 착수
+- **Convergence (Phase 8)**: FE T045(선행 없음) → T043(#434 후) → T044 → T046 → T047. BE T041 → T040, T049 완료(#587), T042는 별도 정책 합의 후 착수
 
 ### User Story Dependencies
 
@@ -399,7 +399,7 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
 
 ## Phase 8: Convergence
 
-**Purpose**: 2026-09-13~14 직접 검색 지도형 전환(#450)과 spec FR-019에 따라 남은 작업. 2km 반경은 #586에서 방식 A로 확정해 T040·T041을 완료하며, 카테고리·혼잡도·마감 값 T042는 별도 정책 합의 후 착수한다. FE는 API가 지원하지 않는 요소를 응답 필드 유무로 숨긴다.
+**Purpose**: 2026-09-13~14 직접 검색 지도형 전환(#450)과 spec FR-019에 따라 남은 작업. 2km 반경은 #586에서 방식 A로 확정해 T040·T041을 완료하며, 카테고리·혼잡도·마감 값 T042는 별도 정책 합의 후 착수한다. FE는 API가 지원하지 않는 요소를 응답 필드 유무로 숨긴다. ALT-001 후보 품질(같은 혼잡 지점·운영시간 미확인 순위)은 #587에서 T049로 완료했다.
 
 - [X] T040 ALT-002 서버 2km 반경 필터와 좌표 없는 결과 제외 in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py per FR-019, US3/AC5~AC6
   - 영역: BE
@@ -447,3 +447,8 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
   - 담당: hs
   - 선행: F003 T038(`tourApiAttributionText()`)
   - 검증: TourAPI 결과가 있으면 후보 목록 하단·결과 시트 하단에 한 줄 표시, TourAPI 결과가 없으면 미표시, 후보·결과별 배지·로고 이미지 없음; UI test와 360dp·최대 글자 배율 screenshot
+- [X] T049 ALT-001 같은 혼잡 지점 후보 혼잡 점수 0점 처리와 운영시간 미확인 후보 순위·심야 제외 in api/app/services/alternatives/candidates.py, api/app/services/alternatives/scoring.py, api/app/services/alternatives/policy.py per FR-004, FR-010a, FR-012, #587
+  - 영역: BE
+  - 담당: ts
+  - 선행: 정책 결정(혼잡 지점 처리 방식 A, 심야 21시 이후 제외 — 2026-09-16 팀 합의)
+  - 검증: 같은 혼잡 지점(500m) 후보의 `scoreBreakdown.congestion=0`이고 다른 지점 후보는 정상 반영되는지, 운영시간 미확인 후보가 점수와 무관하게 확인된 후보 뒤로 가는지, 도착 예정이 KST 21시 이후면 미확인 후보가 후보 목록에서 빠지는지 unit·contract test 통과. Android TOP 배지는 서버 순서(rank==1)를 그대로 쓰므로 앱 수정 불필요(`AlternativePlacesScreen.kt` `CandidateRow` 확인, 완료 조건 4)

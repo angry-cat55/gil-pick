@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.schemas.detection import CongestionVerdict, WeatherVerdict
 from app.schemas.place import PlaceCategory, PlaceSummary
 from app.services.alternatives.candidate_token import issue_candidate_token
 from app.services.alternatives.policy import (
+    LATE_NIGHT_HOUR_KST,
     MAX_CANDIDATES,
     OPERATING_CHECK_LIMIT,
     SEARCH_RADII_METERS,
@@ -33,6 +34,7 @@ from app.services.alternatives.scoring import (
     ranking_key,
 )
 from app.services.detection.congestion import evaluate_congestion
+from app.services.detection.congestion_areas import find_nearest_congestion_area
 from app.services.detection.operating_hours_source import (
     BusinessStatus,
     OperatingHours,
@@ -56,6 +58,7 @@ _TOUR_LARGE = {
     PlaceCategory.CAFE: "FD",
     PlaceCategory.SHOPPING: "SH",
 }
+KST = timezone(timedelta(hours=9))
 logger = logging.getLogger("gilpick.alternatives")
 
 
@@ -66,6 +69,7 @@ class _EvaluatedCandidate:
     congestion: CongestionVerdict
     weather: WeatherVerdict
     operating: OperatingHours = OperatingHours()
+    congestion_area_code: str | None = None
 
 
 class _MemoizedPopulationClient:
@@ -126,6 +130,11 @@ def _operating_status(hours: OperatingHours, eta: datetime) -> OperatingStatus:
     return OperatingStatus.OPEN
 
 
+def _is_late_night(eta: datetime) -> bool:
+    """방문 예정이 심야(KST 21시 이후)인지 본다(#587)."""
+    return eta.astimezone(KST).hour >= LATE_NIGHT_HOUR_KST
+
+
 async def build_candidates(
     *,
     session: AsyncSession,
@@ -140,8 +149,20 @@ async def build_candidates(
     seoul_client: Any,
     candidate_secret: str,
     evaluated_at: datetime,
+    congestion_is_primary_cause: bool = False,
 ) -> AlternativeListData:
-    """외부 provider를 조합해 저장하지 않는 대체 후보를 만든다."""
+    """외부 provider를 조합해 저장하지 않는 대체 후보를 만든다.
+
+    `congestion_is_primary_cause`가 참이면 기존 장소와 같은 혼잡 지점(500m) 안의
+    후보는 혼잡 점수만 0점으로 본다(#587) — 같은 지점에 있으면 혼잡을 피할 수 없다.
+    """
+    origin_area = (
+        await find_nearest_congestion_area(
+            session, latitude=float(origin.latitude), longitude=float(origin.longitude)
+        )
+        if congestion_is_primary_cause
+        else None
+    )
     params: dict[str, Any] = {
         "mapX": origin.longitude,
         "mapY": origin.latitude,
@@ -221,14 +242,27 @@ async def build_candidates(
             )
         except Exception:
             congestion = CongestionVerdict(available=False, unavailable_reason="TIMEOUT")
-        evaluated.append(_EvaluatedCandidate(place, distance, congestion, weather))
+        area_code = None
+        if origin_area is not None:
+            area = await find_nearest_congestion_area(
+                session, latitude=float(place.latitude), longitude=float(place.longitude)
+            )
+            area_code = area.area_code if area is not None else None
+        evaluated.append(
+            _EvaluatedCandidate(place, distance, congestion, weather, congestion_area_code=area_code)
+        )
+
+    def _crowded(item: _EvaluatedCandidate) -> bool:
+        if origin_area is not None and item.congestion_area_code == origin_area.area_code:
+            return True
+        return bool(item.congestion.crowded)
 
     def preliminary(item: _EvaluatedCandidate) -> tuple[float, float]:
         score = candidate_score(
             distance_meters=item.distance,
             search_radius_meters=radius,
             congestion_level=item.congestion.level if item.congestion.available else None,
-            crowded=bool(item.congestion.crowded),
+            crowded=_crowded(item),
             weather_at_risk=_candidate_weather_at_risk(item.place, item.weather),
         ).score
         return -score, item.distance
@@ -259,10 +293,14 @@ async def build_candidates(
                     break
         except GooglePlacesClientError:
             pass
-        if _operating_status(item.operating, eta) is not OperatingStatus.CLOSED:
-            open_candidates.append(item)
-            if len(open_candidates) == MAX_CANDIDATES:
-                break
+        status = _operating_status(item.operating, eta)
+        if status is OperatingStatus.CLOSED:
+            continue
+        if status is OperatingStatus.UNKNOWN and _is_late_night(eta):
+            continue
+        open_candidates.append(item)
+        if len(open_candidates) == MAX_CANDIDATES:
+            break
 
     ratings = adjusted_ratings(
         [(item.place.rating, item.place.user_rating_count) for item in open_candidates]
@@ -275,7 +313,7 @@ async def build_candidates(
             search_radius_meters=radius,
             adjusted_rating=rating,
             congestion_level=item.congestion.level if item.congestion.available else None,
-            crowded=bool(item.congestion.crowded),
+            crowded=_crowded(item),
             weather_at_risk=_candidate_weather_at_risk(item.place, item.weather),
             indoor=weather_exposure(item.place.category.value) == "INDOOR",
             closer=item.distance <= radius / 2,
@@ -288,6 +326,7 @@ async def build_candidates(
             entry[0].distance,
             entry[1],
             entry[0].place.user_rating_count,
+            operating_known=_operating_status(entry[0].operating, eta) is not OperatingStatus.UNKNOWN,
         )
     )
 

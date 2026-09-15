@@ -21,7 +21,7 @@ from app.schemas.alternatives import (
     DetectionDismissData,
     OperatingStatus,
 )
-from app.schemas.detection import DetectionStatus
+from app.schemas.detection import DetectionStatus, DetectionType
 from app.schemas.place import (
     BusinessStatus,
     PlaceCategory,
@@ -116,6 +116,7 @@ class AlternativeService:
                 seoul_client=self.seoul_client,
                 candidate_secret=self.candidate_secret,
                 evaluated_at=evaluated_at,
+                congestion_is_primary_cause=detection.primary_type == DetectionType.CONGESTION,
             )
         except TourApiClientError as exc:
             status = 504 if exc.code == "TOUR_API_TIMEOUT" else 502

@@ -104,9 +104,16 @@ def ranking_key(
     distance_meters: float,
     adjusted_rating: float | None,
     review_count: int | None,
-) -> tuple[float, float, float, int]:
-    """오름차순 ``sorted``에서 명세의 후보 순서를 만드는 key를 반환한다."""
+    *,
+    operating_known: bool = True,
+) -> tuple[int, float, float, float, int]:
+    """오름차순 ``sorted``에서 명세의 후보 순서를 만드는 key를 반환한다.
+
+    운영시간이 확인되지 않은(`operating_known=False`) 후보는 점수와 무관하게
+    항상 확인된 후보 뒤로 밀려 TOP 배지 대상이 되지 않는다(#587).
+    """
     return (
+        0 if operating_known else 1,
         -score,
         distance_meters,
         -(adjusted_rating if adjusted_rating is not None else -1),
