@@ -327,6 +327,8 @@ async def _store_detection(
             item_id=values["item_id"],
             status="ACTIVE",
             reason=values["reason"],
-        )
+        ),
+        total_risk_score=score.total_risk_score,
+        visit_blocked=bool(operating.visit_blocked),
     )
     return detection_id

@@ -356,6 +356,11 @@ description: "Task list for F011 알림"
   - 담당: ts
   - 선행: T045
   - 검증: 검증된 tasks 문서 PR에서 F011 `SPEC → READY`, 첫 구현 Issue PR에서 `IN_PROGRESS`, 전체 검증 PR에서 `VERIFY`, 관련 PR `main` 병합 후 `DONE`으로 갱신(전이를 일으킨 PR에 포함)
+- [X] T048 장소 변경 제안 알림 임계값(종합 위험 점수 50점 또는 방문 불가) 적용과 제목에 장소명 반영 in api/app/services/notification/__init__.py, api/app/services/notification/messages.py, api/app/services/detection/evaluator.py per FR-031, UI-005, #585
+  - 영역: BE
+  - 담당: ts
+  - 선행: 정책 결정(임계값 50점, 제목 포맷 — 2026-09-16 팀 합의)
+  - 검증: 점수 50점 미만·방문 불가 아님이면 알림 레코드·FCM 발송 없이 감지만 생성, 50점 이상이거나 방문 불가면 기존처럼 1회 발송, 제목이 항상 `{장소명} 변경을 추천해요`인지 unit·통합(격리 DB `gilpick_f011test`) test 통과. 설정 off 회귀 없음(FR-003)
 
 ---
 

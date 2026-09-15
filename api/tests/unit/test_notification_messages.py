@@ -54,7 +54,7 @@ def test_place_change_message_uses_detection_reason_without_extra_data() -> None
         "광화문", "도착 시각에 영업이 어렵거나 곧 문을 닫아요"
     )
 
-    assert title == "다음 장소 변경을 추천해요"
+    assert title == "광화문 변경을 추천해요"
     assert body == "광화문: 도착 시각에 영업이 어렵거나 곧 문을 닫아요"
 
 

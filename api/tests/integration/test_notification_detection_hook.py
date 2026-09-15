@@ -45,6 +45,30 @@ def _blocking_visit(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _slightly_crowded_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    """약간 혼잡만으로 종합 위험 점수 20점(<50)인 ACTIVE 감지를 만든다(#585 재현 시나리오)."""
+    providers(monkeypatch, evaluator)
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_weather",
+        lambda *a, **k: _value(WeatherVerdict(available=False, unavailable_reason="NO_FORECAST")),
+    )
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_congestion",
+        lambda *a, **k: _value(
+            CongestionVerdict(available=True, level="SLIGHTLY_CROWDED", sensitivity="HIGH", crowded=True)
+        ),
+    )
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_operating_hours",
+        lambda *a, **k: _value(
+            OperatingHoursVerdict(available=True, closing_soon=False, visit_blocked=False, temp_closed=False)
+        ),
+    )
+
+
 class _StubFcm:
     """발송 시도를 세고 결과를 흉내 내는 FcmClient 대역."""
 
@@ -176,6 +200,37 @@ async def test_setting_off_creates_detection_without_notification(
                 select(func.count()).select_from(Notification).where(Notification.user_id == user_id)
             )
         assert detections == 1
+        assert notifications == 0
+    finally:
+        if "user_id" in locals():
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id == user_id))
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_below_threshold_score_creates_detection_without_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """종합 위험 점수 50점 미만이고 방문 불가도 아니면 알림 없이 감지만 생긴다(FR-031, #585)."""
+    engine, session_factory = await factory()
+    try:
+        _, item_id, user_id = await seed(session_factory)
+        _slightly_crowded_below_threshold(monkeypatch)
+
+        async with transaction_session(session_factory) as session:
+            count, created = await evaluator.evaluate_all_active(session)
+
+        assert count == 1
+        assert len(created) == 1  # 감지 자체는 정상 생성
+        async with session_factory() as session:
+            detection = await session.scalar(
+                select(Detection).where(Detection.item_id == item_id)
+            )
+            notifications = await session.scalar(
+                select(func.count()).select_from(Notification).where(Notification.user_id == user_id)
+            )
+        assert round(float(detection.score) * 100) == 20
         assert notifications == 0
     finally:
         if "user_id" in locals():
