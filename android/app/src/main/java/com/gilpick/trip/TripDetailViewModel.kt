@@ -193,12 +193,15 @@ sealed interface TripStartPhase {
  * @property itinerary 일정 영역의 표시 단계. 여행 조회와 별도 요청이라 [phase]에 섞지 않는다.
  * @property deletion 삭제 요청의 진행 단계. 조회 단계와 독립적이라 [phase]에 섞지 않는다.
  * @property start `오늘 여행 시작` 영역의 상태(F006). 오늘 날짜 진행 현황은 별도 요청이라 따로 둔다.
+ * @property heroImage hero 배경에 그릴 대표 이미지 원본(FR-019, #500). 이미지가 없거나, 받는 중이거나, 받지 못하면
+ *   `null`이고 hero는 대체 배경을 그대로 보인다.
  */
 data class TripDetailUiState(
     val phase: TripDetailPhase = TripDetailPhase.Loading,
     val itinerary: ItineraryOverviewPhase = ItineraryOverviewPhase.Loading,
     val deletion: TripDeletePhase = TripDeletePhase.Idle,
     val start: TripStartPhase = TripStartPhase.Loading,
+    val heroImage: ByteArray? = null,
 )
 
 /**
@@ -268,8 +271,27 @@ class TripDetailViewModel(
                 is AuthResult.Failure -> TripDetailPhase.Failed(result.error.toDetailError())
             }
             _state.update { it.copy(phase = phase) }
-            if (phase is TripDetailPhase.Content) loadStart(phase.trip)
+            if (phase is TripDetailPhase.Content) {
+                loadHeroImage(phase.trip)
+                loadStart(phase.trip)
+            }
         }
+    }
+
+    /**
+     * hero 대표 이미지 원본을 받는다(FR-019, #500).
+     *
+     * 응답의 `imageUrl`은 인증이 필요하고 서버가 요청 host로 만든 절대 주소라 직접 쓰지 않는다. "이미지 있음" 표시로만 보고
+     * 원본은 tripId로 받는다(#499와 같은 방식). 받지 못해도 여행 정보는 그대로이고 hero는 대체 배경을 보인다.
+     * 수정 화면에서 이미지를 바꾸고 돌아오면 [load]가 다시 부르므로 최신 이미지로 바뀐다.
+     */
+    private suspend fun loadHeroImage(trip: TripDto) {
+        if (trip.imageUrl == null) {
+            _state.update { it.copy(heroImage = null) }
+            return
+        }
+        val image = (repository.getTripImage(trip.tripId) as? AuthResult.Success)?.value
+        _state.update { it.copy(heroImage = image) }
     }
 
     /**

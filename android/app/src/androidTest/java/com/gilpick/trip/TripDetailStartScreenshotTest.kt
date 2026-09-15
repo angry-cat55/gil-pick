@@ -104,14 +104,44 @@ class TripDetailStartScreenshotTest {
     @Test
     fun 조회_권한_없음() = capture("trip_detail_error_forbidden") { Screen(TripStartPhase.Loading, phase = TripDetailPhase.Failed(TripDetailError.FORBIDDEN)) }
 
+    /** #500: 대표 이미지가 있으면 hero 배경에 그리고 gradient 위로 흰 글자·버튼이 읽힌다. */
+    @Test
+    fun hero_이미지_있음() = capture("trip_detail_hero_image") { Screen(TripStartPhase.Ready("2026-09-02", 0), heroImage = sampleImage()) }
+
+    /** #500: 대표 이미지가 없으면 `faint` 대체 배경이다. */
+    @Test
+    fun hero_이미지_없음() = capture("trip_detail_hero_no_image") { Screen(TripStartPhase.Ready("2026-09-02", 0)) }
+
+    /** #500: `imageUrl`은 있지만 원본을 받지 못했다. 대체 배경을 그대로 보인다. */
+    @Test
+    fun hero_이미지_로드_실패() = capture("trip_detail_hero_image_failed") {
+        Screen(TripStartPhase.Ready("2026-09-02", 0), imageUrl = "http://api.example/trips/t1/image/content")
+    }
+
+    /** 대각선 그라데이션 PNG. 실제 사진 대신 hero 배치를 보기 위한 표본이다. */
+    private fun sampleImage(): ByteArray {
+        val bitmap = Bitmap.createBitmap(390, 180, Bitmap.Config.ARGB_8888)
+        val paint = android.graphics.Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 390f, 180f, 0xFFF59E0B.toInt(), 0xFF3B7BF8.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        }
+        android.graphics.Canvas(bitmap).drawRect(0f, 0f, 390f, 180f, paint)
+        return java.io.ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    }
+
     @Composable
-    private fun Screen(start: TripStartPhase, phase: TripDetailPhase? = null) {
+    private fun Screen(
+        start: TripStartPhase,
+        phase: TripDetailPhase? = null,
+        heroImage: ByteArray? = null,
+        imageUrl: String? = null,
+    ) {
         val days = (1..3).map { DayItineraryDto("2026-09-0$it", it, 0, RouteStatus.NOT_CALCULATED, emptyList()) }
         TripDetailScreen(
             state = TripDetailUiState(
-                phase = phase ?: TripDetailPhase.Content(TripDto("t1", "서울 여행", "2026-09-01", "2026-09-03", TripStatus.IN_PROGRESS, 3, 1)),
+                phase = phase ?: TripDetailPhase.Content(TripDto("t1", "서울 여행", "2026-09-01", "2026-09-03", TripStatus.IN_PROGRESS, 3, 1, imageUrl = imageUrl)),
                 itinerary = ItineraryOverviewPhase.Content(days),
                 start = start,
+                heroImage = heroImage,
             ),
             onBack = {}, onRetry = {}, onEdit = {}, onDelete = {}, onDeleteErrorShown = {}, onRetryItinerary = {},
             onEditItinerary = {}, onAddPlace = {}, onSelectPlace = {},

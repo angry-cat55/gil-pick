@@ -60,6 +60,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.Dp
+import coil3.compose.AsyncImage
 import com.gilpick.R
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItineraryError
@@ -189,6 +191,7 @@ fun TripDetailScreen(
 
             is TripDetailPhase.Content -> DetailContent(
                 trip = phase.trip,
+                heroImage = state.heroImage,
                 itinerary = state.itinerary,
                 routes = routes,
                 start = state.start,
@@ -368,13 +371,15 @@ private val TripDeleteError.messageRes: Int
 /**
  * 180dp hero(Figma `TripDetailScreen` 상단, 가이드라인 1절·3절).
  *
- * - 커버 이미지·지역명은 `TripDto`에 대응하는 값이 없다. 지어내지 않고 이미지 자리는 `faint` 대체 배경,
- *   지역 줄은 `정보 없음`으로 둔다(가이드라인 12절). Backend 계약 추가는 별도 요청이다.
+ * - 대표 이미지가 있으면 배경에 그리고(#500), 없거나 받지 못하면 `faint` 대체 배경을 둔다. 어두운 gradient는 이미지 위에
+ *   겹쳐 흰 글자·버튼을 읽을 수 있게 한다(가이드라인 3절).
+ * - 지역명은 `TripDto`에 대응하는 값이 없다. 지어내지 않고 `정보 없음`으로 둔다(가이드라인 12절).
  * - 이름·기간·상태는 F002 US3 Acceptance Scenario 1이 요구하는 세 가지다. Figma hero에는 상태 배지가
  *   없지만 명세 요구라 여행명 옆에 [StatusBadge]로 둔다(#442 결정).
  * - 글자 배율이 커지면 hero가 세로로 늘어난다. 고정 높이는 최소값이다(가이드라인 4절).
  *
  * @param trip 받아 둔 여행. `null`이면 대기·실패 상태라 빈 hero와 뒤로 가기만 그린다.
+ * @param image 대표 이미지 원본. `null`이면 대체 배경만 보인다.
  * @param onEdit 메뉴 `여행 편집`. [trip]이 있을 때만 쓴다.
  * @param onRequestDelete 메뉴 `여행 삭제`. 확인 다이얼로그를 연다.
  */
@@ -382,6 +387,7 @@ private val TripDeleteError.messageRes: Int
 private fun Hero(
     trip: TripDto?,
     onBack: () -> Unit,
+    image: ByteArray? = null,
     onEdit: () -> Unit = {},
     onRequestDelete: () -> Unit = {},
 ) {
@@ -395,6 +401,15 @@ private fun Hero(
             .heightIn(min = HERO_HEIGHT)
             .background(LocalGilpickColors.current.faint),
     ) {
+        if (image != null) {
+            AsyncImage(
+                model = image,
+                // 이미지 내용을 설명할 수 없고, 여행명이 바로 아래에 있어 장식으로 둔다(가이드라인 10절).
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -614,6 +629,7 @@ private fun MenuItem(label: String, icon: Int, color: Color, iconTint: Color, on
 @Composable
 private fun DetailContent(
     trip: TripDto,
+    heroImage: ByteArray?,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onRequestDelete: () -> Unit,
@@ -640,7 +656,7 @@ private fun DetailContent(
     ) {
         // Figma는 hero·통계를 고정하고 일정만 스크롤하지만, 글자 배율이 크면 고정 영역이 화면을 넘는다.
         // 기존처럼 한 스크롤로 두어 360dp·글자 2.0배에서도 모든 내용에 닿게 한다(가이드라인 10절).
-        Hero(trip = trip, onBack = onBack, onEdit = onEdit, onRequestDelete = onRequestDelete)
+        Hero(trip = trip, image = heroImage, onBack = onBack, onEdit = onEdit, onRequestDelete = onRequestDelete)
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
                 TripStats(trip = trip, itinerary = itinerary, routes = routes)
