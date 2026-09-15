@@ -2,6 +2,7 @@ package com.gilpick.replacement
 
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.alternative.FakeAlternativeService
+import com.gilpick.alternative.ITEM_ID
 import com.gilpick.alternative.detectionDetailJson
 import com.gilpick.alternative.ok
 import com.gilpick.auth.AuthAppLinkHandler
@@ -10,7 +11,13 @@ import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
 import com.gilpick.auth.SuccessEnvelope
+import com.gilpick.itinerary.FakeItineraryService
+import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.RouteStatus
+import com.gilpick.itinerary.day
+import com.gilpick.itinerary.ok as itineraryOk
+import com.gilpick.itinerary.overview
+import com.gilpick.itinerary.savedItem
 import com.gilpick.route.DayRouteDto
 import com.gilpick.route.FakeRouteService
 import com.gilpick.route.RouteRepository
@@ -54,6 +61,7 @@ class PreviewViewModelTest {
     private val replacementService = FakeReplacementService()
     private val detectionService = FakeAlternativeService()
     private val routeService = FakeRouteService()
+    private val itineraryService = FakeItineraryService()
 
     @Before
     fun setUp() {
@@ -93,6 +101,7 @@ class PreviewViewModelTest {
 
     @Test
     fun `eta가 UTC로 와도 KST 날짜의 경로를 조회한다`() = runTest {
+        // 기본 일정 개요에는 감지 항목이 없어 ETA 날짜로 대체 판정한다(#593).
         // #410. 서버는 eta를 UTC instant로 준다. KST 00~09시 도착이면 UTC 날짜가 하루 앞서므로
         // 문자열 앞 10자를 그대로 날짜로 쓰면 여행에 없는 날짜를 조회해 404가 난다.
         detectionService.onGetDetection = { ok(detectionDetailJson(eta = "2026-09-10T16:23:32Z")) }
@@ -102,6 +111,31 @@ class PreviewViewModelTest {
 
         // 2026-09-10T16:23:32Z = KST 2026-09-11 01:23. 항목이 놓인 여행 날짜는 09-11이다.
         assertEquals(listOf("2026-09-11"), routeService.getCalls)
+    }
+
+    /**
+     * #593: 도착 예정이 자정(KST)을 넘어도 감지 대상 항목이 놓인 여행 날짜의 일정으로 비교를 만든다.
+     * 9/15 일정의 마지막 장소가 9/16 00:49에 도착 예정이면 ETA 날짜(9/16)가 아니라 9/15의 경로·version을 쓴다.
+     */
+    @Test
+    fun `도착 예정이 자정을 넘어도 항목이 놓인 여행 날짜의 일정으로 비교를 만든다`() = runTest {
+        itineraryService.onOverview = {
+            itineraryOk(
+                overview(
+                    day("2026-09-15", dayNumber = 1, version = 4, items = listOf(savedItem(ITEM_ID, sequence = 1))),
+                    day("2026-09-16", dayNumber = 2),
+                ),
+            )
+        }
+        // 2026-09-15T15:49:00Z = KST 2026-09-16 00:49.
+        detectionService.onGetDetection = { ok(detectionDetailJson(eta = "2026-09-15T15:49:00Z")) }
+        routeService.onGet = { readyDayRoute(scheduleVersion = 4) }
+
+        newViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("2026-09-15"), routeService.getCalls)
+        assertEquals(4, replacementService.previewCalls.single().second.scheduleVersion)
     }
 
     @Test
@@ -372,6 +406,7 @@ class PreviewViewModelTest {
         replacements = ReplacementRepository(api = replacementService, auth = auth()),
         detections = AlternativeRepository(api = detectionService, auth = auth()),
         routes = RouteRepository(api = routeService, auth = auth()),
+        itineraries = ItineraryRepository(api = itineraryService, auth = auth()),
         detectionId = REPL_DETECTION_ID,
         placeId = REPL_PLACE_ID,
         candidateId = candidateId,

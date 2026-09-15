@@ -19,6 +19,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import androidx.test.platform.app.InstrumentationRegistry
+import com.gilpick.itinerary.ItineraryRepository
+import com.gilpick.itinerary.ItineraryService
+import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
@@ -79,6 +82,7 @@ class ReplacementNavigationTest {
     private lateinit var alternativeRepository: AlternativeRepository
     private lateinit var replacementRepository: ReplacementRepository
     private lateinit var routeRepository: RouteRepository
+    private lateinit var itineraryRepository: ItineraryRepository
 
     /** 도착한 REPL-001 요청 body. `candidateId` 유무를 확인한다. */
     private val previewRequests = mutableListOf<CreatePreviewRequest>()
@@ -144,6 +148,10 @@ class ReplacementNavigationTest {
         )
         routeRepository = RouteRepository(
             api = createRouteRetrofit(base).create(RouteService::class.java),
+            auth = auth,
+        )
+        itineraryRepository = ItineraryRepository(
+            api = createItineraryRetrofit(base).create(ItineraryService::class.java),
             auth = auth,
         )
     }
@@ -272,6 +280,8 @@ class ReplacementNavigationTest {
                         replacements = { replacementRepository },
                         detections = { alternativeRepository },
                         routes = { routeRepository },
+                        // 일정 개요는 이 test의 가짜 서버가 404를 준다. 앱은 ETA 날짜로 대체 판정한다(#593).
+                        itineraries = { itineraryRepository },
                         map = { _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                 }

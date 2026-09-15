@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -200,9 +201,10 @@ fun ActiveTravelScreen(
 }
 
 /**
- * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시, 오른쪽 알림 벨(F011). 내용이 없으면 여행명만 보인다.
- * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
- * 여행명 줄의 `편집`(D7 `headerIcon`)은 #509에서 더했다. 뒤로 가기는 두지 않는다. 하단 `내 여행` 탭으로 나간다(#554).
+ * Figma 헤더: 왼쪽에 `여행 중` 칩·`N일차 · x/y 완료`와 여행명, 오른쪽에 알림 벨(F011)·변수 감지·`편집` 버튼이 한 줄로
+ * 위쪽에 맞춰 선다. 내용이 없으면 여행명만 보인다. 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과
+ * `오늘로 돌아가기`가 아래에 붙는다(UI-005). `편집`(#509)은 Figma의 세 번째 버튼(설정) 자리에 둔다(#591).
+ * 뒤로 가기는 두지 않는다. 하단 `내 여행` 탭으로 나간다(#554).
  */
 @Composable
 private fun Header(
@@ -225,25 +227,40 @@ private fun Header(
             .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = spacing.space5, vertical = spacing.space3),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
-            Text(
-                text = stringResource(R.string.progress_badge_in_progress),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.success,
-                modifier = Modifier
-                    .background(colors.successContainer, RoundedCornerShape(radius.sm))
-                    .padding(horizontal = spacing.space2 + 2.dp, vertical = 2.dp),
-            )
-            val dayNumber = content?.todayItinerary?.dayNumber
-            if (content != null && dayNumber != null) {
+        // 왼쪽 글자 영역이 남는 폭을 차지하고 버튼 줄은 고정 폭이다. 글자 2.0배·360dp에서는 글자가 줄바꿈되어
+        // 버튼과 겹치거나 버튼을 밀어내지 않는다(#591).
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
+            Column(modifier = Modifier.weight(1f)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.progress_badge_in_progress),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.success,
+                        modifier = Modifier
+                            .background(colors.successContainer, RoundedCornerShape(radius.sm))
+                            .padding(horizontal = spacing.space2 + 2.dp, vertical = 2.dp),
+                    )
+                    val dayNumber = content?.todayItinerary?.dayNumber
+                    if (content != null && dayNumber != null) {
+                        Text(
+                            text = stringResource(R.string.progress_day_summary, dayNumber, content.visitedCount, content.countedPlaceCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.muted,
+                            modifier = Modifier.testTag(TAG_DAY_SUMMARY),
+                        )
+                    }
+                }
                 Text(
-                    text = stringResource(R.string.progress_day_summary, dayNumber, content.visitedCount, content.todayRows.size),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.muted,
-                    modifier = Modifier.testTag(TAG_DAY_SUMMARY),
+                    text = tripName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontFamily = tripName.displayFont(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = spacing.space1),
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
             IconBoxButton(
                 icon = R.drawable.ic_lucide_bell,
                 contentDescription = stringResource(R.string.notification_open_bell),
@@ -258,21 +275,6 @@ private fun Header(
                 tint = colors.warning,
                 boxColor = colors.warningContainer,
                 modifier = Modifier.testTag(TAG_VARIABLE_MONITOR),
-            )
-        }
-        // 위 줄은 Figma 그대로 두고, 편집은 여행명 줄 오른쪽에 둔다. 한 줄에 넣으면
-        // 360dp·글자 2.0에서 오른쪽 버튼이 밀려난다(#509).
-        Row(
-            modifier = Modifier.padding(top = spacing.space1),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-        ) {
-            Text(
-                text = tripName,
-                style = MaterialTheme.typography.titleLarge,
-                fontFamily = tripName.displayFont(),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
             )
             // 보고 있는 날짜의 일정 편집. 내용이 없거나 지난 날짜면 비활성이고 사유는 날짜 안내가 알린다(#509).
             IconBoxButton(

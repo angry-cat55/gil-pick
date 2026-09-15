@@ -16,6 +16,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.gilpick.alternative.AlternativeRepository
+import com.gilpick.itinerary.ItineraryEditViewModel
+import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.progress.ActiveTravelRoute
 import com.gilpick.route.RouteRepository
 import com.gilpick.route.RouteViewModel
@@ -61,6 +63,7 @@ data class RoutePreviewRoute(
  * @param replacements 변경 데이터 접근 지점. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param detections 감지 상세 조회. `tripId`와 날짜를 얻는 데 쓴다.
  * @param routes 그 날짜 경로 조회. `scheduleVersion`과 기존 경로를 얻는 데 쓴다.
+ * @param itineraries 여행 일정 개요 조회. 감지 대상 항목이 놓인 날짜를 찾는 데 쓴다(#593).
  * @param map 지도 영역. 기본값은 F005 지도이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.replacementGraph(
@@ -69,6 +72,7 @@ fun NavGraphBuilder.replacementGraph(
     replacements: (Context) -> ReplacementRepository = ReplacementRepository::default,
     detections: (Context) -> AlternativeRepository = AlternativeRepository::default,
     routes: (Context) -> RouteRepository = RouteViewModel::defaultRepository,
+    itineraries: (Context) -> ItineraryRepository = ItineraryEditViewModel::defaultRepository,
     map: @Composable (PreviewUiState.Content, Modifier) -> Unit = { content, modifier ->
         PreviewMap(content = content, modifier = modifier)
     },
@@ -85,6 +89,7 @@ fun NavGraphBuilder.replacementGraph(
                 replacements = replacementRepository,
                 detections = detections(context),
                 routes = routes(context),
+                itineraries = itineraries(context),
             )
         }
         val viewModel: PreviewViewModel = viewModel(factory = factory)

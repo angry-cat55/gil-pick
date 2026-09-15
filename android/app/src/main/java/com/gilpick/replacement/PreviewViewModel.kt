@@ -8,10 +8,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.auth.AuthResult
 import com.gilpick.route.RouteRepository
+import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.RouteStatus
 import com.gilpick.trip.KST
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +29,8 @@ import kotlinx.coroutines.launch
  * 기존 경로가 F009가 넘긴 값에 없어 앞에 조회 둘이 붙는다.
  *
  * ```
- * DETECT-002 getDetection(detectionId)   → tripId, eta(날짜), reason
+ * DETECT-002 getDetection(detectionId)   → tripId, itemId, eta, reason
+ *   └ ITIN-003 getOverview(tripId)       → itemId가 놓인 여행 날짜(#593)
  *   └ ROUTE-001 getDayRoute(tripId, 날짜) → scheduleVersion + 기존 경로
  *      └ REPL-001 createPreview(...)      → 비교와 변경 경로
  * ```
@@ -41,6 +44,7 @@ import kotlinx.coroutines.launch
  * 경로가 아직 계산되지 않았거나 실패한 날짜여도 계속 진행한다. `scheduleVersion`은 그대로 오고
  * 비교 표는 REPL-001의 값만 쓰므로 지도에 기존 경로가 빠질 뿐 화면은 성립한다(constitution IV).
  *
+ * @param itineraries 여행 일정 개요 조회. 감지 대상 항목이 놓인 여행 날짜를 찾는 데 쓴다(#593).
  * @param detectionId 기준 감지. F009가 넘긴 [com.gilpick.alternative.SelectedAlternative]의 값이다.
  * @param placeId 사용자가 고른 대체 장소.
  * @param candidateId F009 추천 후보면 그 토큰, 직접 검색이면 `null`. 요청에 그대로 반영된다(FR-004).
@@ -50,6 +54,7 @@ class PreviewViewModel(
     private val replacements: ReplacementRepository,
     private val detections: AlternativeRepository,
     private val routes: RouteRepository,
+    private val itineraries: ItineraryRepository,
     private val detectionId: String,
     private val placeId: String,
     private val candidateId: String?,
@@ -126,15 +131,9 @@ class PreviewViewModel(
             is AuthResult.Success -> result.value
             is AuthResult.Failure -> return PreviewUiState.Error(result.error.toReplacementError())
         }
-        // 감지 대상 항목의 도착 예정 시각이 속한 날짜가 그 항목이 놓인 여행 날짜다.
-        //
-        // `eta`는 서버가 주는 instant다. 문자열 앞 10자를 그대로 쓰면 표기된 시각대의 날짜가
-        // 나오는데, UTC로 오는 `2026-09-10T16:23:32Z`는 KST로 09-11 01:23이라 하루 앞선 날짜를
-        // 조회하게 된다. 여행에 없는 날짜라 `ROUTE-001`이 404를 주고 비교를 만들지 못한다(#410).
-        // 여행 날짜는 서버가 KST로 산정하므로(F002 FR-006) 같은 기준으로 변환한다.
-        val date = runCatching {
-            OffsetDateTime.parse(detection.eta).toInstant().atZone(KST).toLocalDate()
-        }.getOrNull() ?: return PreviewUiState.Error(ReplacementError.Unexpected)
+        val date = itemDate(detection.tripId, detection.itemId)
+            ?: etaDate(detection.eta)
+            ?: return PreviewUiState.Error(ReplacementError.Unexpected)
 
         val dayRoute = when (val result = routes.getDayRoute(detection.tripId, date)) {
             is AuthResult.Success -> result.value
@@ -162,6 +161,28 @@ class PreviewViewModel(
         )
     }
 
+    /**
+     * 감지 대상 항목이 놓인 여행 날짜(#593).
+     *
+     * 도착 예정 시각의 날짜로는 알 수 없다. 9/15 일정의 마지막 장소가 9/16 00:49(KST)에 도착 예정이면 ETA 날짜는
+     * 9/16이지만 항목은 9/15 일정에 있다. 9/16의 `scheduleVersion`(빈 날짜면 0)을 보내면 서버가 `400`으로 거절한다.
+     * 여행 일정 개요에서 `itemId`가 들어 있는 날짜를 찾는다. 조회에 실패하거나 항목이 없으면 `null`이다.
+     */
+    private suspend fun itemDate(tripId: String, itemId: String): LocalDate? {
+        val overview = (itineraries.getOverview(tripId) as? AuthResult.Success)?.value ?: return null
+        val day = overview.days.firstOrNull { day -> day.items.any { it.itemId == itemId } } ?: return null
+        return runCatching { LocalDate.parse(day.date) }.getOrNull()
+    }
+
+    /**
+     * 일정 개요로 날짜를 찾지 못했을 때의 대체 판정: 도착 예정 시각의 KST 날짜.
+     *
+     * `eta`는 서버가 주는 instant다. 문자열 앞 10자를 그대로 쓰면 UTC `2026-09-10T16:23:32Z`가 KST 09-11 01:23인데도
+     * 하루 앞선 날짜를 조회하게 된다(#410). 여행 날짜는 서버가 KST로 산정하므로(F002 FR-006) 같은 기준으로 변환한다.
+     */
+    private fun etaDate(eta: String): LocalDate? =
+        runCatching { OffsetDateTime.parse(eta).toInstant().atZone(KST).toLocalDate() }.getOrNull()
+
     companion object {
         /** 화면이 사용할 의존성을 조립한다. DI 도구를 두지 않는 F001 방식이다. */
         fun factory(
@@ -171,12 +192,14 @@ class PreviewViewModel(
             replacements: ReplacementRepository,
             detections: AlternativeRepository,
             routes: RouteRepository,
+            itineraries: ItineraryRepository,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 PreviewViewModel(
                     replacements = replacements,
                     detections = detections,
                     routes = routes,
+                    itineraries = itineraries,
                     detectionId = detectionId,
                     placeId = placeId,
                     candidateId = candidateId,
