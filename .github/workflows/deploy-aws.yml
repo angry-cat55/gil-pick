@@ -1,6 +1,11 @@
 name: Deploy to AWS (dev)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'deploy/aws/**'
   workflow_dispatch:
     inputs:
       confirm:
@@ -13,15 +18,17 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event.inputs.confirm == 'deploy'
     # AWS EC2에 직접 설치한 self-hosted runner에서 실행한다(docs/deployment/aws-dev.md 5-1절).
     # EC2 SSH 22는 담당자 IP로만 열려 있어 GitHub 호스팅 runner에서 SSH 접속이
     # 막히므로, 서버 안에서 직접 도는 self-hosted runner로 SSH를 아예 없앴다.
     runs-on: [self-hosted, aws-dev]
     steps:
       - name: 확인 문자열 검증
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRM: ${{ inputs.confirm }}
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+          if [ "$CONFIRM" != "deploy" ]; then
             echo "::error::confirm 입력이 'deploy'가 아닙니다. 배포를 중단합니다."
             exit 1
           fi

@@ -107,11 +107,11 @@ docker compose -f deploy/aws/compose.yaml up -d --build
 
 문제가 생기면 직전 검증 commit을 checkout하고 다시 build한다. DB migration downgrade는 데이터 손실 가능성이 있어 자동 rollback하지 않는다.
 
-## 5-1. GitHub Actions로 배포(수동 트리거)
+## 5-1. GitHub Actions로 배포(main 병합 자동 배포 및 수동 트리거)
 
-Issue #523. 위 5절과 같은 절차(migration → build → 재기동 → health check)를 GitHub Actions 탭에서 버튼 한 번으로 실행할 수 있다. `.github/workflows/deploy-aws.yml`이 `workflow_dispatch`로만 동작하며, main merge마다 자동으로는 실행되지 않는다 — 공유 PoC 서버가 무관한 merge로 재시작돼 다른 팀원의 검증을 끊는 걸 피하기 위해서다.
+Issue #523. 위 5절과 같은 절차(migration → build → 재기동 → health check)를 GitHub Actions로 실행한다. `main`에 병합되어 `api/**` 또는 `deploy/aws/**`가 변경되면 자동으로 배포한다. Android·web·문서만 변경된 병합은 배포하지 않는다. 수동 실행도 유지한다.
 
-이 저장소는 **Public**이다. self-hosted runner를 public repo에서 쓰면 외부인이 연 PR의 workflow가 우리 서버에서 실행될 수 있어 GitHub이 원칙적으로 비권장한다. `deploy-aws.yml`은 `workflow_dispatch`만 트리거라 Write 권한 있는 팀원만 실행할 수 있어 이 위험에서 벗어나 있다. **앞으로 다른 workflow에 `self-hosted`·`aws-dev` label을 재사용하려면, 반드시 `workflow_dispatch`처럼 외부에서 트리거 불가능한 이벤트로만 제한한다. `pull_request`·`pull_request_target`에는 절대 쓰지 않는다.**
+이 저장소는 **Public**이다. self-hosted runner를 public repo에서 쓰면 외부인이 연 PR의 workflow가 우리 서버에서 실행될 수 있어 GitHub이 원칙적으로 비권장한다. 이 workflow는 보호된 `main`의 `push`와 Write 권한 있는 팀원의 `workflow_dispatch`만 허용한다. **`pull_request`·`pull_request_target`처럼 외부 기여자가 직접 실행할 수 있는 이벤트에는 `self-hosted`·`aws-dev` label을 절대 사용하지 않는다. `main` 직접 push를 금지하고 PR review를 유지한다.**
 
 EC2 보안 그룹이 SSH 22를 담당자 IP로만 제한하고 있어(1절), IP가 매번 바뀌는 GitHub 호스팅 runner에서는 SSH 접속이 막힌다. 그래서 SSH 대신 **EC2 안에 self-hosted runner를 직접 설치**해 실행한다 — 이러면 SSH secret 자체가 필요 없다.
 
@@ -134,8 +134,16 @@ sudo ./svc.sh start
 
 ### 실행
 
+#### main 병합 후 자동 배포
+
+1. Backend 또는 AWS 배포 파일을 포함한 PR을 `main`에 병합한다.
+2. GitHub repository → Actions 탭에서 `Deploy to AWS (dev)` 실행이 자동으로 시작됐는지 확인한다.
+3. 자동 실행에는 `deploy` 입력이 필요 없다. health check까지 통과하면 초록불, 실패하면 빨간불로 멈춘다.
+
+#### 수동 배포
+
 1. GitHub repository → Actions 탭 → `Deploy to AWS (dev)` workflow → `Run workflow`.
-2. `confirm` 입력란에 정확히 `deploy`를 입력해야 실행된다. 다른 값이면 즉시 실패한다.
+2. `confirm` 입력란에 정확히 `deploy`를 입력한 뒤 `Run workflow`를 다시 선택한다. 다른 값이면 즉시 실패한다.
 3. 실행 후 health check까지 통과하면 초록불, 실패하면 빨간불로 멈춘다.
 
 ### 실패했을 때
