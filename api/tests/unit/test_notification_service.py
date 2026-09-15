@@ -39,7 +39,9 @@ async def test_place_change_suggestion_uses_detection_identity_and_reason() -> N
         reason="도착 시각에 영업이 어려워요",
     )
 
-    await service.create_place_change_suggestion(detection)
+    await service.create_place_change_suggestion(
+        detection, total_risk_score=100, visit_blocked=False
+    )
 
     insert.assert_awaited_once()
     values = insert.await_args.kwargs
@@ -47,6 +49,32 @@ async def test_place_change_suggestion_uses_detection_identity_and_reason() -> N
     assert values["dedup_key"] == f"detection:{detection.detection_id}"
     assert values["detection_id"] == detection.detection_id
     assert values["body"] == "광화문: 도착 시각에 영업이 어려워요"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("total_risk_score", "visit_blocked", "expect_created"),
+    [(49, False, False), (49, True, True), (50, False, True)],
+)
+async def test_place_change_suggestion_threshold_or_visit_blocked(
+    total_risk_score: int, visit_blocked: bool, expect_created: bool
+) -> None:
+    """종합 위험 점수 50점 이상이거나 방문 불가일 때만 만든다(FR-031, #585)."""
+    service, insert = _service_with_context()
+    detection = SimpleNamespace(
+        detection_id=uuid4(),
+        trip_day_id=uuid4(),
+        item_id=uuid4(),
+        status="ACTIVE",
+        reason="도착 시각에 영업이 어려워요",
+    )
+
+    result = await service.create_place_change_suggestion(
+        detection, total_risk_score=total_risk_score, visit_blocked=visit_blocked
+    )
+
+    assert (result is not None) is expect_created
+    assert insert.await_count == (1 if expect_created else 0)
 
 
 @pytest.mark.asyncio
@@ -61,7 +89,9 @@ async def test_place_change_suggestion_skips_disabled_or_inactive_detection(
         detection_id=uuid4(), trip_day_id=uuid4(), item_id=uuid4(), status=status
     )
 
-    assert await service.create_place_change_suggestion(detection) is None
+    assert await service.create_place_change_suggestion(
+        detection, total_risk_score=100, visit_blocked=False
+    ) is None
     insert.assert_not_awaited()
 
 
@@ -120,7 +150,9 @@ async def test_place_change_suggestion_resumes_after_reenable_without_backfill()
     skipped = SimpleNamespace(
         detection_id=uuid4(), trip_day_id=uuid4(), item_id=uuid4(), status="ACTIVE"
     )
-    assert await service.create_place_change_suggestion(skipped) is None
+    assert await service.create_place_change_suggestion(
+        skipped, total_risk_score=100, visit_blocked=False
+    ) is None
     insert.assert_not_awaited()
 
     # 설정을 다시 켜도 건너뛴 감지는 소급 전송하지 않고, 이후 새 감지만 만든다.
@@ -138,7 +170,9 @@ async def test_place_change_suggestion_resumes_after_reenable_without_backfill()
         reason="도착 시각에 영업이 어려워요",
     )
 
-    await service.create_place_change_suggestion(fresh)
+    await service.create_place_change_suggestion(
+        fresh, total_risk_score=100, visit_blocked=False
+    )
 
     insert.assert_awaited_once()
     assert insert.await_args.kwargs["detection_id"] == fresh.detection_id

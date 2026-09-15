@@ -25,6 +25,9 @@ from app.services.notification.messages import place_change_message, transition_
 
 logger = logging.getLogger("gilpick.notification")
 
+PLACE_CHANGE_RISK_THRESHOLD = 50
+"""장소 변경 제안 알림을 보낼 최소 종합 위험 점수(0~100). 운영시간 방문 불가는 이 값과 무관하게 보낸다(FR-031, #585)."""
+
 
 class NotificationService:
     """도메인 이벤트를 멱등 알림 행으로 변환한다."""
@@ -33,8 +36,16 @@ class NotificationService:
         self.session = session
         self.now = now or (lambda: datetime.now(UTC))
 
-    async def create_place_change_suggestion(self, detection: Detection) -> Notification | None:
-        """활성 감지와 설정을 확인해 장소 변경 제안 한 건을 만든다."""
+    async def create_place_change_suggestion(
+        self, detection: Detection, *, total_risk_score: int, visit_blocked: bool
+    ) -> Notification | None:
+        """활성 감지와 설정을 확인해 장소 변경 제안 한 건을 만든다.
+
+        종합 위험 점수가 `PLACE_CHANGE_RISK_THRESHOLD` 미만이고 운영시간 방문 불가도
+        아니면 알림을 만들지 않는다(FR-031, #585). 감지 결과 자체의 생성·조회는 그대로다.
+        """
+        if total_risk_score < PLACE_CHANGE_RISK_THRESHOLD and not visit_blocked:
+            return None
         row = (await self.session.execute(
             select(Trip.user_id, Trip.trip_id, Place.name, User.replacement_suggestion_enabled)
             .join(TripDay, TripDay.trip_id == Trip.trip_id)

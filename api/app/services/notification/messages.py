@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 
 def place_change_message(place_name: str, reason: str) -> tuple[str, str]:
-    return "다음 장소 변경을 추천해요", f"{place_name}: {reason}"
+    return f"{place_name} 변경을 추천해요", f"{place_name}: {reason}"
 
 
 def transition_check_message(kind: str, place_name: str, prompt_seq: int = 1) -> tuple[str, str]:
