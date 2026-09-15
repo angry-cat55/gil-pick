@@ -453,19 +453,23 @@ private fun Summary(content: PreviewUiState.Content, modifier: Modifier = Modifi
         )
 
         val duration = preview.comparison.totalDurationSeconds
+        val durationBefore = duration.before?.let { durationLabel(it) }
+        val durationAfter = duration.after?.let { durationLabel(it) }
         ComparisonRow(
             label = stringResource(R.string.replacement_row_duration),
-            before = duration.before?.let { durationLabel(it) },
-            after = duration.after?.let { durationLabel(it) },
-            better = isBetter(duration.before, duration.after),
+            before = durationBefore,
+            after = durationAfter,
+            better = comparisonTrend(duration.before, duration.after, durationBefore, durationAfter),
         )
         RowDivider()
         val distance = preview.comparison.totalDistanceMeters
+        val distanceBefore = distance.before?.let { distanceLabel(it) }
+        val distanceAfter = distance.after?.let { distanceLabel(it) }
         ComparisonRow(
             label = stringResource(R.string.replacement_row_distance),
-            before = distance.before?.let { distanceLabel(it) },
-            after = distance.after?.let { distanceLabel(it) },
-            better = isBetter(distance.before, distance.after),
+            before = distanceBefore,
+            after = distanceAfter,
+            better = comparisonTrend(distance.before, distance.after, distanceBefore, distanceAfter),
         )
         RowDivider()
         // 도착 예정·마감 시간은 나아짐·나빠짐의 판정 근거가 명세에 없어 강조하지 않는다(Figma는 색을 준다, PR 기록).
@@ -724,9 +728,14 @@ private val ReplacementError.approveAction: ApproveAction
 private val PreviewUiState.isApproving: Boolean
     get() = (this as? PreviewUiState.Content)?.approving == true
 
-/** 값이 작아질수록 좋은 항목(이동 시간·거리)의 나아짐 판정. 값이 없거나 같으면 강조하지 않는다. */
-private fun isBetter(before: Int?, after: Int?): Boolean? =
-    if (before == null || after == null || before == after) null else after < before
+/**
+ * 값이 작아질수록 좋은 항목(이동 시간·거리)의 나아짐 판정. 값이 없거나 같으면 강조하지 않는다.
+ *
+ * 원값이 달라도 화면에 보이는 반올림 값이 같으면(`11.4km → 11.4km`) 강조하지 않는다. 사용자가 차이를 볼 수 없는데
+ * `나아짐 ✓`을 붙이면 사실과 다르게 읽힌다(#593).
+ */
+internal fun comparisonTrend(before: Int?, after: Int?, beforeLabel: String?, afterLabel: String?): Boolean? =
+    if (before == null || after == null || before == after || beforeLabel == afterLabel) null else after < before
 
 /** 실패 원인별 안내 문구. 원인마다 다음 행동이 다르므로 문구도 나눈다(UI-004·UI-005). */
 @get:StringRes
