@@ -204,6 +204,9 @@
     <string name="place_detail_loading">장소 정보를 불러오는 중</string>
     <string name="place_detail_image_description">%1$s 대표 사진</string>
     <string name="place_detail_no_image">대표 사진 없음</string>
+    <!-- #515 사진 주소는 있지만 받는 중이거나 받지 못했을 때 화면 낭독기가 읽는 상태. -->
+    <string name="place_detail_image_loading">대표 사진 불러오는 중</string>
+    <string name="place_detail_image_failed">대표 사진을 불러오지 못했어요</string>
     <string name="place_detail_missing">정보 없음</string>
     <string name="place_detail_rating_label">평점</string>
     <string name="place_detail_rating_with_count">%1$s · 평가 %2$s개</string>

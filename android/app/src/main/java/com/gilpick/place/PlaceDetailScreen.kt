@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.ui.component.ErrorState as CommonErrorState
@@ -294,22 +295,43 @@ private fun Content(
  */
 @Composable
 private fun Hero(place: PlaceDto, onBack: () -> Unit) {
-    val noImage = stringResource(R.string.place_detail_no_image)
     val statusRes = businessStatusLabelRes(place.businessStatus)
+    // #515 사진은 URL이 있어도 받는 중이거나 받지 못할 수 있다. 실제로 그려졌을 때만 사진 설명을 준다.
+    var imageState by remember(place.imageUrl) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+    val imageShown = imageState is AsyncImagePainter.State.Success
+    // 사진이 보이지 않는 동안에는 빈 자리 자체가 내용이므로 그 상태를 컨테이너에 붙인다(가이드라인 10절).
+    val fallbackDescription = when {
+        place.imageUrl == null -> stringResource(R.string.place_detail_no_image)
+        imageState is AsyncImagePainter.State.Error -> stringResource(R.string.place_detail_image_failed)
+        imageShown -> null
+        else -> stringResource(R.string.place_detail_image_loading)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(240.dp)
             .background(LocalGilpickColors.current.faint)
-            // 이미지가 없을 때는 빈 자리 자체가 내용이므로 설명을 컨테이너에 붙인다.
-            .then(if (place.imageUrl == null) Modifier.semantics { contentDescription = noImage } else Modifier),
+            .then(if (fallbackDescription != null) Modifier.semantics { contentDescription = fallbackDescription } else Modifier),
     ) {
+        // 대체 표현. 검색 결과 썸네일(`RemoteImage`)과 같은 지도 핀·`outline` 기준이며, 사진이 그려지면 치운다.
+        if (!imageShown) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_map_pin),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(HERO_FALLBACK_ICON)
+                    .testTag(TAG_HERO_IMAGE_FALLBACK),
+            )
+        }
         if (place.imageUrl != null) {
             AsyncImage(
                 model = place.imageUrl,
-                contentDescription = stringResource(R.string.place_detail_image_description, place.name),
+                contentDescription = if (imageShown) stringResource(R.string.place_detail_image_description, place.name) else null,
                 contentScale = ContentScale.Crop,
+                onState = { imageState = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -791,3 +813,9 @@ internal const val ADD_TO_SCHEDULE_CONFIRM_TAG = "place_detail_add_to_schedule_c
 
 /** 48dp 터치 영역 안에 36dp 원을 가운데 두면 원 밖 여백은 6dp다. Figma 위치(16/20)에서 이만큼 뺀다. */
 private val CIRCLE_INSET = 6.dp
+
+/** hero 사진 대체 표현 아이콘(#515). 240dp hero에 맞춰 검색 썸네일(24dp)보다 크게 둔다. */
+private val HERO_FALLBACK_ICON = 32.dp
+
+/** hero 사진 대체 표현. 사진이 보이지 않는 상태를 test가 확인한다. */
+internal const val TAG_HERO_IMAGE_FALLBACK = "place_detail_hero_image_fallback"
