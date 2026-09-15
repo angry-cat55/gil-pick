@@ -13,7 +13,12 @@ from app.api.errors import success_response
 from app.api.v1.itinerary import _owned_trip_date
 from app.core.config import Settings, get_settings
 from app.schemas.auth import ErrorEnvelope
-from app.schemas.route import RetryRouteRequest, RouteEnvelope
+from app.schemas.route import (
+    RetryRouteRequest,
+    RouteEnvelope,
+    RouteEstimateRequest,
+    RouteSegmentEstimatesEnvelope,
+)
 from app.schemas.trip import Trip
 from app.services.route import RouteService, build_route_service
 
@@ -77,6 +82,35 @@ async def retry_failed_day_route(
     data = await service.retry_current(
         trip_id=trip.trip_id,
         visit_date=visit_date,
+        schedule_version=payload.schedule_version,
+    )
+    return success_response(request, data)
+
+
+@router.post(
+    "/segments/{sequence}/estimates",
+    response_model=RouteSegmentEstimatesEnvelope,
+    responses={
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+        403: {"model": ErrorEnvelope},
+        404: {"model": ErrorEnvelope},
+        409: {"model": ErrorEnvelope},
+    },
+)
+async def estimate_route_segment(
+    payload: RouteEstimateRequest,
+    request: Request,
+    sequence: Annotated[int, Path(ge=1, le=9)],
+    visit_date: Annotated[date, Path(alias="date")],
+    trip: Annotated[Trip, Depends(_owned_trip_date)],
+    service: Annotated[RouteService, Depends(_route_service)],
+) -> JSONResponse:
+    """한 일정 구간의 도보·대중교통·자동차 추정을 반환한다."""
+    data = await service.estimate_segment(
+        trip_id=trip.trip_id,
+        visit_date=visit_date,
+        sequence=sequence,
         schedule_version=payload.schedule_version,
     )
     return success_response(request, data)

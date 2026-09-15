@@ -29,3 +29,24 @@ async def test_route_migration_creates_expected_constraints_and_index() -> None:
         assert "KAKAO" in provider_checks["progress_segments"]
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_route_estimate_migration_creates_cache_key_and_constraints() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL 또는 DATABASE_URL이 필요합니다.")
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            names = set((await connection.execute(text("""
+                SELECT conname FROM pg_constraint
+                WHERE conrelid = 'route_estimates'::regclass
+            """))).scalars())
+        assert {
+            "uq_route_estimates_input", "ck_route_estimates_schedule_version",
+            "ck_route_estimates_sequence", "ck_route_estimates_transport_mode",
+            "ck_route_estimates_status",
+        } <= names
+    finally:
+        await engine.dispose()

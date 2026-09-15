@@ -290,6 +290,29 @@
 
 ## Dependencies & Execution Order
 
+### Issue #536 구간별 이동 수단 추정
+
+- [X] T044 [P] [US1] 수단별 독립 성공·실패와 제한된 동시성 unit test 작성 in api/tests/unit/test_route_estimates.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T040
+  - 검증: RED 8건 확인 후 `tests/unit/test_route_estimates.py` 8건 통과
+- [X] T045 [US1] 구간 추정 schema·service·endpoint 구현 in api/app/schemas/route.py, api/app/services/route.py, api/app/api/v1/route.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T044
+  - 검증: 세 수단 순서, 수단별 실패 격리, 저장 이동 수단 불변 contract/unit test 통과
+- [X] T046 [US1] version별 성공·실패 TTL cache와 migration 구현 in api/app/models/route.py, api/migrations/versions/015_create_route_estimates.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T045
+  - 검증: 성공 300초·실패 60초 재사용, version 변경 cache miss·이전 row 제거 integration/migration test 통과
+- [X] T047 [US1] 구간 추정 계약과 설계 문서 동기화 in specs/005-route-calculation/contracts/route.openapi.yaml, docs/design/api-spec.md, docs/design/er-schema.md
+  - 영역: BE
+  - 담당: jh
+  - 선행: T046
+  - 검증: YAML parse와 FastAPI OpenAPI contract test, 문서와 구현 필드·상태·TTL 일치 확인
+
 ### Phase Dependencies
 
 ```text

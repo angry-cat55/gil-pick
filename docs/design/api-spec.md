@@ -150,6 +150,7 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | ROUTE-001 | 경로 | 날짜별 경로 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/route` |
 | ROUTE-002 | 경로 | 남은 경로 재계산 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/route/recalculate` |
 | ROUTE-003 | 경로 | 실패한 계획 경로 다시 시도 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/route/retry` |
+| ROUTE-004 | 경로 | 구간별 이동 수단 시간·거리 추정 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/route/segments/{sequence}/estimates` |
 | PROG-001 | 여행 진행 | 당일 진행 현황 조회 | [ ] | [X] | GET | `/api/v1/trips/{tripId}/days/{date}/progress` |
 | PROG-002 | 여행 진행 | 오늘 여행 시작 | [ ] | [ ] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/start` |
 | PROG-003 | 여행 진행 | 위치 이벤트 등록 | [ ] | [X] | POST | `/api/v1/trips/{tripId}/days/{date}/progress/events` |
@@ -965,6 +966,18 @@ Request Body:
 - 성공과 최종 실패 모두 ROUTE-001과 같은 `200` envelope를 사용한다.
 
 주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`, `409 VERSION_CONFLICT | ROUTE_NOT_FAILED`
+
+### ROUTE-004 구간별 이동 수단 추정
+
+`POST /api/v1/trips/{tripId}/days/{date}/route/segments/{sequence}/estimates`
+
+- 요청: `{ "scheduleVersion": 1 }`
+- 응답 `estimates`는 `WALK`, `TRANSIT`, `CAR` 순서이며 각 항목은 독립적인 `READY` 또는 `FAILED`다.
+- `READY`는 `durationSeconds`, `distanceMeters`, `provider`, `providerAttribution`을 제공한다. `FAILED`는 이 값을 `null`로 두고 `failure`를 제공한다.
+- 성공 결과는 5분, 실패 결과는 60초 동안 cache한다. 일정 version이 바뀌면 이전 cache를 사용하지 않는다.
+- 이 API는 저장된 `transportModeToNext`와 정식 계획 경로를 변경하지 않는다.
+
+주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND | ROUTE_SEGMENT_NOT_FOUND`, `409 VERSION_CONFLICT`
 
 ### ROUTE-002 남은 경로 재계산
 

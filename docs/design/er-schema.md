@@ -23,7 +23,7 @@
 
 ## 2. 테이블 구성
 
-MVP는 16개 테이블로 구성한다.
+MVP는 17개 테이블로 구성한다.
 
 | 영역 | 테이블 | 역할 |
 |---|---|---|
@@ -35,6 +35,7 @@ MVP는 16개 테이블로 구성한다.
 | 장소 | `places` | 일정에 필요한 최소 장소 참조정보 |
 | 일정 | `itinerary_items` | 날짜별 방문 순서·체류시간·진행 상태 |
 | 경로 | `routes` | 실제 일정에 적용된 경로 스냅샷 |
+| 경로 | `route_estimates` | 구간·이동 수단별 단기 추정 cache |
 | 위치 이벤트 | `progress_events` | DWELL·EXIT·REENTER 입력과 중복 방지 |
 | 상태 전환 | `progress_transitions` | 자동·수동 진행 변경과 되돌리기 근거 |
 | 진행 구간 | `progress_segments` | 계획 경로에 없는 시작·건너뛰기 구간의 이동시간 |
@@ -627,3 +628,6 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `notification_deliveries` | MVP에서는 FCM 결과를 별도 이력화하지 않음 |
 
 이 통합은 MVP에서 요구되는 조회와 무결성을 유지하면서 테이블 수와 조인 수를 줄인다. 검색·정렬·외래키 무결성이 필요한 핵심 데이터는 JSONB에 넣지 않는다.
+## 11. 구간 추정 캐시 `route_estimates`
+
+이동 수단 비교용 단기 cache다. `trip_days`와 N:1이며 `(trip_day_id, schedule_version, sequence, transport_mode)`가 unique다. `status`는 `READY` 또는 `FAILED`, `estimate_payload`는 공개 응답 필드, `calculated_at`은 성공 5분·실패 60초 TTL 판단에 사용한다. 일정 version이 변경되면 이전 row는 조회에 사용하지 않고 새 version 요청에서 제거한다.

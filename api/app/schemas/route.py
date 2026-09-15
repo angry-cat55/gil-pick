@@ -142,4 +142,54 @@ class RetryRouteRequest(ApiModel):
     schedule_version: int = Field(ge=1)
 
 
-__all__ = ["FailedRouteData", "NotCalculatedRouteData", "Provider", "ReadyRouteData", "RetryRouteRequest", "Route", "RouteData", "RouteEnvelope", "RouteFailure", "RouteFailureCode", "RouteGeometry", "RouteMarker", "RouteSegment", "RouteStatus", "TransportMode"]
+class RouteEstimateRequest(ApiModel):
+    """현재 일정 version의 한 구간 이동 수단별 추정 요청."""
+
+    schedule_version: int = Field(ge=1)
+
+
+class RouteModeEstimate(ApiModel):
+    transport_mode: TransportMode
+    status: Literal[RouteStatus.READY, RouteStatus.FAILED]
+    duration_seconds: int | None = Field(default=None, ge=0)
+    distance_meters: int | None = Field(default=None, ge=0)
+    provider: Provider | None = None
+    provider_attribution: str | None = None
+    failure: RouteFailure | None = None
+
+    @model_validator(mode="after")
+    def validate_state_fields(self) -> "RouteModeEstimate":
+        ready_fields = (
+            self.duration_seconds,
+            self.distance_meters,
+            self.provider,
+            self.provider_attribution,
+        )
+        if self.status is RouteStatus.READY and (
+            any(value is None for value in ready_fields) or self.failure is not None
+        ):
+            raise ValueError("READY estimate requires values and no failure")
+        if self.status is RouteStatus.FAILED and (
+            any(value is not None for value in ready_fields) or self.failure is None
+        ):
+            raise ValueError("FAILED estimate requires only failure")
+        return self
+
+
+class RouteSegmentEstimatesData(ApiModel):
+    trip_id: uuid.UUID
+    date: date
+    schedule_version: int = Field(ge=1)
+    sequence: int = Field(ge=1, le=9)
+    from_item_id: uuid.UUID
+    to_item_id: uuid.UUID
+    estimates: list[RouteModeEstimate] = Field(min_length=3, max_length=3)
+
+
+class RouteSegmentEstimatesEnvelope(ApiModel):
+    success: Literal[True]
+    data: RouteSegmentEstimatesData
+    meta: ResponseMeta
+
+
+__all__ = ["FailedRouteData", "NotCalculatedRouteData", "Provider", "ReadyRouteData", "RetryRouteRequest", "Route", "RouteData", "RouteEnvelope", "RouteEstimateRequest", "RouteFailure", "RouteFailureCode", "RouteGeometry", "RouteMarker", "RouteModeEstimate", "RouteSegment", "RouteSegmentEstimatesData", "RouteSegmentEstimatesEnvelope", "RouteStatus", "TransportMode"]

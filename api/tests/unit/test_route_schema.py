@@ -13,6 +13,7 @@ from app.schemas.route import (
     ReadyRouteData,
     RouteFailureCode,
     RouteGeometry,
+    RouteModeEstimate,
 )
 
 
@@ -87,3 +88,14 @@ def test_day_itinerary_can_embed_ready_route() -> None:
     route_data = ReadyRouteData.model_validate(_ready_payload())
     day = DayItinerary(date=date(2026, 9, 6), day_number=1, version=2, route_status="READY", items=[], route=route_data.route)
     assert day.route is not None
+
+
+def test_route_mode_estimate_requires_status_specific_fields() -> None:
+    ready = RouteModeEstimate.model_validate({
+        "transportMode": "WALK", "status": "READY", "durationSeconds": 60,
+        "distanceMeters": 100, "provider": "TMAP", "providerAttribution": "TMAP",
+        "failure": None,
+    })
+    assert ready.duration_seconds == 60
+    with pytest.raises(ValidationError):
+        RouteModeEstimate.model_validate({"transportMode": "CAR", "status": "READY"})

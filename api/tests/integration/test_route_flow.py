@@ -30,7 +30,7 @@ from app.db import get_session
 from app.main import app
 from app.models.auth import User
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.route import Route as RouteModel
+from app.models.route import Route as RouteModel, RouteEstimate
 from app.models.trip import Trip
 from app.schemas.trip import Trip as TripSchema, TripStatus
 from app.services.route import RouteCalculationService, RouteService
@@ -160,6 +160,41 @@ async def test_calculation_persists_ready_route_and_get_returns_same_result(
         )
     assert itinerary.route_status == "READY"
     assert itinerary.route == loaded.route
+
+
+@pytest.mark.asyncio
+async def test_segment_estimates_cache_success_and_miss_after_version_change(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, visit_date = await _seed(session_factory)
+    provider = FixedProvider(Provider.TMAP)
+    service = _service(session_factory, provider)
+
+    first = await service.estimate_segment(
+        trip_id=trip_id, visit_date=visit_date, sequence=1, schedule_version=1
+    )
+    second = await service.estimate_segment(
+        trip_id=trip_id, visit_date=visit_date, sequence=1, schedule_version=1
+    )
+
+    assert first == second
+    assert provider.calls == 2  # WALK과 CAR를 한 번씩 계산
+    async with transaction_session(session_factory) as session:
+        await session.execute(
+            update(TripDay).where(TripDay.trip_day_id == day_id).values(schedule_version=2)
+        )
+    with pytest.raises(AppError) as stale:
+        await service.estimate_segment(
+            trip_id=trip_id, visit_date=visit_date, sequence=1, schedule_version=1
+        )
+    assert stale.value.code == "VERSION_CONFLICT"
+    await service.estimate_segment(
+        trip_id=trip_id, visit_date=visit_date, sequence=1, schedule_version=2
+    )
+    assert provider.calls == 4
+    async with session_factory() as session:
+        versions = set(await session.scalars(select(RouteEstimate.schedule_version)))
+    assert versions == {2}
 
 
 @pytest.mark.asyncio

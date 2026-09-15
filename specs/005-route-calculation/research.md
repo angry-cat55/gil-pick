@@ -1,5 +1,13 @@
 # Phase 0 Research: F005 경로 계산
 
+## 결정 8: 구간별 수단 추정과 캐시
+
+**Decision**: 별도 동기식 endpoint에서 `WALK`·`TRANSIT`·`CAR`를 기존 provider 동시성 한도 안에서 계산한다. 결과는 수단별로 독립 반환하고 성공 300초, 실패 60초 TTL의 DB cache를 사용한다. cache key에 `schedule_version`을 포함하고 새 version 요청 때 이전 row를 제거한다.
+
+**Rationale**: 기존 정식 경로의 all-or-nothing 계약과 저장된 이동 수단을 보존하면서 #508이 필요한 비교 값만 제공한다. DB cache는 요청마다 생성되는 service와 여러 API instance에서도 동일하게 작동한다.
+
+**Alternatives considered**: 정식 `RouteSegment` 확장은 실패 격리와 cache 수명을 기존 경로 계약에 섞는다. process memory cache는 instance 간 공유되지 않으며 service가 요청마다 생성되어 재사용되지 않는다. background worker는 현재 응답 규모에 불필요하다.
+
 ## 결정 1: transaction과 외부 호출 분리
 
 **Decision**: 일정을 먼저 커밋하고 외부 호출 뒤 별도 transaction으로 경로를 반영한다.

@@ -43,3 +43,35 @@ class Route(TimestampMixin, Base):
     calculated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     trip_day: Mapped[TripDay] = relationship(back_populates="routes")
+
+
+class RouteEstimate(TimestampMixin, Base):
+    """일정 version·구간·이동 수단별 짧은 수명의 추정 캐시."""
+
+    __tablename__ = "route_estimates"
+    __table_args__ = (
+        UniqueConstraint(
+            "trip_day_id", "schedule_version", "sequence", "transport_mode",
+            name="uq_route_estimates_input",
+        ),
+        CheckConstraint("schedule_version >= 1", name="ck_route_estimates_schedule_version"),
+        CheckConstraint("sequence BETWEEN 1 AND 9", name="ck_route_estimates_sequence"),
+        CheckConstraint(
+            "transport_mode IN ('WALK', 'TRANSIT', 'CAR')",
+            name="ck_route_estimates_transport_mode",
+        ),
+        CheckConstraint("status IN ('READY', 'FAILED')", name="ck_route_estimates_status"),
+    )
+
+    estimate_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    trip_day_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trip_days.trip_day_id", ondelete="CASCADE"), nullable=False
+    )
+    schedule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    transport_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    estimate_payload: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

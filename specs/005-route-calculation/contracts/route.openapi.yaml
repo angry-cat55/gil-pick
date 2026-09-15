@@ -50,6 +50,35 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /trips/{tripId}/days/{date}/route/segments/{sequence}/estimates:
+    post:
+      operationId: estimateRouteSegmentModes
+      summary: 한 일정 구간의 이동 수단별 시간·거리 추정
+      description: 도보·대중교통·자동차를 함께 계산한다. READY는 5분, FAILED는 60초 캐시하며 일정 version이 바뀌면 이전 캐시는 사용하지 않는다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+        - $ref: '#/components/parameters/VisitDate'
+        - name: sequence
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 9 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RouteEstimateRequest' }
+      responses:
+        '200':
+          description: 수단별 성공과 실패를 독립적으로 포함한다.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RouteSegmentEstimatesEnvelope' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -65,6 +94,50 @@ components:
       required: true
       schema: { type: string, format: date }
   schemas:
+    RouteEstimateRequest:
+      type: object
+      required: [scheduleVersion]
+      properties:
+        scheduleVersion: { type: integer, minimum: 1 }
+    RouteModeEstimate:
+      type: object
+      required: [transportMode, status, durationSeconds, distanceMeters, provider, providerAttribution, failure]
+      properties:
+        transportMode: { $ref: '#/components/schemas/TransportMode' }
+        status: { type: string, enum: [READY, FAILED] }
+        durationSeconds: { type: [integer, 'null'], minimum: 0 }
+        distanceMeters: { type: [integer, 'null'], minimum: 0 }
+        provider:
+          oneOf:
+            - $ref: '#/components/schemas/Provider'
+            - { type: 'null' }
+        providerAttribution: { type: [string, 'null'] }
+        failure:
+          oneOf:
+            - $ref: '#/components/schemas/RouteFailure'
+            - { type: 'null' }
+    RouteSegmentEstimatesData:
+      type: object
+      required: [tripId, date, scheduleVersion, sequence, fromItemId, toItemId, estimates]
+      properties:
+        tripId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        scheduleVersion: { type: integer, minimum: 1 }
+        sequence: { type: integer, minimum: 1, maximum: 9 }
+        fromItemId: { type: string, format: uuid }
+        toItemId: { type: string, format: uuid }
+        estimates:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { $ref: '#/components/schemas/RouteModeEstimate' }
+    RouteSegmentEstimatesEnvelope:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/RouteSegmentEstimatesData' }
+        meta: { $ref: '#/components/schemas/Meta' }
     RouteStatus:
       type: string
       enum: [NOT_CALCULATED, READY, FAILED]
@@ -212,7 +285,7 @@ components:
           properties:
             code:
               type: string
-              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, VERSION_CONFLICT, ROUTE_NOT_FAILED]
+              enum: [INVALID_REQUEST, INVALID_ACCESS_TOKEN, TRIP_FORBIDDEN, TRIP_NOT_FOUND, VERSION_CONFLICT, ROUTE_NOT_FAILED, ROUTE_SEGMENT_NOT_FOUND]
             message: { type: string }
             retryable: { type: boolean }
         meta: { $ref: '#/components/schemas/Meta' }

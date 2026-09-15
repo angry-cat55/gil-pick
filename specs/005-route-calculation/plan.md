@@ -4,6 +4,8 @@
 
 ## Summary
 
+Issue #536은 `POST /trips/{tripId}/days/{date}/route/segments/{sequence}/estimates`를 추가한다. 기존 provider와 동시 실행 제한을 재사용해 세 수단을 제한된 동시성으로 계산하고 수단별 `READY`/`FAILED`를 독립 반환한다. PostgreSQL `route_estimates`에 `(trip_day_id, schedule_version, sequence, transport_mode)`로 캐시하며 성공은 5분, 실패는 60초만 유효하다. 일정 version 변경 시 키가 달라져 cache miss가 발생하고 요청 처리 중 이전 version row를 제거한다. 기존 정식 계획 경로의 all-or-nothing 계산·저장은 변경하지 않는다.
+
 날짜별 일정 저장이 확정되면 장소 사이 구간을 저장된 이동수단에 따라 TMAP(도보·자동차) 또는 Kakao Maps(대중교통)로 계산하고, 현재 `schedule_version`에 대응하는 경로 하나를 저장·조회한다. 일정 transaction은 외부 호출 전에 커밋해 경로 실패와 분리한다. 여러 구간은 동시에 계산하되 전체 10초 deadline을 적용하고, 일시적 실패만 남은 시간 안에서 1회 재시도한다. 실패 시 일정은 보존하고 `FAILED` 상태와 동일 입력 재시도만 제공한다.
 
 ## Technical Context

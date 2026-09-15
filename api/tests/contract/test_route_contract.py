@@ -21,6 +21,7 @@ from app.schemas.route import (
     ReadyRouteData,
     Route,
     RouteFailure,
+    RouteSegmentEstimatesData,
 )
 from app.schemas.trip import Trip, TripStatus
 
@@ -63,6 +64,55 @@ class StubRouteService:
         if self.error:
             raise self.error
         return self.result
+
+    async def estimate_segment(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        return RouteSegmentEstimatesData(
+            tripId=kwargs["trip_id"],
+            date=kwargs["visit_date"],
+            scheduleVersion=kwargs["schedule_version"],
+            sequence=kwargs["sequence"],
+            fromItemId=uuid.uuid4(),
+            toItemId=uuid.uuid4(),
+            estimates=[
+                {
+                    "transportMode": mode,
+                    "status": "READY",
+                    "durationSeconds": 60,
+                    "distanceMeters": 100,
+                    "provider": "KAKAO" if mode == "TRANSIT" else "TMAP",
+                    "providerAttribution": "Kakao Mobility" if mode == "TRANSIT" else "TMAP",
+                    "failure": None,
+                }
+                for mode in ("WALK", "TRANSIT", "CAR")
+            ],
+        )
+
+
+def test_segment_estimates_returns_three_modes_and_declares_contract(
+    principal: AuthPrincipal,
+) -> None:
+    service = StubRouteService(_route_data("NOT_CALCULATED"))
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[_trip_service] = lambda: StubTripService()
+    app.dependency_overrides[_route_service] = lambda: service
+    path = f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/route/segments/1/estimates"
+    try:
+        response = TestClient(app).post(path, json={"scheduleVersion": 2})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert [item["transportMode"] for item in response.json()["data"]["estimates"]] == [
+        "WALK", "TRANSIT", "CAR"
+    ]
+    operation = app.openapi()["paths"][
+        "/api/v1/trips/{tripId}/days/{date}/route/segments/{sequence}/estimates"
+    ]["post"]
+    assert operation["requestBody"]["required"] is True
+    assert {"200", "400", "401", "403", "404", "409"} <= set(operation["responses"])
 
 
 def _route_data(status: str):  # type: ignore[no-untyped-def]
