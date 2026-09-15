@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.route.readyRoute
 import com.gilpick.ui.theme.GilpickTheme
@@ -47,7 +48,7 @@ class RoutePreviewApproveTest {
         composeRule.onNodeWithText("변경하는 중").assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_APPROVE).assertIsNotEnabled().performClick()
         composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).assertIsNotEnabled().performClick()
-        composeRule.onNodeWithTag(TAG_BACK).assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertIsDisplayed()
         composeRule.runOnIdle {
             assertEquals(0, approves)
             assertEquals(0, others)

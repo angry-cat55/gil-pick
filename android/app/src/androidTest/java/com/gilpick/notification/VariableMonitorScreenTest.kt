@@ -32,6 +32,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.AlternativeError
 import com.gilpick.ui.theme.GilpickTheme
 import org.junit.Assert.assertEquals
@@ -166,7 +167,7 @@ class VariableMonitorScreenTest {
     fun 터치_대상은_48dp_이상이다() {
         setScreen(content())
 
-        composeRule.onNodeWithTag(TAG_MONITOR_BACK).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithTag(TAG_MONITOR_SORT).assertHeightIsAtLeast(48.dp)
         scrollTo(MONITOR_DETECTION_2)
         composeRule.onNodeWithTag(TAG_MONITOR_OPEN_PREFIX + MONITOR_DETECTION_2).assertHeightIsAtLeast(48.dp)

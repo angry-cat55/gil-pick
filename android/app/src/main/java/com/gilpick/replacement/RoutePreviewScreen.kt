@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.alternative.clockLabel
 import com.gilpick.route.RouteMap
@@ -155,7 +156,7 @@ private fun Header(onBack: () -> Unit, enabled: Boolean = true) {
             onClick = onBack,
             tint = MaterialTheme.colorScheme.onSurface,
             enabled = enabled,
-            modifier = Modifier.testTag(TAG_BACK),
+            modifier = Modifier.testTag(TAG_HEADER_BACK),
         )
         val title = stringResource(R.string.replacement_preview_title)
         Text(
@@ -745,7 +746,6 @@ internal val ReplacementError.messageRes: Int
         ReplacementError.SessionExpired, ReplacementError.Unexpected -> R.string.replacement_error_unexpected
     }
 
-internal const val TAG_BACK = "preview_back"
 internal const val TAG_APPROVE = "preview_approve"
 internal const val TAG_OTHER_CANDIDATES = "preview_other_candidates"
 internal const val TAG_MAP_SLOT = "preview_map"

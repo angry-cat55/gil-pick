@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.place.PlaceCategory
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -50,7 +51,7 @@ class AlternativeSearchScreenTest {
         composeRule.onNodeWithText("기존 장소 대신 갈 곳의 이름을 검색해 보세요").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("관광지, 이름, 카테고리 검색").assertIsDisplayed()
         composeRule.onNodeWithText("전체").assertDoesNotExist()
-        composeRule.onNodeWithTag(TAG_SEARCH_BACK).assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertHeightIsAtLeast(48.dp)
     }
 
     @Test

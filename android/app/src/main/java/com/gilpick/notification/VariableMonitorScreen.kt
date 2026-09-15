@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.alternative.AlternativeError
 import com.gilpick.alternative.clockLabel
@@ -120,7 +121,7 @@ private fun Header(onBack: () -> Unit) {
             contentDescription = stringResource(R.string.notification_back),
             tint = MaterialTheme.colorScheme.onSurface,
             onClick = onBack,
-            modifier = Modifier.testTag(TAG_MONITOR_BACK),
+            modifier = Modifier.testTag(TAG_HEADER_BACK),
         )
         Text(
             text = title,
@@ -446,7 +447,6 @@ private fun ToProgressButton(onBack: () -> Unit) {
     )
 }
 
-const val TAG_MONITOR_BACK = "monitor_back"
 const val TAG_MONITOR_LOADING = "monitor_loading"
 const val TAG_MONITOR_LIST = "monitor_list"
 const val TAG_MONITOR_COUNT = "monitor_count"

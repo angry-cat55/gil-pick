@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -168,7 +169,7 @@ private fun WithAppBar(
                 )
             },
             navigationIcon = {
-                IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH)) {
+                IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH).testTag(TAG_HEADER_BACK)) {
                     Icon(
                         painter = painterResource(R.drawable.ic_lucide_arrow_left),
                         // 아이콘 전용 버튼이므로 설명이 필수다(가이드라인 10절).
@@ -329,6 +330,7 @@ private fun Hero(place: PlaceDto, onBack: () -> Unit, onFavorite: () -> Unit) {
             contentDescription = stringResource(R.string.place_detail_back),
             onClick = onBack,
             modifier = Modifier
+                .testTag(TAG_HEADER_BACK)
                 .align(Alignment.TopStart)
                 .padding(top = LocalGilpickSpacing.current.space4 - CIRCLE_INSET, start = LocalGilpickSpacing.current.space5 - CIRCLE_INSET),
         )

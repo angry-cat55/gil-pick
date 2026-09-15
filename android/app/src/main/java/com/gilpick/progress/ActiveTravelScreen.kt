@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.notification.IconBoxButton
 import com.gilpick.alternative.DetectionListItemDto
@@ -275,7 +276,7 @@ private fun Header(
                     // 뒤로 가기·닫기는 D7이 아니라 onSurface다(가이드라인 7절 "헤더 아이콘 색").
                     tint = MaterialTheme.colorScheme.onSurface,
                     onClick = onBack,
-                    modifier = Modifier.testTag(TAG_BACK),
+                    modifier = Modifier.testTag(TAG_HEADER_BACK),
                 )
             }
             Text(
@@ -1514,7 +1515,6 @@ internal const val TAG_DAY_SUMMARY = "progress_day_summary"
 /** 헤더 알림 벨(F011). */
 internal const val TAG_NOTIFICATIONS = "progress_notifications"
 internal const val TAG_EDIT = "progress_edit"
-internal const val TAG_BACK = "progress_back"
 internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"

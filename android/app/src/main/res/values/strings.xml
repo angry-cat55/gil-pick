@@ -245,7 +245,6 @@
     <string name="trip_form_edit_submit">저장</string>
     <string name="trip_form_edit_submitting">저장하는 중</string>
     <string name="trip_form_back">뒤로 가기</string>
-    <string name="trip_form_close">닫기</string>
     <string name="trip_form_calendar_label">여행 일정</string>
     <string name="trip_form_calendar_month">%1$d년 %2$d월</string>
     <string name="trip_form_calendar_day">%1$d월 %2$d일</string>
@@ -277,7 +276,7 @@
 
     <!-- F004 일정 편집 -->
     <string name="itinerary_edit_title">일정 편집</string>
-    <string name="itinerary_edit_close">닫기</string>
+    <string name="itinerary_edit_back">뒤로 가기</string>
     <string name="itinerary_edit_day_tab">%1$d일 %2$s</string>
     <string name="itinerary_edit_section_title">%1$d월 %2$d일 방문 장소</string>
     <string name="itinerary_edit_section_summary">%1$d일차 · %2$d곳</string>

@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,6 +65,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.component.GradientButtonWidth
@@ -82,7 +84,7 @@ import java.util.Locale
 /**
  * 여행 생성·수정 화면(Figma `CreateTripScreen`·`EditTripScreen`, 가이드라인 7절 입력창·날짜 선택).
  *
- * - 헤더: 새 여행은 ←, 여행 수정은 ✕(기존 데이터를 고치는 편집 화면, 7절 헤더 아이콘 버튼).
+ * - 헤더: 새 여행과 여행 수정 모두 ←(#510, 7절 헤더 아이콘 버튼).
  * - 이름: 흰 카드 안 폼 입력창. 입력을 시작하면 바로 오류 테두리·문구를 보여 준다(Figma).
  * - 기간: 새 여행은 카드 안 인라인 달력, 수정은 두 칸 날짜 표시이고 누르면 같은 달력이 카드 안에 펼쳐진다(#443 결정).
  * - 제출: 하단 고정 [GradientButton]. 입력이 부족하면 비활성(D2)이고 버튼 위에 이유 문장을 둔다(Figma `disabled={!canCreate}`, #443 결정).
@@ -97,7 +99,7 @@ import java.util.Locale
  * @param onSubmit 생성 또는 저장을 요청한다.
  * @param onConfirmDeleteOutOfRangeItems 기간 축소로 삭제될 일정에 동의하고 저장을 계속한다.
  * @param onCancelDeleteConfirmation 기간 축소 확인 대화상자를 저장하지 않고 닫는다.
- * @param onBack 헤더 ←·✕. 폼을 나간다.
+ * @param onBack 헤더 ←. 폼을 나간다.
  * @param onDelete 수정 화면 `여행 삭제` 확인 대화상자에서 삭제를 확정했다.
  * @param onDeleteErrorShown 삭제 실패 안내를 사용자가 닫았음을 알린다.
  * @param onImagePicked 커버 Photo Picker에서 고른 결과(#499).
@@ -233,7 +235,7 @@ fun TripFormScreen(
 @Composable
 private fun Header(editing: Boolean, onBack: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
-    val description = stringResource(if (editing) R.string.trip_form_close else R.string.trip_form_back)
+    val description = stringResource(R.string.trip_form_back)
 
     Row(
         modifier = Modifier
@@ -247,7 +249,8 @@ private fun Header(editing: Boolean, onBack: () -> Unit) {
             modifier = Modifier
                 .size(MIN_TOUCH)
                 .clickable(onClick = onBack, role = Role.Button)
-                .semantics { contentDescription = description },
+                .semantics { contentDescription = description }
+                .testTag(TAG_HEADER_BACK),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -257,7 +260,7 @@ private fun Header(editing: Boolean, onBack: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painter = painterResource(if (editing) R.drawable.ic_lucide_x else R.drawable.ic_lucide_arrow_left),
+                    painter = painterResource(R.drawable.ic_lucide_arrow_left),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(HEADER_ICON),

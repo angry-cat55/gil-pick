@@ -17,10 +17,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.route.NaverMapHost
 import com.gilpick.ui.theme.LocalGilpickSpacing
@@ -96,7 +98,7 @@ fun PlaceMapScreen(
         TopAppBar(
             title = { Text(text = name, style = MaterialTheme.typography.titleMedium) },
             navigationIcon = {
-                IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH)) {
+                IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH).testTag(TAG_HEADER_BACK)) {
                     Icon(
                         painter = painterResource(R.drawable.ic_lucide_arrow_left),
                         contentDescription = stringResource(R.string.place_detail_back),

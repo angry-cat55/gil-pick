@@ -47,12 +47,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.displayFont
 import androidx.compose.ui.platform.LocalContext
@@ -425,6 +427,7 @@ private fun Hero(
             onClick = onBack,
             contentDescription = stringResource(R.string.trip_detail_back),
             modifier = Modifier
+                .testTag(TAG_HEADER_BACK)
                 .align(Alignment.TopStart)
                 .padding(top = spacing.space3 - HERO_BUTTON_INSET, start = spacing.space5 - HERO_BUTTON_INSET),
         ) {

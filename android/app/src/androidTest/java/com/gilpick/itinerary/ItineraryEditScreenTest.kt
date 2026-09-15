@@ -1,5 +1,7 @@
 package com.gilpick.itinerary
 
+import androidx.compose.ui.test.onNodeWithTag
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -146,11 +148,11 @@ class ItineraryEditScreenTest {
     }
 
     @Test
-    fun 닫기는_확인_없이_ViewModel에_맡긴다() {
+    fun 뒤로_가기는_확인_없이_ViewModel에_맡긴다() {
         var closes = 0
         setScreen(state(), onClose = { closes++ })
 
-        composeRule.onNodeWithContentDescription("닫기").performClick()
+        composeRule.onNodeWithContentDescription("뒤로 가기").performClick()
         composeRule.runOnIdle { assertEquals(1, closes) }
         composeRule.onNodeWithText("편집을 취소할까요?").assertDoesNotExist()
     }
@@ -193,7 +195,8 @@ class ItineraryEditScreenTest {
     fun 터치_영역은_48dp_이상이고_아이콘_버튼에_설명이_있다() {
         setScreen(state(draft = listOf(draft("경복궁"))))
 
-        composeRule.onNodeWithContentDescription("닫기").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        composeRule.onNodeWithContentDescription("뒤로 가기").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("8일 화").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("장소 추가").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("저장").assertHeightIsAtLeast(48.dp)

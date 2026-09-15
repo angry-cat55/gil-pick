@@ -19,6 +19,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import androidx.test.platform.app.InstrumentationRegistry
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.alternative.AlternativeService
@@ -222,7 +223,7 @@ class ReplacementNavigationTest {
         composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
         awaitPreview()
 
-        composeRule.onNodeWithTag(TAG_BACK).performClick()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).performClick()
 
         composeRule.waitUntil(WAIT_MILLIS) { rejectRequests.isNotEmpty() }
         composeRule.runOnIdle { assertTrue(rejectRequests.isNotEmpty()) }
