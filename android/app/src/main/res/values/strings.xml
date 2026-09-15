@@ -375,6 +375,12 @@
     <string name="route_legend_active">이동 중</string>
     <string name="route_legend_upcoming">예정</string>
     <string name="route_legend_pan_hint">지도 이동 가능</string>
+    <string name="route_sheet_handle">경로 정보 크기 조절</string>
+    <string name="route_sheet_collapsed">접힘</string>
+    <string name="route_sheet_default">기본</string>
+    <string name="route_sheet_expanded">펼침</string>
+    <string name="route_sheet_expand">펼치기</string>
+    <string name="route_sheet_collapse">접기</string>
     <string name="route_status_name">%1$s %2$s</string>
     <string name="route_duration_minutes">%1$d분</string>
     <string name="route_duration_hours">%1$d시간</string>

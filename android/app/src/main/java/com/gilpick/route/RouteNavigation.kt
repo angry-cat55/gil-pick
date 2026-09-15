@@ -49,7 +49,9 @@ fun NavGraphBuilder.routeGraph(
     onSessionExpired: () -> Unit,
     repository: (Context) -> RouteRepository = RouteViewModel::defaultRepository,
     progressRepository: (Context) -> ProgressRepository? = ProgressViewModel::defaultRepository,
-    map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier -> RouteMap(route = route, marks = marks, modifier = modifier) },
+    map: @Composable (RouteDto, RouteMarks, Float, Modifier) -> Unit = { route, marks, sheetFraction, modifier ->
+        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = sheetFraction)
+    },
 ) {
     composable<DayRouteRoute> { entry ->
         val route = entry.toRoute<DayRouteRoute>()
