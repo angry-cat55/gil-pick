@@ -133,6 +133,50 @@ class TripDetailViewModelTest {
         assertEquals(TRIP_ID, phase.trip.tripId)
     }
 
+    // --- #500 hero 대표 이미지 ---
+
+    @Test
+    fun `대표 이미지가 있으면 tripId로 원본을 받아 hero에 넘긴다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID, imageUrl = "http://api.example/trips/$TRIP_ID/image/content")) }
+        val requested = mutableListOf<String>()
+        service.onImageContent = { id ->
+            requested += id
+            retrofit2.Response.success(byteArrayOf(7, 8).toResponseBody(null))
+        }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(listOf(TRIP_ID), requested)
+        assertEquals(listOf<Byte>(7, 8), viewModel.state.value.heroImage?.toList())
+    }
+
+    @Test
+    fun `대표 이미지가 없으면 원본을 요청하지 않는다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        // onImageContent 기본값은 호출되면 실패한다. 요청하지 않았다는 뜻이다.
+        assertNull(viewModel.state.value.heroImage)
+    }
+
+    @Test
+    fun `대표 이미지를 받지 못해도 여행 정보는 그대로 보인다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID, imageUrl = "http://api.example/trips/$TRIP_ID/image/content")) }
+        service.onImageContent = { throw java.io.IOException("offline") }
+        val viewModel = newViewModel()
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.phase is TripDetailPhase.Content)
+        assertNull(viewModel.state.value.heroImage)
+    }
+
     @Test
     fun `이름과 기간과 상태를 그대로 화면에 넘긴다`() = runTest {
         // 화면이 그려야 할 값은 US3 Acceptance 1이 정한 세 가지다. 상태는 서버가 KST로
