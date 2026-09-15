@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -31,6 +30,10 @@ from app.schemas.place import (
     TourApiCategory,
 )
 from app.services.alternatives.candidates import build_candidates
+from app.services.alternatives.policy import (
+    DIRECT_SEARCH_MAX_PROVIDER_PAGES,
+    SEARCH_RADII_METERS,
+)
 from app.services.place import PlaceService, distance_meters
 
 _STAY_MINUTES = {
@@ -132,13 +135,22 @@ class AlternativeService:
         query: str,
         cursor: str | None,
         limit: int,
-    ) -> tuple[list[AlternativeSearchItem], str | None, bool]:
+    ) -> tuple[list[AlternativeSearchItem], str | None, bool, str]:
         """ACTIVE 감지 기준으로 F003 장소 검색을 실행하고 거리·방문 가능 정보를 덧붙인다.
 
         추가 Google 호출 없이 F003이 이미 병합한 필드만 쓴다(research R8). 일정·경로·감지
-        상태는 바꾸지 않는다.
+        상태는 바꾸지 않는다. 기존 장소 기준 2km 밖과 좌표 없는 장소는 제외하고, 필터된
+        페이지가 비면 provider cursor를 최대 3페이지까지 이어 조회한다.
+
+        Returns:
+            검색 항목, 다음 cursor, 다음 페이지 여부, 반경 기준 장소 이름.
+
+        Raises:
+            AppError: 감지가 비활성이거나 소유권·provider·cursor 검증에 실패한 경우.
         """
-        detection, _, _ = await owned_detection(detection_id, user_id, self.session)
+        detection, _, origin_name = await owned_detection(
+            detection_id, user_id, self.session
+        )
         if detection.status != "ACTIVE":
             raise AppError(
                 409,
@@ -171,11 +183,25 @@ class AlternativeService:
         place_service = PlaceService(
             self.tour_client, self.google_client, cursor_secret=self.candidate_secret
         )
-        places, next_cursor, has_next = await place_service.search_places(
-            query=query, category=None, area_code=None, cursor=cursor, limit=limit
-        )
-        items = [_to_search_item(found, origin, scheduled) for found in places]
-        return items, next_cursor, has_next
+        next_cursor = cursor
+        for _ in range(DIRECT_SEARCH_MAX_PROVIDER_PAGES):
+            places, provider_cursor, has_next = await place_service.search_places(
+                query=query,
+                category=None,
+                area_code=None,
+                cursor=next_cursor,
+                limit=limit,
+            )
+            items = [
+                _to_search_item(found, origin, scheduled)
+                for found in places
+                if _within_direct_search_radius(origin, found)
+            ]
+            if items or not has_next:
+                return items, provider_cursor, has_next, origin_name
+            next_cursor = provider_cursor
+
+        return [], None, False, origin_name
 
     @staticmethod
     def _provider_place_id(place: Place) -> str | None:
@@ -229,6 +255,11 @@ def _search_operating_status(status: BusinessStatus | None) -> OperatingStatus:
     return OperatingStatus.UNKNOWN
 
 
+def _within_direct_search_radius(origin: PlaceSummary, place: PlaceSummary) -> bool:
+    """좌표가 있고 기존 장소에서 2km 이내인 직접 검색 결과만 허용한다."""
+    return distance_meters(origin, place) <= SEARCH_RADII_METERS[-1]
+
+
 def _to_search_item(
     place: PlaceSummary, origin: PlaceSummary, scheduled_place_ids: set[str]
 ) -> AlternativeSearchItem:
@@ -238,7 +269,7 @@ def _to_search_item(
     distance = distance_meters(origin, place)
     return AlternativeSearchItem(
         place=place,
-        distance_meters=None if math.isinf(distance) else round(distance),
+        distance_meters=round(distance),
         operating_status=operating_status,
         visitable=operating_status is not OperatingStatus.CLOSED and not in_schedule,
         in_schedule=in_schedule,

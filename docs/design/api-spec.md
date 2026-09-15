@@ -417,6 +417,8 @@ Response `200`:
 {
   "success": true,
   "data": {
+    "originName": "기존 장소",
+    "radiusMeters": 2000,
     "items": [
       {
         "tripId": "uuid",
@@ -1693,7 +1695,7 @@ Query:
 - `query`: trim 후 2글자 이상. 미만이면 `400 INVALID_REQUEST`.
 - 선택 `cursor`, `limit`(기본·최대 20).
 
-> **FR-019 반경 제한은 백엔드 조율 후 확정 예정** (2026-09-14, `specs/009-alternative-places/spec.md` FR-019 확정 전 변경안): 기존 장소 좌표 기준 2km 이내 한정·좌표 없는 결과 제외, 카테고리 필터 파라미터, 결과별 혼잡도·마감 여부 값이 검토 중이다. 확정 전까지는 아래 계약(반경·카테고리 제한 없음)이 유효하다.
+기존 장소 좌표 기준 2km 이내 결과만 반환하고 좌표 없는 결과는 제외한다(2026-09-16 #586 확정). F003 키워드 검색 의미와 query 계약은 유지하며, 필터 결과가 없으면 provider cursor를 이어 최대 3페이지까지 조회한다. 3페이지 안에 결과가 없으면 `items=[]`, `nextCursor=null`, `hasNext=false`다. 카테고리 필터 파라미터와 결과별 혼잡도·마감 여부 값은 별도 확정 전까지 제공하지 않는다.
 
 `ACTIVE` 감지에 대해서만 동작한다(비-`ACTIVE` → `409 DETECTION_NOT_ACTIVE`). PLACE-001 장소 검색을 그대로 실행하고 추가 Google 호출 없이 이미 병합된 필드만 사용해, 해당 detection의 기존 장소를 기준으로 거리·운영 상태·방문 가능 여부·일정 포함 여부를 덧붙인다. 운영 종료 장소도 결과에서 빼지 않고 `visitable=false`로 표시한다.
 
@@ -1741,7 +1743,8 @@ Query:
 ```
 
 - `place`: PLACE-001 장소 DTO 전체.
-- `distanceMeters`: 기존 장소 기준 haversine 거리. 좌표가 없으면 `null`.
+- `originName`·`radiusMeters`: 서버가 반경 필터에 적용한 기준 장소 이름과 고정 반경 2000m.
+- `distanceMeters`: 기존 장소 기준 haversine 거리. 좌표 없는 장소는 결과에서 제외되므로 항상 정수다.
 - `operatingStatus`: `businessStatus`만으로 판정한다 — `CLOSED_TEMPORARILY`·`CLOSED_PERMANENTLY` → `CLOSED`, `OPERATIONAL` → `OPEN`, 없음 → `UNKNOWN`. 폐점 시각 기반 `CLOSING_SOON`은 ALT-002에 없다.
 - `visitable`: `operatingStatus != CLOSED && !inSchedule`.
 - `inSchedule`: 기존 장소 자신 또는 같은 날짜 일정의 장소.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -19,6 +20,7 @@ from app.schemas.detection import CongestionVerdict, WeatherVerdict
 from app.schemas.place import PlaceCategory, PlaceSource, PlaceSummary, TourApiCategory
 from app.services.alternatives.candidate_token import verify_candidate_token
 from app.services.alternatives.candidates import build_candidates
+from app.services.alternatives import _within_direct_search_radius
 from app.services.detection.operating_hours_source import OperatingHoursSource
 
 ETA = datetime(2026, 9, 9, 12, tzinfo=UTC)
@@ -66,6 +68,25 @@ def origin(*, google_only: bool = False) -> PlaceSummary:
         current_opening_hours=None,
         google_attributions=None,
     )
+
+
+@pytest.mark.parametrize(
+    ("distance", "expected"),
+    [(1999, True), (2001, False)],
+)
+def test_direct_search_radius_boundary(distance: int, expected: bool) -> None:
+    base = origin()
+    place = base.model_copy(
+        update={"latitude": base.latitude + math.degrees(distance / 6_371_000)}
+    )
+
+    assert _within_direct_search_radius(base, place) is expected
+
+
+def test_direct_search_radius_rejects_missing_coordinates() -> None:
+    assert _within_direct_search_radius(
+        origin(), origin().model_copy(update={"latitude": None})
+    ) is False
 
 
 def tour_item(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from app.models.itinerary import Place
 from app.schemas.alternatives import AlternativeListData
 from app.schemas.place import BusinessStatus, PlaceCategory, PlaceSource, PlaceSummary
 from app.services.alternatives import AlternativeService
+from app.services.alternatives.policy import DIRECT_SEARCH_MAX_PROVIDER_PAGES
 from app.services.place import PlaceService
 
 DETECTION_ID = uuid.UUID("00000000-0000-0000-0000-000000000009")
@@ -272,7 +274,7 @@ class StubSearchService:
         }
         if self.error is not None:
             raise self.error
-        return self.items, "CURSOR2", True
+        return self.items, "CURSOR2", True, "기준 장소"
 
 
 @pytest.fixture
@@ -303,6 +305,8 @@ def test_alt_002_exposes_documented_contract_and_pagination(search_stub) -> None
     assert set(item_schema["required"]) == {
         "place", "distanceMeters", "operatingStatus", "visitable", "inSchedule"
     }
+    data_schema = document["components"]["schemas"]["AlternativeSearchData"]
+    assert set(data_schema["required"]) == {"items", "originName", "radiusMeters"}
 
     client = TestClient(app)
     response = client.get(
@@ -311,7 +315,9 @@ def test_alt_002_exposes_documented_contract_and_pagination(search_stub) -> None
     )
 
     assert response.status_code == 200
-    assert response.json()["data"] == {"items": []}
+    assert response.json()["data"] == {
+        "items": [], "originName": "기준 장소", "radiusMeters": 2000,
+    }
     assert response.json()["meta"]["pagination"] == {
         "nextCursor": "CURSOR2", "hasNext": True
     }
@@ -405,18 +411,31 @@ async def test_alternative_service_search_annotates_places(
         lambda *args: _async_value((detection, uuid.uuid4(), "기준 장소")),
     )
 
-    found = [
+    near_boundary_latitude = 37.5665 + math.degrees(1999 / 6_371_000)
+    outside_boundary_latitude = 37.5665 + math.degrees(2001 / 6_371_000)
+    first_page = [
+        _summary("tourapi:outside-boundary", latitude=outside_boundary_latitude, longitude=126.9780),
+        _summary("tourapi:nocoord", latitude=None, longitude=None),
+    ]
+    second_page = [
         _summary("tourapi:origin"),
         _summary("tourapi:sched1"),
         _summary("google:closed", business_status=BusinessStatus.CLOSED_TEMPORARILY),
         _summary("google:open", business_status=BusinessStatus.OPERATIONAL),
+        _summary("tourapi:near-boundary", latitude=near_boundary_latitude, longitude=126.9780),
+        _summary("tourapi:outside-boundary", latitude=outside_boundary_latitude, longitude=126.9780),
         _summary("tourapi:nocoord", latitude=None, longitude=None),
     ]
+    received_cursors = []
 
     async def fake_search_places(self, *, query, category, area_code, cursor, limit):
         assert query == "카페"
         assert category is None and area_code is None
-        return found, "NEXT", True
+        received_cursors.append(cursor)
+        if cursor is None:
+            return first_page, "NEXT", True
+        assert cursor == "NEXT"
+        return second_page, "FINAL", True
 
     monkeypatch.setattr(PlaceService, "search_places", fake_search_places)
     service = AlternativeService(
@@ -425,11 +444,13 @@ async def test_alternative_service_search_annotates_places(
         candidate_secret="x" * 32,
     )
 
-    items, next_cursor, has_next = await service.search(
+    items, next_cursor, has_next, origin_name = await service.search(
         DETECTION_ID, USER_ID, query="카페", cursor=None, limit=20
     )
 
-    assert (next_cursor, has_next) == ("NEXT", True)
+    assert (next_cursor, has_next) == ("FINAL", True)
+    assert origin_name == "기준 장소"
+    assert received_cursors == [None, "NEXT"]
     by_id = {item.place.place_id: item for item in items}
     assert by_id["tourapi:origin"].in_schedule is True
     assert by_id["tourapi:origin"].visitable is False
@@ -441,8 +462,9 @@ async def test_alternative_service_search_annotates_places(
     assert by_id["google:open"].operating_status == "OPEN"
     assert by_id["google:open"].visitable is True
     assert by_id["google:open"].in_schedule is False
-    assert by_id["tourapi:nocoord"].distance_meters is None
-    assert by_id["tourapi:nocoord"].operating_status == "UNKNOWN"
+    assert "tourapi:near-boundary" in by_id
+    assert "tourapi:outside-boundary" not in by_id
+    assert "tourapi:nocoord" not in by_id
     assert isinstance(by_id["google:open"].distance_meters, int)
     assert by_id["google:open"].distance_meters > 0
 
@@ -479,3 +501,61 @@ async def test_alternative_service_search_rejects_non_active_detection(
     assert raised.value.code == "DETECTION_NOT_ACTIVE"
     assert raised.value.details == {"status": "DISMISSED"}
     assert called is False
+
+
+@pytest.mark.asyncio
+async def test_alternative_service_search_stops_after_provider_page_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    origin_place = Place(
+        place_id=uuid.uuid4(), tour_content_id="origin", google_place_id=None,
+        name="기준 장소", category="CAFE", tour_category_1="FD",
+        tour_category_2="FD05", tour_category_3="FD050100",
+        address="서울", location="POINT(126.978 37.5665)", image_url=None,
+    )
+
+    class Result:
+        def __init__(self, value): self.value = value
+        def one(self): return self.value
+        def scalars(self): return iter(self.value)
+
+    class ReadOnlySession:
+        def __init__(self) -> None:
+            self.results = [
+                Result((origin_place, 37.5665, 126.9780)),
+                Result([origin_place]),
+            ]
+
+        async def execute(self, statement):
+            return self.results.pop(0)
+
+    detection = SimpleNamespace(
+        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.owned_detection",
+        lambda *args: _async_value((detection, uuid.uuid4(), "기준 장소")),
+    )
+    calls = 0
+
+    async def fake_search_places(self, *, cursor, **kwargs):
+        nonlocal calls
+        calls += 1
+        return [_summary(f"tourapi:far-{calls}", latitude=38.0)], f"NEXT-{calls}", True
+
+    monkeypatch.setattr(PlaceService, "search_places", fake_search_places)
+    service = AlternativeService(
+        ReadOnlySession(), tour_client=object(), google_client=object(),
+        operating_hours_source=object(), kma_client=object(), seoul_client=object(),
+        candidate_secret="x" * 32,
+    )
+
+    items, next_cursor, has_next, origin_name = await service.search(
+        DETECTION_ID, USER_ID, query="카페", cursor=None, limit=20
+    )
+
+    assert calls == DIRECT_SEARCH_MAX_PROVIDER_PAGES
+    assert items == []
+    assert next_cursor is None
+    assert has_next is False
+    assert origin_name == "기준 장소"

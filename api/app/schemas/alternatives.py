@@ -84,7 +84,7 @@ class AlternativeSearchItem(ApiModel):
     """직접 검색 장소에 거리와 방문 가능 상태를 덧붙인 항목."""
 
     place: PlaceSummary
-    distance_meters: int | None = Field(ge=0)
+    distance_meters: int = Field(ge=0)
     operating_status: OperatingStatus
     visitable: bool
     in_schedule: bool
@@ -105,7 +105,11 @@ class AlternativeListEnvelope(ApiModel):
 
 
 class AlternativeSearchData(ApiModel):
+    """직접 검색 결과와 서버가 적용한 반경 정보."""
+
     items: list[AlternativeSearchItem]
+    origin_name: str
+    radius_meters: Literal[2000]
 
 
 class AlternativeSearchEnvelope(ApiModel):

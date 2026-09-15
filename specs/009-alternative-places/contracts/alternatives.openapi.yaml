@@ -104,10 +104,10 @@ paths:
         F003 PLACE-001 검색을 그대로 실행하고 각 결과에 기존 장소로부터의 거리, 운영 상태, 방문 가능 여부,
         같은 날짜 일정 포함 여부를 더한다. 운영 종료 장소를 제외하지 않고 `visitable=false`로 표시한다.
 
-        **FR-019 반경 제한은 백엔드 조율 후 확정 예정** (spec FR-019 확정 전 변경안, 2026-09-14):
-        기존 장소 좌표 기준 2km 이내 한정, 좌표 없는 결과 제외, 카테고리 필터 파라미터, 혼잡도·마감 여부 값이
-        검토 중이다. 확정 전까지는 이 계약(반경·카테고리 제한 없음)이 유효하다. 적용 방식 조사는
-        plan.md "지도형 전환의 세부 결정"을 따른다.
+        기존 장소 좌표 기준 2km 이내 결과만 반환하고 좌표 없는 결과는 제외한다(2026-09-16 #586 확정).
+        F003 키워드 검색 의미와 query 계약은 유지하며, 필터 결과가 없으면 provider cursor를 이어 최대 3페이지까지
+        조회한다. 3페이지 안에 결과가 없으면 빈 목록과 `hasNext=false`를 반환한다. 카테고리 필터 파라미터와
+        혼잡도·마감 여부 값은 별도 확정 전까지 제공하지 않는다.
       parameters:
         - $ref: '#/components/parameters/DetectionId'
         - name: query
@@ -133,11 +133,13 @@ paths:
                   success: { const: true }
                   data:
                     type: object
-                    required: [items]
+                    required: [items, originName, radiusMeters]
                     properties:
                       items:
                         type: array
                         items: { $ref: '#/components/schemas/AlternativeSearchItem' }
+                      originName: { type: string, description: 반경 기준인 감지 장소 이름 }
+                      radiusMeters: { type: integer, enum: [2000], description: 서버가 적용한 반경 }
                   meta: { $ref: '#/components/schemas/PaginatedMeta' }
         '400':
           description: '`INVALID_REQUEST`(검색어 2글자 미만) 또는 `INVALID_CURSOR`'
@@ -299,7 +301,7 @@ components:
       required: [place, distanceMeters, operatingStatus, visitable, inSchedule]
       properties:
         place: { $ref: '#/components/schemas/Place' }
-        distanceMeters: { type: [integer, 'null'], description: 좌표가 없으면 null }
+        distanceMeters: { type: integer, description: 기존 장소 기준 haversine 거리 }
         operatingStatus: { $ref: '#/components/schemas/OperatingStatus' }
         visitable: { type: boolean, description: operatingStatus가 CLOSED가 아니고 inSchedule이 아니면 true }
         inSchedule: { type: boolean, description: 기존 장소 자신 또는 같은 날짜 일정에 이미 포함 }
