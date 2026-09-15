@@ -94,7 +94,7 @@ PENDING ──승인(REPL-002)──> APPROVED
 | `estimatedArrivalAt` | `itinerary_items.estimated_arrival_at` | 미리보기 경로로 다시 계산한 ETA |
 | `closesAt` | 기존 장소의 마감 시각 | 대체 장소의 마감 시각 |
 
-`closesAt`은 F008 `services/detection/operating_hours.py` 조회를 재사용한다. 실패하면 그 항목만 `null`로 두고 나머지를 제공한다(constitution IV).
+`closesAt`은 F008 `services/detection/operating_hours.py` 조회를 재사용한다. 실패하면 그 항목만 `null`로 두고 나머지를 제공한다(constitution IV). 조회 대상 판정은 장소의 `public_id` 접두사가 아니라 매칭된 `google_place_id` 유무로 하며(2026-09-16 #584), 기존 장소는 감지 결과의 `evaluation_snapshot`에 이미 있는 값을 우선 재사용한다.
 
 ### 2.2 기존 테이블 변경
 

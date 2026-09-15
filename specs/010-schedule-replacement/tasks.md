@@ -292,6 +292,11 @@ description: "F010 일정 변경 구현 task 목록"
   - 교차 확인: jh
   - 선행: T035, T036
   - 검증: quickstart "종단간 확인" 5단계를 로컬 API + AVD로 수행. 배너 → 후보 선택 → 미리보기 → 승인 → 되돌리기 → 재승인 후 30초 만료까지 한 흐름으로 확인하고 결과를 PR에 기록. **후보 선택부터 승인 완료까지의 소요 시간을 재어 60초 이내인지 기록한다(SC-004).** 실행하지 못한 단계는 이유를 남긴다
+- [X] T038 REPL-001 마감 시간이 Google 매칭된 TourAPI 장소에서도 조회되도록 수정 in api/app/services/replacement.py per FR-002, #584
+  - 영역: BE
+  - 담당: ts
+  - 선행: 없음
+  - 검증: `public_id` 접두사가 아니라 매칭된 `google_place_id` 유무로 조회 여부를 판정. 기존 장소는 감지 `evaluation_snapshot`의 값을 우선 재사용. `tourapi:`+`google_place_id` 있음·없음, `google:` 장소 unit test 통과, 승인(REPL-002)의 `closesAt.after` 검증 회귀 없음
 
 ---
 

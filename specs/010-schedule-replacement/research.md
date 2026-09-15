@@ -124,6 +124,8 @@ Google 장소의 최신 운영 상태는 승인 transaction을 시작하기 전�
 
 운영 마감 시각은 F008 `services/detection/operating_hours.py`의 조회를 재사용한다. 확보하지 못한 항목은 값을 만들지 않고 없음으로 둔다(FR-002, constitution IV).
 
+**기존 장소 조회 기준(2026-09-16 #584 수정)**: 마감 시각 조회는 장소의 `public_id`가 `google:`로 시작하는지가 아니라 그 장소에 **매칭된 `google_place_id`가 있는지**로 판단한다. F003 병합으로 TourAPI 장소도 `google_place_id`를 가질 수 있고(F008 evaluator와 같은 기준), `public_id`만으로 판정하면 이런 병합된 TourAPI 장소는 항상 `null`이 되는 결함이 있었다. 기존 장소(대상)는 조회 전에 해당 감지 결과의 `evaluation_snapshot.variables.operatingHours.closesAt`이 있으면 그 값을 우선 쓰고, 없을 때만 새로 조회한다 — 감지 화면과 같은 값을 보장하기 위함이다.
+
 **Rationale**: 기존 값을 새로 계산하지 않고 저장된 값을 쓴다. 사용자가 지금 보고 있는 일정의 값과 비교 화면의 값이 어긋나지 않아야 한다.
 
 **Alternatives considered**: F009 후보 응답의 `closesAt`을 그대로 받기 — 후보 조회와 미리보기 사이에 시간이 흘렀고, 직접 검색으로 고른 장소에는 그 값이 없다.

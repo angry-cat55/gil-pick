@@ -54,6 +54,7 @@ class _PlaceSnapshot:
     latitude: float
     longitude: float
     detail: PlaceDetail | None = None
+    google_place_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +82,7 @@ class _PreviewContext:
     has_start_location: bool
     detection_reason: str
     detection_status: str
+    target_closes_at: datetime | None
     target: _ItemSnapshot
     items: tuple[_ItemSnapshot, ...]
     current_duration: int | None
@@ -192,7 +194,10 @@ class ReplacementService:
                 before=_iso(context.target.estimated_arrival_at), after=_iso(after_eta)
             ),
             closes_at=ComparisonValue(
-                before=_iso(await self._closing_time(context.target.place, context.target.estimated_arrival_at)),
+                before=_iso(
+                    context.target_closes_at
+                    or await self._closing_time(context.target.place, context.target.estimated_arrival_at)
+                ),
                 after=_iso(await self._closing_time(alternative, after_eta)),
             ),
         )
@@ -558,7 +563,8 @@ class ReplacementService:
             trip_id=day.trip_id, trip_day_id=day.trip_day_id, visit_date=day.visit_date,
             day_status=day.status, schedule_version=day.schedule_version,
             actual_started_at=day.actual_started_at, has_start_location=day.start_location is not None,
-            detection_reason=detection.reason, detection_status=detection.status, target=target, items=items,
+            detection_reason=detection.reason, detection_status=detection.status,
+            target_closes_at=_snapshot_closes_at(detection), target=target, items=items,
             current_duration=current.total_duration_seconds if current else None,
             current_distance=current.total_distance_meters if current else None,
             progress_durations={(item.from_item_id, item.to_item_id): item.duration_seconds for item in progress},
@@ -582,15 +588,23 @@ class ReplacementService:
         detail = await self.place_service.get_place(public_id)
         if detail.latitude is None or detail.longitude is None:
             raise AppError(404, "PLACE_NOT_FOUND", "좌표가 있는 장소를 찾을 수 없습니다.")
-        return _PlaceSnapshot(None, detail.place_id, detail.name, detail.category.value,
-                              float(detail.latitude), float(detail.longitude), detail)
+        return _PlaceSnapshot(
+            None, detail.place_id, detail.name, detail.category.value,
+            float(detail.latitude), float(detail.longitude), detail,
+            google_place_id=provider_id if provider == "google" else None,
+        )
 
     async def _closing_time(self, place: _PlaceSnapshot, eta: datetime | None) -> datetime | None:
-        if eta is None or not place.public_id.startswith("google:"):
+        """매칭된 Google 장소가 있으면 마감 시간을 조회한다.
+
+        TourAPI 장소도 F003 병합으로 `google_place_id`가 있으면 조회한다(F008과 같은
+        기준, #584). 매칭이 없거나 조회에 실패하면 `None`이다.
+        """
+        if eta is None or place.google_place_id is None:
             return None
         try:
             verdict = await evaluate_operating_hours(
-                self.operating_hours_source, place_id=place.public_id.split(":", 1)[1], eta=eta
+                self.operating_hours_source, place_id=place.google_place_id, eta=eta
             )
             return verdict.closes_at if verdict.available else None
         except Exception:
@@ -651,6 +665,24 @@ def _request_fingerprint(payload: CreatePreviewRequest) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def _snapshot_closes_at(detection: Detection) -> datetime | None:
+    """감지 평가 snapshot의 운영시간 마감 시각을 그대로 재사용한다(#584).
+
+    경로 비교의 기존 장소 마감 시간이 감지 화면과 어긋나지 않도록, 새로 조회하기 전에
+    이미 F008이 계산해 둔 값이 있으면 우선 쓴다.
+    """
+    try:
+        raw = detection.evaluation_snapshot["variables"]["operatingHours"]["closesAt"]
+    except (KeyError, TypeError):
+        return None
+    if raw is None:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+
+
 def _provider_id(place: Place) -> str:
     if place.tour_content_id:
         return f"tourapi:{place.tour_content_id}"
@@ -661,7 +693,7 @@ def _provider_id(place: Place) -> str:
 
 def _place_snapshot(place: Place, latitude: float, longitude: float) -> _PlaceSnapshot:
     return _PlaceSnapshot(place.place_id, _provider_id(place), place.name, place.category,
-                          float(latitude), float(longitude))
+                          float(latitude), float(longitude), google_place_id=place.google_place_id)
 
 
 def _item_snapshot(item: ItineraryItem, place: Place, latitude: float, longitude: float) -> _ItemSnapshot:
