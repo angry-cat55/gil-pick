@@ -1,7 +1,5 @@
 package com.gilpick.trip
 
-import android.content.Context
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,11 +41,7 @@ import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickSpacing
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * 여행 커버 이미지 카드(Figma `CreateTripScreen`·`EditTripScreen` 커버, FR-019, #499).
@@ -211,46 +205,8 @@ private fun CoverButton(label: String, icon: Boolean, editing: Boolean, enabled:
 private val TripImageError.messageRes: Int
     get() = when (this) {
         TripImageError.TOO_LARGE -> R.string.trip_form_image_too_large
-        TripImageError.UNSUPPORTED_TYPE -> R.string.trip_form_image_unsupported
         TripImageError.UNREADABLE -> R.string.trip_form_image_unreadable
     }
-
-/**
- * Photo Picker가 돌려준 URI를 읽어 올릴 수 있는지 확인한다(FR-019: jpeg·png·webp, 5MB 이하).
- *
- * 5MB를 넘는 순간 읽기를 멈춰 큰 파일을 통째로 메모리에 올리지 않는다. 서버도 같은 제한으로 최종 판정한다.
- */
-internal suspend fun readTripImage(context: Context, uri: Uri): TripImagePick = withContext(Dispatchers.IO) {
-    val mimeType = context.contentResolver.getType(uri)
-    if (mimeType !in TRIP_IMAGE_TYPES) return@withContext TripImagePick.Rejected(TripImageError.UNSUPPORTED_TYPE)
-
-    try {
-        val input = context.contentResolver.openInputStream(uri)
-            ?: return@withContext TripImagePick.Rejected(TripImageError.UNREADABLE)
-        input.use {
-            val out = ByteArrayOutputStream()
-            val buffer = ByteArray(READ_BUFFER)
-            while (true) {
-                val read = it.read(buffer)
-                if (read < 0) break
-                out.write(buffer, 0, read)
-                if (out.size() > MAX_TRIP_IMAGE_BYTES) return@withContext TripImagePick.Rejected(TripImageError.TOO_LARGE)
-            }
-            TripImagePick.Picked(PickedTripImage(out.toByteArray(), mimeType!!))
-        }
-    } catch (e: IOException) {
-        TripImagePick.Rejected(TripImageError.UNREADABLE)
-    } catch (e: SecurityException) {
-        TripImagePick.Rejected(TripImageError.UNREADABLE)
-    }
-}
-
-/** 서버가 받는 형식(FR-019, `api/app/services/trip_image.py`). */
-private val TRIP_IMAGE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
-
-/** 서버 최대 크기 5MB(FR-019). */
-private const val MAX_TRIP_IMAGE_BYTES = 5 * 1024 * 1024
-private const val READ_BUFFER = 64 * 1024
 
 /** Figma 커버 실측. 화면 전용이라 테마 토큰이 아니라 여기에 둔다. */
 private val COVER_HEIGHT = 160.dp

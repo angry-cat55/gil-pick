@@ -163,6 +163,13 @@ enum class TripFormSubmitError {
     /** `415 UNSUPPORTED_IMAGE_TYPE`. jpeg·png·webp가 아니다(FR-019). */
     IMAGE_UNSUPPORTED_TYPE,
 
+    /**
+     * 이름·기간은 저장했지만 사진 업로드·삭제만 실패했다(#555). 크기·형식 거절이 아닌 모든 원인(통신, 서버 오류, 없는 경로 등)이다.
+     *
+     * 여행을 "만들 수 없다"고 안내하면 이미 만들어진 여행과 모순된다. 다시 저장하면 사진 단계만 이어서 한다.
+     */
+    IMAGE_UPLOAD_FAILED,
+
     /** 그 밖의 실패. 잠시 후 다시 시도한다. */
     UNEXPECTED,
 }
@@ -198,20 +205,17 @@ sealed interface FormMode {
  *
  * 배열 내용 비교가 필요 없어 data class로 두지 않는다. 같은 선택인지는 참조로 충분하다.
  *
- * @property bytes 이미지 원본. 고를 때 5MB 이하임을 확인했다.
- * @property mimeType `image/jpeg`·`image/png`·`image/webp` 중 하나.
+ * @property bytes 업로드할 이미지. 고를 때 긴 변 1920px 이하 JPEG로 바꾸고 5MB 이하임을 확인했다(#555).
+ * @property mimeType 보낼 형식. [readTripImage]가 만든 값은 항상 `image/jpeg`다.
  */
 class PickedTripImage(val bytes: ByteArray, val mimeType: String)
 
 /** 고른 이미지를 쓸 수 없는 이유(FR-019). 고르는 즉시 안내하고 선택은 바꾸지 않는다. */
 enum class TripImageError {
-    /** 5MB를 넘는다. */
+    /** 줄이고 압축한 뒤에도 5MB를 넘는다. */
     TOO_LARGE,
 
-    /** jpeg·png·webp가 아니다. */
-    UNSUPPORTED_TYPE,
-
-    /** 파일을 읽지 못했다. */
+    /** 기기가 읽을 수 없는 파일이다(손상, 지원하지 않는 형식). 읽을 수 있으면 형식과 상관없이 JPEG로 바꾼다(#555). */
     UNREADABLE,
 }
 
@@ -613,7 +617,7 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                         val mode = state.mode
                         state.copy(
                             submitting = false,
-                            submitError = image.error.toSubmitError(),
+                            submitError = image.error.toImageSubmitError(),
                             mode = if (mode is FormMode.Edit) mode.copy(version = saved.version) else mode,
                         )
                     }
@@ -769,6 +773,14 @@ internal fun AuthError.toSubmitError(): TripFormSubmitError = when (this) {
     }
 
     is AuthError.Malformed, is AuthError.Callback -> TripFormSubmitError.UNEXPECTED
+}
+
+/**
+ * 사진 단계 실패를 좁힌다(#555). 크기·형식 거절은 사진을 바꾸라는 안내가 맞고, 나머지는 여행은 저장됐다는 사실과 함께 알린다.
+ */
+internal fun AuthError.toImageSubmitError(): TripFormSubmitError = when (val error = toSubmitError()) {
+    TripFormSubmitError.IMAGE_TOO_LARGE, TripFormSubmitError.IMAGE_UNSUPPORTED_TYPE -> error
+    else -> TripFormSubmitError.IMAGE_UPLOAD_FAILED
 }
 
 /** 사용자가 입력을 고쳐야 하는 서버 오류 code. */

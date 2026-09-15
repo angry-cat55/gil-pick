@@ -154,6 +154,9 @@
     <string name="trip_form_error_network">연결을 확인한 뒤 다시 시도해 주세요. 입력한 내용은 그대로 있습니다.</string>
     <string name="trip_form_error_invalid">입력한 이름이나 기간을 다시 확인해 주세요.</string>
     <string name="trip_form_error_unexpected">지금은 여행을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <!-- #555 수정 화면의 그 밖의 실패, 사진 단계만 실패했을 때. -->
+    <string name="trip_form_error_unexpected_edit">지금은 여행을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+    <string name="trip_form_error_image_upload_failed">여행 정보는 저장했지만 사진을 올리지 못했습니다. 잠시 후 다시 저장해 주세요.</string>
 
     <!-- 장소 공통 -->
     <string name="place_category_nature">자연</string>
@@ -244,7 +247,7 @@
     <string name="trip_form_cover_upload">사진 업로드</string>
     <string name="trip_form_cover_change">사진 변경</string>
     <string name="trip_form_cover_reset">기본으로</string>
-    <string name="trip_form_image_too_large">사진은 5MB 이하만 올릴 수 있습니다. 더 작은 사진을 골라 주세요.</string>
+    <string name="trip_form_image_too_large">사진이 너무 커서 올릴 수 없습니다. 다른 사진을 골라 주세요.</string>
     <string name="trip_form_image_unsupported">JPG, PNG, WEBP 사진만 올릴 수 있습니다. 다른 사진을 골라 주세요.</string>
     <string name="trip_form_image_unreadable">사진을 불러오지 못했습니다. 다른 사진을 골라 주세요.</string>
     <!-- #501 409 TRIP_PERIOD_CONFLICT. %1$s는 기간이 겹치는 기존 여행 이름. -->

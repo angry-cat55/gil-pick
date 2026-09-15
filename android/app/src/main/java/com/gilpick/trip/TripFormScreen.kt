@@ -197,7 +197,7 @@ fun TripFormScreen(
                 ?.takeIf { it != TripPeriodError.NOT_SELECTED && state.startDate != null && state.endDate != null }
                 ?.let { PeriodErrorText(it) }
 
-            state.submitError?.let { SubmitError(it, state.conflictTripName) }
+            state.submitError?.let { SubmitError(it, state.conflictTripName, editing) }
         }
 
         BottomActions(
@@ -945,7 +945,7 @@ private fun ShrinkConfirmDialog(
 
 /** 전송 실패 원인과 다음 행동. "오류가 발생했습니다"로 끝내지 않는다. */
 @Composable
-private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?) {
+private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?, editing: Boolean) {
     Text(
         text = when (error) {
             TripFormSubmitError.NETWORK -> stringResource(R.string.trip_form_error_network)
@@ -963,7 +963,10 @@ private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?) {
                 if (conflictTripName != null) stringResource(R.string.trip_form_error_period_conflict, conflictTripName)
                 else stringResource(R.string.trip_form_error_period_conflict_unnamed)
 
-            TripFormSubmitError.UNEXPECTED -> stringResource(R.string.trip_form_error_unexpected)
+            TripFormSubmitError.IMAGE_UPLOAD_FAILED -> stringResource(R.string.trip_form_error_image_upload_failed)
+            // 수정 화면에서 "만들 수 없습니다"는 틀린 안내다(#555).
+            TripFormSubmitError.UNEXPECTED ->
+                stringResource(if (editing) R.string.trip_form_error_unexpected_edit else R.string.trip_form_error_unexpected)
         },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.error,
