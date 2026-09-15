@@ -14,9 +14,9 @@ import org.junit.runner.RunWith
  * T023: 계정 정보 mapping·누락 대체 표시와 앱 버전 표시 검증(spec US4, FR-009).
  *
  * 이 test가 지키는 것은 **값이 없을 때 무엇을 보이는가**다. 닉네임과 프로필 이미지는 카카오
- * 동의 항목이라 실제로 비어 올 수 있는데(F001 `SessionEnvelope`), 그때 그럴듯한 이름을
- * 지어내면 사용자는 자기 계정이 아닌 것을 본다. 그래서 누락은 `정보 없음`으로만 표시한다
- * (ui-guidelines 12절).
+ * 동의 항목이라 실제로 비어 올 수 있는데(F001 `SessionEnvelope`), 그때 사람 이름처럼 보이는 값을
+ * 지어내면 사용자는 자기 계정이 아닌 것을 본다. 그래서 누락은 중립 이름 `카카오 사용자`로만 표시한다
+ * (#517, ui-guidelines 12절).
  *
  * 프로필 이미지의 실제 network 로드는 확인하지 않는다. 그것은 Coil과 기기 몫이고, 이 test는
  * **URL이 없어도 계정 영역이 같은 자리를 지키는지**만 본다.
@@ -39,11 +39,12 @@ class SettingsAccountInfoTest {
     }
 
     @Test
-    fun 닉네임이_없으면_지어내지_않고_정보_없음을_보인다() {
-        // US4 시나리오 2. 카카오 닉네임 미동의 계정이다.
+    fun 닉네임이_없으면_지어내지_않고_카카오_사용자를_보인다() {
+        // US4 시나리오 2. 카카오 닉네임 미동의 계정이다. 계정 헤더에 오류처럼 읽히는 `정보 없음`을 쓰지 않는다(#517).
         setAccount(nickname = null, profileImageUrl = "https://img.example/p.png")
 
-        composeRule.onNodeWithText("정보 없음").assertIsDisplayed()
+        composeRule.onNodeWithText("카카오 사용자").assertIsDisplayed()
+        composeRule.onNodeWithText("정보 없음").assertDoesNotExist()
     }
 
     @Test
@@ -61,7 +62,7 @@ class SettingsAccountInfoTest {
         setAccount(nickname = null, profileImageUrl = null)
 
         composeRule.onNodeWithTag(TAG_ACCOUNT_SECTION).assertIsDisplayed()
-        composeRule.onNodeWithText("정보 없음").assertIsDisplayed()
+        composeRule.onNodeWithText("카카오 사용자").assertIsDisplayed()
     }
 
     @Test
