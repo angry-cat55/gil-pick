@@ -33,7 +33,8 @@ data class AlternativePage<T>(
 )
 
 /**
- * 서버가 지원하는 직접 검색 필터(#450). 셋 다 **계약에 아직 없다** — 있는 값만 화면이 쓴다.
+ * 서버가 지원하는 직접 검색 필터(#450). [originName]·[radiusMeters]는 #586 계약이며,
+ * [categories]는 아직 계약에 없다. 있는 값만 화면이 쓴다.
  *
  * @property categories 카테고리 필터 목록. 비어 있지 않으면 칩을 그린다.
  * @property originName 반경 기준 장소명. [radiusMeters]와 함께 있어야 부제를 그린다.

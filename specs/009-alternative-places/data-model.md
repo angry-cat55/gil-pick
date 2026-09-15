@@ -64,10 +64,12 @@ F010 되돌리기는 `RESOLVED → ACTIVE`로 원래 감지를 후보 조회 대
 
 ### 2.3 직접 검색 항목 `AlternativeSearchItem`
 
+응답 data는 `originName`과 고정 `radiusMeters=2000`을 함께 제공해 Android가 서버 적용 반경을 표시한다.
+
 | 필드 | 규칙 |
 |---|---|
 | `place` | F003 `PlaceSummary` |
-| `distanceMeters` | 좌표 없으면 null |
+| `distanceMeters` | 기존 장소 기준 haversine 정수 m. 좌표가 없거나 2km 밖이면 항목 자체를 제외한다. |
 | `operatingStatus` | `businessStatus`만으로: CLOSED_TEMPORARILY·CLOSED_PERMANENTLY → CLOSED, OPERATIONAL → OPEN, 없음 → UNKNOWN |
 | `visitable` | `operatingStatus != CLOSED && !inSchedule` |
 | `inSchedule` | 기존 장소 자신 또는 같은 날짜 일정의 장소 |

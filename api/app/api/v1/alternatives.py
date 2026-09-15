@@ -28,6 +28,7 @@ from app.schemas.alternatives import (
 from app.schemas.auth import ResponseMeta
 from app.schemas.detection import PaginatedMeta, Pagination
 from app.services.alternatives import AlternativeService
+from app.services.alternatives.policy import SEARCH_RADII_METERS
 from app.services.detection.operating_hours_source import OperatingHoursSource
 
 router = APIRouter(prefix="/detections", tags=["alternatives"])
@@ -109,12 +110,12 @@ async def search_alternatives(
     cursor: Annotated[str | None, Query(min_length=1)] = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 20,
 ) -> JSONResponse:
-    """ACTIVE 감지 기준으로 장소를 직접 검색하고 거리·방문 가능 정보를 덧붙여 반환한다."""
+    """ACTIVE 감지 기준 2km 이내 장소에 거리·방문 가능 정보를 덧붙여 반환한다."""
     normalized_query = query.strip()
     if len(normalized_query) < 2:
         raise AppError(400, "INVALID_REQUEST", "검색어는 2글자 이상이어야 합니다.")
     try:
-        items, next_cursor, has_next = await service.search(
+        items, next_cursor, has_next, origin_name = await service.search(
             detection_id,
             principal.user_id,
             query=normalized_query,
@@ -127,7 +128,11 @@ async def search_alternatives(
         raise
     envelope = AlternativeSearchEnvelope(
         success=True,
-        data=AlternativeSearchData(items=items),
+        data=AlternativeSearchData(
+            items=items,
+            origin_name=origin_name,
+            radius_meters=SEARCH_RADII_METERS[-1],
+        ),
         meta=PaginatedMeta(
             request_id=get_request_id(request),
             pagination=Pagination(next_cursor=next_cursor, has_next=has_next),

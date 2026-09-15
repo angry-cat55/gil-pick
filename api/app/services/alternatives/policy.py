@@ -1,6 +1,7 @@
 """대체 장소 추천의 조정 가능한 정책값."""
 
 SEARCH_RADII_METERS = (500, 1000, 2000)
+DIRECT_SEARCH_MAX_PROVIDER_PAGES = 3
 SCORE_WEIGHTS = {
     "distance": 0.35,
     "rating": 0.30,
@@ -23,6 +24,7 @@ __all__ = [
     "BAYESIAN_MIN_REVIEWS",
     "CANDIDATE_TTL_MINUTES",
     "CONGESTION_SCORES",
+    "DIRECT_SEARCH_MAX_PROVIDER_PAGES",
     "MAX_CANDIDATES",
     "OPERATING_CHECK_LIMIT",
     "SCORE_WEIGHTS",

@@ -318,7 +318,7 @@ description: "F009 대체 장소 추천 구현 task 목록"
 - **Foundational (Phase 2)**: T001 완료 후. BE T004·T005·T006·T007 병렬 → T008(T002 후) → T009. FE T010(T001 후) → T011
 - **User Stories (Phase 3~6)**: Foundational 완료 후. US1(BE)과 US2(FE 대부분)는 **다른 담당·다른 파일이라 병렬 진행** 가능. US3는 US1 endpoint(T017)·US2 navigation(T026) 후. US4는 US1 파이프라인(T016·T017) 후
 - **Polish (Phase 7)**: 관련 story 완료 후. T035·T036 병렬, T037 → T038 → T039 순
-- **Convergence (Phase 8)**: FE T045(선행 없음) → T043(#434 후) → T044 → T046 → T047. BE T041 → T040 → T042는 백엔드 조율 결정 후 착수
+- **Convergence (Phase 8)**: FE T045(선행 없음) → T043(#434 후) → T044 → T046 → T047. BE T041 → T040 완료, T042는 별도 정책 합의 후 착수
 
 ### User Story Dependencies
 
@@ -399,24 +399,22 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
 
 ## Phase 8: Convergence
 
-**Purpose**: 2026-09-13~14 직접 검색 지도형 전환(#450)과 spec FR-019 2km 반경 확정 전 변경안에 따라 남은 작업. BE task(T040~T042)는 **백엔드 조율 결정(plan.md "반경 적용 방식 조사") 이후 착수**한다. FE task(T043~T047)는 조율 전에 먼저 진행하며 API가 지원하지 않는 요소는 응답 필드 유무로 숨긴다.
+**Purpose**: 2026-09-13~14 직접 검색 지도형 전환(#450)과 spec FR-019에 따라 남은 작업. 2km 반경은 #586에서 방식 A로 확정해 T040·T041을 완료하며, 카테고리·혼잡도·마감 값 T042는 별도 정책 합의 후 착수한다. FE는 API가 지원하지 않는 요소를 응답 필드 유무로 숨긴다.
 
-- [ ] T040 ALT-002 서버 2km 반경 필터와 좌표 없는 결과 제외 in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py per FR-019, US3/AC5~AC6 (missing)
+- [X] T040 ALT-002 서버 2km 반경 필터와 좌표 없는 결과 제외 in api/app/services/alternatives/__init__.py, api/app/api/v1/alternatives.py per FR-019, US3/AC5~AC6
   - 영역: BE
   - 담당: ts
-  - 선행: 백엔드 조율 결정(plan.md "반경 적용 방식 조사" A·B·C 중 선택), T041
-  - 착수 조건: **백엔드 조율 후**. 결정 전에는 현재 계약(반경 제한 없음)을 유지한다
+  - 선행: 방식 A 확정(#586), T041
   - 검증: T041 통과. 기존 장소 좌표 기준 2000m 밖 결과·`distanceMeters=null` 결과가 응답에 없고, 페이지마다 `items` 개수와 `hasNext`가 일치(빈 페이지에 `hasNext=true` 없음). 외부 호출 상한과 응답 시간을 측정해 PR에 기록. `docs/design/api-spec.md` ALT-002·`contracts/alternatives.openapi.yaml`·`docs/planning/functional-spec.md` 5.4의 "확정 예정" 표시를 확정 내용으로 같은 PR에서 교체(constitution II)
-- [ ] T041 ALT-002 반경 계약 test in api/tests/contract/test_alternatives_contract.py, api/tests/unit/test_alternative_candidates.py per FR-019, US3/AC5~AC6, Constitution II (missing)
+- [X] T041 ALT-002 반경 계약 test in api/tests/contract/test_alternatives_contract.py, api/tests/unit/test_alternative_candidates.py per FR-019, US3/AC5~AC6, Constitution II
   - 영역: BE
   - 담당: ts
-  - 선행: 백엔드 조율 결정
-  - 착수 조건: **백엔드 조율 후**
-  - 검증: 2km 경계(1999m 포함·2001m 제외), 좌표 없는 결과 제외, 기존 장소·같은 날짜 장소가 2km 이내면 `inSchedule=true`로 포함, 페이지 재구성 시 cursor 연속성. 방식 C라면 `radiusMeters` 파라미터 검증(범위·기본값). 구현 전 실패 확인
+  - 선행: 방식 A 확정(#586)
+  - 검증: 2km 경계(1999m 포함·2001m 제외), 좌표 없는 결과 제외, 기존 장소·같은 날짜 장소가 2km 이내면 `inSchedule=true`로 포함, 페이지 재구성 시 cursor 연속성과 provider 3페이지 상한. 구현 전 실패 확인
 - [ ] T042 ALT-002 카테고리 필터 파라미터와 결과별 혼잡도·마감 여부 값 in api/app/api/v1/alternatives.py, api/app/services/alternatives/__init__.py, api/app/schemas/alternatives.py per FR-019 카테고리, plan: 혼잡·마감 배지 (missing)
   - 영역: BE
   - 담당: ts
-  - 선행: 백엔드 조율 결정, T040
+  - 선행: T040, 카테고리·혼잡도·마감 값 정책 합의
   - 착수 조건: **백엔드 조율 후**. 혼잡도·마감 여부 값은 외부 호출량 증가 여부를 먼저 확인
   - 검증: 카테고리 미지정 시 제한 없음, 지정 시 해당 내부 카테고리만 반환. 혼잡도·마감 여부는 확보하지 못하면 `null`(값을 지어내지 않음, constitution IV). 계약 test·api-spec·계약 파일 동기화
 - [x] T043 직접 검색 화면 지도형 교체 in android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeMap.kt per plan: 지도형 직접 검색 전환, UI-007, UI-008, UI-010 (missing)
@@ -443,7 +441,7 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
   - 영역: 통합
   - 담당: jy
   - 선행: T043, T044, T046
-  - 검증: quickstart AND 2의 지도 확인·조건부 표시 확인·반경 확인(확정 전) 절차를 `gilpick_api36_play` 또는 실기기에서 수행하고 결과·screenshot 경로를 quickstart 검증 기록에 추가. 반경 확정 후 확인은 T040 병합 뒤 다시 기록
+  - 검증: quickstart AND 2의 지도 확인·조건부 표시 확인·반경 확인 절차를 `gilpick_api36_play` 또는 실기기에서 수행하고 결과·screenshot 경로를 quickstart 검증 기록에 추가. T040 병합·배포 뒤 `originName`·`radiusMeters` 기반 부제를 다시 확인
 - [X] T048 대체 장소 후보 목록·직접 검색 결과 시트 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/alternative/AlternativePlacesScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt per UI-011, plan: Attribution (missing)
   - 영역: FE
   - 담당: hs

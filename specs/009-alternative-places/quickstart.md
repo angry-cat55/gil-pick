@@ -73,7 +73,7 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 3. 기존 장소 자신이 결과에 있으면 `inSchedule=true`, `visitable=false`.
 4. Google 병합 결과 `businessStatus=CLOSED_TEMPORARILY`면 결과에서 빠지지 않고 `operatingStatus=CLOSED`, `visitable=false`.
 5. 페이지 처리(`cursor`)와 TourAPI 실패 시 오류 형식이 PLACE-001과 같은지 확인한다.
-6. **FR-019 반경 제한은 백엔드 조율 후 확정 예정**: 확정 전에는 반경 제한 없이 결과가 오는 현재 동작을 확인한다. 확정 후에는 2km 밖 결과·좌표 없는 결과가 없는지, 페이지마다 `hasNext`와 개수가 일치하는지, 카테고리 필터 파라미터 동작을 확인하는 절차로 바꾼다(tasks Convergence).
+6. **FR-019 반경 제한(#586)**: 2km 밖 결과·좌표 없는 결과가 없는지, 필터된 빈 provider 페이지를 건너뛰어 `items=[]`와 `hasNext=true`가 함께 나오지 않는지 확인한다. 카테고리 필터는 T042 확정 후 별도로 확인한다.
 
 ### BE 8. 후보 식별자 (FR-013·FR-014)
 
@@ -101,7 +101,7 @@ gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentati
 2. `직접 검색` → `AlternativeSearchScreen`(지도형, #450); 2글자 미만은 검색하지 않고 안내; 결과 시트 행에 `기존 장소에서 N m`·`방문 불가`/`이미 일정에 있음` 표시와 비활성; 방문 가능 행의 `선택` 시 `candidateId=null`로 같은 콜백에 전달.
    - **지도 확인**: 결과마다 지도에 번호 마커가 표시되고 결과 시트 행 번호와 같다. 행을 누르면 해당 마커가 선택 표시(`primary` 채움·halo)되고, 마커를 누르면 해당 행이 선택된다. 지도 정보(번호·장소명·거리)는 시트 목록에서도 모두 확인된다. 지도 SDK attribution이 시트에 가리지 않는다.
    - **조건부 표시 확인**: 검색 API 응답에 카테고리 필터 지원 필드가 없으면 카테고리 칩이 보이지 않고, 결과 항목에 혼잡도·마감 여부 값이 없으면 `혼잡`·`마감` 배지가 보이지 않는다. fake 응답에 해당 필드를 넣으면 칩·배지가 보인다.
-   - **반경 확인 (FR-019 반경 제한은 백엔드 조율 후 확정 예정)**: 확정 전에는 시트에 "기준 2km 이내" 문구가 없다. 확정 후에는 문구가 기존 장소 이름으로 표시되고, 결과에 2km 밖 장소(`distanceMeters` > 2000)나 거리 없는 장소가 없는지 확인한다(US3 Scenario 5·6).
+   - **반경 확인 (FR-019, #586)**: T040이 배포되고 Android가 확정 계약을 반영한 뒤 시트에 문구가 기존 장소 이름으로 표시되고, 결과에 2km 밖 장소(`distanceMeters` > 2000)나 거리 없는 장소가 없는지 확인한다(US3 Scenario 5·6).
 3. `기존 일정 그대로 진행` → DETECT-004 호출, 성공 시 `onDismissed` 호출, 요청 중 버튼 비활성, 실패 시 오류 표시 후 화면 유지(`AlternativeViewModelTest`).
 
 ### AND 3. 진행 화면 배너 (UI-001, FR-028)
@@ -203,7 +203,7 @@ AND 4 screenshot(`/sdcard/Android/data/com.gilpick/files/screenshots/alternative
 | AND 5.1 준비 | DETECT-001 `?status=ACTIVE` → 1건(requestId `78319d81-b4dd-462e-814f-c59aa9545e7d`). ALT-001 host 호출 → `200`(requestId `084aa549-4a27-4ded-8d99-400202213860`), `searchRadiusMeters=500`, `categoryMatchLevel=LARGE`(Google 전용 origin), 실제 TourAPI 카페 2곳(더 스팟 패뷸러스 171m 66점, 바캉스커피 411m 18점), 둘 다 `operatingStatus=UNKNOWN`(Google 매칭 안 됨). |
 | AND 5.2 배너→후보→콜백 | 진행 화면에 `명동 카페거리 카페 도착 예정 시각에 영업이 끝나요 + 매우 혼잡 / 오전 12:28 도착 예정 · 2분 전 감지` 배너(`shots/e2e/01_progress_banner.png`). 탭 → 대체 장소 화면: 감지 요약, `추천 후보 2곳`, 1위 `TOP`·`경로 비교`, 2위 `비교`, 행 contentDescription `1위 더 스팟 패뷸러스, 카페, 171m, 운영시간 확인 불가`(`02_alternatives.png`). 배너 탭 1 + `경로 비교` 탭 1 = 2탭으로 선택(3탭 이내). 콜백은 `MainActivity.openRoutePreview`에 임시 `Log.i`를 넣어 확인(커밋 안 함): 1위 → `SelectedAlternative(detectionId=da5be285…, placeId=tourapi:2786072, candidateId=eyJ…, name=더 스팟 패뷸러스, distanceMeters=171, displayScore=66)`, 2위 → `name=바캉스커피, distanceMeters=411, displayScore=18`. |
 | T037 실제 지도 | Naver 지도에 후보 1·2 순위 원형 마커가 실제 좌표(명동 롯데백화점·한국은행 일대)에 그려지고 카메라가 둘을 포함(`02_alternatives.png`). 기존 장소 `!` pill은 그려지지 않음 — ALT-001·DETECT-002에 origin 좌표가 없어 `origin=null`인 알려진 gap(#330 PR 기록, ts에게 DETECT-002 좌표 추가 요청 중). |
-| AND 5.4 직접 검색 | `직접 검색` → 검색 화면, `CGV` 입력·검색 → `검색 결과 2곳`, 각 행 `쇼핑 · 기존 장소에서 7.8km · 운영시간 확인 불가`(`03_search_cgv.png`; 서버 requestId `29df1f4c-9861-4067-81ea-6014cdcdad25`, host 동일 호출). 행 탭 → `SelectedAlternative(placeId=tourapi:4026619, candidateId=null, name=렌즈미 CGV 강남점, distanceMeters=7844, displayScore=null)`. 한글 키워드는 `adb input text`가 못 넣어 ASCII 키워드 사용(한글 검색은 host ALT-002 `query=명동`으로 T038에서 확인됨). `방문 불가`·`이미 일정에 있음` 행은 실제 결과에 없어 androidTest로만 확인. |
+| AND 5.4 직접 검색 (T040 배포 전 기록) | `직접 검색` → 검색 화면, `CGV` 입력·검색 → `검색 결과 2곳`, 각 행 `쇼핑 · 기존 장소에서 7.8km · 운영시간 확인 불가`(`03_search_cgv.png`; 서버 requestId `29df1f4c-9861-4067-81ea-6014cdcdad25`, host 동일 호출). 이 2km 밖 결과는 #586의 재현 근거이며 T040 배포 후 제외되어야 한다. 행 탭 → `SelectedAlternative(placeId=tourapi:4026619, candidateId=null, name=렌즈미 CGV 강남점, distanceMeters=7844, displayScore=null)`. 한글 키워드는 `adb input text`가 못 넣어 ASCII 키워드 사용(한글 검색은 host ALT-002 `query=명동`으로 T038에서 확인됨). `방문 불가`·`이미 일정에 있음` 행은 실제 결과에 없어 androidTest로만 확인. |
 | AND 5.3 거절 | 대체 장소 화면 `기존 일정 그대로 진행` → 진행 화면 복귀, 배너 없음(`04_after_dismiss.png`). DB `detections.status=DISMISSED`, `resolved_at=2026-09-09 14:30:30Z`. DETECT-001 `?status=ACTIVE` → `items=[]`(requestId `ae169ca4-f08c-4d7a-a3d0-7220e6711708`). 같은 감지 ALT-001 → `409 DETECTION_NOT_ACTIVE`, `details.status=DISMISSED`(requestId `b21a9208-e0c8-4eab-b81b-67d8031b84da`). |
 | 서버 log | uvicorn 순서: `GET …/detections?status=ACTIVE&limit=50` 200 → `GET /detections/{id}` 200 + `GET …/alternatives` 200(병렬) → `GET …/alternatives/search?query=CGV` 200 → `POST …/dismiss` 200 → `GET …/detections?status=ACTIVE` 200. 앱 요청의 requestId는 INFO 로그에 남지 않아 host 재현 호출의 requestId를 적었다. |
 
@@ -224,7 +224,7 @@ AND 4 screenshot(`/sdcard/Android/data/com.gilpick/files/screenshots/alternative
 
 **발견·수정(같은 PR)**: 처음 확인에서 두 결함이 있었다. (1) `searchMarker`의 `TextView`에 최소 크기가 없어 `OverlayImage.fromView`가 글자 크기 비트맵을 만들고 마커 크기로 늘려 원이 사라지고 숫자만 거대하게 보였다(`t047_search_map_spread.png`) → F005 `markerView`처럼 `minimumWidth/Height`를 둔다. (2) 지도에 content padding이 없어 Naver 로고가 결과 시트 아래에 숨고 카메라 범위가 시트 뒤까지 잡혔다(`t047_search_map.png`) → 위 검색창(96dp)·아래 시트 최대 높이(55%)만큼 `setContentPadding`을 둔다(F005 `RouteMap`과 같은 방식). 둘 다 지도를 자리 표시로 바꾸는 자동 test로는 잡히지 않는 결함이다.
 
-반경 확인(FR-019 확정 전): 시트에 "기준 2km 이내" 문구가 없다. 확정 후 확인은 T040 병합 뒤 다시 기록한다.
+반경 확인(FR-019): T040 병합·배포 후 실제 provider 결과와 Android 문구를 다시 기록한다.
 
 ### 미실행
 

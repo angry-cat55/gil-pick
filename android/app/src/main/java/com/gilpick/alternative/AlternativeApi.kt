@@ -246,7 +246,7 @@ data class AlternativeListDto(
 /**
  * ALT-002 직접 검색 결과 항목. F003 검색 항목에 거리·운영 상태·방문 가능 여부를 더한 것이다.
  *
- * @property distanceMeters 좌표가 없으면 `null`.
+ * @property distanceMeters 현재 서버 계약에서는 2km 이내 결과의 거리다. nullable은 구버전 응답 호환용이다.
  * @property visitable `operatingStatus != CLOSED && !inSchedule`. 선택 버튼 활성 여부.
  * @property inSchedule 기존 장소 자신이거나 같은 날짜 일정에 이미 있다(`이미 일정에 있음`).
  */
@@ -266,8 +266,9 @@ data class AlternativeSearchItemDto(
 /**
  * ALT-002 응답 data.
  *
- * [categories]·[originName]·[radiusMeters]는 **계약에 아직 없는 선택 필드**다(#450, 백엔드 조율 중). 서버가 내려주기
- * 시작하면 화면이 카테고리 칩과 반경 부제를 그린다. 그전까지는 `null`이라 그리지 않는다(값을 지어내지 않음).
+ * [originName]·[radiusMeters]는 #586 계약이라 항상 값이 있다. [categories]는 **계약에 아직 없는 선택
+ * 필드**다(#450, 백엔드 조율 중). 서버가 내려주기 시작하면 화면이 카테고리 칩을 그린다. 그전까지는 `null`이라
+ * 그리지 않는다(값을 지어내지 않음).
  */
 @Serializable
 data class AlternativeSearchData(
@@ -306,7 +307,7 @@ data class DismissResultDto(
  * F009는 이 값을 만들기만 하고 일정을 바꾸지 않는다(FR-023).
  *
  * @property candidateId ALT-001 후보면 그 토큰, 직접 검색이면 `null`.
- * @property distanceMeters 직접 검색에서 좌표가 없으면 `null`.
+ * @property distanceMeters 직접 검색의 2km 이내 거리. nullable은 구버전 응답 호환용이다.
  * @property displayScore 직접 검색이면 `null`.
  */
 data class SelectedAlternative(
