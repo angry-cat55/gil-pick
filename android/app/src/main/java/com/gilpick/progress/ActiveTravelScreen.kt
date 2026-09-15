@@ -202,7 +202,7 @@ fun ActiveTravelScreen(
 /**
  * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시, 오른쪽 알림 벨(F011). 내용이 없으면 여행명만 보인다.
  * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
- * 왼쪽 뒤로 가기와 오른쪽 `편집`은 #509·#510에서 더했다. 아이콘 색은 D7 `headerIcon`이다.
+ * 여행명 줄의 뒤로 가기(`onSurface`)와 `편집`(D7 `headerIcon`)은 #509에서 더했다.
  */
 @Composable
 private fun Header(
@@ -272,6 +272,8 @@ private fun Header(
                 IconBoxButton(
                     icon = R.drawable.ic_lucide_arrow_left,
                     contentDescription = stringResource(R.string.progress_back),
+                    // 뒤로 가기·닫기는 D7이 아니라 onSurface다(가이드라인 7절 "헤더 아이콘 색").
+                    tint = MaterialTheme.colorScheme.onSurface,
                     onClick = onBack,
                     modifier = Modifier.testTag(TAG_BACK),
                 )
