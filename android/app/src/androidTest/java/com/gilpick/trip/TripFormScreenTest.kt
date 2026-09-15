@@ -218,6 +218,23 @@ class TripFormScreenTest {
         assertEquals(1, removed)
     }
 
+    /** #555: 수정 화면의 그 밖의 실패는 "만들 수 없습니다"가 아니라 "저장할 수 없습니다"다. */
+    @Test
+    fun 수정_화면의_알_수_없는_실패는_저장할_수_없다고_안내한다() {
+        setContent(editState(TripStatus.UPCOMING).copy(submitError = TripFormSubmitError.UNEXPECTED))
+
+        composeRule.onNodeWithText(string(R.string.trip_form_error_unexpected_edit)).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.trip_form_error_unexpected)).assertDoesNotExist()
+    }
+
+    /** #555: 사진만 실패하면 여행 정보는 저장됐다는 사실과 함께 알린다. */
+    @Test
+    fun 사진만_실패하면_여행은_저장됐다고_안내한다() {
+        setContent(TripFormUiState(submitError = TripFormSubmitError.IMAGE_UPLOAD_FAILED))
+
+        composeRule.onNodeWithText(string(R.string.trip_form_error_image_upload_failed)).performScrollTo().assertIsDisplayed()
+    }
+
     @Test
     fun 쓸_수_없는_사진은_원인을_안내한다() {
         setContent(TripFormUiState(imageError = TripImageError.TOO_LARGE))
