@@ -168,6 +168,18 @@ fun PlaceSearchScreen(
                     OutlineButton(label = stringResource(R.string.place_search_by_category), onClick = onSearchByCategory)
                 }
 
+                PlaceSearchPhase.LocationUnavailable -> StateMessage(
+                    title = stringResource(R.string.place_search_location_unavailable_title),
+                    body = stringResource(R.string.place_search_location_unavailable_body),
+                    live = true,
+                    action = {
+                        OutlineButton(
+                            label = stringResource(R.string.place_search_location_retry),
+                            onClick = onRetry,
+                        )
+                    },
+                )
+
                 is PlaceSearchPhase.Invalid -> StateMessage(
                     title = stringResource(
                         when (phase.reason) {

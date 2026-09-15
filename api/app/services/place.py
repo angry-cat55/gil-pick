@@ -187,6 +187,9 @@ class PlaceService:
         query: str | None,
         category: PlaceCategory | None,
         area_code: str | None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        radius_meters: int = 5000,
         cursor: str | None,
         limit: int,
     ) -> tuple[list[PlaceSummary], str | None, bool]:
@@ -196,6 +199,9 @@ class PlaceService:
             query: 두 글자 이상의 검색어. 카테고리 단독 검색이면 ``None``.
             category: 길픽 장소 카테고리 필터.
             area_code: TourAPI 지역 코드.
+            latitude: 검색어가 없을 때 거리순 검색의 기준 위도.
+            longitude: 검색어가 없을 때 거리순 검색의 기준 경도.
+            radius_meters: 위치 기반 검색 반경. 기본 5km.
             cursor: 이전 응답에서 받은 불투명 pagination cursor.
             limit: 한 페이지에 반환할 최대 장소 수.
 
@@ -206,23 +212,33 @@ class PlaceService:
             AppError: cursor가 잘못됐거나 기준 provider 요청에 실패한 경우.
         """
         area_code = _SEOUL_AREA_CODE
-        criteria = self._criteria_hash(query, category, area_code, limit)
+        criteria = self._criteria_hash(
+            query, category, area_code, latitude, longitude, radius_meters, limit
+        )
         state = self._decode_cursor(cursor, criteria) if cursor else {}
         page_no = int(state.get("tour_page_no", 1))
         seen = set(state.get("seen_place_ids", []))
 
-        params: dict[str, Any] = {
-            "pageNo": page_no,
-            "numOfRows": limit,
-            "areaCode": area_code,
-        }
+        nearby = query is None and latitude is not None and longitude is not None
+        params: dict[str, Any] = {"pageNo": page_no, "numOfRows": limit}
+        if nearby:
+            params.update(
+                mapX=longitude,
+                mapY=latitude,
+                radius=radius_meters,
+                arrange="S",
+            )
+        else:
+            params["areaCode"] = area_code
         if category in _TOUR_LARGE:
             params["lclsSystm1"] = _TOUR_LARGE[category]
             if category is PlaceCategory.CAFE:
                 params["lclsSystm2"] = "FD05"
 
         try:
-            if query:
+            if nearby:
+                payload = await self.tour_client.search_by_location(**params)
+            elif query:
                 payload = await self.tour_client.search_keyword(keyword=query, **params)
             else:
                 payload = await self.tour_client.search_by_area(**params)
@@ -253,9 +269,9 @@ class PlaceService:
 
         google_done = bool(state.get("google_done") or state.get("google_page_token"))
         google_attempted = False
-        google_allowed = (
+        google_allowed = not nearby and ((
             query is not None and category is None
-        ) or category in _COMMERCIAL
+        ) or category in _COMMERCIAL)
         if google_allowed and not google_done and len(items) < limit:
             google_attempted = True
             params = {
@@ -470,10 +486,24 @@ class PlaceService:
 
     @staticmethod
     def _criteria_hash(
-        query: str | None, category: PlaceCategory | None, area_code: str | None, limit: int
+        query: str | None,
+        category: PlaceCategory | None,
+        area_code: str | None,
+        latitude: float | None,
+        longitude: float | None,
+        radius_meters: int,
+        limit: int,
     ) -> str:
         raw = json.dumps(
-            {"query": query, "category": category, "areaCode": area_code, "limit": limit},
+            {
+                "query": query,
+                "category": category,
+                "areaCode": area_code,
+                "latitude": latitude,
+                "longitude": longitude,
+                "radiusMeters": radius_meters,
+                "limit": limit,
+            },
             ensure_ascii=False, sort_keys=True, separators=(",", ":"),
         )
         return hashlib.sha256(raw.encode()).hexdigest()

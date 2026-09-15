@@ -66,15 +66,28 @@ fun NavGraphBuilder.placeGraph(
     navController: NavController,
     onSessionExpired: () -> Unit,
     onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
+    loadNearbyOnEntry: Boolean = true,
 ) {
     composable<PlaceSearchRoute> {
         val context = LocalContext.current
         val viewModel: PlaceSearchViewModel = viewModel(factory = PlaceSearchViewModel.factory(context))
         val state by viewModel.state.collectAsStateWithLifecycle()
-        // `거리순`을 처음 켤 때 위치 권한이 없으면 시스템 창을 띄운다. 거부하면 위치를 못 얻어 비활성이 된다.
+        // 최초 진입에 주변 장소를 보여 주기 위해 위치 권한을 요청한다. 거부하면 임의 목록 대신 안내한다.
         val locationPermission = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions(),
-        ) { viewModel.toggleDistanceSort() }
+        ) { viewModel.loadNearby() }
+
+        LaunchedEffect(loadNearbyOnEntry) {
+            if (loadNearbyOnEntry) {
+                if (DeviceLocationProvider.hasLocationPermission(context)) {
+                    viewModel.loadNearby()
+                } else {
+                    locationPermission.launch(
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    )
+                }
+            }
+        }
 
         PlaceSearchScreen(
             state = state,
@@ -83,7 +96,17 @@ fun NavGraphBuilder.placeGraph(
             onClearQuery = viewModel::onClearQuery,
             onCategoryChange = viewModel::onCategoryChange,
             onSearch = viewModel::search,
-            onRetry = viewModel::retry,
+            onRetry = {
+                if (state.phase == PlaceSearchPhase.LocationUnavailable &&
+                    !DeviceLocationProvider.hasLocationPermission(context)
+                ) {
+                    locationPermission.launch(
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    )
+                } else {
+                    viewModel.retry()
+                }
+            },
             onReauthenticate = onSessionExpired,
             onLoadMore = viewModel::loadMore,
             onRetryLoadMore = viewModel::retryLoadMore,

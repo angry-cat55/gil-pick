@@ -236,6 +236,7 @@ internal fun StateMessage(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = spacing.space2),
             )
         }
         action()

@@ -17,8 +17,9 @@ api\.venv\Scripts\python.exe -m pytest api/tests/contract/test_place_contract.py
 
 필수 시나리오:
 
-1. keyword 단독, category 단독, keyword+category 검색이 안정적인 DTO로 변환되고 모든 요청에 서울 제한이 적용된다. TourAPI의 `items`가 빈 문자열이거나 서울 외 결과만 있는 정상 응답도 `200` 빈 목록으로 처리한다.
-2. query와 category가 모두 없거나 trim 후 query가 한 글자면 `400`이며 TourAPI를 호출하지 않는다.
+1. keyword 검색과 현재 좌표 기반 5km 주변·주변 category 검색이 안정적인 DTO로 변환되고 모든 요청에 서울 제한이 적용된다. TourAPI의 `items`가 빈 문자열이거나 서울 외 결과만 있는 정상 응답도 `200` 빈 목록으로 처리한다.
+2. query가 없는데 위도·경도 쌍이 없거나, 한쪽 좌표만 있거나, trim 후 query가 한 글자면 `400`이며 TourAPI를 호출하지 않는다.
+3. 주변 검색은 `locationBasedList2`, `arrange=S`를 사용하고 Google 보완과 자동 반경 확장을 하지 않으며 cursor에서도 같은 좌표·반경·category를 유지한다.
 3. cursor는 같은 검색 조건에서만 재사용되고 변조·버전 불일치·조건 불일치는 `INVALID_CURSOR`다.
 4. 음식·카페·쇼핑의 TourAPI 정상 결과가 `limit` 미만일 때만 Google Text Search로 부족분을 채우고 다른 유형은 보완하지 않는다.
 5. 확정 매칭은 TourAPI ID·기본정보를 유지한 채 Google 평점·평점 수·영업정보(`openNow` 포함)만 병합하고, 모호한 Google 후보는 제외한다.

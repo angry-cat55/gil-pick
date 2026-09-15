@@ -87,7 +87,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 ## Phase 3: User Story 1 - 장소 검색 (Priority: P1) 🎯 MVP
 
-**Goal**: 인증된 사용자가 키워드·category·지역 조건으로 명시적으로 검색하고 중복 없는 다음 결과를 조회한다.
+**Goal**: 인증된 사용자가 키워드로 명시적으로 검색하거나 현재 위치·category로 주변 장소를 조회하고, 중복 없는 다음 결과를 조회한다.
 
 **Independent Test**: 일정 저장이나 상세 조회 없이 검색 조건을 실행해 loading·empty·error·content와 cursor 추가 조회를 검증한다.
 
@@ -107,7 +107,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: FE
   - 담당: jy
   - 선행: T008
-  - 검증: 명시적 검색만 호출, draft/committed 조건 분리, 새 검색 교체, append 유지·dedupe·재시도 test를 구현 전 실패로 확인
+  - 검증: 입력 중 키워드 검색 억제, 검색어 없는 위치 기반 조회, category 변경 시 주변 재조회, draft/committed 조건 분리, 새 검색 교체, append 유지·dedupe·재시도 test를 확인
 - [x] T013 [P] [US1] 검색 화면 Compose UI test 작성 in android/app/src/androidTest/java/com/gilpick/place/PlaceSearchScreenTest.kt
   - 영역: FE
   - 담당: jy

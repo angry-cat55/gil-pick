@@ -11,8 +11,8 @@ paths:
       operationId: searchPlaces
       summary: 장소 검색
       description: >-
-        query와 category는 각각 단독으로 사용할 수 있고 함께 사용할 수도 있다.
-        둘 다 없으면 INVALID_REQUEST를 반환한다.
+        query가 있으면 키워드 검색을 사용한다. query가 없으면 latitude와 longitude가
+        모두 필요하며 현재 위치 반경의 서울 장소를 거리순으로 반환한다.
       security:
         - bearerAuth: []
       parameters:
@@ -32,6 +32,29 @@ paths:
           schema:
             type: string
             enum: ['1']
+            default: '1'
+        - name: latitude
+          in: query
+          description: 검색어 없는 주변 조회의 기준 위도
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: longitude
+          in: query
+          description: 검색어 없는 주변 조회의 기준 경도
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+        - name: radiusMeters
+          in: query
+          description: 주변 검색 반경(m). 결과가 없어도 자동 확장하지 않는다.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20000
+            default: 5000
         - name: cursor
           in: query
           description: 이전 응답에서 받은 불투명 커서

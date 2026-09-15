@@ -198,10 +198,12 @@ interface PlaceService {
     /**
      * 키워드·category·지역 조건으로 장소를 검색한다.
      *
-     * [query]와 [category]는 각각 단독으로도 쓸 수 있고 함께 쓸 수도 있다. 둘 다 없으면
-     * server가 `400 INVALID_REQUEST`로 거절한다.
+     * [query]가 없으면 [latitude]·[longitude]를 사용해 주변 장소를 거리순으로 조회한다.
      *
      * @param areaCode 하위 호환용 서울 지역코드 `1`. 생략해도 server가 서울 제한을 적용한다(#606).
+     * @param latitude 주변 조회 기준 위도. 검색어가 없을 때 필수다.
+     * @param longitude 주변 조회 기준 경도. 검색어가 없을 때 필수다.
+     * @param radiusMeters 주변 검색 반경(m). 기본 정책은 5km이며 자동 확장하지 않는다(#607).
      * @param cursor 이전 응답의 `meta.pagination.nextCursor`를 그대로 전달한다.
      */
     @GET("places/search")
@@ -210,6 +212,9 @@ interface PlaceService {
         @Query("query") query: String? = null,
         @Query("category") category: PlaceCategory? = null,
         @Query("areaCode") areaCode: String? = null,
+        @Query("latitude") latitude: Double? = null,
+        @Query("longitude") longitude: Double? = null,
+        @Query("radiusMeters") radiusMeters: Int? = null,
         @Query("cursor") cursor: String? = null,
         @Query("limit") limit: Int? = null,
     ): Response<PlaceListEnvelope>

@@ -41,6 +41,9 @@ sealed interface PlaceSearchPhase {
     /** 정상 응답이지만 결과가 없다. */
     data object Empty : PlaceSearchPhase
 
+    /** 위치 권한이 없거나 현재 좌표를 얻지 못해 주변 조회를 시작할 수 없다. */
+    data object LocationUnavailable : PlaceSearchPhase
+
     /** 조건이 계약에 맞지 않아 요청하지 않았다(FR-003·FR-003b). */
     data class Invalid(val reason: InvalidReason) : PlaceSearchPhase
 
@@ -84,6 +87,7 @@ data class PlaceSearchUiState(
     val hasNext: Boolean = false,
     val loadingMore: Boolean = false,
     val loadMoreError: PlaceError? = null,
+    val nearbyOrigin: CurrentLocationDto? = null,
     val distanceOrigin: CurrentLocationDto? = null,
     val locating: Boolean = false,
     val distanceSortUnavailable: Boolean = false,
@@ -119,6 +123,9 @@ class PlaceSearchViewModel(
     /** 진행 중인 조회. 새 검색이 시작되면 취소한다. */
     private var loadJob: Job? = null
 
+    /** 현재 위치를 얻는 작업. 검색 요청과 별도로 취소한다. */
+    private var locationJob: Job? = null
+
     /** 입력창 값을 반영한다. 검색하지 않는다. */
     fun onQueryChange(value: String) {
         _state.update { it.copy(query = value) }
@@ -132,13 +139,13 @@ class PlaceSearchViewModel(
     /**
      * 칩 선택을 반영하고 곧바로 현재 검색어와 함께 다시 검색한다(FR-003a).
      *
-     * 이미 고른 칩을 다시 누르면 아무것도 하지 않는다. 검색어 없이 `전체`를 고르면 조건이 없으므로
-     * 안내 문구 대신 검색 전 화면으로 돌아간다.
+     * 이미 고른 칩을 다시 누르면 아무것도 하지 않는다. 검색어가 없으면 저장한 현재 좌표로
+     * 주변 카테고리 또는 주변 전체를 다시 조회한다.
      */
     fun onCategoryChange(category: PlaceCategory?) {
         if (category == _state.value.category) return
         _state.update { it.copy(category = category) }
-        if (category == null && _state.value.query.isBlank()) onSearchByCategory() else search()
+        if (_state.value.query.isBlank()) loadNearby() else search()
     }
 
     /**
@@ -147,23 +154,22 @@ class PlaceSearchViewModel(
      * 결과 목록도 비운다. 지운 검색어의 결과가 남아 있으면 무엇의 결과인지 알 수 없다.
      */
     fun onSearchByCategory() {
-        loadJob?.cancel()
-        nextCursor = null
-        _state.update { PlaceSearchUiState(category = it.category) }
+        _state.update { it.copy(query = "") }
+        loadNearby()
     }
 
     /**
      * 현재 draft 조건으로 검색을 실행한다. 키보드의 검색 동작과 칩 선택이 부른다.
      *
-     * 조건이 계약에 맞지 않으면 요청하지 않고 [PlaceSearchPhase.Invalid]로 안내한다(FR-003·FR-003b).
+     * 짧은 검색어는 요청하지 않고 [PlaceSearchPhase.Invalid]로 안내한다(FR-003b).
      * 앞선 결과는 새 결과로 교체된다(UI-003).
      */
     fun search() {
+        locationJob?.cancel()
         val current = _state.value
         val query = current.query.trim()
         val category = current.category
         val invalid = when {
-            query.isEmpty() && category == null -> InvalidReason.NO_CONDITION
             query.isNotEmpty() && query.length < MIN_QUERY_LENGTH -> InvalidReason.TOO_SHORT
             else -> null
         }
@@ -173,8 +179,70 @@ class PlaceSearchViewModel(
             _state.update { it.copy(results = emptyList(), phase = PlaceSearchPhase.Invalid(invalid), hasNext = false, loadingMore = false, loadMoreError = null) }
             return
         }
-        _state.update { it.copy(committedQuery = query, committedCategory = category) }
+        if (query.isEmpty()) {
+            loadNearby()
+            return
+        }
+        _state.update {
+            it.copy(
+                committedQuery = query,
+                committedCategory = category,
+                nearbyOrigin = null,
+                distanceOrigin = null,
+            )
+        }
         startSearch()
+    }
+
+    /**
+     * 현재 위치를 얻어 검색어 없는 5km 주변 조회를 시작한다(#607).
+     *
+     * 카테고리 변경 때는 이미 얻은 좌표를 재사용한다. 좌표가 없으면 임의 목록으로 대체하지 않고
+     * [PlaceSearchPhase.LocationUnavailable]에서 사용자가 재시도할 수 있게 한다.
+     */
+    fun loadNearby() {
+        val saved = _state.value.nearbyOrigin
+        if (saved != null) {
+            _state.update {
+                it.copy(
+                    committedQuery = "",
+                    committedCategory = it.category,
+                    distanceOrigin = saved,
+                )
+            }
+            startSearch()
+            return
+        }
+        locationJob?.cancel()
+        loadJob?.cancel()
+        nextCursor = null
+        _state.update {
+            it.copy(
+                results = emptyList(),
+                phase = PlaceSearchPhase.Loading,
+                locating = true,
+                hasNext = false,
+                loadingMore = false,
+                loadMoreError = null,
+            )
+        }
+        locationJob = viewModelScope.launch {
+            val origin = locationProvider.current()
+            if (origin == null) {
+                _state.update { it.copy(phase = PlaceSearchPhase.LocationUnavailable, locating = false) }
+                return@launch
+            }
+            _state.update {
+                it.copy(
+                    committedQuery = "",
+                    committedCategory = it.category,
+                    nearbyOrigin = origin,
+                    distanceOrigin = origin,
+                    locating = false,
+                )
+            }
+            startSearch()
+        }
     }
 
     /**
@@ -198,7 +266,11 @@ class PlaceSearchViewModel(
 
     /** 첫 페이지 조회에 실패한 뒤 같은 조건으로 다시 시도한다. */
     fun retry() {
-        startSearch()
+        if (_state.value.committedQuery.isBlank() && _state.value.nearbyOrigin == null) {
+            loadNearby()
+        } else {
+            startSearch()
+        }
     }
 
     /**
@@ -226,7 +298,15 @@ class PlaceSearchViewModel(
         _state.update { it.copy(loadingMore = true) }
         loadJob = viewModelScope.launch {
             val current = _state.value
-            when (val result = repository.searchPlaces(current.committedQuery, current.committedCategory, cursor)) {
+            when (
+                val result = repository.searchPlaces(
+                    current.committedQuery,
+                    current.committedCategory,
+                    latitude = current.nearbyOrigin?.latitude,
+                    longitude = current.nearbyOrigin?.longitude,
+                    cursor = cursor,
+                )
+            ) {
                 is AuthResult.Success -> {
                     val page = result.value
                     nextCursor = page.nextCursor.takeIf { page.hasNext }
@@ -256,7 +336,15 @@ class PlaceSearchViewModel(
 
         loadJob = viewModelScope.launch {
             val current = _state.value
-            when (val result = repository.searchPlaces(current.committedQuery, current.committedCategory, cursor = null)) {
+            when (
+                val result = repository.searchPlaces(
+                    current.committedQuery,
+                    current.committedCategory,
+                    latitude = current.nearbyOrigin?.latitude,
+                    longitude = current.nearbyOrigin?.longitude,
+                    cursor = null,
+                )
+            ) {
                 is AuthResult.Success -> {
                     val page = result.value
                     nextCursor = page.nextCursor.takeIf { page.hasNext }

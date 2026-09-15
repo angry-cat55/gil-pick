@@ -34,6 +34,9 @@ class StubPlaceSearchService:
         query: str | None,
         category: PlaceCategory | None,
         area_code: str | None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        radius_meters: int = 5000,
         cursor: str | None,
         limit: int,
     ) -> tuple[list[PlaceSummary], str | None, bool]:
@@ -43,6 +46,9 @@ class StubPlaceSearchService:
                 "query": query,
                 "category": category,
                 "area_code": area_code,
+                "latitude": latitude,
+                "longitude": longitude,
+                "radius_meters": radius_meters,
                 "cursor": cursor,
                 "limit": limit,
             }
@@ -120,7 +126,11 @@ def place_client() -> tuple[TestClient, StubPlaceSearchService]:
     "params",
     [
         {"query": "  경복궁  "},
-        {"category": "HISTORY_CULTURE"},
+        {
+            "category": "HISTORY_CULTURE",
+            "latitude": "37.5884",
+            "longitude": "127.0060",
+        },
         {"query": "  경복궁  ", "category": "HISTORY_CULTURE"},
     ],
 )
@@ -173,10 +183,51 @@ def test_search_contract_defaults_area_code_to_seoul(
     assert service.calls[-1]["area_code"] == "1"
 
 
+def test_search_contract_accepts_queryless_nearby_search(
+    place_client: tuple[TestClient, StubPlaceSearchService],
+) -> None:
+    """검색어 없이 사용자 위치만 전달해도 기본 5km 주변 검색을 시작한다."""
+    client, service = place_client
+
+    response = client.get(
+        "/api/v1/places/search",
+        params={"latitude": 37.5884, "longitude": 127.0060},
+    )
+
+    assert response.status_code == 200
+    assert service.calls[-1]["latitude"] == 37.5884
+    assert service.calls[-1]["longitude"] == 127.0060
+    assert service.calls[-1]["radius_meters"] == 5000
+
+
+def test_search_contract_accepts_queryless_nearby_category_search(
+    place_client: tuple[TestClient, StubPlaceSearchService],
+) -> None:
+    """검색어 없이 category를 바꿔도 같은 위치 기반 계약을 사용한다."""
+    client, service = place_client
+
+    response = client.get(
+        "/api/v1/places/search",
+        params={
+            "category": "CAFE",
+            "latitude": 37.5884,
+            "longitude": 127.0060,
+            "radiusMeters": 3000,
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.calls[-1]["category"] is PlaceCategory.CAFE
+    assert service.calls[-1]["radius_meters"] == 3000
+
+
 @pytest.mark.parametrize(
     "params",
     [
         {},
+        {"category": "OTHER"},
+        {"latitude": 37.5884},
+        {"longitude": 127.0060},
         {"query": "가"},
         {"query": "   "},
         {"query": "가", "category": "FOOD"},
@@ -208,7 +259,12 @@ def test_search_contract_maps_invalid_cursor(
 
     response = client.get(
         "/api/v1/places/search",
-        params={"category": "FOOD", "cursor": "invalid-cursor"},
+        params={
+            "category": "FOOD",
+            "latitude": 37.5884,
+            "longitude": 127.0060,
+            "cursor": "invalid-cursor",
+        },
     )
 
     assert response.status_code == 400
@@ -221,7 +277,10 @@ def test_search_openapi_declares_parameters_and_responses() -> None:
     operation = app.openapi()["paths"]["/api/v1/places/search"]["get"]
     parameters = {item["name"]: item for item in operation["parameters"]}
 
-    assert set(parameters) == {"query", "category", "areaCode", "cursor", "limit"}
+    assert set(parameters) == {
+        "query", "category", "areaCode", "latitude", "longitude",
+        "radiusMeters", "cursor", "limit",
+    }
     assert parameters["limit"]["schema"] == {
         "type": "integer",
         "maximum": 20,

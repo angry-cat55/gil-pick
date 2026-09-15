@@ -48,23 +48,31 @@ class PlaceRepository(
     /**
      * 키워드·category로 장소를 검색한다.
      *
-     * 조건 검증(2글자, 조건 없음)은 ViewModel이 요청 전에 끝내므로 여기서는 받은 값을 그대로
-     * 보낸다. 지역 조건(`areaCode`)은 화면 입력이 아니며 server가 서울 제한을 항상 적용하므로 보내지 않는다(#606).
+     * 키워드 2글자 검증과 검색어가 없을 때의 위치 획득은 ViewModel이 요청 전에 끝내므로
+     * 여기서는 받은 값을 그대로 보낸다. 지역 조건(`areaCode`)은 화면 입력이 아니며 server가
+     * 서울 제한을 항상 적용하므로 보내지 않는다(#606).
      *
      * @param query 앞뒤 공백을 뗀 키워드. 비어 있으면 생략한다.
      * @param category `null`이면 `전체`다.
+     * @param latitude 검색어 없는 주변 조회의 기준 위도.
+     * @param longitude 검색어 없는 주변 조회의 기준 경도.
      * @param cursor 이전 페이지의 [PlaceSearchPage.nextCursor]. 첫 페이지면 `null`.
      */
     suspend fun searchPlaces(
         query: String?,
         category: PlaceCategory?,
         cursor: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
     ): AuthResult<PlaceSearchPage> = auth.withAuthorizedCall { accessToken ->
         try {
             api.searchPlaces(
                 bearer = "Bearer $accessToken",
                 query = query?.takeIf { it.isNotBlank() },
                 category = category,
+                latitude = latitude,
+                longitude = longitude,
+                radiusMeters = if (latitude != null && longitude != null) NEARBY_RADIUS_METERS else null,
                 cursor = cursor,
             ).toAuthResult { envelope ->
                 PlaceSearchPage(
@@ -76,6 +84,11 @@ class PlaceRepository(
         } catch (e: IOException) {
             AuthResult.Failure(AuthError.Offline(e))
         }
+    }
+
+    companion object {
+        /** 사용자 주변 기본 검색 반경. 결과가 없어도 자동으로 넓히지 않는다(#607). */
+        const val NEARBY_RADIUS_METERS = 5_000
     }
 
     /**

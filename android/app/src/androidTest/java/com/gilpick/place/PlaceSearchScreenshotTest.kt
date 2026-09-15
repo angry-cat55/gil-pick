@@ -41,6 +41,24 @@ class PlaceSearchScreenshotTest {
     fun 검색_content() = capture("search_content") { Screen(contentState()) }
 
     @Test
+    fun 검색_한성대입구_주변_content() = capture("search_nearby_hansung") {
+        Screen(
+            PlaceSearchUiState(
+                results = listOf(
+                    testPlace("tourapi:near-1", name = "한성대학교"),
+                    testPlace("tourapi:near-2", name = "낙산공원", category = PlaceCategory.NATURE),
+                ),
+                phase = PlaceSearchPhase.Content,
+            ),
+        )
+    }
+
+    @Test
+    fun 검색_위치_확인_실패() = capture("search_location_unavailable") {
+        Screen(PlaceSearchUiState(phase = PlaceSearchPhase.LocationUnavailable))
+    }
+
+    @Test
     fun 검색_content_긴_이름_이미지_누락() = capture("search_content_long_missing") {
         Screen(
             contentState(
