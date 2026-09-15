@@ -11,9 +11,11 @@ from pydantic import ValidationError
 from app.clients.route_provider import (
     Coordinate,
     NormalizedRoute,
+    NormalizedTransitStep,
     Provider,
     RouteProviderError,
     TransportMode,
+    TransitStepType,
 )
 from app.core.config import Settings
 
@@ -104,13 +106,15 @@ class KakaoTransitClient:
         route = self._recommended_route(payload)
         try:
             properties = route["properties"]
+            coordinates = self._coordinates(route)
             return NormalizedRoute(
                 provider=Provider.KAKAO,
                 transport_mode=TransportMode.TRANSIT,
                 duration_seconds=properties["totalTime"],
                 distance_meters=properties["totalDistance"],
-                coordinates=self._coordinates(route),
+                coordinates=coordinates,
                 attribution="Kakao Maps",
+                steps=self._steps(route),
             )
         except (KeyError, TypeError, ValidationError, ValueError) as exc:
             raise RouteProviderError(
@@ -156,6 +160,53 @@ class KakaoTransitClient:
             raise RouteProviderError(
                 "ROUTE_INVALID_RESULT", retryable=False
             ) from exc
+
+    @staticmethod
+    def _steps(route: dict[str, Any]) -> list[NormalizedTransitStep]:
+        """상세 메타데이터가 모두 유효할 때만 단계 전체를 반환한다."""
+        try:
+            raw_steps = route["steps"]
+            if not isinstance(raw_steps, list) or not raw_steps:
+                return []
+            parsed: list[NormalizedTransitStep] = []
+            for raw_step in raw_steps:
+                properties = raw_step["properties"]
+                if not isinstance(properties, dict):
+                    return []
+                raw_type = properties["type"]
+                step_type = {
+                    "WALKING": TransitStepType.WALK,
+                    "BUS": TransitStepType.BUS,
+                    "SUBWAY": TransitStepType.SUBWAY,
+                }[raw_type]
+                stops = KakaoTransitClient._names(properties.get("stops"), "name")
+                vehicles = KakaoTransitClient._names(properties.get("vehicles"), "name")
+                parsed.append(
+                    NormalizedTransitStep(
+                        type=step_type,
+                        duration_seconds=properties["time"],
+                        distance_meters=properties["distance"],
+                        boarding_name=stops[0] if stops else None,
+                        alighting_name=stops[-1] if stops else None,
+                        line_name=" / ".join(dict.fromkeys(vehicles)) or None,
+                    )
+                )
+            return parsed
+        except (KeyError, TypeError, ValidationError, ValueError):
+            return []
+
+    @staticmethod
+    def _names(value: Any, key: str) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise TypeError
+        names: list[str] = []
+        for item in value:
+            if not isinstance(item, dict) or not isinstance(item.get(key), str):
+                raise TypeError
+            names.append(item[key])
+        return names
 
 
 __all__ = ["KakaoTransitClient"]

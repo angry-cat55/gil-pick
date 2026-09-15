@@ -25,7 +25,8 @@
 
 ## Route payload
 
-- `segments`: 순서, 인접 `fromItemId`/`toItemId`, 이동수단, provider, 초·미터, WGS84 GeoJSON `LineString`, attribution. Provider가 여러 선을 반환하면 이동 순서대로 좌표를 이어 하나의 `LineString`으로 정규화하고, 순서를 확정할 수 없으면 `ROUTE_INVALID_RESULT`로 실패 처리한다.
+- `segments`: 순서, 인접 `fromItemId`/`toItemId`, 이동수단, provider, 초·미터, WGS84 GeoJSON `LineString`, attribution, `steps`. Provider가 여러 선을 반환하면 이동 순서대로 좌표를 이어 하나의 `LineString`으로 정규화하고, 순서를 확정할 수 없으면 `ROUTE_INVALID_RESULT`로 실패 처리한다.
+- `steps`: 대중교통 상세 단계의 `type`(`WALK`·`BUS`·`SUBWAY`), `durationSeconds`, `distanceMeters`, nullable `boardingName`·`alightingName`·`lineName`·`stopCount`. Kakao 상세 메타데이터가 모두 유효할 때만 채우며, WALK·CAR, 기존 JSONB, 상세 누락·오류는 빈 목록이다. 기존 `route_payload` JSONB를 확장하므로 DB migration은 없다.
 - `markers`: `itemId`, 순서, 이름, 위도·경도. 일정 순서와 정확히 일치
 - `providerAttributions`: 중복 제거한 표시 문구
 
