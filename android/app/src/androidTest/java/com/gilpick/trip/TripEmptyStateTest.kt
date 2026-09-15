@@ -3,10 +3,16 @@ package com.gilpick.trip
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.ui.theme.GilpickTheme
 import org.junit.Assert.assertEquals
@@ -40,16 +46,22 @@ class TripEmptyStateTest {
         composeRule
             .onNodeWithText("여행을 만들면 날짜별 일정과 이동 경로를 한 번에 정리할 수 있어요.")
             .assertIsDisplayed()
-        composeRule.onNodeWithText("첫 여행 만들기").assertIsDisplayed()
     }
 
     @Test
-    fun 여행이_하나도_없으면_FAB의_새_여행_만들기와_다른_문구를_쓴다() {
-        setScreen(TripListUiState(phase = TripListPhase.Empty))
+    fun 여행이_하나도_없으면_생성_버튼은_하단_FAB_하나이고_누르면_생성으로_간다() {
+        var creates = 0
+        setScreen(TripListUiState(phase = TripListPhase.Empty), onCreateTrip = { creates++ })
 
-        // 하단 FAB는 "새 여행 만들기"다(#441, Figma). 빈 상태 버튼만 "첫 여행 만들기"다.
-        composeRule.onNodeWithText("새 여행 만들기").assertIsDisplayed()
-        composeRule.onNodeWithText("첫 여행 만들기").assertIsDisplayed()
+        // 빈 상태 안의 `첫 여행 만들기`는 FAB와 같은 곳으로 가는 중복 진입점이라 뺐다(#568).
+        composeRule.onNodeWithText("첫 여행 만들기").assertDoesNotExist()
+        composeRule.onAllNodesWithText("새 여행 만들기").assertCountEquals(1)
+        composeRule.onNodeWithText("새 여행 만들기")
+            .assertHasClickAction()
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+
+        assertEquals(1, creates)
     }
 
     // --- 2. 조건에 맞는 결과 0건 ---
@@ -118,7 +130,7 @@ class TripEmptyStateTest {
         val HEADER_CONTROL_DESCRIPTIONS = setOf("알림 보기", "여행 이름 검색")
     }
 
-    private fun setScreen(state: TripListUiState) {
+    private fun setScreen(state: TripListUiState, onCreateTrip: () -> Unit = {}) {
         composeRule.setContent {
             GilpickTheme {
                 TripListScreen(
@@ -127,7 +139,7 @@ class TripEmptyStateTest {
                     onStatusFilterChange = {},
                     onRetry = {},
                     onLoadMore = {},
-                    onCreateTrip = {},
+                    onCreateTrip = onCreateTrip,
                     onTripClick = {},
                 )
             }

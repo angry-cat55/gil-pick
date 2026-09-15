@@ -31,7 +31,6 @@
     <string name="trips_empty">아직 만든 여행이 없어요</string>
     <string name="trips_empty_hint">여행을 만들면 날짜별 일정과 이동 경로를 한 번에 정리할 수 있어요.</string>
     <!-- 빈 상태 전용. 헤더의 trips_create와 문구가 다르다. -->
-    <string name="trips_empty_create">첫 여행 만들기</string>
     <string name="trips_create">새 여행 만들기</string>
     <string name="trips_overline">MY TRIPS</string>
     <string name="trips_search_placeholder">여행 이름으로 검색</string>
