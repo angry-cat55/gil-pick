@@ -68,6 +68,7 @@ class StubPlaceSearchService:
                     rating=4.7,
                     user_rating_count=1200,
                     business_status=BusinessStatus.OPERATIONAL,
+                    open_now=True,
                     regular_opening_hours=None,
                     current_opening_hours=None,
                     google_attributions=None,
@@ -90,7 +91,7 @@ class StubPlaceSearchService:
             tour_api_category=TourApiCategory(large="HS", middle="HS01", small=None),
             address=None, latitude=None, longitude=None, image_url=None,
             recommended_stay_minutes=90, rating=None, user_rating_count=None,
-            business_status=None, regular_opening_hours=None,
+            business_status=None, open_now=None, regular_opening_hours=None,
             current_opening_hours=None, google_attributions=None,
             description=None, phone=None, operating_guide=None,
         )
@@ -152,6 +153,7 @@ def test_search_contract_returns_nullable_fields_and_pagination(
 
     assert response.status_code == 200
     assert response.json()["data"]["items"][0]["imageUrl"] is None
+    assert response.json()["data"]["items"][0]["openNow"] is True
     assert response.json()["meta"]["pagination"] == {
         "nextCursor": "next-page",
         "hasNext": True,
@@ -230,6 +232,7 @@ def test_detail_contract_returns_nullable_fields(
     assert response.json()["data"]["description"] is None
     assert response.json()["data"]["phone"] is None
     assert response.json()["data"]["operatingGuide"] is None
+    assert response.json()["data"]["openNow"] is None
 
 
 @pytest.mark.parametrize(

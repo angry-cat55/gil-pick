@@ -122,7 +122,7 @@
 
 ## 11. Google 필드, attribution과 부분 실패
 
-**Decision**: Text Search와 Place Details는 `id`, 장소명, 주소, 좌표, 유형, 전화번호 및 필요한 `rating`, `userRatingCount`, `regularOpeningHours`, `currentOpeningHours`, `businessStatus`, `attributions`만 명시적 field mask로 요청한다. Google 사진·리뷰는 요청하지 않는다. Google 호출 실패는 TourAPI 결과·상세를 유지한 채 Google 필드만 null로 처리한다. 화면의 장소별 provider 배지는 제거하지만 Google 데이터와 같은 시각 컨테이너에는 정책상 필수 `Google Maps` 및 제3자 attribution을 표시한다.
+**Decision**: Text Search와 Place Details는 `id`, 장소명, 주소, 좌표, 유형, 전화번호 및 필요한 `rating`, `userRatingCount`, `regularOpeningHours`, `currentOpeningHours`, `businessStatus`, `attributions`만 명시적 field mask로 요청한다. `currentOpeningHours.openNow`는 제공된 boolean을 그대로 nullable `openNow`로 전달하고, 미제공 시 추론하지 않는다. Google 사진·리뷰는 요청하지 않는다. Google 호출 실패는 TourAPI 결과·상세를 유지한 채 Google 필드만 null로 처리한다. 화면의 장소별 provider 배지는 제거하지만 Google 데이터와 같은 시각 컨테이너에는 정책상 필수 `Google Maps` 및 제3자 attribution을 표시한다.
 
 **Rationale**: Places API (New)는 field mask가 필수이고 일부 필드는 과금 SKU를 결정한다. 공식 정책은 Google 콘텐츠가 다른 출처 데이터와 구분되고 attribution이 가까이 표시되도록 요구하므로 모든 출처 표시 제거는 허용되지 않는다.
 

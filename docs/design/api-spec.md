@@ -817,6 +817,7 @@ Response `200`:
         "rating": 4.6,
         "userRatingCount": 1203,
         "businessStatus": "OPERATIONAL",
+        "openNow": true,
         "regularOpeningHours": null,
         "currentOpeningHours": null,
         "googleAttributions": ["Google Maps"]
@@ -866,6 +867,7 @@ Response `200`:
     "rating": 4.6,
     "userRatingCount": 1203,
     "businessStatus": "OPERATIONAL",
+    "openNow": true,
     "regularOpeningHours": null,
     "currentOpeningHours": null,
     "googleAttributions": ["Google Maps"]
@@ -879,7 +881,8 @@ Response `200`:
 운영 안내 정책:
 - TourAPI가 제공하는 콘텐츠 유형별 운영 안내를 nullable 문자열로 정규화
 - 제공되지 않은 운영 안내는 `null`
-- `openNow` 또는 정확한 종료 시각을 추론하지 않음
+- Google이 제공한 `currentOpeningHours.openNow`는 nullable `openNow`로 그대로 전달하고, 미제공·보완 실패·TourAPI 단독 장소는 `null`
+- TourAPI 운영 안내에서 현재 영업 여부 또는 정확한 종료 시각을 추론하지 않음
 - 자연·문화·역사 등 비상업 카테고리를 지정하면 TourAPI만 사용하고, 전체 키워드·음식·카페·쇼핑은 TourAPI 결과가 `limit` 미만일 때 Google Places로 부족분 보완. Google Text Search는 cursor 검색 흐름당 최대 한 번 호출하며 지정 카테고리와 다른 Google 유형은 제외
 - 확정 매칭은 TourAPI ID·기본·상세정보를 유지하고 Google 평점·평점 수·영업정보만 병합하며 모호한 Google 후보는 제외
 - Google 전용 결과는 `google:{placeId}`를 사용하고 Google 사진·리뷰는 반환하지 않음
@@ -1643,6 +1646,7 @@ Response `200`:
           "rating": 4.5,
           "userRatingCount": 820,
           "businessStatus": "OPERATIONAL",
+          "openNow": true,
           "regularOpeningHours": null,
           "currentOpeningHours": null,
           "googleAttributions": ["Google Maps"]
@@ -1714,6 +1718,7 @@ Query:
           "rating": 4.3,
           "userRatingCount": 210,
           "businessStatus": "OPERATIONAL",
+          "openNow": true,
           "regularOpeningHours": null,
           "currentOpeningHours": null,
           "googleAttributions": null

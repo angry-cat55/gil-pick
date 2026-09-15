@@ -173,7 +173,7 @@ description: "F003 장소 검색 구현 task 목록"
   - 영역: BE
   - 담당: ts
   - 선행: T014, T019, T035
-  - 검증: `detailCommon2`·`detailIntro2` fixture 조합, HTML plain text 처리, `openNow` 미생성, not found test 통과
+  - 검증: `detailCommon2`·`detailIntro2` fixture 조합, HTML plain text 처리, TourAPI 운영 안내로 `openNow` 미추론, not found test 통과
 - [x] T022 [US2] PLACE-002 상세 endpoint 구현 in api/app/api/v1/places.py
   - 영역: BE
   - 담당: ts
@@ -361,6 +361,12 @@ FE jy: T027 Android 오류 복구 test
   - 담당: ts
   - 선행: T014, GitHub Issue #492
   - 검증: 전체 키워드 결과의 Google 유형 변환, 음식·카페·쇼핑 일치, cursor 추가 조회까지 Google Text Search 최대 1회 unit test 통과
+
+- [x] T037 [US1] Google Places 현재 영업 여부 계약·매핑 구현 in api/app/schemas/place.py, api/app/services/place.py, specs/003-place-search/contracts/places.openapi.yaml
+  - 영역: BE
+  - 담당: ts
+  - 선행: 없음, GitHub Issue #577
+  - 검증: `openNow` true·false·누락과 TourAPI 단독·Google 보완 실패 contract·unit·integration test 통과
 
 - `[P]`는 다른 파일과 계약을 독립적으로 다룰 때만 표시했다.
 - 구현 test는 먼저 실패를 확인한 뒤 해당 구현 task를 진행한다.

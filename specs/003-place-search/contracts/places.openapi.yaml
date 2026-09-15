@@ -131,6 +131,7 @@ components:
         - rating
         - userRatingCount
         - businessStatus
+        - openNow
         - regularOpeningHours
         - currentOpeningHours
         - googleAttributions
@@ -179,6 +180,9 @@ components:
           type: [string, 'null']
           enum: [OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY, null]
           description: Google Places businessStatus 원문 enum. Backend에서 표시 문구로 번역하지 않는다.
+        openNow:
+          type: [boolean, 'null']
+          description: Google currentOpeningHours.openNow 원문 값. Google이 제공하지 않으면 null이다.
         regularOpeningHours:
           type: [array, 'null']
           items:
