@@ -10,6 +10,7 @@ import com.gilpick.place.AddToScheduleRequest
 import com.gilpick.place.PlaceDto
 import com.gilpick.place.PlaceTransport
 import com.gilpick.place.place
+import com.gilpick.route.readyRoute
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -552,6 +553,51 @@ class ItineraryEditViewModelTest {
         viewModel.dismissDialog()
         viewModel.applyTransport(TransportMode.CAR)
         assertEquals(TransportMode.TRANSIT, viewModel.state.value.draft[0].transportToNext)
+    }
+
+    @Test
+    fun `이동 수단 시트는 저장된 경로의 같은 구간만 싣고 순서가 바뀌면 싣지 않는다`() = runTest {
+        val route = readyRoute(scheduleVersion = 1).copy(
+            segments = readyRoute().segments.mapIndexed { i, segment ->
+                segment.copy(fromItemId = listOf("a", "b")[i], toItemId = listOf("b", "c")[i])
+            },
+        )
+        val items = listOf(
+            savedItem("a", 1, transportToNext = TransportMode.WALK),
+            savedItem("b", 2, transportToNext = TransportMode.TRANSIT),
+            savedItem("c", 3),
+        )
+        service.onOverview = {
+            ok(overview(day("2026-09-08", 1, version = 1, items = items).copy(routeStatus = RouteStatus.READY, route = route)))
+        }
+        val viewModel = newViewModel().also { advanceUntilIdle() }
+
+        viewModel.changeTransport(1)
+        val segment = (viewModel.state.value.dialog as EditDialog.Transport).segment
+        assertEquals(TransportMode.TRANSIT, segment?.transportMode)
+        assertEquals(900, segment?.durationSeconds)
+        assertEquals(3400, segment?.distanceMeters)
+
+        // a-c 구간은 저장된 경로에 없으므로 값이 없다.
+        viewModel.dismissDialog()
+        viewModel.moveItem(1, 2)
+        viewModel.changeTransport(0)
+        assertNull((viewModel.state.value.dialog as EditDialog.Transport).segment)
+    }
+
+    @Test
+    fun `경로가 계산되지 않았거나 일정 version과 다르면 구간 값이 없다`() {
+        val route = readyRoute(scheduleVersion = 3).copy(
+            segments = listOf(readyRoute().segments[0].copy(fromItemId = "a", toItemId = "b")),
+        )
+        val ready = day("2026-09-08", version = 3).copy(routeStatus = RouteStatus.READY, route = route)
+
+        assertEquals(800, ready.segmentBetween("a", "b")?.distanceMeters)
+        assertNull(ready.segmentBetween("b", "a"))
+        assertNull(ready.segmentBetween("a", null))
+        assertNull(ready.copy(version = 4).segmentBetween("a", "b"))
+        assertNull(ready.copy(routeStatus = RouteStatus.FAILED).segmentBetween("a", "b"))
+        assertNull(ready.copy(routeStatus = RouteStatus.NOT_CALCULATED, route = null).segmentBetween("a", "b"))
     }
 
     @Test

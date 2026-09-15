@@ -84,6 +84,9 @@ import com.gilpick.place.LoadingState
 import com.gilpick.place.StateMessage
 import com.gilpick.place.StepButton
 import com.gilpick.place.TransportOption
+import com.gilpick.route.RouteSegmentDto
+import com.gilpick.route.distanceLabel
+import com.gilpick.route.durationLabel
 import kotlin.math.abs
 import com.gilpick.ui.component.GradientButtonDefaults
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -215,6 +218,7 @@ fun ItineraryEditScreen(
             TransportSheet(
                 nextPlaceName = state.draft.getOrNull(dialog.index + 1)?.place?.name ?: item.place.name,
                 current = item.transportToNext,
+                segment = dialog.segment,
                 onCancel = onDismissDialog,
                 onApply = onApplyTransport,
             )
@@ -1015,13 +1019,21 @@ internal fun StayTimeDialogContent(placeName: String, initialMinutes: Int, onCan
 /**
  * 이동 수단 변경 시트(UI-004). Figma: `이동 수단 변경` 제목, `{장소명}까지 어떻게 이동하시겠어요?`,
  * 도보·대중교통·자동차 카드, `취소`·`적용`. 체류 시간은 여기서 조절하지 않는다. 카드는 F003 시트의
- * [TransportOption]을 그대로 쓴다. 이동 시간·거리는 경로 계산 전이라 표시하지 않는다(FR-018).
+ * [TransportOption]을 그대로 쓴다. 각 카드에 저장된 경로의 소요 시간·거리를 붙인다(#508).
  *
  * @param nextPlaceName 이 구간이 향하는 다음 장소. 안내 문구의 `{장소명}`이다.
+ * @param segment 저장된 경로의 이 구간. 그 구간의 수단 카드만 `약 12분 · 1.2km`이고 나머지와 값이 없을 때는
+ *   `--`다. 서버가 수단별 추정을 주지 않아 지어내지 않는다(FR-018). 값이 없어도 선택은 막지 않는다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TransportSheet(nextPlaceName: String, current: TransportMode?, onCancel: () -> Unit, onApply: (TransportMode) -> Unit) {
+private fun TransportSheet(
+    nextPlaceName: String,
+    current: TransportMode?,
+    segment: RouteSegmentDto?,
+    onCancel: () -> Unit,
+    onApply: (TransportMode) -> Unit,
+) {
     ModalBottomSheet(
         onDismissRequest = onCancel,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -1030,13 +1042,19 @@ private fun TransportSheet(nextPlaceName: String, current: TransportMode?, onCan
         dragHandle = null,
         scrimColor = Color.Black.copy(alpha = 0.5f),
     ) {
-        TransportSheetContent(nextPlaceName = nextPlaceName, current = current, onCancel = onCancel, onApply = onApply)
+        TransportSheetContent(nextPlaceName = nextPlaceName, current = current, segment = segment, onCancel = onCancel, onApply = onApply)
     }
 }
 
 /** 이동 수단 시트의 내용. 별도 window 없이 그릴 수 있어 screenshot test가 직접 찍는다. */
 @Composable
-internal fun TransportSheetContent(nextPlaceName: String, current: TransportMode?, onCancel: () -> Unit, onApply: (TransportMode) -> Unit) {
+internal fun TransportSheetContent(
+    nextPlaceName: String,
+    current: TransportMode?,
+    onCancel: () -> Unit,
+    onApply: (TransportMode) -> Unit,
+    segment: RouteSegmentDto? = null,
+) {
     val spacing = LocalGilpickSpacing.current
     var selected by rememberSaveable(current) { mutableStateOf(current ?: TransportMode.WALK) }
     val title = stringResource(R.string.itinerary_edit_transport_title)
@@ -1073,6 +1091,15 @@ internal fun TransportSheetContent(nextPlaceName: String, current: TransportMode
                 selected = selected == mode,
                 onClick = { selected = mode },
                 modifier = Modifier.padding(bottom = spacing.space2),
+                detail = if (segment?.transportMode == mode) {
+                    stringResource(
+                        R.string.itinerary_edit_transport_estimate,
+                        durationLabel(segment.durationSeconds),
+                        distanceLabel(segment.distanceMeters),
+                    )
+                } else {
+                    stringResource(R.string.itinerary_edit_transport_estimate_none)
+                },
             )
         }
         CancelApplyRow(onCancel = onCancel, onApply = { onApply(selected) }, modifier = Modifier.padding(top = spacing.space4))

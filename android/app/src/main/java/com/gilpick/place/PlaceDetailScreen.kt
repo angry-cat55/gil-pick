@@ -692,6 +692,7 @@ internal fun TransportOption(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    detail: String? = null,
 ) {
     val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
     val (icon, labelRes) = when (option) {
@@ -725,6 +726,10 @@ internal fun TransportOption(
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
+        // F004 이동 수단 시트의 소요 시간·거리(#508). F003 시트는 넘기지 않는다.
+        if (detail != null) {
+            Text(text = detail, style = MaterialTheme.typography.bodySmall, color = LocalGilpickColors.current.muted)
+        }
         if (selected) {
             Icon(
                 painter = painterResource(R.drawable.ic_lucide_check),

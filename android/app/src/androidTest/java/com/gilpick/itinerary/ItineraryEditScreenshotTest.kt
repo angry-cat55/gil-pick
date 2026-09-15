@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gilpick.place.PlaceCategory
+import com.gilpick.route.RouteGeometryDto
+import com.gilpick.route.RouteProvider
+import com.gilpick.route.RouteSegmentDto
 import com.gilpick.ui.theme.GilpickTheme
 import java.io.File
 import java.time.LocalDate
@@ -80,6 +83,25 @@ class ItineraryEditScreenshotTest {
     fun 편집_이동_수단_시트() = capture("itinerary_edit_transport_sheet") {
         Box(modifier = Modifier.width(412.dp)) {
             TransportSheetContent(nextPlaceName = "북촌한옥마을", current = TransportMode.WALK, onCancel = {}, onApply = {})
+        }
+    }
+
+    @Test
+    fun 편집_이동_수단_시트_소요_시간_거리() = capture("itinerary_edit_transport_sheet_estimate") {
+        Box(modifier = Modifier.width(360.dp)) {
+            TransportSheetContent(
+                nextPlaceName = "북촌한옥마을",
+                current = TransportMode.WALK,
+                onCancel = {},
+                onApply = {},
+                segment = RouteSegmentDto(
+                    sequence = 1, fromItemId = "a", toItemId = "b",
+                    transportMode = TransportMode.WALK, provider = RouteProvider.TMAP,
+                    durationSeconds = 720, distanceMeters = 1200,
+                    geometry = RouteGeometryDto("LineString", listOf(listOf(126.977, 37.5796), listOf(126.9831, 37.5826))),
+                    providerAttribution = "TMAP",
+                ),
+            )
         }
     }
 

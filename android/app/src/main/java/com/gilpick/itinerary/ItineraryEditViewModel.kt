@@ -20,6 +20,7 @@ import com.gilpick.notification.FcmTokenSyncWorker
 import com.gilpick.place.AddToScheduleRequest
 import com.gilpick.place.PlaceDto
 import com.gilpick.place.PlaceTransport
+import com.gilpick.route.RouteSegmentDto
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,8 +78,12 @@ sealed interface EditDialog {
     /** `{장소명} 체류 시간` 대화상자(UI-003). 처리된 항목도 연다. */
     data class StayTime(val index: Int) : EditDialog
 
-    /** `이동 수단 변경` 시트(UI-004). 마지막이 아닌 예정 항목만 연다. */
-    data class Transport(val index: Int) : EditDialog
+    /**
+     * `이동 수단 변경` 시트(UI-004). 마지막이 아닌 예정 항목만 연다.
+     *
+     * @property segment 저장된 경로에서 같은 두 항목 사이의 구간. 없거나 경로가 계산되지 않았으면 `null`이다(#508).
+     */
+    data class Transport(val index: Int, val segment: RouteSegmentDto? = null) : EditDialog
 }
 
 /** 짧게 띄우는 안내. 화면이 스낵바로 보이고 사용자가 닫는다. */
@@ -286,8 +291,11 @@ class ItineraryEditViewModel(
 
     /** 행의 `변경`. 마지막 항목과 처리된 항목은 열지 않는다(FR-006·017). */
     fun changeTransport(index: Int) {
-        val draft = _state.value.draft
-        if (index < draft.lastIndex && draft[index].editable) _state.update { it.copy(dialog = EditDialog.Transport(index)) }
+        val current = _state.value
+        val draft = current.draft
+        if (index >= draft.lastIndex || !draft[index].editable) return
+        val segment = current.selectedDate?.let(savedDays::get)?.segmentBetween(draft[index].itemId, draft[index + 1].itemId)
+        _state.update { it.copy(dialog = EditDialog.Transport(index, segment)) }
     }
 
     /** 이동 수단 시트의 `적용`. */
@@ -574,6 +582,18 @@ internal fun ItineraryItemDto.toDraft(): DraftItem = DraftItem(
     transportToNext = transportModeToNext,
     status = status,
 )
+
+/**
+ * 저장된 경로에서 [fromItemId] → [toItemId] 구간을 찾는다(#508).
+ *
+ * 경로가 `READY`이고 현재 일정 version으로 계산됐을 때만 돌려준다. 순서를 바꾸거나 새로 추가한 항목은
+ * 저장된 구간이 없으므로 `null`이다. 서버는 저장된 이동 수단 한 가지만 계산하므로 다른 수단의 값은 없다.
+ */
+internal fun DayItineraryDto.segmentBetween(fromItemId: String?, toItemId: String?): RouteSegmentDto? {
+    if (fromItemId == null || toItemId == null || routeStatus != RouteStatus.READY) return null
+    val route = route?.takeIf { it.scheduleVersion == version } ?: return null
+    return route.segments.firstOrNull { it.fromItemId == fromItemId && it.toItemId == toItemId }
+}
 
 /** 마지막 항목의 이동 수단을 비운다. 삭제로 마지막이 바뀔 때 쓴다(FR-006). */
 private fun List<DraftItem>.withLastTransportCleared(): List<DraftItem> =
