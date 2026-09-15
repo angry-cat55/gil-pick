@@ -1,6 +1,7 @@
 package com.gilpick.settings
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -11,9 +12,11 @@ import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gilpick.GilpickApp
+import com.gilpick.TAG_NAV_ACTIVE
 import com.gilpick.TAG_NAV_BAR
 import com.gilpick.TAG_NAV_SETTINGS
 import com.gilpick.TAG_NAV_TRIPS
@@ -75,6 +78,25 @@ class SettingsNavigationTest {
 
         composeRule.onNodeWithTag(TAG_NAV_SETTINGS).assertIsSelected()
         composeRule.onNodeWithTag(TAG_NAV_TRIPS).assertIsNotSelected()
+        composeRule.onNodeWithTag(TAG_NAV_ACTIVE).assertIsNotSelected()
+    }
+
+    /**
+     * #502: `여행 중` 탭을 누르면 그 탭이 선택되고 하단 탭은 그대로 보인다. 서버가 없어 진행 중 여행 조회는 실패하지만
+     * 탭 진입 화면은 최상위라 막대가 남는다. 세 탭 모두 48dp 이상 누를 수 있다.
+     */
+    @Test
+    fun 여행_중_탭을_누르면_선택되고_하단_탭이_남는다() {
+        setApp(FakeSettingsService())
+        listOf(TAG_NAV_TRIPS, TAG_NAV_ACTIVE, TAG_NAV_SETTINGS).forEach {
+            composeRule.onNodeWithTag(it).assertHeightIsAtLeast(48.dp)
+        }
+
+        composeRule.onNodeWithTag(TAG_NAV_ACTIVE).performClick()
+
+        composeRule.onNodeWithTag(TAG_NAV_ACTIVE).assertIsSelected()
+        composeRule.onNodeWithTag(TAG_NAV_TRIPS).assertIsNotSelected()
+        composeRule.onNodeWithTag(TAG_NAV_BAR).assertIsDisplayed()
     }
 
     @Test
