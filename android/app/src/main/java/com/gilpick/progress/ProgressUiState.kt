@@ -156,6 +156,9 @@ sealed interface ProgressUiState {
         /** 오늘을 보고 있다. 다음 장소 카드·진행 행동·상태 수정 시트는 오늘에만 있다(UI-005). */
         val isToday: Boolean get() = viewing == today
 
+        /** 보고 있는 날짜의 일정을 편집할 수 있다. 오늘·이후 날짜만이고 지난 날짜는 읽기 전용이다(#509). */
+        val canEditItinerary: Boolean get() = viewing >= today
+
         /** 오늘 날짜의 개요. 개요에 오늘이 없으면(기간 밖) `null`이다. */
         val todayItinerary: DayItineraryDto? get() = days.firstOrNull { it.date == progress.date }
 

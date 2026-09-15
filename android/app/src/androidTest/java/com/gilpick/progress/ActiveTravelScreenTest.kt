@@ -3,6 +3,9 @@ package com.gilpick.progress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -390,6 +393,43 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("3일차 · 예정 일정").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("1번째 장소 남산타워").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("예정").assertDoesNotExist()
+    }
+
+    // ---- #509: 헤더 편집·뒤로 가기 ----
+
+    @Test
+    fun 헤더_편집은_오늘과_예정_날짜에서_보고_있는_날짜로_가고_지난_날짜는_비활성과_사유를_보인다() {
+        val edited = mutableListOf<String>()
+        var state by mutableStateOf<ProgressUiState>(content(days = threeDays()))
+        var backs = 0
+        composeRule.setContent {
+            GilpickTheme {
+                ActiveTravelScreen(
+                    state = state, tripName = "서울 여행", onRetry = {}, onAddPlace = {}, onOpenRoute = { _, _ -> },
+                    onReauthenticate = {}, onEdit = { edited += it }, onBack = { backs++ },
+                    map = { _, _, modifier -> FakeMap(modifier) },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TAG_EDIT).assertHeightIsAtLeast(48.dp).assertIsEnabled().performClick()
+        composeRule.runOnIdle { state = content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-09")) }
+        composeRule.onNodeWithTag(TAG_EDIT).assertIsEnabled().performClick()
+        composeRule.runOnIdle { assertEquals(listOf("2026-09-08", "2026-09-09"), edited) }
+
+        composeRule.runOnIdle { state = content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-07")) }
+        composeRule.onNodeWithTag(TAG_EDIT).assertIsNotEnabled()
+        composeRule.onNodeWithText("지난 날짜의 일정은 편집할 수 없어요").assertIsDisplayed()
+
+        composeRule.onNodeWithTag(TAG_BACK).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle { assertEquals(1, backs) }
+    }
+
+    @Test
+    fun 뒤로_가기를_넘기지_않으면_버튼이_없다() {
+        setScreen(content())
+
+        composeRule.onNodeWithTag(TAG_BACK).assertDoesNotExist()
     }
 
     // ---- T027: F009 변수 경고 배너(UI-001, quickstart AND 3) ----

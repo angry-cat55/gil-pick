@@ -116,6 +116,8 @@ import kotlinx.coroutines.delay
  * @param onOpenAlternatives F009 변수 경고 배너 탭. 그 감지의 대체 장소 화면으로 간다(F009 FR-028).
  * @param onNotifications 헤더 알림 벨. F011 알림 목록으로 간다.
  * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. F011 감지 목록(US6)으로 간다.
+ * @param onEdit 헤더 `편집`. 보고 있는 날짜(`yyyy-MM-dd`)의 일정 편집으로 간다. 지난 날짜에서는 비활성이다(#509).
+ * @param onBack 헤더 뒤로 가기. `null`이면 버튼을 그리지 않는다(탭 루트로 쓸 때).
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -145,6 +147,8 @@ fun ActiveTravelScreen(
     onOpenAlternatives: (detectionId: String) -> Unit = {},
     onNotifications: () -> Unit = {},
     onOpenVariableMonitor: () -> Unit = {},
+    onEdit: (date: String) -> Unit = {},
+    onBack: (() -> Unit)? = null,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -162,6 +166,8 @@ fun ActiveTravelScreen(
             onReturnToToday = onReturnToToday,
             onNotifications = onNotifications,
             onOpenVariableMonitor = onOpenVariableMonitor,
+            onEdit = onEdit,
+            onBack = onBack,
         )
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
@@ -196,6 +202,7 @@ fun ActiveTravelScreen(
 /**
  * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시, 오른쪽 알림 벨(F011). 내용이 없으면 여행명만 보인다.
  * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
+ * 여행명 줄의 뒤로 가기(`onSurface`)와 `편집`(D7 `headerIcon`)은 #509에서 더했다.
  */
 @Composable
 private fun Header(
@@ -205,6 +212,8 @@ private fun Header(
     onReturnToToday: () -> Unit,
     onNotifications: () -> Unit,
     onOpenVariableMonitor: () -> Unit,
+    onEdit: (date: String) -> Unit,
+    onBack: (() -> Unit)?,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -252,13 +261,39 @@ private fun Header(
                 modifier = Modifier.testTag(TAG_VARIABLE_MONITOR),
             )
         }
-        Text(
-            text = tripName,
-            style = MaterialTheme.typography.titleLarge,
-            fontFamily = tripName.displayFont(),
-            color = MaterialTheme.colorScheme.onSurface,
+        // 위 줄은 Figma 그대로 두고, 뒤로 가기·편집은 여행명 줄 양끝에 둔다. 한 줄에 다섯 요소를 넣으면
+        // 360dp·글자 2.0에서 오른쪽 버튼이 밀려난다(#509).
+        Row(
             modifier = Modifier.padding(top = spacing.space1),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+        ) {
+            if (onBack != null) {
+                IconBoxButton(
+                    icon = R.drawable.ic_lucide_arrow_left,
+                    contentDescription = stringResource(R.string.progress_back),
+                    // 뒤로 가기·닫기는 D7이 아니라 onSurface다(가이드라인 7절 "헤더 아이콘 색").
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = onBack,
+                    modifier = Modifier.testTag(TAG_BACK),
+                )
+            }
+            Text(
+                text = tripName,
+                style = MaterialTheme.typography.titleLarge,
+                fontFamily = tripName.displayFont(),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            // 보고 있는 날짜의 일정 편집. 내용이 없거나 지난 날짜면 비활성이고 사유는 날짜 안내가 알린다(#509).
+            IconBoxButton(
+                icon = R.drawable.ic_lucide_pencil,
+                contentDescription = stringResource(R.string.progress_edit),
+                onClick = { content?.let { onEdit(it.viewing.toString()) } },
+                enabled = content?.canEditItinerary == true,
+                modifier = Modifier.testTag(TAG_EDIT),
+            )
+        }
         if (content != null) {
             DayProgress(
                 days = content.days,
@@ -296,14 +331,23 @@ private fun ViewingBanner(dayNumber: Int, past: Boolean, onReturnToToday: () -> 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(
-            text = stringResource(if (past) R.string.progress_viewing_past else R.string.progress_viewing_future, dayNumber),
-            // weight로 버튼이 먼저 제 너비를 갖게 한다. 360dp·글자 2.0에서 `오늘로 돌아가기`가 단어 중간에서 접히지 않는다(T039).
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.muted,
-        )
+        // weight로 버튼이 먼저 제 너비를 갖게 한다. 360dp·글자 2.0에서 `오늘로 돌아가기`가 단어 중간에서 접히지 않는다(T039).
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(if (past) R.string.progress_viewing_past else R.string.progress_viewing_future, dayNumber),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.muted,
+            )
+            // 헤더 `편집`이 비활성인 이유(#509).
+            if (past) {
+                Text(
+                    text = stringResource(R.string.progress_viewing_past_read_only),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.muted,
+                )
+            }
+        }
         Box(
             modifier = Modifier
                 .heightIn(min = MIN_TOUCH)
@@ -1469,6 +1513,8 @@ internal const val TAG_DAY_SUMMARY = "progress_day_summary"
 
 /** 헤더 알림 벨(F011). */
 internal const val TAG_NOTIFICATIONS = "progress_notifications"
+internal const val TAG_EDIT = "progress_edit"
+internal const val TAG_BACK = "progress_back"
 internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"

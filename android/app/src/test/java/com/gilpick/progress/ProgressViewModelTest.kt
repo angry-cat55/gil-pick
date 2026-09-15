@@ -46,6 +46,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -618,6 +619,19 @@ class ProgressViewModelTest {
         assertTrue(today.isToday)
         assertNull(today.viewingDate)
         assertEquals(ItemStatus.EN_ROUTE, today.rows[1].progress.status)
+    }
+
+    @Test
+    fun `일정 편집은 오늘과 이후 날짜만 가능하고 지난 날짜는 읽기 전용이다`() = viewModelTest { viewModel ->
+        itineraryService.onOverview = { ok(threeDayOverview()) }
+        viewModel.load()
+        runCurrent()
+
+        assertTrue((viewModel.state.value as ProgressUiState.Content).canEditItinerary)
+        viewModel.selectDate(LocalDate.parse("2026-09-09"))
+        assertTrue((viewModel.state.value as ProgressUiState.Content).canEditItinerary)
+        viewModel.selectDate(LocalDate.parse("2026-09-07"))
+        assertFalse((viewModel.state.value as ProgressUiState.Content).canEditItinerary)
     }
 
     @Test
