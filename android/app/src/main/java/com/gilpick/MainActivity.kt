@@ -82,6 +82,7 @@ import com.gilpick.trip.TripFormScreen
 import com.gilpick.trip.TripFormViewModel
 import com.gilpick.trip.TripListScreen
 import com.gilpick.trip.TripListViewModel
+import com.gilpick.trip.openNewTripItinerary
 import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
 import kotlinx.serialization.Serializable
@@ -385,10 +386,15 @@ private fun TripRoute(
                 )
                 val state by viewModel.state.collectAsStateWithLifecycle()
 
-                // 생성에 성공하면 목록으로 돌아가 새 여행이 포함된 목록을 다시 받는다.
+                // 생성에 성공하면 폼을 빼고 새 여행의 일정 편집으로 간다(#498). 뒤로 가면 새 여행 상세, 그다음 목록이다.
                 LaunchedEffect(state.savedTripId) {
-                    if (state.savedTripId != null) {
-                        viewModel.consumeSaved()
+                    val tripId = state.savedTripId ?: return@LaunchedEffect
+                    val startDate = state.startDate
+                    viewModel.consumeSaved()
+                    if (startDate != null) {
+                        navController.openNewTripItinerary<TripFormRoute>(TripDetailRoute(tripId), tripId, startDate)
+                    } else {
+                        // 저장은 기간 검증을 통과해야 하므로 오지 않는 경로다. 오면 기존처럼 목록으로 돌아간다.
                         navController.popBackStack()
                     }
                 }
