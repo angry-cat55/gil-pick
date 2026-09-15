@@ -7,6 +7,14 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gilpick.auth.AuthResult
+import com.gilpick.progress.CurrentLocationDto
+import com.gilpick.progress.CurrentLocationProvider
+import com.gilpick.progress.DeviceLocationProvider
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +70,9 @@ enum class InvalidReason {
  * @property hasNext 이어질 페이지가 남았는지 여부.
  * @property loadingMore 다음 페이지를 받는 중인지 여부.
  * @property loadMoreError 다음 페이지 조회만 실패한 원인. 기존 결과는 유지한다(FR-012). `null`이면 실패하지 않았다.
+ * @property distanceOrigin `거리순` 기준점(현재 위치). `null`이 아니면 [displayedResults]가 이 점에서 가까운 순이다(#505).
+ * @property locating `거리순`을 눌러 현재 위치를 얻는 중.
+ * @property distanceSortUnavailable 현재 위치를 얻지 못해(권한 없음·실패) `거리순`을 쓸 수 없다.
  */
 data class PlaceSearchUiState(
     val query: String = "",
@@ -73,7 +84,14 @@ data class PlaceSearchUiState(
     val hasNext: Boolean = false,
     val loadingMore: Boolean = false,
     val loadMoreError: PlaceError? = null,
-)
+    val distanceOrigin: CurrentLocationDto? = null,
+    val locating: Boolean = false,
+    val distanceSortUnavailable: Boolean = false,
+) {
+    /** 화면에 그리는 순서. `거리순`이면 받은 결과를 기준점에서 가까운 순으로, 아니면 서버 순서 그대로다. */
+    val displayedResults: List<PlaceDto>
+        get() = distanceOrigin?.let { results.sortedByDistanceFrom(it.latitude, it.longitude) } ?: results
+}
 
 /**
  * 검색 화면의 상태 보유자.
@@ -83,8 +101,12 @@ data class PlaceSearchUiState(
  * 조건·결과가 남는다(UI-009).
  *
  * @property repository 장소 데이터 접근 지점.
+ * @property locationProvider `거리순` 기준점인 현재 위치를 한 번 얻는다.
  */
-class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel() {
+class PlaceSearchViewModel(
+    private val repository: PlaceRepository,
+    private val locationProvider: CurrentLocationProvider = CurrentLocationProvider { null },
+) : ViewModel() {
 
     private val _state = MutableStateFlow(PlaceSearchUiState())
 
@@ -153,6 +175,25 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
         }
         _state.update { it.copy(committedQuery = query, committedCategory = category) }
         startSearch()
+    }
+
+    /**
+     * `거리순`을 켜고 끈다(#505).
+     *
+     * 켤 때마다 현재 위치를 새로 얻는다. 얻지 못하면 기준점이 없으므로 `거리순`을 비활성으로 둔다.
+     */
+    fun toggleDistanceSort() {
+        val current = _state.value
+        if (current.locating || current.distanceSortUnavailable) return
+        if (current.distanceOrigin != null) {
+            _state.update { it.copy(distanceOrigin = null) }
+            return
+        }
+        _state.update { it.copy(locating = true) }
+        viewModelScope.launch {
+            val origin = locationProvider.current()
+            _state.update { it.copy(distanceOrigin = origin, locating = false, distanceSortUnavailable = origin == null) }
+        }
     }
 
     /** 첫 페이지 조회에 실패한 뒤 같은 조건으로 다시 시도한다. */
@@ -245,8 +286,31 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
         fun factory(context: Context): ViewModelProvider.Factory {
             val appContext = context.applicationContext
             return viewModelFactory {
-                initializer { PlaceSearchViewModel(createPlaceRepository(appContext)) }
+                initializer { PlaceSearchViewModel(createPlaceRepository(appContext), DeviceLocationProvider.create(appContext)) }
             }
         }
     }
 }
+
+/**
+ * 받은 결과를 ([latitude], [longitude])에서 가까운 순으로 정렬한다. 좌표 없는 장소는 원래 순서대로 끝에 둔다.
+ *
+ * ponytail: 이미 받은 페이지만 정렬한다. 다음 페이지가 붙으면 더 가까운 장소가 중간에 끼어들 수 있다.
+ * 전체 결과의 가까운 순이 필요해지면 서버 정렬(BE 계약 추가)로 옮긴다.
+ */
+internal fun List<PlaceDto>.sortedByDistanceFrom(latitude: Double, longitude: Double): List<PlaceDto> =
+    sortedBy { place ->
+        val lat = place.latitude
+        val lng = place.longitude
+        if (lat == null || lng == null) Double.MAX_VALUE else distanceMeters(latitude, longitude, lat, lng)
+    }
+
+/** 두 좌표 사이의 대원 거리(m, haversine). */
+internal fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLng = Math.toRadians(lng2 - lng1)
+    val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLng / 2).pow(2)
+    return 2 * EARTH_RADIUS_METERS * asin(sqrt(a))
+}
+
+private const val EARTH_RADIUS_METERS = 6_371_000.0

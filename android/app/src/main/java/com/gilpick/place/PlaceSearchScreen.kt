@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -51,6 +52,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -69,7 +71,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * 장소 검색 화면. 모양은 Figma `AddPlaceScreen`을 그대로 따른다(UI-001·UI-010).
  *
  * 검색은 키보드의 검색 동작과 칩 선택으로 실행한다(FR-003a). Figma의 `거리순 ▾`는
- * 정렬 API가 없어 표시만 하고, 행의 `HH:MM 마감`은 마감 시각을 계산하지 않으므로(FR-007) Google
+ * 현재 위치 기준으로 받은 결과를 다시 정렬하고(#505), 행의 `HH:MM 마감`은 마감 시각을 계산하지 않으므로(FR-007) Google
  * 영업 상태 문구만 쓴다.
  *
  * @param state 현재 검색 상태.
@@ -85,6 +87,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * @param onSearchByCategory 빈 결과의 `카테고리로 찾기`.
  * @param onPlaceClick 행의 이미지·본문을 눌러 상세로 간다.
  * @param onAddToSchedule 행의 `+` 시트에서 확정한 값. 저장은 F004가 맡는다(FR-014).
+ * @param onToggleDistanceSort `거리순`을 켜고 끈다.
  */
 @Composable
 fun PlaceSearchScreen(
@@ -102,6 +105,7 @@ fun PlaceSearchScreen(
     onPlaceClick: (String) -> Unit,
     modifier: Modifier = Modifier,
     onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
+    onToggleDistanceSort: () -> Unit = {},
 ) {
     var sheetPlace by remember { mutableStateOf<PlaceDto?>(null) }
 
@@ -149,6 +153,7 @@ fun PlaceSearchScreen(
                     onReauthenticate = onReauthenticate,
                     onPlaceClick = onPlaceClick,
                     onAdd = { sheetPlace = it },
+                    onToggleDistanceSort = onToggleDistanceSort,
                 )
 
                 PlaceSearchPhase.Empty -> EmptyState(
@@ -378,11 +383,12 @@ private fun Results(
     onReauthenticate: () -> Unit,
     onPlaceClick: (String) -> Unit,
     onAdd: (PlaceDto) -> Unit,
+    onToggleDistanceSort: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = MaterialTheme.colorScheme
     val listState = rememberLazyListState()
-    val results = state.results
+    val results = state.displayedResults
     val loadingMoreLabel = stringResource(R.string.place_search_loading_more)
 
     // 마지막에서 두 번째 행이 보이면 미리 받아 스크롤이 멈추지 않게 한다.
@@ -398,9 +404,10 @@ private fun Results(
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         item(key = "summary") {
             Row(
+                // `거리순` 터치 영역 48dp가 행 높이를 정한다. 세로 여백을 더하면 Figma 요약 행보다 크게 두꺼워진다.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = spacing.space5, vertical = spacing.space3),
+                    .padding(horizontal = spacing.space5),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -412,11 +419,10 @@ private fun Results(
                     // 결과가 바뀌면 판독기가 요약을 읽는다(UI-006).
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
-                Text(
-                    text = stringResource(R.string.place_search_sort_distance),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.primary,
+                DistanceSortToggle(
+                    on = state.distanceOrigin != null,
+                    enabled = !state.distanceSortUnavailable,
+                    onToggle = onToggleDistanceSort,
                 )
             }
         }
@@ -472,6 +478,35 @@ private fun Results(
                 }
             }
         }
+    }
+}
+
+/**
+ * Figma `거리순 ▾`. 켜지면 `primary`, 꺼지면 `onSurfaceVariant`, 현재 위치를 못 얻으면 `faint`로 흐리고
+ * 누를 수 없다. 색만으로 구분하지 않도록 판독기에는 켜짐·꺼짐·사용 불가를 상태로 알린다.
+ */
+@Composable
+private fun DistanceSortToggle(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val unavailable = stringResource(R.string.place_search_sort_distance_unavailable)
+
+    Box(
+        modifier = Modifier
+            .heightIn(min = MIN_TOUCH)
+            .toggleable(value = on, enabled = enabled, role = Role.Switch, onValueChange = { onToggle() })
+            .then(if (enabled) Modifier else Modifier.semantics { stateDescription = unavailable }),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.place_search_sort_distance),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = when {
+                !enabled -> LocalGilpickColors.current.faint
+                on -> colors.primary
+                else -> colors.onSurfaceVariant
+            },
+        )
     }
 }
 
