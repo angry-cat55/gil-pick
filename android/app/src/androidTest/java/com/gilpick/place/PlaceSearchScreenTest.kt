@@ -197,6 +197,34 @@ class PlaceSearchScreenTest {
         composeRule.runOnIdle { assertEquals(1, byCategory) }
     }
 
+    /** #519: 빈 결과 제목은 보낸 조건에 맞춰 바뀌고 빈 따옴표(`''`)가 나오지 않는다. */
+    @Test
+    fun empty_제목_검색어와_카테고리_함께면_검색어를_보인다() {
+        setScreen(
+            PlaceSearchUiState(
+                query = "없는곳", category = PlaceCategory.CAFE,
+                committedQuery = "없는곳", committedCategory = PlaceCategory.CAFE, phase = PlaceSearchPhase.Empty,
+            ),
+        )
+        composeRule.onNodeWithText("'없는곳' 검색 결과가 없어요").assertIsDisplayed()
+    }
+
+    @Test
+    fun empty_제목_카테고리만이면_카테고리_이름을_보인다() {
+        setScreen(PlaceSearchUiState(category = PlaceCategory.CAFE, committedCategory = PlaceCategory.CAFE, phase = PlaceSearchPhase.Empty))
+
+        composeRule.onNodeWithText("카페 검색 결과가 없어요").assertIsDisplayed()
+        composeRule.onNodeWithText("''", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun empty_제목_조건이_없으면_일반_문구다() {
+        setScreen(PlaceSearchUiState(phase = PlaceSearchPhase.Empty))
+
+        composeRule.onNodeWithText("검색 결과가 없어요").assertIsDisplayed()
+        composeRule.onNodeWithText("''", substring = true).assertDoesNotExist()
+    }
+
     @Test
     fun 짧은_키워드는_2글자_이상_입력을_안내한다() {
         setScreen(PlaceSearchUiState(query = "궁", phase = PlaceSearchPhase.Invalid(InvalidReason.TOO_SHORT)))

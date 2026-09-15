@@ -161,7 +161,7 @@ fun PlaceSearchScreen(
 
                 PlaceSearchPhase.Empty -> EmptyState(
                     icon = R.drawable.ic_lucide_search_x,
-                    title = stringResource(R.string.place_search_empty_title, state.committedQuery),
+                    title = emptyTitle(state.committedQuery, state.committedCategory),
                     body = stringResource(R.string.place_search_empty_hint),
                     live = true,
                 ) {
@@ -639,6 +639,19 @@ private fun AddButton(place: PlaceDto, onAdd: () -> Unit) {
 }
 
 /** Figma 빈 상태: `background` 상자 안 `faint` 아이콘, 제목, 안내, 선택적 행동. 검색 전과 결과 없음이 같은 틀이다. F009 직접 검색도 쓴다. */
+/**
+ * 빈 결과 제목(#519). 실제로 보낸 조건으로 무엇이 없었는지 말한다.
+ *
+ * 검색어가 있으면 기존처럼 검색어를 따옴표로 보이고(카테고리가 함께 있어도 검색어가 사용자가 쓴 말이라 우선), 카테고리만 있으면
+ * 카테고리 이름을, 둘 다 없으면 따옴표 없는 일반 문구를 쓴다. `''` 같은 빈 따옴표가 나오지 않게 한다.
+ */
+@Composable
+private fun emptyTitle(query: String, category: PlaceCategory?): String = when {
+    query.isNotBlank() -> stringResource(R.string.place_search_empty_title, query)
+    category != null -> stringResource(R.string.place_search_empty_title_category, stringResource(category.labelRes))
+    else -> stringResource(R.string.place_search_empty_title_general)
+}
+
 @Composable
 internal fun EmptyState(
     icon: Int,
