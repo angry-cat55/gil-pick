@@ -155,6 +155,7 @@ fun TripFormScreen(
             if (editing) {
                 EditPeriodCard(
                     state = state,
+                    occupiedDates = state.occupiedDates,
                     enabled = !state.submitting && !state.periodLocked,
                     onPeriodChange = onPeriodChange,
                 )
@@ -162,6 +163,7 @@ fun TripFormScreen(
                 CalendarCard(
                     startDate = state.startDate,
                     endDate = state.endDate,
+                    occupiedDates = state.occupiedDates,
                     enabled = !state.submitting,
                     onPeriodChange = onPeriodChange,
                 )
@@ -179,7 +181,7 @@ fun TripFormScreen(
                 ?.takeIf { it != TripPeriodError.NOT_SELECTED && state.startDate != null && state.endDate != null }
                 ?.let { PeriodErrorText(it) }
 
-            state.submitError?.let { SubmitError(it) }
+            state.submitError?.let { SubmitError(it, state.conflictTripName) }
         }
 
         BottomActions(
@@ -356,6 +358,7 @@ private fun NameCard(
 private fun CalendarCard(
     startDate: LocalDate?,
     endDate: LocalDate?,
+    occupiedDates: Set<LocalDate>,
     enabled: Boolean,
     onPeriodChange: (LocalDate?, LocalDate?) -> Unit,
 ) {
@@ -364,7 +367,7 @@ private fun CalendarCard(
     FormCard(padded = false) {
         Column(modifier = Modifier.padding(horizontal = spacing.space5, vertical = spacing.space4)) {
             CardLabel(text = stringResource(R.string.trip_form_calendar_label), modifier = Modifier.padding(bottom = spacing.space4))
-            InlineCalendar(startDate = startDate, endDate = endDate, enabled = enabled, onPeriodChange = onPeriodChange)
+            InlineCalendar(startDate = startDate, endDate = endDate, occupiedDates = occupiedDates, enabled = enabled, onPeriodChange = onPeriodChange)
         }
         if (startDate != null) {
             Box(
@@ -413,11 +416,14 @@ private fun SummaryValue(label: String, date: LocalDate?) {
  * - **터치 영역**: Figma 칸은 40dp 높이지만 10절 48dp를 지키려고 칸 높이를 48dp로 둔다. 보이는 원·버튼은 36dp 그대로이고,
  *   누르는 영역은 칸 자체라 옆 칸과 겹치지 않는다. 360dp 화면에서 7칸의 너비는 40dp 남짓이라 가로 48dp는 확보할 수 없다.
  * - 과거 날짜도 고를 수 있게 둔다. 이미 다녀온 여행을 기록하는 것을 명세가 막지 않는다.
+ * - 다른 여행이 차지한 날짜([occupiedDates])는 누를 수 없다(FR-002a, #501). 시작일과 누른 날짜 사이에 그런 날짜가 끼면
+ *   겹치는 기간이 되므로 누른 날짜를 새 시작일로 삼는다.
  */
 @Composable
 private fun InlineCalendar(
     startDate: LocalDate?,
     endDate: LocalDate?,
+    occupiedDates: Set<LocalDate>,
     enabled: Boolean,
     onPeriodChange: (LocalDate?, LocalDate?) -> Unit,
 ) {
@@ -468,10 +474,12 @@ private fun InlineCalendar(
                         date = date,
                         startDate = startDate,
                         endDate = endDate,
-                        enabled = enabled,
+                        enabled = enabled && date !in occupiedDates,
+                        occupied = date in occupiedDates,
                         modifier = Modifier.weight(1f),
                         onClick = { picked ->
-                            if (startDate == null || endDate != null || picked < startDate) {
+                            val spansOccupied = startDate != null && occupiedDates.any { it > startDate && it < picked }
+                            if (startDate == null || endDate != null || picked < startDate || spansOccupied) {
                                 onPeriodChange(picked, null)
                             } else {
                                 onPeriodChange(startDate, picked)
@@ -490,6 +498,7 @@ private fun DayCell(
     startDate: LocalDate?,
     endDate: LocalDate?,
     enabled: Boolean,
+    occupied: Boolean,
     modifier: Modifier = Modifier,
     onClick: (LocalDate) -> Unit,
 ) {
@@ -504,6 +513,7 @@ private fun DayCell(
         val isEnd = date == endDate
         val inRange = startDate != null && endDate != null && date > startDate && date < endDate
         val label = stringResource(R.string.trip_form_calendar_day, date.monthValue, date.dayOfMonth)
+        val occupiedLabel = stringResource(R.string.trip_form_calendar_occupied)
 
         // 범위 띠는 48dp 터치 칸이 아니라 Figma 칸 높이(40dp)만 채운다. 칸 높이를 채우면 36dp 원 위아래로 튀어나온다(#497).
         val band = Modifier.fillMaxWidth().height(DAY_RANGE_HEIGHT)
@@ -527,6 +537,8 @@ private fun DayCell(
                 .semantics {
                     contentDescription = label
                     selected = isStart || isEnd
+                    // 흐린 글자색만으로는 왜 못 누르는지 알 수 없다. 읽어 주는 상태를 함께 둔다(10절).
+                    if (occupied) stateDescription = occupiedLabel
                 },
         )
 
@@ -555,6 +567,7 @@ private fun DayCell(
                 color = when {
                     edge -> MaterialTheme.colorScheme.onPrimary
                     inRange -> MaterialTheme.colorScheme.primary
+                    occupied -> LocalGilpickColors.current.faint
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
@@ -599,6 +612,7 @@ private fun MonthButton(description: String, flipped: Boolean, onClick: () -> Un
 @Composable
 private fun EditPeriodCard(
     state: TripFormUiState,
+    occupiedDates: Set<LocalDate>,
     enabled: Boolean,
     onPeriodChange: (LocalDate?, LocalDate?) -> Unit,
 ) {
@@ -652,6 +666,7 @@ private fun EditPeriodCard(
                 InlineCalendar(
                     startDate = state.startDate,
                     endDate = state.endDate,
+                    occupiedDates = occupiedDates,
                     enabled = enabled,
                     onPeriodChange = onPeriodChange,
                 )
@@ -913,7 +928,7 @@ private fun ShrinkConfirmDialog(
 
 /** 전송 실패 원인과 다음 행동. "오류가 발생했습니다"로 끝내지 않는다. */
 @Composable
-private fun SubmitError(error: TripFormSubmitError) {
+private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?) {
     Text(
         text = when (error) {
             TripFormSubmitError.NETWORK -> stringResource(R.string.trip_form_error_network)
@@ -924,6 +939,10 @@ private fun SubmitError(error: TripFormSubmitError) {
             TripFormSubmitError.TRIP_LOCKED -> stringResource(R.string.trip_form_error_trip_locked)
             TripFormSubmitError.CONFIRMATION_REQUIRED ->
                 stringResource(R.string.trip_form_error_confirmation_required)
+
+            TripFormSubmitError.PERIOD_CONFLICT ->
+                if (conflictTripName != null) stringResource(R.string.trip_form_error_period_conflict, conflictTripName)
+                else stringResource(R.string.trip_form_error_period_conflict_unnamed)
 
             TripFormSubmitError.UNEXPECTED -> stringResource(R.string.trip_form_error_unexpected)
         },

@@ -30,6 +30,7 @@ object TripErrorCodes {
     const val TRIP_LOCKED = "TRIP_LOCKED"
     const val VERSION_CONFLICT = "VERSION_CONFLICT"
     const val CONFIRMATION_REQUIRED = "CONFIRMATION_REQUIRED"
+    const val TRIP_PERIOD_CONFLICT = "TRIP_PERIOD_CONFLICT"
     const val FORBIDDEN = "FORBIDDEN"
 }
 

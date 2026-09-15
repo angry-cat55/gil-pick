@@ -62,6 +62,7 @@ data class ErrorBody(
  * @property itemId `ITINERARY_ITEM_LOCKED`. 변경이 거부된 처리된 항목.
  * @property deletedItemCount `CONFIRMATION_REQUIRED`. 기간 축소로 삭제될 일정 항목 수.
  * @property status `DETECTION_NOT_ACTIVE`. 감지의 현재 상태(F009 `DetectionStatus` 이름).
+ * @property name `TRIP_PERIOD_CONFLICT`. 기간이 겹치는 기존 여행의 이름(F002 FR-002b).
  */
 @Serializable
 data class ErrorDetails(
@@ -69,6 +70,7 @@ data class ErrorDetails(
     val itemId: String? = null,
     val deletedItemCount: Int? = null,
     val status: String? = null,
+    val name: String? = null,
 )
 
 /**
