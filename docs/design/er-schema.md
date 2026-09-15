@@ -270,10 +270,11 @@ erDiagram
 
 제약:
 
-- `UNIQUE(trip_day_id, sequence)`
+- `UNIQUE(trip_day_id, sequence)` — `DEFERRABLE INITIALLY DEFERRED`(2026-09-16 #582, migration 016). 순서 update가 기존 항목을 맞바꿀 때 transaction 안에서 일시적으로 겹치는 것을 허용하고 commit 시점에 검사한다.
 - `CHECK(planned_stay_minutes BETWEEN 30 AND 360)`
 - `transport_mode_to_next`는 마지막 장소에서 null이다.
 - 처리된 장소의 장소 교체가 발생해도 `status`는 유지한다.
+- 저장은 기존 `item_id`를 delete 후 재삽입하지 않고 update한다(2026-09-16 #582). `progress_transitions.primary_item_id` 등 참조를 보존하기 위함이며, 요청에 없는 기존 항목만 delete한다.
 
 ## 6. 경로
 
