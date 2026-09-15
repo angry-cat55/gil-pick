@@ -63,8 +63,9 @@ import kotlinx.coroutines.delay
  * F001 session이 준 값을 **읽기 전용**으로 보인다. 프로필 조회 API를 부르지도, 수정 수단을
  * 두지도 않는다(FR-013).
  *
- * 닉네임과 프로필 이미지는 카카오 동의 항목이라 실제로 비어 올 수 있다. 그때 그럴듯한 이름을
- * 채우면 사용자는 자기 계정이 아닌 것을 보게 되므로 `정보 없음`만 보인다(ui-guidelines 12절).
+ * 닉네임과 프로필 이미지는 카카오 동의 항목이라 실제로 비어 올 수 있다. 그때 사람 이름처럼 보이는 값을 지어내지 않고
+ * 계정 종류를 알리는 중립 이름 `카카오 사용자`를 보인다(#517, ui-guidelines 12절). 계정 헤더에서 `정보 없음`은 오류처럼
+ * 읽혀서 바꿨다. 비어 온 이유(미동의 등)는 session이 알려 주지 않으므로 단정하는 문구를 쓰지 않는다.
  * 이미지가 없어도 [RemoteImage]가 같은 자리를 차지해 헤더 높이가 흔들리지 않는다.
  *
  * @param nickname session의 표시 이름. `null`이면 대체 표시로 바꾼다.
@@ -102,7 +103,7 @@ fun AccountSection(
         Spacer(Modifier.width(spacing.space4))
         Column {
             Text(
-                text = nickname ?: stringResource(R.string.settings_account_unknown),
+                text = nickname ?: stringResource(R.string.settings_account_default_name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onSurface,
