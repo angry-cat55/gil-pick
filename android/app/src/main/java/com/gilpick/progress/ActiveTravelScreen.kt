@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -1122,18 +1123,22 @@ private fun inboundSteps(content: ProgressUiState.Content, row: ProgressRow): Li
 /**
  * `도보 4분 → 경복궁역에서 지하철 3호선 승차 · 5분 → 종로3가역에서 지하철 1호선 환승 · 4분 → 시청역 하차 → 도보 6분`을
  * 한 줄씩 보인다. 노선은 색이 아니라 `지하철`·`버스`와 노선 이름으로 구분한다(가이드라인 10절).
+ * 다음 장소 카드와 일정 목록(#595)이 같이 써서 문구·순서가 같다.
+ *
+ * @param dimmed 이미 지나간 구간(일정 목록). 글자와 아이콘을 흐린 색으로 그린다.
+ * @param tag 카드는 [TAG_TRANSIT_STEPS], 일정 목록은 행마다 다른 태그를 쓴다.
  */
 @Composable
-private fun TransitSteps(steps: List<RouteStepDto>, modifier: Modifier = Modifier) {
+private fun TransitSteps(steps: List<RouteStepDto>, modifier: Modifier = Modifier, dimmed: Boolean = false, tag: String = TAG_TRANSIT_STEPS) {
     val spacing = LocalGilpickSpacing.current
     val lastRide = steps.indexOfLast { it.type != RouteStepType.WALK }
     val firstRide = steps.indexOfFirst { it.type != RouteStepType.WALK }
 
-    Column(verticalArrangement = Arrangement.spacedBy(spacing.space1), modifier = modifier.testTag(TAG_TRANSIT_STEPS)) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.space1), modifier = modifier.testTag(tag)) {
         steps.forEachIndexed { index, step ->
             val duration = durationLabel(step.durationSeconds)
             if (step.type == RouteStepType.WALK) {
-                TransitStepLine(R.drawable.ic_lucide_walk, stringResource(R.string.progress_step_walk, duration))
+                TransitStepLine(R.drawable.ic_lucide_walk, stringResource(R.string.progress_step_walk, duration), dimmed)
                 return@forEachIndexed
             }
             val mode = stringResource(if (step.type == RouteStepType.BUS) R.string.progress_step_bus else R.string.progress_step_subway)
@@ -1141,20 +1146,20 @@ private fun TransitSteps(steps: List<RouteStepDto>, modifier: Modifier = Modifie
             val action = stringResource(if (index == firstRide) R.string.progress_step_board else R.string.progress_step_transfer)
             val text = step.boardingName?.let { stringResource(R.string.progress_step_ride_at, it, line, action, duration) }
                 ?: stringResource(R.string.progress_step_ride, line, action, duration)
-            TransitStepLine(R.drawable.ic_lucide_transit, text)
+            TransitStepLine(R.drawable.ic_lucide_transit, text, dimmed)
             if (index == lastRide) {
-                step.alightingName?.let { TransitStepLine(R.drawable.ic_lucide_transit, stringResource(R.string.progress_step_alight, it)) }
+                step.alightingName?.let { TransitStepLine(R.drawable.ic_lucide_transit, stringResource(R.string.progress_step_alight, it), dimmed) }
             }
         }
     }
 }
 
 @Composable
-private fun TransitStepLine(@DrawableRes icon: Int, text: String) {
+private fun TransitStepLine(@DrawableRes icon: Int, text: String, dimmed: Boolean) {
     val colors = LocalGilpickColors.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space2)) {
-        Icon(painter = painterResource(icon), contentDescription = null, tint = colors.muted, modifier = Modifier.size(STEP_ICON))
-        Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(painter = painterResource(icon), contentDescription = null, tint = if (dimmed) colors.faint else colors.muted, modifier = Modifier.size(STEP_ICON))
+        Text(text = text, style = MaterialTheme.typography.bodySmall, color = if (dimmed) colors.faint else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1300,9 +1305,11 @@ private fun ItemList(
                 .padding(horizontal = spacing.space4, vertical = spacing.space3),
         ) {
             rows.forEachIndexed { index, row ->
+                val next = rows.getOrNull(index + 1)
                 ItemRow(
                     row = row,
-                    next = rows.getOrNull(index + 1),
+                    next = next,
+                    steps = next?.let { segmentSteps(itinerary, row, it) }.orEmpty(),
                     last = index == rows.lastIndex,
                     started = content.viewingStarted,
                     showTime = content.isToday,
@@ -1320,9 +1327,10 @@ private fun ItemList(
  * 상태는 칩 문구와 아이콘으로 구분한다(UI-004, 색 단독 금지). [onClick]이 있으면 행 탭으로 상태 수정 시트를 연다.
  *
  * @param showTime 오늘이면 실제 시각·ETA를 보인다. 다른 날짜는 개요에 시각이 없어 상태만 보인다.
+ * @param steps 다음 장소까지 대중교통 상세 단계(#595). 비어 있으면 합계 문구만 보인다.
  */
 @Composable
-private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started: Boolean, showTime: Boolean, autoProcessed: Boolean, onClick: (() -> Unit)?) {
+private fun ItemRow(row: ProgressRow, next: ProgressRow?, steps: List<RouteStepDto>, last: Boolean, started: Boolean, showTime: Boolean, autoProcessed: Boolean, onClick: (() -> Unit)?) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val status = row.progress.status
@@ -1341,7 +1349,9 @@ private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick, role = Role.Button) else Modifier)
             .semantics(mergeDescendants = true) { contentDescription = description }
-            .testTag("$TAG_ROW_PREFIX${row.item.sequence}"),
+            .testTag("$TAG_ROW_PREFIX${row.item.sequence}")
+            // 단계가 펼쳐져 행이 길어져도 세로선이 다음 장소까지 이어지게 행 높이에 맞춘다(#595).
+            .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(spacing.space3),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1351,7 +1361,8 @@ private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started
                     modifier = Modifier
                         .padding(top = spacing.space1)
                         .width(1.dp)
-                        .height(ROW_LINE_HEIGHT)
+                        .weight(1f)
+                        .heightIn(min = ROW_LINE_HEIGHT)
                         .background(if (status == ItemStatus.COMPLETED) colors.success else MaterialTheme.colorScheme.outlineVariant),
                 )
             }
@@ -1402,9 +1413,29 @@ private fun ItemRow(row: ProgressRow, next: ProgressRow?, last: Boolean, started
                     )
                 }
             }
+            // #595: 일정 목록에서도 구간의 승차·환승·하차를 항상 펼쳐 보인다. 행 탭은 상태 수정 시트라 펼치기 버튼을 따로
+            // 두지 않는다. 이미 도착·완료한 장소로 가는 구간은 흐리게 그린다.
+            if (next != null && steps.isNotEmpty()) {
+                TransitSteps(
+                    steps = steps,
+                    dimmed = next.progress.status == ItemStatus.ARRIVED || next.progress.status == ItemStatus.COMPLETED,
+                    tag = "$TAG_ROW_TRANSIT_STEPS_PREFIX${row.item.sequence}",
+                    // 행은 설명 문구 하나로 합쳐 읽힌다. 단계는 따로 묶어 TalkBack이 읽을 수 있게 한다.
+                    modifier = Modifier.padding(top = spacing.space1).semantics(mergeDescendants = true) {},
+                )
+            }
         }
     }
 }
+
+/**
+ * 보고 있는 날짜 경로에서 이 장소 → 다음 장소 구간의 상세 단계(#595). 건너뛰기로 경로에 없는 구간이거나
+ * 단계가 없으면(`steps: []`) 비어 있다.
+ */
+private fun segmentSteps(itinerary: DayItineraryDto, row: ProgressRow, next: ProgressRow): List<RouteStepDto> =
+    itinerary.route?.segments
+        ?.firstOrNull { it.fromItemId == row.item.itemId && it.toItemId == next.item.itemId }
+        ?.steps.orEmpty()
 
 /** 행의 시각 문구(UI-004): 처리된 장소는 실제 시각, 남은 장소는 ETA 또는 `정보 없음`. */
 @Composable
@@ -1561,6 +1592,7 @@ internal const val TAG_EDIT = "progress_edit"
 internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
 internal const val TAG_TRANSIT_STEPS = "progress_transit_steps"
+internal const val TAG_ROW_TRANSIT_STEPS_PREFIX = "progress_row_transit_steps_"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"
 internal const val TAG_CARD_ALL_DONE = "progress_card_all_done"
 internal const val TAG_ETA = "progress_eta"
