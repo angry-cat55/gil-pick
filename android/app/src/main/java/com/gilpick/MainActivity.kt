@@ -81,6 +81,7 @@ import com.gilpick.route.routeGraph
 import com.gilpick.settings.SettingsRepository
 import com.gilpick.settings.SettingsRoute
 import com.gilpick.settings.settingsGraph
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -364,13 +365,7 @@ private fun TripRoute(
                     onSelect = { tab ->
                         // 이미 보고 있는 탭은 다시 열지 않는다. `여행 중`은 다시 열면 조회부터 다시 해 화면이 깜빡인다.
                         if (tab == selectedTab) return@TopLevelTabBar
-                        navController.navigate(tab.route) {
-                            // 탭 전환은 back stack을 쌓지 않는다. 떠난 탭의 상태는 저장했다가 돌아올 때
-                            // 되살리므로 설정 화면은 마지막으로 저장에 성공한 값을 다시 보인다(UI-002).
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateToTab(tab.route)
                     },
                 )
             }
@@ -568,13 +563,7 @@ private fun TripRoute(
                 ActiveTripTabScreen(
                     phase = phase,
                     onRetry = viewModel::load,
-                    onOpenTrips = {
-                        navController.navigate(TripListRoute) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onOpenTrips = { navController.navigateToTab(TripListRoute) },
                 )
             }
 
@@ -636,6 +625,22 @@ private fun TripRoute(
                 onAddToSchedule = navController::returnAddToSchedule,
             )
         }
+    }
+}
+
+/**
+ * 최상위 탭으로 간다. 탭 전환은 back stack을 쌓지 않는다. 떠난 탭의 상태는 저장했다가 돌아올 때
+ * 되살리므로 설정 화면은 마지막으로 저장에 성공한 값을 다시 보인다(UI-002).
+ *
+ * 시작 화면 탭(`내 여행`)은 되살리지 않는다(#552). 시작 화면까지 pop하며 저장한 화면(상세 → 여행 중)은
+ * 시작 화면 몫으로도 저장되므로, 되살리면 목록 대신 방금 떠난 여행 중 화면이 다시 열린다.
+ */
+internal fun NavController.navigateToTab(route: Any) {
+    val start = graph.findStartDestination()
+    navigate(route) {
+        popUpTo(start.id) { saveState = true }
+        launchSingleTop = true
+        restoreState = !start.hasRoute(route::class)
     }
 }
 
