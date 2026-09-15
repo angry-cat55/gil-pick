@@ -124,6 +124,12 @@ class ActiveTravelScreenshotTest {
     fun 진행_이동_중_360dp_최대_글자배율() = capture("progress_moving_360dp_fontscale2") { Narrow { Screen(content()) } }
 
     @Test
+    fun 진행_대중교통_단계() = capture("progress_transit_steps") { Screen(content(days = transitStepsDays())) }
+
+    @Test
+    fun 진행_대중교통_단계_360dp_최대_글자배율() = capture("progress_transit_steps_360dp_fontscale2") { Narrow { Screen(content(days = transitStepsDays())) } }
+
+    @Test
     fun 진행_지연_360dp_최대_글자배율() = capture("progress_overdue_360dp_fontscale2") { Narrow { Screen(content(now = NOW_AFTER_ETA)) } }
 
     @Test

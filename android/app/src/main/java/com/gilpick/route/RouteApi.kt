@@ -49,6 +49,27 @@ object RouteFailureCodes {
 @Serializable
 enum class RouteProvider { TMAP, ODSAY, KAKAO }
 
+/** 대중교통 구간 상세 단계의 종류(#548). */
+@Serializable
+enum class RouteStepType { WALK, BUS, SUBWAY }
+
+/**
+ * 대중교통 구간의 상세 단계 하나. 제공자가 준 순서대로 온다.
+ *
+ * @property boardingName 승차 정류장·역. 도보이거나 제공자가 주지 않으면 `null`.
+ * @property lineName 노선 이름·번호(`3호선`, `7016`). 도보이거나 제공자가 주지 않으면 `null`.
+ */
+@Serializable
+data class RouteStepDto(
+    val type: RouteStepType,
+    val durationSeconds: Int,
+    val distanceMeters: Int,
+    val boardingName: String? = null,
+    val alightingName: String? = null,
+    val lineName: String? = null,
+    val stopCount: Int? = null,
+)
+
 /** GeoJSON 좌표 한 점. `[경도, 위도]` 순서의 배열이라 data class로 풀지 않는다. */
 typealias Position = List<Double>
 
@@ -87,6 +108,8 @@ data class RouteSegmentDto(
     val distanceMeters: Int,
     val geometry: RouteGeometryDto,
     val providerAttribution: String,
+    /** 대중교통 상세 단계(#548). 도보·자동차, 예전에 저장된 경로, 상세가 불완전한 구간은 비어 있다. */
+    val steps: List<RouteStepDto> = emptyList(),
 )
 
 /**

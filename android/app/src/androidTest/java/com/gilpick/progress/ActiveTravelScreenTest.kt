@@ -476,6 +476,32 @@ class ActiveTravelScreenTest {
 
     private fun row(sequence: Int) = composeRule.onNodeWithTag("$TAG_ROW_PREFIX$sequence")
 
+    // ---- #553: 대중교통 상세 단계 ----
+
+    @Test
+    fun 이동_중_대중교통_구간은_카드에_승차_환승_하차_단계를_보인다() {
+        setScreen(content(days = transitStepsDays()))
+
+        composeRule.onNodeWithTag(TAG_TRANSIT_STEPS).assertIsDisplayed()
+        listOf(
+            "도보 4분",
+            "경복궁역에서 지하철 3호선 승차 · 5분",
+            "종로3가역에서 지하철 1호선 환승 · 4분",
+            "종각역 하차",
+            "도보 6분",
+        ).forEach { cardText(TAG_CARD_NEXT, it).assertIsDisplayed() }
+        // 합계 문구는 그대로 남는다.
+        cardText(TAG_CARD_NEXT, "경복궁에서 대중교통 20분 · 3.4km").assertIsDisplayed()
+    }
+
+    @Test
+    fun 구간에_상세_단계가_없으면_합계만_보인다() {
+        setScreen(content())
+
+        composeRule.onNodeWithText("경복궁에서 대중교통 20분 · 3.4km").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_TRANSIT_STEPS).assertDoesNotExist()
+    }
+
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
     private fun cardText(cardTag: String, text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(cardTag)))

@@ -416,6 +416,14 @@
     <string name="progress_inbound_from">%1$s에서 %2$s %3$s · %4$s</string>
     <string name="progress_inbound_from_start">출발 위치에서 %1$s %2$s · %3$s</string>
     <string name="progress_inbound_unknown">이동 정보 없음</string>
+    <string name="progress_step_walk">도보 %1$s</string>
+    <string name="progress_step_bus">버스</string>
+    <string name="progress_step_subway">지하철</string>
+    <string name="progress_step_board">승차</string>
+    <string name="progress_step_transfer">환승</string>
+    <string name="progress_step_ride_at">%1$s에서 %2$s %3$s · %4$s</string>
+    <string name="progress_step_ride">%1$s %2$s · %3$s</string>
+    <string name="progress_step_alight">%1$s 하차</string>
     <string name="progress_arrived_at">%1$s 도착</string>
     <string name="progress_stay_planned">체류 예정 %1$d분</string>
     <string name="progress_action_arrive">도착했어요</string>

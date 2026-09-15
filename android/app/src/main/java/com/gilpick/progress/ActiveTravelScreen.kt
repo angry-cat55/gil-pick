@@ -1,5 +1,6 @@
 package com.gilpick.progress
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,6 +68,8 @@ import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
 import com.gilpick.route.RouteDto
+import com.gilpick.route.RouteStepDto
+import com.gilpick.route.RouteStepType
 import com.gilpick.route.RouteMap
 import com.gilpick.route.RouteMarks
 import com.gilpick.route.distanceLabel
@@ -1034,6 +1037,9 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, pendi
             color = colors.muted,
             modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space4),
         )
+        inboundSteps(content, row).takeIf { it.isNotEmpty() }?.let { steps ->
+            TransitSteps(steps = steps, modifier = Modifier.padding(bottom = spacing.space4))
+        }
         val enabled = pending == null
         Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
             // 도착 확정 행동은 성공 gradient(가이드라인 3절 "버튼 gradient"). 한 줄을 나눈 버튼이라 곡률 12dp(6절 R3).
@@ -1097,6 +1103,56 @@ private fun inboundLabel(content: ProgressUiState.Content, row: ProgressRow): St
         stringResource(R.string.progress_inbound_from, from, mode, duration, distance)
     } else {
         stringResource(R.string.progress_inbound_from_start, mode, duration, distance)
+    }
+}
+
+/**
+ * 이동 중인 구간의 대중교통 상세 단계(#553). 오늘 경로에서 직전 장소 → 이 장소 구간을 찾는다.
+ * 시작 위치에서 오거나, 건너뛰기로 경로에 없는 구간이 되었거나, 단계가 없으면 비어 있어 합계 문구만 남는다.
+ */
+private fun inboundSteps(content: ProgressUiState.Content, row: ProgressRow): List<RouteStepDto> {
+    val from = row.progress.inboundTravel?.fromItemId ?: return emptyList()
+    return content.todayItinerary?.route?.segments
+        ?.firstOrNull { it.fromItemId == from && it.toItemId == row.item.itemId }
+        ?.steps.orEmpty()
+}
+
+/**
+ * `도보 4분 → 경복궁역에서 지하철 3호선 승차 · 5분 → 종로3가역에서 지하철 1호선 환승 · 4분 → 시청역 하차 → 도보 6분`을
+ * 한 줄씩 보인다. 노선은 색이 아니라 `지하철`·`버스`와 노선 이름으로 구분한다(가이드라인 10절).
+ */
+@Composable
+private fun TransitSteps(steps: List<RouteStepDto>, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val lastRide = steps.indexOfLast { it.type != RouteStepType.WALK }
+    val firstRide = steps.indexOfFirst { it.type != RouteStepType.WALK }
+
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.space1), modifier = modifier.testTag(TAG_TRANSIT_STEPS)) {
+        steps.forEachIndexed { index, step ->
+            val duration = durationLabel(step.durationSeconds)
+            if (step.type == RouteStepType.WALK) {
+                TransitStepLine(R.drawable.ic_lucide_walk, stringResource(R.string.progress_step_walk, duration))
+                return@forEachIndexed
+            }
+            val mode = stringResource(if (step.type == RouteStepType.BUS) R.string.progress_step_bus else R.string.progress_step_subway)
+            val line = step.lineName?.let { "$mode $it" } ?: mode
+            val action = stringResource(if (index == firstRide) R.string.progress_step_board else R.string.progress_step_transfer)
+            val text = step.boardingName?.let { stringResource(R.string.progress_step_ride_at, it, line, action, duration) }
+                ?: stringResource(R.string.progress_step_ride, line, action, duration)
+            TransitStepLine(R.drawable.ic_lucide_transit, text)
+            if (index == lastRide) {
+                step.alightingName?.let { TransitStepLine(R.drawable.ic_lucide_transit, stringResource(R.string.progress_step_alight, it)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransitStepLine(@DrawableRes icon: Int, text: String) {
+    val colors = LocalGilpickColors.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space2)) {
+        Icon(painter = painterResource(icon), contentDescription = null, tint = colors.muted, modifier = Modifier.size(STEP_ICON))
+        Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1502,6 +1558,7 @@ internal const val TAG_NOTIFICATIONS = "progress_notifications"
 internal const val TAG_EDIT = "progress_edit"
 internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
+internal const val TAG_TRANSIT_STEPS = "progress_transit_steps"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"
 internal const val TAG_CARD_ALL_DONE = "progress_card_all_done"
 internal const val TAG_ETA = "progress_eta"
@@ -1550,6 +1607,7 @@ private val DAY_DOT_RING: Dp = 18.dp
 private val STATUS_CIRCLE: Dp = 24.dp
 private val ROW_LINE_HEIGHT: Dp = 28.dp
 private val TRANSPORT_ICON: Dp = 11.dp
+private val STEP_ICON: Dp = 14.dp
 
 /** Figma 카드 안 행동 버튼 높이(`h-[48px]`). */
 private val CARD_BUTTON_HEIGHT: Dp = 48.dp

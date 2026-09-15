@@ -165,6 +165,32 @@ internal fun notStartedProgress() = progress(
     items = listOf(item(ITEM_A, 1, ItemStatus.PLANNED), item(ITEM_B, 2, ItemStatus.PLANNED), item(ITEM_C, 3, ItemStatus.PLANNED)),
 ).copy(progressVersion = 0, actualStartedAt = null, startLocation = null)
 
+/**
+ * #553: 경복궁 → 북촌한옥마을 구간이 Kakao 대중교통이고 상세 단계가 있는 오늘 개요.
+ * 도보 → 3호선 승차 → 1호선 환승 → 종각역 하차 → 도보.
+ */
+internal fun transitStepsDays() = overviewDays(
+    todayItinerary(
+        route = com.gilpick.route.readyRoute(scheduleVersion = 3).let { route ->
+            route.copy(
+                segments = route.segments.map { segment ->
+                    if (segment.sequence != 1) return@map segment
+                    segment.copy(
+                        transportMode = TransportMode.TRANSIT,
+                        provider = com.gilpick.route.RouteProvider.KAKAO,
+                        steps = listOf(
+                            com.gilpick.route.RouteStepDto(com.gilpick.route.RouteStepType.WALK, 240, 300),
+                            com.gilpick.route.RouteStepDto(com.gilpick.route.RouteStepType.SUBWAY, 300, 2100, boardingName = "경복궁역", alightingName = "종로3가역", lineName = "3호선", stopCount = 2),
+                            com.gilpick.route.RouteStepDto(com.gilpick.route.RouteStepType.SUBWAY, 240, 900, boardingName = "종로3가역", alightingName = "종각역", lineName = "1호선", stopCount = 1),
+                            com.gilpick.route.RouteStepDto(com.gilpick.route.RouteStepType.WALK, 360, 450),
+                        ),
+                    )
+                },
+            )
+        },
+    ),
+)
+
 internal fun content(
     progress: ProgressData = movingProgress(),
     now: Instant = NOW_BEFORE_ETA,
