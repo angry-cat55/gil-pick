@@ -570,7 +570,10 @@ Response `200`:
     "code": "CONFIRMATION_REQUIRED",
     "message": "여행 기간을 줄이면 범위 밖 일정이 삭제됩니다.",
     "details": {
-      "deletedItemCount": 1
+      "deletedItemCount": 1,
+      "deletedDays": [
+        { "date": "2026-09-22", "itemCount": 1 }
+      ]
     },
     "retryable": false
   },
@@ -580,7 +583,7 @@ Response `200`:
 }
 ```
 
-`deletedItemCount`는 새 기간 밖 `itinerary_items`의 실제 개수이며 1 이상일 때만 확인 오류에 포함된다.
+`deletedItemCount`는 새 기간 밖 `itinerary_items`의 실제 개수이며 1 이상일 때만 확인 오류에 포함된다. `deletedDays`는 일정이 하나 이상 삭제되는 날짜만 날짜 오름차순으로 담으며(TRIP-04, user-flow 2절), 항목 `itemCount`의 합이 `deletedItemCount`와 같다. 일정이 없는 날짜만 범위 밖으로 빠지면 `deletedItemCount`가 0이라 확인 오류 자체가 발생하지 않는다.
 
 주요 오류: `400`, `401 INVALID_ACCESS_TOKEN`, `403`, `404`, `409 VERSION_CONFLICT`, `409 CONFIRMATION_REQUIRED`, `409 TRIP_LOCKED`, `409 TRIP_PERIOD_CONFLICT`, `422`
 

@@ -27,6 +27,8 @@
 
 **Rationale**: 기존 계약 문서(api-spec.md)는 모든 feature를 아우르는 최종 형태를 미리 그려둔 문서다. F001이 `AuthenticatedHomeScreen`을 F002 전까지 빈 shell로 유지했던 것과 같은 방식으로, F002도 아직 존재하지 않는 하위 feature 데이터를 임의로 만들어내지 않는다.
 
+**후속(#588, 2026-09-16)**: F004가 `trip_days`/`itinerary_items`를 도입한 뒤 `details.deletedItemCount`는 실제 개수를 반환하도록 이미 확장되어 있었다. #588에서 user-flow 2절(TRIP-04) "삭제될 날짜와 일정 개수" 요건에 맞춰 날짜별 개수 `details.deletedDays`(일정 있는 날짜만, 날짜 오름차순)를 추가했다. `TripEnvelope`(수정 성공 응답)는 여전히 `deletedDayCount`·`deletedItemCount`를 포함하지 않는다 — 이 값들은 확인이 필요한 오류 응답에만 있으면 충분하다.
+
 **Alternatives considered**: `itemCount: 0`, `routeStatus` 임시 enum 값을 지금 확정: 아직 F004·F005에서 합의되지 않은 값을 F002가 선점하게 되어 이후 계약 변경 위험이 커진다.
 
 ## 4. 동시 수정 제어

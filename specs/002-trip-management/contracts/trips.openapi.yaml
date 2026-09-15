@@ -227,8 +227,11 @@ paths:
       description: >-
         완료(`COMPLETED`) 상태 여행은 `name`만 수정할 수 있다. `startDate`/`endDate` 변경 시도는
         `409 TRIP_LOCKED`로 거부한다. 기간 축소로 범위 밖에 놓이는 일정이 있으면
-        `confirmDeleteOutOfRangeItems: true` 없이는 `409 CONFIRMATION_REQUIRED`를 반환한다.
-        변경 기간이 같은 사용자의 다른 삭제되지 않은 여행과 겹치면 `409 TRIP_PERIOD_CONFLICT`를 반환한다.
+        `confirmDeleteOutOfRangeItems: true` 없이는 `409 CONFIRMATION_REQUIRED`를 반환하며,
+        오류 `details`에 `deletedItemCount`와 날짜별 삭제 개수 `deletedDays`(일정이 있는 날짜만,
+        날짜 오름차순)를 함께 담는다(#588, TRIP-04). 일정이 없는 날짜만 범위 밖으로 빠지면 확인
+        없이 즉시 수정한다. 변경 기간이 같은 사용자의 다른 삭제되지 않은 여행과 겹치면
+        `409 TRIP_PERIOD_CONFLICT`를 반환한다.
       requestBody:
         required: true
         content:

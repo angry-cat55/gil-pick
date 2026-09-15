@@ -436,13 +436,20 @@ def test_update_trip_contract_maps_domain_errors(
 
 
 def test_update_trip_contract_returns_deleted_item_count(client: TestClient) -> None:
-    """기간 축소 확인 오류가 실제 삭제 대상 장소 수를 공개한다."""
+    """기간 축소 확인 오류가 실제 삭제 대상 장소 수와 날짜별 개수를 공개한다(#588)."""
+    details = {
+        "deletedItemCount": 2,
+        "deletedDays": [
+            {"date": "2026-09-02", "itemCount": 1},
+            {"date": "2026-09-03", "itemCount": 1},
+        ],
+    }
     app.dependency_overrides[_trip_service] = lambda: RejectingTripService(
         AppError(
             409,
             "CONFIRMATION_REQUIRED",
             "기간 축소로 제외되는 일정을 확인해 주세요.",
-            details={"deletedItemCount": 2},
+            details=details,
         )
     )
 
@@ -453,7 +460,7 @@ def test_update_trip_contract_returns_deleted_item_count(client: TestClient) -> 
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "CONFIRMATION_REQUIRED"
-    assert response.json()["error"]["details"] == {"deletedItemCount": 2}
+    assert response.json()["error"]["details"] == details
 
 
 def test_update_trip_contract_validates_trimmed_name_in_service(client: TestClient) -> None:

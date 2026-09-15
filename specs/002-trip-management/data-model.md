@@ -77,4 +77,4 @@ UPCOMING --start_date 도달--> IN_PROGRESS --end_date 경과--> COMPLETED
 
 ## 범위 밖
 
-- `trip_days`, `itinerary_items`는 F002에서 생성하지 않는다 ([research.md](research.md) 2절). F002의 `PATCH` 기간 축소 로직은 이 두 테이블이 아직 없으므로 항상 "삭제될 일정 0건"으로 동작하며, F004가 `trip_days`/`itinerary_items`를 도입하면 실제 개수를 계산하도록 확장한다.
+- `trip_days`, `itinerary_items`는 F002에서 생성하지 않는다 ([research.md](research.md) 2절). F002 시점에는 이 두 테이블이 아직 없어 `PATCH` 기간 축소 로직이 항상 "삭제될 일정 0건"으로 동작했다. F004가 `trip_days`/`itinerary_items`를 도입한 뒤로는 실제 개수를 계산하며, #588부터는 날짜별 개수(`deletedDays`)까지 계산한다(`docs/design/api-spec.md` TRIP-004).
