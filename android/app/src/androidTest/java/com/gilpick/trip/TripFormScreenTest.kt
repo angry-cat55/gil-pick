@@ -1,5 +1,7 @@
 package com.gilpick.trip
 
+import androidx.compose.ui.test.onNodeWithTag
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +53,7 @@ class TripFormScreenTest {
 
         composeRule.onNodeWithText(string(R.string.trip_form_create_title)).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(string(R.string.trip_form_back)).assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_form_name_label)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_form_calendar_label)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_form_submit)).assertIsDisplayed()
@@ -232,10 +235,10 @@ class TripFormScreenTest {
     // --- 수정 모드 ---
 
     @Test
-    fun 수정_모드는_닫기_제목_버튼_문구와_여행_삭제를_보여준다() {
+    fun 수정_모드는_뒤로_가기_제목_버튼_문구와_여행_삭제를_보여준다() {
         setContent(editState(TripStatus.UPCOMING))
 
-        composeRule.onNodeWithContentDescription(string(R.string.trip_form_close)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_form_back)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_form_edit_title)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_form_edit_submit)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.trip_detail_delete)).assertIsDisplayed()

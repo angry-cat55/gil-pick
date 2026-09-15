@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.ui.component.RemoteImage
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -225,7 +227,7 @@ private fun Header(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Figma 36dp 사각 버튼. 터치 영역은 48dp로 두고 사각 밖은 투명이다.
-            IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH)) {
+            IconButton(onClick = onBack, modifier = Modifier.size(MIN_TOUCH).testTag(TAG_HEADER_BACK)) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)

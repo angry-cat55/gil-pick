@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.place.labelRes
 import com.gilpick.route.Position
@@ -185,7 +186,7 @@ private fun BackButton(onBack: () -> Unit, modifier: Modifier = Modifier) {
             .size(MIN_TOUCH)
             .clip(CircleShape)
             .clickable(onClick = onBack, role = Role.Button)
-            .testTag(TAG_BACK),
+            .testTag(TAG_HEADER_BACK),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -637,7 +638,6 @@ private fun KeepErrorBar(error: AlternativeError, onRetry: () -> Unit, onDismiss
 
 /** UI test가 찾는 tag. */
 internal const val TAG_MAP_SLOT = "alternative_map_slot"
-internal const val TAG_BACK = "alternative_back"
 internal const val TAG_TITLE = "alternative_title"
 internal const val TAG_COUNT = "alternative_count"
 internal const val TAG_SEARCH = "alternative_search"

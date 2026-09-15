@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.test.platform.app.InstrumentationRegistry
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.alternative.AlternativeService
@@ -217,7 +218,7 @@ class NotificationNavigationTest {
             assertEquals(VariableMonitorRoute(PROGRESS_TRIP_ID), navController.currentBackStackEntry?.toRoute<VariableMonitorRoute>())
         }
 
-        composeRule.onNodeWithTag(TAG_MONITOR_BACK).performClick()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).performClick()
 
         composeRule.waitUntil(WAIT_MILLIS) { navController.currentBackStackEntry?.destination?.hasRoute<ActiveTravelRoute>() == true }
     }

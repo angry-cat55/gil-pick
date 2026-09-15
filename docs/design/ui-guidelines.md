@@ -416,14 +416,14 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 
 **40dp와 36dp 기준**: 26sp Hero title을 쓰는 최상위 탭 헤더(`MyTripsScreen`)는 40dp, 18~20sp 제목을 쓰는 하위 화면과 진행 화면 헤더는 36dp다. 지도 위 떠 있는 버튼도 40dp다.
 
-**뒤로 가기(←)와 닫기(✕) 구분**
+**뒤로 가기(←) (2026-09-15 변경, #510)**
 
 | 아이콘 | path (stroke 2.5. 크기·색은 위 종류 표를 따른다) | 쓰는 화면 | 기준 |
 |---|---|---|---|
-| ← 뒤로 가기 | `M19 12H5M12 19l-7-7 7-7` | `CreateTripScreen`, `AddPlaceScreen`, `NotificationsScreen`, `VariableMonitorScreen`, `RoutePreviewScreen`, `PlaceDetailScreen`, `TripDetailScreen`, `DayRouteScreen`, `AlternativePlacesScreen`, `MapSearchScreen` | 이전 화면으로 돌아가는 탐색 |
-| ✕ 닫기 | `M18 6L6 18M6 6l12 12` | `EditTripScreen`, `ScheduleEditScreen` | **기존 데이터를 고치는 편집 화면**. 나가면 변경을 버린다(`ScheduleEditScreen`은 누르면 "편집을 취소할까요?" dialog) |
+| ← 뒤로 가기 | `M19 12H5M12 19l-7-7 7-7` | 탭 루트(`MyTripsScreen`·`SettingsScreen`)와 `LoginScreen`을 뺀 모든 화면: `CreateTripScreen`, `EditTripScreen`, `TripDetailScreen`, `ScheduleEditScreen`, `AddPlaceScreen`, `PlaceDetailScreen`, `DayRouteScreen`, `ActiveTravelScreen`, `NotificationsScreen`, `VariableMonitorScreen`, `AlternativePlacesScreen`, `MapSearchScreen`, `RoutePreviewScreen` | 헤더 왼쪽. 시스템 뒤로 가기와 같은 동작이며 저장 안 한 변경이 있으면 기존 확인 대화상자(`ScheduleEditScreen` "편집을 취소할까요?")를 거친다 |
 
-- 새 여행 만들기(`CreateTripScreen`)는 편집 흐름의 시작이지만 Figma가 ←를 쓴다. 아이콘은 Figma를 따른다.
+- 예전에는 기존 데이터를 고치는 편집 화면(`EditTripScreen`, `ScheduleEditScreen`)에 ✕ 닫기를 썼다. QA에서 "뒤로 가기가 없다"로 읽혀 2026-09-15 ←로 통일했다(#510). **Figma 두 화면도 같은 방향으로 고친다.**
+- 공통 테스트 태그는 `com.gilpick.ui.component.TAG_HEADER_BACK`이다.
 - 알림 벨의 새 알림 점은 `warning` 원이다. 40dp 버튼은 8dp(`MyTripsScreen`), 36dp 버튼은 6dp(`ActiveTravelScreen`)이고 위·오른쪽 6dp 안쪽에 둔다.
 - 모든 헤더 버튼의 터치 영역은 48dp로 넓힌다(10절).
 

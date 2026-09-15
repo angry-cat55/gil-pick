@@ -26,6 +26,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.alternative.DetectionStatus
 import com.gilpick.alternative.DetectionType
@@ -421,7 +422,7 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithTag(TAG_EDIT).assertIsNotEnabled()
         composeRule.onNodeWithText("지난 날짜의 일정은 편집할 수 없어요").assertIsDisplayed()
 
-        composeRule.onNodeWithTag(TAG_BACK).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertHeightIsAtLeast(48.dp).performClick()
         composeRule.runOnIdle { assertEquals(1, backs) }
     }
 
@@ -429,7 +430,7 @@ class ActiveTravelScreenTest {
     fun 뒤로_가기를_넘기지_않으면_버튼이_없다() {
         setScreen(content())
 
-        composeRule.onNodeWithTag(TAG_BACK).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertDoesNotExist()
     }
 
     // ---- T027: F009 변수 경고 배너(UI-001, quickstart AND 3) ----

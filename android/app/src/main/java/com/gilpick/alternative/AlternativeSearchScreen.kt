@@ -67,6 +67,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.place.PlaceCategory
 import com.gilpick.place.labelRes
@@ -186,7 +187,7 @@ private fun FloatingSearchBar(
                 .size(MIN_TOUCH)
                 .clip(CircleShape)
                 .clickable(onClick = onBack, role = Role.Button)
-                .testTag(TAG_SEARCH_BACK),
+                .testTag(TAG_HEADER_BACK),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -660,7 +661,6 @@ private fun SelectButton(enabled: Boolean, onClick: () -> Unit) {
 }
 
 /** UI test가 찾는 tag. */
-internal const val TAG_SEARCH_BACK = "alternative_search_back"
 internal const val TAG_SEARCH_ROW_PREFIX = "alternative_search_row_"
 internal const val TAG_SEARCH_MAP = "alternative_search_map"
 internal const val TAG_SEARCH_SHEET = "alternative_search_sheet"

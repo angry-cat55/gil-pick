@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.progress.StateMessage
 import com.gilpick.ui.component.GradientButton
@@ -120,7 +121,7 @@ private fun Header(onBack: () -> Unit, onMarkAllRead: () -> Unit, hasUnread: Boo
             contentDescription = stringResource(R.string.notification_back),
             tint = MaterialTheme.colorScheme.onSurface,
             onClick = onBack,
-            modifier = Modifier.testTag(TAG_BACK),
+            modifier = Modifier.testTag(TAG_HEADER_BACK),
         )
         Text(
             text = title,
@@ -297,7 +298,6 @@ private fun Groups(groups: List<NotifGroup>, now: Instant, onOpen: (NotifItemUi)
     }
 }
 
-const val TAG_BACK = "notification_back"
 const val TAG_MARK_ALL_READ = "notification_mark_all_read"
 const val TAG_LOADING = "notification_loading"
 const val TAG_EMPTY = "notification_empty"

@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.iconRes
@@ -146,7 +147,8 @@ private fun Header(dayNumber: Int, date: LocalDate, placeCount: Int?, onBack: ()
                 .size(MIN_TOUCH)
                 .clip(CircleShape)
                 .clickable(onClick = onBack, role = Role.Button)
-                .semantics { contentDescription = back },
+                .semantics { contentDescription = back }
+                .testTag(TAG_HEADER_BACK),
             contentAlignment = Alignment.Center,
         ) {
             Box(

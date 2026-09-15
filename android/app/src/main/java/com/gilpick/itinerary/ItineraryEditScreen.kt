@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -78,6 +79,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.place.LoadingState
@@ -101,7 +103,7 @@ import java.time.LocalDate
  * 되돌리기 모양 버튼은 동작이 정의되지 않아 두지 않는다.
  *
  * @param state 현재 편집 상태.
- * @param onClose 닫기 버튼과 시스템 뒤로 가기. 변경 여부에 따른 확인은 ViewModel이 정한다.
+ * @param onClose 헤더 뒤로 가기와 시스템 뒤로 가기. 변경 여부에 따른 확인은 ViewModel이 정한다.
  * @param onSelectDate 날짜 탭.
  * @param onAddPlace `장소 추가`. F003 장소 검색으로 간다.
  * @param onSave 하단 `저장`.
@@ -224,11 +226,11 @@ fun ItineraryEditScreen(
     }
 }
 
-/** Figma 헤더: 36dp `background` 사각 닫기 버튼과 `일정 편집` 제목. 터치 영역은 48dp로 넓힌다. */
+/** Figma 헤더: 36dp `background` 사각 뒤로 가기 버튼(#510에서 ✕→←)과 `일정 편집` 제목. 터치 영역은 48dp로 넓힌다. */
 @Composable
 private fun Header(onClose: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
-    val close = stringResource(R.string.itinerary_edit_close)
+    val back = stringResource(R.string.itinerary_edit_back)
     val title = stringResource(R.string.itinerary_edit_title)
 
     Row(
@@ -244,7 +246,8 @@ private fun Header(onClose: () -> Unit) {
                 .size(MIN_TOUCH)
                 .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
                 .clickable(onClick = onClose, role = Role.Button)
-                .semantics { contentDescription = close },
+                .semantics { contentDescription = back }
+                .testTag(TAG_HEADER_BACK),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -255,7 +258,7 @@ private fun Header(onClose: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_lucide_x),
+                    painter = painterResource(R.drawable.ic_lucide_arrow_left),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(18.dp),
@@ -328,7 +331,7 @@ private fun DayTabs(
 /**
  * 조회 실패 안내(공통 오류 화면, 가이드라인 9절, #446). 원인과 `다시 시도`를 제공하고 세션 만료는 `다시 로그인`으로 잇는다.
  *
- * 나가는 길은 헤더 ✕가 이미 있어 보조 버튼을 두지 않는다. 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
+ * 나가는 길은 헤더 ←가 이미 있어 보조 버튼을 두지 않는다. 발생 시각·마지막 동작은 이 화면이 모르는 값이라 원인 카드를 그리지 않는다.
  */
 @Composable
 private fun FailedState(error: ItineraryError, onRetry: () -> Unit, onReauthenticate: () -> Unit) {
@@ -1125,7 +1128,7 @@ private fun CancelApplyRow(onCancel: () -> Unit, onApply: () -> Unit, modifier: 
 /** 가이드라인 10절 최소 터치 영역. */
 private val MIN_TOUCH = 48.dp
 
-/** Figma 헤더 닫기 버튼 크기(`w-9 h-9`). */
+/** Figma 헤더 버튼 크기(`w-9 h-9`). */
 private val HEADER_BUTTON = 36.dp
 
 /** Figma 순서 번호 원(`w-7 h-7`). */
