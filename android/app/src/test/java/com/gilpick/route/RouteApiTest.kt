@@ -67,6 +67,29 @@ class RouteApiTest {
     }
 
     @Test
+    fun `대중교통 구간의 상세 단계를 받고 steps가 없는 구간은 빈 목록이다`() = withService { server, api ->
+        val steps = """
+            "steps": [
+              {"type": "WALK", "durationSeconds": 240, "distanceMeters": 300, "boardingName": null, "alightingName": null, "lineName": null, "stopCount": null},
+              {"type": "SUBWAY", "durationSeconds": 300, "distanceMeters": 2100, "boardingName": "경복궁역", "alightingName": "안국역", "lineName": "3호선", "stopCount": 2}
+            ],
+        """
+        val json = readyRouteJson().replace("\"providerAttribution\": \"$ODSAY_ATTRIBUTION\"", "$steps\"providerAttribution\": \"$ODSAY_ATTRIBUTION\"")
+        server.enqueue(MockResponse(code = 200, body = routeEnvelopeJson("READY", route = json)))
+
+        val route = api.getDayRoute(BEARER, ROUTE_TRIP_ID, ROUTE_DATE).body()!!.data.route!!
+
+        assertEquals(emptyList<RouteStepDto>(), route.segments[0].steps)
+        assertEquals(
+            listOf(
+                RouteStepDto(RouteStepType.WALK, 240, 300),
+                RouteStepDto(RouteStepType.SUBWAY, 300, 2100, boardingName = "경복궁역", alightingName = "안국역", lineName = "3호선", stopCount = 2),
+            ),
+            route.segments[1].steps,
+        )
+    }
+
+    @Test
     fun `NOT_CALCULATED와 FAILED는 route와 failure가 상태에 맞게 null이다`() = withService { server, api ->
         server.enqueue(MockResponse(code = 200, body = routeEnvelopeJson("NOT_CALCULATED", scheduleVersion = 0)))
         server.enqueue(MockResponse(code = 200, body = routeEnvelopeJson("FAILED", failure = failureJson())))
