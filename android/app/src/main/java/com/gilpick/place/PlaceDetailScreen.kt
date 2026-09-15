@@ -441,13 +441,16 @@ private fun InfoRows(place: PlaceDto) {
         InfoRow(R.drawable.ic_lucide_map_pin, stringResource(R.string.place_detail_address_label), place.address ?: missing)
         HorizontalDivider(color = MaterialTheme.colorScheme.background)
         InfoRow(R.drawable.ic_lucide_clock, stringResource(R.string.place_detail_hours_label), hours)
-        listOf(place).googleAttributionText()?.let { attribution ->
-            Text(
-                text = attribution,
-                fontSize = 11.sp,
-                color = LocalGilpickColors.current.muted,
+        // 정보 영역 하단의 출처. `tourapi:` 장소면 공공데이터 출처(#578), Google 정보가 있으면 Google attribution을 둔다.
+        val attributions = listOfNotNull(listOf(place).tourApiAttributionText(), listOf(place).googleAttributionText())
+        if (attributions.isNotEmpty()) {
+            Column(
                 modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space3),
-            )
+            ) {
+                attributions.forEach { attribution ->
+                    Text(text = attribution, fontSize = 11.sp, color = LocalGilpickColors.current.muted)
+                }
+            }
         }
     }
 }

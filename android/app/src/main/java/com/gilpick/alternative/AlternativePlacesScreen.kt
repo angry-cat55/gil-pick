@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gilpick.place.tourApiAttributionText
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.place.labelRes
@@ -72,6 +73,7 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
 import com.gilpick.ui.theme.displayFont
 import java.util.Locale
 import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.sp
 
 /**
  * 대체 장소 화면(`spec.md` US2, Figma `AlternativePlacesScreen`/`alternativesEmpty`, T024).
@@ -411,6 +413,15 @@ private fun CandidateSection(
     items.forEachIndexed { index, candidate ->
         CandidateRow(candidate = candidate, top = index == 0, onSelect = { onSelect(candidate) })
         if (index < items.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.background)
+    }
+    // 후보 목록 단위 공공데이터 출처 한 줄(F009 UI-011, #578). 후보별 배지로 붙이지 않는다.
+    items.map { it.place }.tourApiAttributionText()?.let { attribution ->
+        Text(
+            text = attribution,
+            fontSize = 11.sp,
+            color = LocalGilpickColors.current.muted,
+            modifier = Modifier.padding(top = spacing.space3),
+        )
     }
     Spacer(modifier = Modifier.height(spacing.space5))
     // Figma 테두리형 보조 버튼: 2dp `outlineVariant`, 50dp, `radiusLg`, 14sp 600 `onSurfaceVariant`.

@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
@@ -564,6 +565,8 @@ fun PolicyDocumentSection(
         SectionLabel(stringResource(R.string.settings_app_section))
         VersionRow(versionName = versionName)
         RowDivider()
+        DataSourceRow()
+        RowDivider()
         PolicyRow(
             label = stringResource(R.string.settings_privacy_policy),
             tag = TAG_PRIVACY_POLICY,
@@ -607,6 +610,41 @@ private fun VersionRow(versionName: String) {
         )
         Text(
             text = versionName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = LocalGilpickColors.current.muted,
+        )
+    }
+}
+
+/**
+ * 서비스 전체 데이터 출처 한 줄(F012 FR-009a, #578). `장소 정보` · `출처: ⓒ한국관광공사`.
+ *
+ * 공모전 규정은 출처 표기를 서비스 단위로 요구하므로 이 행으로 요건을 충족한다. 버전 행과 같은 모양의 읽기 전용 행이고,
+ * 로고 이미지는 쓰지 않는다. 큰 글자 배율에서 값이 길어지면 줄바꿈해 잘리지 않는다(UI-006).
+ */
+@Composable
+private fun DataSourceRow() {
+    val spacing = LocalGilpickSpacing.current
+
+    // 한 줄에 다 들어가면 버전 행처럼 라벨·값이 양 끝에 놓이고, 큰 글자 배율로 넘치면 값이 통째로 다음 줄로 내려간다.
+    // 값을 좁은 칸에 욱여넣으면 `한국관/광공사`처럼 이름 중간에서 끊긴다.
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = POLICY_ROW_HEIGHT)
+            .padding(horizontal = spacing.space5, vertical = spacing.space4)
+            .testTag(TAG_DATA_SOURCE),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.settings_data_source),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(end = spacing.space3),
+        )
+        Text(
+            text = stringResource(R.string.place_tourapi_attribution),
             style = MaterialTheme.typography.bodyMedium,
             color = LocalGilpickColors.current.muted,
         )
@@ -698,6 +736,7 @@ internal val SettingsError.messageRes: Int
 
 internal const val TAG_ACCOUNT_SECTION = "settings_account_section"
 internal const val TAG_APP_VERSION = "settings_app_version"
+internal const val TAG_DATA_SOURCE = "settings_data_source"
 internal const val TAG_PREFERENCE_SECTION = "settings_preference_section"
 internal const val TAG_TOGGLE = "settings_toggle"
 internal const val TAG_SAVING_BADGE = "settings_saving_badge"

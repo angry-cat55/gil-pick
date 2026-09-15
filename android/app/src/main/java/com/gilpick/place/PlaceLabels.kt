@@ -57,6 +57,22 @@ internal fun List<PlaceDto>.googleAttributionText(): String? {
     return stringResource(R.string.place_google_attribution, names.joinToString(", "))
 }
 
+/** 한국관광공사 TourAPI 기준 장소인지. 장소 ID 이름공간(`tourapi:{contentId}`)으로 판단한다(F003 FR·계약). */
+val PlaceDto.isTourApiPlace: Boolean
+    get() = placeId.startsWith(TOUR_API_PLACE_ID_PREFIX)
+
+/**
+ * TourAPI 데이터가 보이는 목록·영역의 공공데이터 출처 문구(`출처: ⓒ한국관광공사`, F003 UI-012·F009 UI-011, #578).
+ *
+ * [googleAttributionText]와 같은 방식이다. 상세는 장소 하나, 목록은 보이는 결과 전체를 넘긴다. TourAPI 장소가 하나도 없으면
+ * (Google 결과만) `null`이라 표시하지 않는다. 장소마다 붙이는 배지가 아니라 목록·영역 단위로 한 줄만 쓴다.
+ */
+@Composable
+internal fun List<PlaceDto>.tourApiAttributionText(): String? =
+    if (any { it.isTourApiPlace }) stringResource(R.string.place_tourapi_attribution) else null
+
+private const val TOUR_API_PLACE_ID_PREFIX = "tourapi:"
+
 /** 평점을 소수 첫째 자리까지 쓴다. `4.0`도 `4`가 아니라 `4.0`이다. */
 internal fun Double.toRatingText(): String = String.format(java.util.Locale.KOREA, "%.1f", this)
 

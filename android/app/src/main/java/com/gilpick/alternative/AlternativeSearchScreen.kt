@@ -67,6 +67,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gilpick.place.tourApiAttributionText
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.place.PlaceCategory
@@ -447,6 +448,8 @@ private fun Results(
             }
     }
 
+    val attribution = results.map { it.place }.tourApiAttributionText()
+
     LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().testTag(TAG_SEARCH_LIST)) {
         item(key = "summary") {
             val count = results.size.toString()
@@ -528,6 +531,17 @@ private fun Results(
                         GradientButton(label = stringResource(R.string.place_search_load_more_retry), onClick = onRetryLoadMore, height = RETRY_HEIGHT)
                     }
                 }
+            }
+        }
+        // 결과 목록 단위 공공데이터 출처 한 줄(F009 UI-011, #578). 결과별 배지로 붙이지 않는다.
+        attribution?.let { attribution ->
+            item(key = "attribution") {
+                Text(
+                    text = attribution,
+                    fontSize = 11.sp,
+                    color = extra.muted,
+                    modifier = Modifier.padding(horizontal = spacing.space5, vertical = spacing.space3),
+                )
             }
         }
         item(key = "bottom") { Box(modifier = Modifier.height(spacing.space6)) }

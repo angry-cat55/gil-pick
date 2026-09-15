@@ -3,6 +3,7 @@ package com.gilpick.alternative
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
 import com.gilpick.ui.component.TAG_HEADER_BACK
@@ -14,12 +15,14 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -92,6 +95,15 @@ class AlternativeSearchScreenTest {
         composeRule.onNodeWithText("기존 장소에서 0m").assertIsDisplayed()
         composeRule.onNodeWithText("이미 일정에 있음").assertIsDisplayed()
         row("tourapi:126001").assertIsNotEnabled()
+    }
+
+    /** #578 F009 UI-011: 결과에 TourAPI 장소가 있으면 결과 시트 목록 끝에 공공데이터 출처를 한 줄 둔다. */
+    @Test
+    fun TourAPI_결과가_있으면_결과_시트_하단에_공공데이터_출처를_한_번_보여준다() {
+        setScreen(content())
+
+        composeRule.onNodeWithText("출처: ⓒ한국관광공사").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodes(hasText("출처: ⓒ한국관광공사")).assertCountEquals(1)
     }
 
     @Test

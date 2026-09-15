@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -72,6 +73,15 @@ class AlternativePlacesScreenTest {
             assertEquals(1, searches)
             assertEquals(1, keeps)
         }
+    }
+
+    /** #578 F009 UI-011: 후보에 TourAPI 장소가 있으면 후보 목록 하단에 공공데이터 출처를 한 줄 둔다. */
+    @Test
+    fun TourAPI_후보가_있으면_후보_목록_하단에_공공데이터_출처를_한_번_보여준다() {
+        setScreen(content())
+
+        composeRule.onNodeWithText("출처: ⓒ한국관광공사").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodes(hasText("출처: ⓒ한국관광공사")).assertCountEquals(1)
     }
 
     @Test

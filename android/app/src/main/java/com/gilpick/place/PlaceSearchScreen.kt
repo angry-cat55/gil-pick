@@ -405,8 +405,8 @@ private fun Results(
     }
 
     // 출처는 결과 목록 단위로 한 줄만 둔다: 행마다 붙이면 장소별 출처 배지가 된다(FR-021·UI-012).
-    // 스크롤과 무관하게 보이도록 목록 밖 하단에 고정한다(#516).
-    val attribution = results.googleAttributionText()
+    // 스크롤과 무관하게 보이도록 목록 밖 하단에 고정한다(#516). TourAPI 공공데이터 출처가 먼저, Google이 다음 줄이다(#578).
+    val attributions = listOfNotNull(results.tourApiAttributionText(), results.googleAttributionText())
 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
@@ -487,17 +487,18 @@ private fun Results(
                 }
             }
         }
-        if (attribution != null) {
-            Text(
-                text = attribution,
-                fontSize = 11.sp,
-                color = LocalGilpickColors.current.muted,
+        if (attributions.isNotEmpty()) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(colors.surface)
                     .navigationBarsPadding()
                     .padding(horizontal = spacing.space5, vertical = spacing.space3),
-            )
+            ) {
+                attributions.forEach { attribution ->
+                    Text(text = attribution, fontSize = 11.sp, color = LocalGilpickColors.current.muted)
+                }
+            }
         }
     }
 }
