@@ -68,6 +68,40 @@ class TripFormScreenshotTest {
         Screen(created().copy(occupiedPeriods = listOf(OccupiedPeriod("t9", LocalDate.of(2026, 9, 20), LocalDate.of(2026, 9, 22)))))
     }
 
+    /** #499: 고른 사진이 커버에 보이고 `사진 변경`·`기본으로`가 나온다. */
+    @Test
+    fun 커버_사진_선택() = capture("trip_form_cover_picked") {
+        Screen(created().copy(pickedImage = PickedTripImage(sampleImage(), "image/png")))
+    }
+
+    /** #499: 수정 화면에서 저장된 사진이 있을 때(`커스텀 이미지`). */
+    @Test
+    fun 수정_커버_커스텀() = capture("trip_form_edit_cover_custom") {
+        Screen(edited().copy(imageUrl = "http://api.example/trips/t1/image/content", currentImage = sampleImage()))
+    }
+
+    /** #499: 360dp·최대 글자 배율에서 커버 라벨·버튼이 잘리지 않는지 기록한다. */
+    @Test
+    fun 수정_커버_360dp_최대_글자배율() = capture("trip_form_edit_cover_360dp_fontscale2") {
+        Box(modifier = Modifier.width(360.dp)) {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                Screen(edited().copy(imageUrl = "http://api.example/trips/t1/image/content", currentImage = sampleImage()))
+            }
+        }
+    }
+
+    /** 대각선 그라데이션 PNG. 실제 사진 대신 커버 배치를 보기 위한 표본이다. */
+    private fun sampleImage(): ByteArray {
+        val bitmap = Bitmap.createBitmap(390, 180, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 390f, 180f, 0xFF3B7BF8.toInt(), 0xFF10B981.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, 0f, 390f, 180f, paint)
+        return java.io.ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    }
+
     @Test
     fun 여행_수정_기간_축소() = capture("trip_form_edit_shrunk") { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2))) }
 

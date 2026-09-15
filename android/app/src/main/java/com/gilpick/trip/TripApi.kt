@@ -4,7 +4,9 @@ import com.gilpick.auth.SuccessEnvelope
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -12,6 +14,8 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -31,6 +35,9 @@ object TripErrorCodes {
     const val VERSION_CONFLICT = "VERSION_CONFLICT"
     const val CONFIRMATION_REQUIRED = "CONFIRMATION_REQUIRED"
     const val TRIP_PERIOD_CONFLICT = "TRIP_PERIOD_CONFLICT"
+    const val IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    const val UNSUPPORTED_IMAGE_TYPE = "UNSUPPORTED_IMAGE_TYPE"
+    const val TRIP_IMAGE_NOT_FOUND = "TRIP_IMAGE_NOT_FOUND"
     const val FORBIDDEN = "FORBIDDEN"
 }
 
@@ -60,6 +67,8 @@ enum class TripStatus {
  * @property dayCount `endDate - startDate + 1`. 서버가 계산해 내려준다.
  * @property version 수정 요청에 그대로 실어 보내는 낙관적 동시성 버전.
  * @property createdAt 생성 응답에만 포함된다.
+ * @property imageUrl 대표 이미지 조회 주소(FR-019). 없으면 `null`이다. 인증이 필요하고 서버가 요청 host로 만든 절대 주소라
+ *   앱은 이 값을 "이미지 있음" 표시로만 쓰고, 원본은 [TripService.getTripImageContent]로 받는다(#499).
  */
 @Serializable
 data class TripDto(
@@ -71,6 +80,7 @@ data class TripDto(
     val dayCount: Int,
     val version: Int,
     val createdAt: String? = null,
+    val imageUrl: String? = null,
 )
 
 /**
@@ -214,4 +224,27 @@ interface TripService {
         @Header("Authorization") bearer: String,
         @Path("tripId") tripId: String,
     ): Response<Unit>
+
+    /** 여행 대표 이미지를 올리거나 교체한다(FR-019). 성공하면 `imageUrl`과 `version`이 바뀐 여행을 돌려준다. */
+    @Multipart
+    @POST("trips/{tripId}/image")
+    suspend fun uploadTripImage(
+        @Header("Authorization") bearer: String,
+        @Path("tripId") tripId: String,
+        @Part image: MultipartBody.Part,
+    ): Response<SuccessEnvelope<TripDto>>
+
+    /** 여행 대표 이미지를 지운다. 성공하면 `imageUrl: null`인 여행을 돌려준다. */
+    @DELETE("trips/{tripId}/image")
+    suspend fun deleteTripImage(
+        @Header("Authorization") bearer: String,
+        @Path("tripId") tripId: String,
+    ): Response<SuccessEnvelope<TripDto>>
+
+    /** 여행 대표 이미지 원본 bytes. 소유자만 받을 수 있다. */
+    @GET("trips/{tripId}/image/content")
+    suspend fun getTripImageContent(
+        @Header("Authorization") bearer: String,
+        @Path("tripId") tripId: String,
+    ): Response<ResponseBody>
 }

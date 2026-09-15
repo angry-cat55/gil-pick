@@ -100,6 +100,8 @@ import java.util.Locale
  * @param onBack 헤더 ←·✕. 폼을 나간다.
  * @param onDelete 수정 화면 `여행 삭제` 확인 대화상자에서 삭제를 확정했다.
  * @param onDeleteErrorShown 삭제 실패 안내를 사용자가 닫았음을 알린다.
+ * @param onImagePicked 커버 Photo Picker에서 고른 결과(#499).
+ * @param onRemoveImage 커버 `기본으로`.
  */
 @Composable
 fun TripFormScreen(
@@ -112,6 +114,8 @@ fun TripFormScreen(
     onBack: () -> Unit = {},
     onDelete: () -> Unit = {},
     onDeleteErrorShown: () -> Unit = {},
+    onImagePicked: (TripImagePick) -> Unit = {},
+    onRemoveImage: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -144,6 +148,16 @@ fun TripFormScreen(
                 .padding(horizontal = spacing.space5, vertical = spacing.space5),
             verticalArrangement = Arrangement.spacedBy(if (editing) spacing.space4 else spacing.space5),
         ) {
+            TripCoverCard(
+                image = state.coverImage,
+                custom = state.hasCustomImage,
+                editing = editing,
+                enabled = !state.submitting,
+                error = state.imageError,
+                onPick = onImagePicked,
+                onRemove = onRemoveImage,
+            )
+
             NameCard(
                 value = state.name,
                 // 아직 아무것도 쓰지 않은 칸을 오류로 칠하지 않는다. 쓰기 시작하면 바로 알린다(Figma).
@@ -940,6 +954,8 @@ private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?) {
             TripFormSubmitError.CONFIRMATION_REQUIRED ->
                 stringResource(R.string.trip_form_error_confirmation_required)
 
+            TripFormSubmitError.IMAGE_TOO_LARGE -> stringResource(R.string.trip_form_image_too_large)
+            TripFormSubmitError.IMAGE_UNSUPPORTED_TYPE -> stringResource(R.string.trip_form_image_unsupported)
             TripFormSubmitError.PERIOD_CONFLICT ->
                 if (conflictTripName != null) stringResource(R.string.trip_form_error_period_conflict, conflictTripName)
                 else stringResource(R.string.trip_form_error_period_conflict_unnamed)

@@ -27,7 +27,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * #501: 겹치는 여행 기간 비활성 표시와 `409 TRIP_PERIOD_CONFLICT` 안내(F002 FR-002a·FR-002b, T053).
+ * 여행 폼 view model.
+ *
+ * - #501: 겹치는 여행 기간 비활성 표시와 `409 TRIP_PERIOD_CONFLICT` 안내(F002 FR-002a·FR-002b, T053).
+ * - #499: 대표 이미지 선택·업로드·삭제와 업로드 실패 후 이어서 저장(FR-019).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TripFormViewModelTest {
@@ -130,6 +133,112 @@ class TripFormViewModelTest {
         assertNull(viewModel.state.value.conflictTripName)
     }
 
+    // --- #499 대표 이미지 ---
+
+    @Test
+    fun `새 여행을 만든 뒤 고른 사진을 올리고 저장을 끝낸다`() = runTest {
+        service.onCreate = { detail(trip("t1")) }
+        service.onUpload = { detail(trip("t1", version = 2, imageUrl = IMAGE_URL)) }
+        val viewModel = filledViewModel()
+        viewModel.onImagePicked(TripImagePick.Picked(PickedTripImage(byteArrayOf(1, 2, 3), "image/png")))
+
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(1, service.createCalls.size)
+        assertEquals(listOf("t1"), service.uploadCalls.map { it.first })
+        assertEquals("image/png", service.uploadCalls.single().second.body.contentType().toString())
+        assertEquals("t1", viewModel.state.value.savedTripId)
+    }
+
+    @Test
+    fun `사진 업로드만 실패하면 폼에 남고 다시 저장하면 여행을 새로 만들지 않고 이어서 올린다`() = runTest {
+        service.onCreate = { detail(trip("t1", version = 1)) }
+        service.onUpdate = { detail(trip("t1", version = 2)) }
+        service.onUpload = { errorResponse(413, TripErrorCodes.IMAGE_TOO_LARGE) }
+        val viewModel = filledViewModel()
+        viewModel.onImagePicked(TripImagePick.Picked(PickedTripImage(byteArrayOf(1), "image/jpeg")))
+
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(TripFormSubmitError.IMAGE_TOO_LARGE, viewModel.state.value.submitError)
+        assertNull(viewModel.state.value.savedTripId)
+
+        service.onUpload = { detail(trip("t1", version = 3, imageUrl = IMAGE_URL)) }
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(1, service.createCalls.size)
+        assertEquals(listOf(1), service.updateCalls.map { it.version })
+        assertEquals(2, service.uploadCalls.size)
+        assertEquals("t1", viewModel.state.value.savedTripId)
+    }
+
+    @Test
+    fun `수정 중 업로드가 실패하면 다시 저장할 때 서버가 올린 version으로 보낸다`() = runTest {
+        service.onUpdate = { body -> detail(trip("t1", version = body.version + 1)) }
+        service.onUpload = { throw java.io.IOException("offline") }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.startEditing(trip("t1", version = 5))
+        viewModel.onImagePicked(TripImagePick.Picked(PickedTripImage(byteArrayOf(1), "image/webp")))
+
+        viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(TripFormSubmitError.NETWORK, viewModel.state.value.submitError)
+
+        service.onUpload = { detail(trip("t1", version = 7, imageUrl = IMAGE_URL)) }
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(listOf(5, 6), service.updateCalls.map { it.version })
+        assertEquals("t1", viewModel.state.value.savedTripId)
+    }
+
+    @Test
+    fun `기본으로 되돌리면 저장할 때 이미지를 지운다`() = runTest {
+        service.onImageContent = { okhttp3.ResponseBody.create(null, byteArrayOf(9)).let { retrofit2.Response.success(it) } }
+        service.onUpdate = { detail(trip("t1", version = 6, imageUrl = IMAGE_URL)) }
+        service.onDeleteImage = { detail(trip("t1", version = 7)) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.startEditing(trip("t1", version = 5, imageUrl = IMAGE_URL))
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.hasCustomImage)
+        assertEquals(listOf<Byte>(9), viewModel.state.value.coverImage?.toList())
+
+        viewModel.onRemoveImage()
+        assertNull(viewModel.state.value.coverImage)
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(listOf("t1"), service.deleteImageCalls)
+        assertEquals("t1", viewModel.state.value.savedTripId)
+    }
+
+    @Test
+    fun `제한에 걸린 사진은 원인을 알리고 이전 선택을 유지한다`() = runTest {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        val first = PickedTripImage(byteArrayOf(1), "image/png")
+        viewModel.onImagePicked(TripImagePick.Picked(first))
+
+        viewModel.onImagePicked(TripImagePick.Rejected(TripImageError.UNSUPPORTED_TYPE))
+
+        assertEquals(TripImageError.UNSUPPORTED_TYPE, viewModel.state.value.imageError)
+        assertTrue(viewModel.state.value.pickedImage === first)
+    }
+
+    /** 이름·기간을 채운 생성 폼. */
+    private suspend fun kotlinx.coroutines.test.TestScope.filledViewModel(): TripFormViewModel {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.onNameChange("서울 여행")
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 3))
+        return viewModel
+    }
+
     private suspend fun newViewModel(): TripFormViewModel {
         val store = AuthSessionStore(
             // DataStore 기본 scope는 Dispatchers.IO다. test scheduler 안에서 돌게 한다.
@@ -157,3 +266,5 @@ class TripFormViewModelTest {
         return TripFormViewModel(TripRepository(api = service, auth = auth))
     }
 }
+
+private const val IMAGE_URL = "http://api.example/api/v1/trips/t1/image/content"

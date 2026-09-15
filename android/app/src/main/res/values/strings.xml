@@ -226,6 +226,15 @@
     <string name="place_detail_error_unexpected">지금은 장소 정보를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.</string>
     <string name="trip_form_error_version_conflict">이 여행이 다른 곳에서 먼저 바뀌었습니다. 최신 내용을 불러온 뒤 다시 수정해 주세요.</string>
     <string name="trip_form_error_trip_locked">완료된 여행은 기간을 바꿀 수 없습니다. 이름은 수정할 수 있습니다.</string>
+    <!-- #499 여행 커버 이미지(Figma CreateTripScreen·EditTripScreen). 제한은 FR-019: jpeg·png·webp, 5MB. -->
+    <string name="trip_form_cover_default">기본 이미지</string>
+    <string name="trip_form_cover_custom">커스텀 이미지</string>
+    <string name="trip_form_cover_upload">사진 업로드</string>
+    <string name="trip_form_cover_change">사진 변경</string>
+    <string name="trip_form_cover_reset">기본으로</string>
+    <string name="trip_form_image_too_large">사진은 5MB 이하만 올릴 수 있습니다. 더 작은 사진을 골라 주세요.</string>
+    <string name="trip_form_image_unsupported">JPG, PNG, WEBP 사진만 올릴 수 있습니다. 다른 사진을 골라 주세요.</string>
+    <string name="trip_form_image_unreadable">사진을 불러오지 못했습니다. 다른 사진을 골라 주세요.</string>
     <!-- #501 409 TRIP_PERIOD_CONFLICT. %1$s는 기간이 겹치는 기존 여행 이름. -->
     <string name="trip_form_error_period_conflict">‘%1$s’ 여행과 기간이 겹칩니다. 다른 날짜를 선택해 주세요.</string>
     <string name="trip_form_error_period_conflict_unnamed">다른 여행과 기간이 겹칩니다. 다른 날짜를 선택해 주세요.</string>
