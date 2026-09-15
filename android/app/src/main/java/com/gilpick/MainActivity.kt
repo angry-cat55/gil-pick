@@ -15,13 +15,23 @@ import androidx.browser.customtabs.CustomTabsIntent
 import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,13 +40,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -74,6 +88,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.gilpick.trip.ActiveTripTabPhase
+import com.gilpick.trip.ActiveTripTabScreen
+import com.gilpick.trip.ActiveTripTabViewModel
 import com.gilpick.trip.TripDeletePhase
 import com.gilpick.trip.TripDetailPhase
 import com.gilpick.trip.TripDetailScreen
@@ -85,6 +102,7 @@ import com.gilpick.trip.TripListViewModel
 import com.gilpick.trip.openNewTripItinerary
 import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
+import com.gilpick.ui.theme.LocalGilpickSpacing
 import kotlinx.serialization.Serializable
 
 /**
@@ -315,6 +333,8 @@ private fun TripRoute(
     val selectedTab = when {
         destination == null -> TopLevelTab.Trips
         destination.hasRoute<TripListRoute>() -> TopLevelTab.Trips
+        // 여행 중 화면은 상세의 `여행 진행 화면으로`로 들어와도 Figma처럼 하단 탭과 함께 보인다(#502).
+        destination.hasRoute<ActiveTripTabRoute>() || destination.hasRoute<ActiveTravelRoute>() -> TopLevelTab.Active
         destination.hasRoute<SettingsRoute>() -> TopLevelTab.Settings
         else -> null
     }
@@ -342,6 +362,8 @@ private fun TripRoute(
                 TopLevelTabBar(
                     selected = selectedTab,
                     onSelect = { tab ->
+                        // 이미 보고 있는 탭은 다시 열지 않는다. `여행 중`은 다시 열면 조회부터 다시 해 화면이 깜빡인다.
+                        if (tab == selectedTab) return@TopLevelTabBar
                         navController.navigate(tab.route) {
                             // 탭 전환은 back stack을 쌓지 않는다. 떠난 탭의 상태는 저장했다가 돌아올 때
                             // 되살리므로 설정 화면은 마지막으로 저장에 성공한 값을 다시 보인다(UI-002).
@@ -357,7 +379,9 @@ private fun TripRoute(
         NavHost(
             navController = navController,
             startDestination = TripListRoute,
-            modifier = Modifier.padding(innerPadding),
+            // 탭 높이만큼 준 padding을 inset으로도 소비한다. 하단 시스템 여백을 스스로 더하는 화면(여행 중 화면)이
+            // 탭 막대가 이미 처리한 navigation bar 여백을 한 번 더 더하지 않게 한다(#502).
+            modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         ) {
             composable<TripListRoute> {
                 val viewModel: TripListViewModel = viewModel(
@@ -527,6 +551,33 @@ private fun TripRoute(
             // F006 진행 화면. destination 정의는 com.gilpick.progress가 소유한다. 여행 상세의
             // `오늘 여행 시작`·`여행 진행 화면으로`가 이 route로 들어오고, `장소 추가`·`경로 보기`는
             // 위 itineraryGraph·routeGraph로 간다.
+            // #502 하단 `여행 중` 탭. 진행 중 여행을 찾으면 이 진입 화면을 빼고 여행 중 화면으로 바꾼다.
+            // 뒤로 가면 시작 탭(내 여행)이고, 탭을 다시 누르면 새로 찾는다(여행이 끝났을 수 있다).
+            composable<ActiveTripTabRoute> {
+                val viewModel: ActiveTripTabViewModel = viewModel(factory = ActiveTripTabViewModel.factory(LocalContext.current))
+                val phase by viewModel.phase.collectAsStateWithLifecycle()
+
+                LaunchedEffect(Unit) { viewModel.load() }
+                LaunchedEffect(phase) {
+                    val trip = (phase as? ActiveTripTabPhase.Found)?.trip ?: return@LaunchedEffect
+                    navController.navigate(ActiveTravelRoute(trip.tripId, trip.name)) {
+                        popUpTo<ActiveTripTabRoute> { inclusive = true }
+                    }
+                }
+
+                ActiveTripTabScreen(
+                    phase = phase,
+                    onRetry = viewModel::load,
+                    onOpenTrips = {
+                        navController.navigate(TripListRoute) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
+
             progressGraph(
                 navController,
                 onSessionExpired = onSessionExpired,
@@ -591,9 +642,7 @@ private fun TripRoute(
 /**
  * 하단 최상위 탭(Figma `App.tsx` 하단 탐색, F012 T026).
  *
- * `여행 중` 탭은 두지 않는다. 진행 여행 하나를 고르려면 사용자별 여행 기간 중복 금지(F002 정책)가
- * 구현되어 있어야 하는데 아직 없어, 임의의 여행을 고르는 대신 여행 목록·상세의 기존 진행 진입을
- * 유지한다(plan Navigation, research 8).
+ * `여행 중`은 진행 중 여행 하나로 간다(#502). 사용자별 여행 기간 중복 금지(F002 FR-002a)로 진행 중 여행은 많아야 하나다.
  */
 private enum class TopLevelTab(
     val route: Any,
@@ -602,53 +651,92 @@ private enum class TopLevelTab(
     val tag: String,
 ) {
     Trips(TripListRoute, R.string.trips_title, R.drawable.ic_lucide_home, TAG_NAV_TRIPS),
+    Active(ActiveTripTabRoute, R.string.nav_active_travel, R.drawable.ic_lucide_navigation, TAG_NAV_ACTIVE),
     Settings(SettingsRoute, R.string.settings_title, R.drawable.ic_lucide_settings, TAG_NAV_SETTINGS),
-    // ponytail: F002 단일 진행 여행 정책이 들어오면 `여행 중` 탭을 여기 더해 ActiveTravelRoute로 보낸다.
 }
 
 /**
- * Figma 하단 탐색: 선택 탭은 primary, 나머지는 muted이고 M3 기본 pill 표시는 쓰지 않는다. 선택은
- * 색과 함께 굵기와 `selected` 의미로도 전달한다(UI-005).
+ * Figma 하단 탐색(`App.tsx`): 흰 바탕, 위 1px `outlineVariant`(`#E2E8F0`), 위 12dp 여백, 22dp 아이콘·4dp 간격·11sp 600 라벨,
+ * 선택 탭은 `primary`와 아래 4dp 점, 나머지는 `muted`(#502).
+ *
+ * M3 `NavigationBar`는 높이가 80dp로 고정돼 Figma보다 커서 직접 그린다. 아래 여백은 Figma `pb-6`(24dp)이 iOS 홈 표시 영역을
+ * 포함한 값이라 Android에서는 점이 들어갈 12dp에 navigation bar inset을 더한다. 선택은 색만이 아니라 점·굵기와
+ * `selected` 의미로도 전달하고(UI-005, 10절), 각 탭은 48dp 이상 누를 수 있다.
  */
 @Composable
 private fun TopLevelTabBar(selected: TopLevelTab, onSelect: (TopLevelTab) -> Unit) {
-    val muted = LocalGilpickColors.current.muted
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.testTag(TAG_NAV_BAR),
+    val colors = LocalGilpickColors.current
+    val spacing = LocalGilpickSpacing.current
+    Column(
+        modifier = Modifier
+            .testTag(TAG_NAV_BAR)
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface),
     ) {
-        TopLevelTab.entries.forEach { tab ->
-            val isSelected = tab == selected
-            NavigationBarItem(
-                selected = isSelected,
-                onClick = { onSelect(tab) },
-                icon = { Icon(painterResource(tab.icon), contentDescription = null) },
-                label = {
+        Box(modifier = Modifier.fillMaxWidth().height(TAB_DIVIDER).background(MaterialTheme.colorScheme.outlineVariant))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = spacing.space4, end = spacing.space4, top = spacing.space3 - TAB_TOUCH_INSET),
+        ) {
+            TopLevelTab.entries.forEach { tab ->
+                val isSelected = tab == selected
+                val tint = if (isSelected) MaterialTheme.colorScheme.primary else colors.muted
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .sizeIn(minHeight = TAB_MIN_TOUCH)
+                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(tab) })
+                        .testTag(tab.tag)
+                        .padding(top = TAB_TOUCH_INSET),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(spacing.space1),
+                ) {
+                    Icon(painterResource(tab.icon), contentDescription = null, tint = tint, modifier = Modifier.size(TAB_ICON))
                     Text(
                         text = stringResource(tab.label),
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            letterSpacing = 0.sp,
+                        ),
+                        color = tint,
                     )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = muted,
-                    unselectedTextColor = muted,
-                    indicatorColor = Color.Transparent,
-                ),
-                modifier = Modifier.testTag(tab.tag),
-            )
+                    // Figma `-bottom-3` 점. 선택되지 않은 탭도 같은 자리를 비워 높이가 흔들리지 않게 한다.
+                    Box(
+                        modifier = Modifier
+                            .padding(top = TAB_DOT_GAP, bottom = spacing.space2)
+                            .size(TAB_DOT)
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape),
+                    )
+                }
+            }
         }
     }
 }
 
+/** Figma 하단 탐색 실측. 앱 막대 전용이라 테마 토큰이 아니라 여기에 둔다. */
+private val TAB_DIVIDER = 1.dp
+private val TAB_ICON = 22.dp
+private val TAB_DOT = 4.dp
+private val TAB_DOT_GAP = 4.dp
+private val TAB_MIN_TOUCH = 48.dp
+
+/** 누르는 영역을 탭 위쪽 여백까지 넓힌 만큼 바깥 여백을 줄여 Figma `pt-3` 위치를 맞춘다. */
+private val TAB_TOUCH_INSET = 4.dp
+
 internal const val TAG_NAV_BAR = "nav_bar"
 internal const val TAG_NAV_TRIPS = "nav_trips"
+internal const val TAG_NAV_ACTIVE = "nav_active"
 internal const val TAG_NAV_SETTINGS = "nav_settings"
 
 /** 여행 목록. 로그인 후 첫 화면이다. */
 @Serializable
 private object TripListRoute
+
+/** 하단 `여행 중` 탭 진입(#502). 진행 중 여행을 찾아 여행 중 화면으로 넘기거나 빈·오류 상태를 보인다. */
+@Serializable
+private object ActiveTripTabRoute
 
 /** 여행 생성 폼. */
 @Serializable
