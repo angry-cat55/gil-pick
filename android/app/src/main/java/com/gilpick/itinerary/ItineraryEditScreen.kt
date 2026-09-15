@@ -108,7 +108,7 @@ import java.time.LocalDate
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param onDismissDialog 취소 확인의 `계속 편집`.
  * @param onConfirmDiscard 취소 확인의 `취소하고 나가기`.
- * @param onNoticeShown 추가 거부 안내를 사용자가 봤다.
+ * @param onNoticeShown 저장 완료·추가 거부 안내를 사용자가 봤다.
  * @param onEditStay 행의 체류 시간을 눌렀다(UI-003).
  * @param onApplyStay 체류 시간 대화상자의 `적용`.
  * @param onChangeTransport 행의 `변경`(UI-004).
@@ -141,6 +141,7 @@ fun ItineraryEditScreen(
     val noticeText = state.notice?.let {
         stringResource(
             when (it) {
+                EditNotice.SAVED -> R.string.itinerary_edit_notice_saved
                 EditNotice.NO_COORDINATES -> R.string.itinerary_edit_notice_no_coordinates
                 EditNotice.LIMIT_REACHED -> R.string.itinerary_edit_notice_limit
             },
@@ -184,6 +185,15 @@ fun ItineraryEditScreen(
                         onMove = onMove,
                     )
                 }
+                // 목록 영역 바닥에 띄워 하단 `저장` 버튼을 가리지 않는다(#506 저장 완료 안내).
+                SnackbarHost(
+                    hostState = snackbarHost,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = spacing.space3),
+                ) { data ->
+                    Snackbar(snackbarData = data, containerColor = LocalGilpickColors.current.toast, contentColor = Color.White)
+                }
             }
             SaveBar(
                 saving = state.saving,
@@ -191,14 +201,6 @@ fun ItineraryEditScreen(
                 saveError = state.saveError,
                 onSave = onSave,
             )
-        }
-        SnackbarHost(
-            hostState = snackbarHost,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = spacing.space8 + spacing.space8),
-        ) { data ->
-            Snackbar(snackbarData = data, containerColor = LocalGilpickColors.current.toast, contentColor = Color.White)
         }
     }
 

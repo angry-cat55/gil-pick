@@ -104,24 +104,78 @@ class ItineraryEditViewModelTest {
     }
 
     @Test
-    fun `변경이 없으면 날짜 탭을 바로 옮기고 변경이 있으면 버릴지 확인한다`() = runTest {
+    fun `변경이 있어도 날짜 탭은 확인 없이 옮기고 날짜별 초안은 돌아와도 남는다`() = runTest {
         val viewModel = newViewModel()
         advanceUntilIdle()
 
         viewModel.selectDate(LocalDate.of(2026, 9, 9))
-        assertEquals(LocalDate.of(2026, 9, 9), viewModel.state.value.selectedDate)
-
-        viewModel.addFromSearch(placeWithLocation("tourapi:1"), request())
+        viewModel.addFromSearch(placeWithLocation("tourapi:1", name = "경복궁"), request())
         viewModel.selectDate(LocalDate.of(2026, 9, 10))
-        assertEquals(EditDialog.Discard(LocalDate.of(2026, 9, 10)), viewModel.state.value.dialog)
-        assertEquals(LocalDate.of(2026, 9, 9), viewModel.state.value.selectedDate)
 
-        viewModel.confirmDiscard()
-        val state = viewModel.state.value
+        var state = viewModel.state.value
+        assertNull(state.dialog)
         assertEquals(LocalDate.of(2026, 9, 10), state.selectedDate)
         assertTrue(state.draft.isEmpty())
+        // 보이는 날짜는 그대로지만 다른 날짜에 저장 안 된 변경이 있다.
+        assertTrue(state.dirty)
+
+        viewModel.selectDate(LocalDate.of(2026, 9, 9))
+        state = viewModel.state.value
+        assertEquals(listOf("경복궁"), state.draft.map { it.place.name })
+        assertTrue(state.dirty)
+    }
+
+    @Test
+    fun `여러 날짜를 편집하고 저장하면 바뀐 날짜를 모두 저장하고 화면에 머문다`() = runTest {
+        service.onSave = { call -> ok(savedFrom(call, version = 1)) }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.addFromSearch(placeWithLocation("tourapi:1", name = "경복궁"), request())
+        viewModel.selectDate(LocalDate.of(2026, 9, 10))
+        viewModel.addFromSearch(placeWithLocation("tourapi:2", name = "북촌"), request())
+        viewModel.selectDate(LocalDate.of(2026, 9, 9))
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(listOf("2026-09-08", "2026-09-10"), service.saveCalls.map { it.date })
+        assertEquals(listOf("경복궁"), service.saveCalls[0].body.items.map { it.place?.name })
+        assertEquals(listOf("북촌"), service.saveCalls[1].body.items.map { it.place?.name })
+        var state = viewModel.state.value
+        assertEquals(EditNotice.SAVED, state.notice)
+        assertFalse(state.exit)
         assertFalse(state.dirty)
-        assertNull(state.dialog)
+        assertEquals(LocalDate.of(2026, 9, 9), state.selectedDate)
+
+        // 저장한 날짜로 돌아가면 저장 응답의 항목 ID를 가진 저장본이 보인다.
+        viewModel.selectDate(LocalDate.of(2026, 9, 10))
+        state = viewModel.state.value
+        assertEquals(listOf("new-1"), state.draft.map { it.itemId })
+        assertEquals(1, state.savedVersion)
+    }
+
+    @Test
+    fun `두 번째 날짜 저장이 실패하면 앞 날짜는 저장본이 되고 실패한 날짜로 옮겨 초안을 유지한다`() = runTest {
+        service.onSave = { call ->
+            if (call.date == "2026-09-10") throw java.io.IOException("끊김") else ok(savedFrom(call, version = 1))
+        }
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.addFromSearch(placeWithLocation("tourapi:1"), request())
+        viewModel.selectDate(LocalDate.of(2026, 9, 10))
+        viewModel.addFromSearch(placeWithLocation("tourapi:2", name = "북촌"), request())
+        viewModel.selectDate(LocalDate.of(2026, 9, 8))
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(ItineraryError.Network, state.saveError)
+        assertEquals(LocalDate.of(2026, 9, 10), state.selectedDate)
+        assertEquals(listOf("북촌"), state.draft.map { it.place.name })
+        assertTrue(state.dirty)
+        assertNull(state.notice)
     }
 
     // --- 검색 결과 추가: Scenario 2·3, FR-002·003·006·021 ---
@@ -210,7 +264,7 @@ class ItineraryEditViewModelTest {
 
         val state = viewModel.state.value
         assertFalse(state.saving)
-        assertTrue(state.saved)
+        assertEquals(EditNotice.SAVED, state.notice)
         assertEquals(3, state.savedVersion)
         assertFalse(state.dirty)
         assertEquals("new-3", state.draft[2].itemId)
@@ -219,7 +273,7 @@ class ItineraryEditViewModelTest {
     // --- F005 T015: 저장 응답의 경로 상태와 무관하게 저장은 완료다(FR-009a) ---
 
     @Test
-    fun `저장 중에는 초안을 유지하고 경로가 READY든 FAILED든 저장 완료로 상세로 이동한다`() = runTest {
+    fun `저장 중에는 초안을 유지하고 경로가 READY든 FAILED든 저장 완료다`() = runTest {
         var routeStatus = RouteStatus.FAILED
         service.onSave = { call -> ok(savedFrom(call, version = 1).copy(routeStatus = routeStatus)) }
         val viewModel = newViewModel()
@@ -233,19 +287,19 @@ class ItineraryEditViewModelTest {
         assertEquals(listOf("경복궁", "북촌"), viewModel.state.value.draft.map { it.place.name })
         advanceUntilIdle()
 
-        // 자동 경로 계산이 최종 실패(FAILED)해도 일정 저장은 성공이고 상세로 이동한다.
+        // 자동 경로 계산이 최종 실패(FAILED)해도 일정 저장은 성공이다.
         var state = viewModel.state.value
-        assertTrue(state.saved)
+        assertEquals(EditNotice.SAVED, state.notice)
         assertNull(state.saveError)
         assertEquals(listOf("경복궁", "북촌"), state.draft.map { it.place.name })
 
-        viewModel.consumeSaved()
+        viewModel.dismissNotice()
         routeStatus = RouteStatus.READY
         viewModel.addFromSearch(placeWithLocation("tourapi:3", name = "인사동"), request())
         viewModel.save()
         advanceUntilIdle()
         state = viewModel.state.value
-        assertTrue(state.saved)
+        assertEquals(EditNotice.SAVED, state.notice)
         assertNull(state.saveError)
     }
 
@@ -268,9 +322,9 @@ class ItineraryEditViewModelTest {
         viewModel.save()
         advanceUntilIdle()
         assertEquals(service.saveCalls[0].idempotencyKey, service.saveCalls[1].idempotencyKey)
-        assertTrue(viewModel.state.value.saved)
+        assertEquals(EditNotice.SAVED, viewModel.state.value.notice)
 
-        viewModel.consumeSaved()
+        viewModel.dismissNotice()
         viewModel.addFromSearch(placeWithLocation("tourapi:2"), request())
         viewModel.save()
         advanceUntilIdle()
@@ -297,7 +351,7 @@ class ItineraryEditViewModelTest {
         assertNotEquals(service.saveCalls[0].idempotencyKey, service.saveCalls[1].idempotencyKey)
         assertEquals(listOf("2026-09-08"), service.dayCalls)
         val state = viewModel.state.value
-        assertTrue(state.saved)
+        assertEquals(EditNotice.SAVED, state.notice)
         assertNull(state.saveError)
         assertEquals(6, state.savedVersion)
     }
@@ -317,7 +371,7 @@ class ItineraryEditViewModelTest {
         val state = viewModel.state.value
         assertEquals(ItineraryError.VersionConflict, state.saveError)
         assertFalse(state.saving)
-        assertFalse(state.saved)
+        assertNull(state.notice)
         assertEquals(listOf("tourapi:1"), state.draft.map { it.placeId })
         assertTrue(state.dirty)
     }
@@ -353,7 +407,7 @@ class ItineraryEditViewModelTest {
         viewModel.addFromSearch(placeWithLocation("tourapi:1"), request())
         viewModel.requestClose()
         assertFalse(viewModel.state.value.exit)
-        assertEquals(EditDialog.Discard(null), viewModel.state.value.dialog)
+        assertEquals(EditDialog.Discard, viewModel.state.value.dialog)
 
         viewModel.dismissDialog()
         assertNull(viewModel.state.value.dialog)

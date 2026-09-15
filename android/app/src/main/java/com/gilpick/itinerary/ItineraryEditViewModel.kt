@@ -71,12 +71,8 @@ sealed interface ItineraryEditPhase {
 
 /** 화면 위에 떠 있는 대화상자. */
 sealed interface EditDialog {
-    /**
-     * 저장하지 않은 변경을 버릴지 확인한다(UI-005).
-     *
-     * @property targetDate 확인 뒤 옮겨 갈 날짜. `null`이면 화면을 닫는다.
-     */
-    data class Discard(val targetDate: LocalDate?) : EditDialog
+    /** 화면을 닫을 때 저장하지 않은 변경을 버릴지 확인한다(UI-005). 날짜 이동은 확인하지 않는다(#506). */
+    data object Discard : EditDialog
 
     /** `{장소명} 체류 시간` 대화상자(UI-003). 처리된 항목도 연다. */
     data class StayTime(val index: Int) : EditDialog
@@ -85,8 +81,11 @@ sealed interface EditDialog {
     data class Transport(val index: Int) : EditDialog
 }
 
-/** 추가가 거부된 이유. 화면이 짧게 안내하고 사용자가 닫는다. */
+/** 짧게 띄우는 안내. 화면이 스낵바로 보이고 사용자가 닫는다. */
 enum class EditNotice {
+    /** 변경된 날짜를 모두 저장했다. 화면은 그대로 머문다(#506). */
+    SAVED,
+
     /** 좌표 없는 장소는 일정에 넣을 수 없다(FR-002). */
     NO_COORDINATES,
 
@@ -97,10 +96,10 @@ enum class EditNotice {
 /**
  * 일정 편집 화면 상태(`data-model.md` 6절 `ItineraryEditUiState`).
  *
- * @property savedVersion 마지막 조회·저장 버전. 저장 요청에 그대로 실린다.
- * @property draft 화면 편집 상태. [dirty]는 저장본과 다를 때 참이다.
+ * @property savedVersion 선택한 날짜의 마지막 조회·저장 버전.
+ * @property draft 선택한 날짜의 편집 상태. 다른 날짜의 초안은 ViewModel이 따로 들고 있다.
+ * @property dirty 어느 날짜든 초안이 저장본과 다르면 참이다.
  * @property saveError 마지막 저장 실패 원인. 초안은 그대로 남아 `저장`이 곧 재시도다(FR-019).
- * @property saved 저장에 성공했다. 화면이 이동한 뒤 [ItineraryEditViewModel.consumeSaved]로 비운다.
  * @property exit 변경 없이 닫거나 버리기를 확정했다. 이동 뒤 [ItineraryEditViewModel.consumeExit]로 비운다.
  */
 data class ItineraryEditUiState(
@@ -115,7 +114,6 @@ data class ItineraryEditUiState(
     val saveError: ItineraryError? = null,
     val dialog: EditDialog? = null,
     val notice: EditNotice? = null,
-    val saved: Boolean = false,
     val exit: Boolean = false,
 ) {
     /** 선택한 날짜의 탭. 조회 전에는 `null`이다. */
@@ -128,9 +126,10 @@ data class ItineraryEditUiState(
 /**
  * 일정 편집 화면의 상태 보유자.
  *
- * 초안([ItineraryEditUiState.draft])과 저장본([savedDays])을 분리한다. 저장본은 ITIN-003
- * 개요 한 번으로 여행 기간 전체를 받아 날짜 탭과 각 날짜의 version·항목을 함께 얻는다.
- * 초안과 선택 날짜는 [savedState]에 두어 회전·프로세스 종료 뒤에도 남는다.
+ * 날짜별 초안([drafts])과 저장본([savedDays])을 분리한다. 저장본은 ITIN-003 개요 한 번으로 여행
+ * 기간 전체를 받아 날짜 탭과 각 날짜의 version·항목을 함께 얻는다. 초안은 날짜마다 따로 두어 저장
+ * 없이 날짜를 오가며 편집하고, `저장`이 바뀐 날짜를 모두 저장한다(#506). 초안과 선택 날짜는
+ * [savedState]에 두어 회전·프로세스 종료 뒤에도 남는다.
  *
  * @param tripId 편집할 여행.
  * @param initialDate 진입 시 선택할 날짜. 여행 기간 밖이면 첫 날짜를 쓴다.
@@ -152,13 +151,16 @@ class ItineraryEditViewModel(
     /** 날짜별 저장본. `dirty` 판정과 탭 전환의 기준이다. */
     private val savedDays = mutableMapOf<LocalDate, DayItineraryDto>()
 
+    /** 한 번이라도 편집한 날짜의 초안. 없는 날짜는 저장본이 곧 초안이다. */
+    private val drafts = mutableMapOf<LocalDate, List<DraftItem>>()
+
     /**
-     * 진행 중인 저장 시도의 멱등 키.
+     * 날짜별로 진행 중인 저장 시도의 멱등 키.
      *
      * 통신 실패 후 같은 초안을 다시 보낼 때는 같은 키를 써서 서버가 같은 항목 ID를 만들게
-     * 한다. 초안이 바뀌거나 저장에 성공하면 비운다.
+     * 한다. 그 날짜의 초안이 바뀌거나 저장에 성공하면 비운다.
      */
-    private var idempotencyKey: String? = null
+    private val idempotencyKeys = mutableMapOf<LocalDate, String>()
 
     /** 조회가 진행 중인지. `다시 시도` 연타로 겹치는 조회를 막는다. */
     private var loading = false
@@ -187,19 +189,19 @@ class ItineraryEditViewModel(
                     val selected = restoredDate()?.takeIf { savedDays.containsKey(it) }
                         ?: initialDate.takeIf { savedDays.containsKey(it) }
                         ?: days.firstOrNull()?.date
-                    val saved = selected?.let { savedDays[it] }
-                    val draft = restoredDraft() ?: saved?.items?.map { it.toDraft() }.orEmpty()
+                    drafts.clear()
+                    restoredDrafts().filterKeys { savedDays.containsKey(it) }.let(drafts::putAll)
                     _state.update {
                         it.copy(
                             days = days,
                             selectedDate = selected,
-                            savedVersion = saved?.version ?: 0,
-                            draft = draft,
-                            dirty = draft != saved?.items?.map { item -> item.toDraft() }.orEmpty(),
+                            savedVersion = selected?.let { date -> savedDays[date]?.version } ?: 0,
+                            draft = selected?.let(::draftOf).orEmpty(),
+                            dirty = dirtyDates().isNotEmpty(),
                             phase = ItineraryEditPhase.Content,
                         )
                     }
-                    persistDraft(selected, draft)
+                    persistDrafts()
                 }
 
                 is AuthResult.Failure -> _state.update {
@@ -223,27 +225,27 @@ class ItineraryEditViewModel(
         return true
     }
 
-    /**
-     * 날짜 탭을 고른다.
-     *
-     * 저장하지 않은 변경이 있으면 바로 옮기지 않고 버릴지 확인한다. 저장은 날짜 단위라
-     * 다른 날짜의 초안을 함께 들고 있으면 `저장`이 무엇을 보내는지 불분명해진다.
-     */
+    /** 날짜 탭을 고른다. 저장하지 않은 변경은 그 날짜의 초안으로 남고 확인 없이 옮긴다(#506). */
     fun selectDate(date: LocalDate) {
         val current = _state.value
         if (date == current.selectedDate || !savedDays.containsKey(date) || current.saving) return
-        if (current.dirty) {
-            _state.update { it.copy(dialog = EditDialog.Discard(targetDate = date)) }
-        } else {
-            switchTo(date)
+        _state.update {
+            it.copy(
+                selectedDate = date,
+                savedVersion = savedDays.getValue(date).version,
+                draft = draftOf(date),
+                dialog = null,
+                saveError = null,
+            )
         }
+        persistDrafts()
     }
 
     /** 닫기 버튼 또는 시스템 뒤로 가기. 변경이 없으면 바로 닫는다(UI-005). */
     fun requestClose() {
         if (_state.value.saving) return
         if (_state.value.dirty) {
-            _state.update { it.copy(dialog = EditDialog.Discard(targetDate = null)) }
+            _state.update { it.copy(dialog = EditDialog.Discard) }
         } else {
             _state.update { it.copy(exit = true) }
         }
@@ -254,15 +256,10 @@ class ItineraryEditViewModel(
         _state.update { it.copy(dialog = null) }
     }
 
-    /** 대화상자의 `취소하고 나가기`. 변경을 버리고 닫거나 다른 날짜로 옮긴다. */
+    /** 대화상자의 `취소하고 나가기`. 모든 날짜의 변경을 버리고 닫는다. */
     fun confirmDiscard() {
-        val dialog = _state.value.dialog as? EditDialog.Discard ?: return
-        val target = dialog.targetDate
-        if (target == null) {
-            _state.update { it.copy(dialog = null, exit = true) }
-        } else {
-            switchTo(target)
-        }
+        if (_state.value.dialog !is EditDialog.Discard) return
+        _state.update { it.copy(dialog = null, exit = true) }
     }
 
     /** 행의 체류 시간을 눌렀다. 처리된 항목도 체류 시간은 바꿀 수 있다(FR-017). */
@@ -381,58 +378,61 @@ class ItineraryEditViewModel(
     }
 
     /**
-     * 선택한 날짜의 초안 전체를 저장한다(FR-008).
+     * 초안이 저장본과 다른 날짜를 날짜 순으로 모두 저장하고 화면에 머문다(FR-008, #506).
      *
-     * 순서는 목록 위치대로 1..N을 매기고 마지막 항목의 이동 수단은 비운다. `409
-     * VERSION_CONFLICT`면 최신 일정을 조회해 version만 바꾼 뒤 같은 초안을 최대 2회 더
-     * 보낸다(`research.md` 4절). 그래도 실패하면 초안을 유지한 채 실패를 안내한다.
+     * 바뀐 날짜가 없으면 선택한 날짜를 그대로 저장한다. 날짜마다 순서는 목록 위치대로 1..N을 매기고
+     * 마지막 항목의 이동 수단은 비운다. `409 VERSION_CONFLICT`면 최신 일정을 조회해 version만 바꾼 뒤
+     * 같은 초안을 최대 2회 더 보낸다(`research.md` 4절). 한 날짜라도 실패하면 거기서 멈추고 그 날짜로
+     * 옮겨 초안을 유지한 채 실패를 안내한다. 앞서 성공한 날짜는 저장본이 된다.
      */
     fun save() {
         val current = _state.value
-        val date = current.selectedDate ?: return
+        val selected = current.selectedDate ?: return
         if (current.saving || current.phase !is ItineraryEditPhase.Content) return
+        val dates = dirtyDates().ifEmpty { listOf(selected) }
 
         _state.update { it.copy(saving = true, saveError = null) }
         viewModelScope.launch {
-            var version = current.savedVersion
-            var key = idempotencyKey ?: UUID.randomUUID().toString().also { idempotencyKey = it }
-            var attempt = 0
-            while (true) {
-                val result = repository.saveDayItinerary(
-                    tripId = current.tripId,
-                    date = date,
-                    version = version,
-                    items = current.draft.toSaveItems(),
-                    idempotencyKey = key,
-                )
-                val error = (result as? AuthResult.Failure)?.error?.toItineraryError()
-                if (result is AuthResult.Success) {
-                    idempotencyKey = null
-                    applySaved(result.value)
-                    return@launch
-                }
-                if (error != ItineraryError.VersionConflict || attempt >= MAX_CONFLICT_RETRIES) {
+            for (date in dates) {
+                val error = saveDay(current.tripId, date)
+                if (error != null) {
+                    if (date != _state.value.selectedDate) selectDateWhileSaving(date)
                     _state.update { it.copy(saving = false, saveError = error) }
                     return@launch
                 }
-                // 최신 version을 받아 같은 초안을 다시 보낸다(마지막 저장이 이김). 새 시도이므로 키를 새로 만든다.
-                val latest = repository.getDayItinerary(current.tripId, date)
-                if (latest !is AuthResult.Success) {
-                    _state.update {
-                        it.copy(saving = false, saveError = (latest as AuthResult.Failure).error.toItineraryError())
-                    }
-                    return@launch
-                }
-                version = latest.value.version
-                key = UUID.randomUUID().toString().also { idempotencyKey = it }
-                attempt++
             }
+            _state.update { it.copy(saving = false, notice = EditNotice.SAVED) }
         }
     }
 
-    /** 화면을 이동한 뒤 저장 결과를 비운다. */
-    fun consumeSaved() {
-        _state.update { it.copy(saved = false) }
+    /** 한 날짜의 초안을 저장한다. 성공하면 `null`, 실패하면 원인을 돌려준다. */
+    private suspend fun saveDay(tripId: String, date: LocalDate): ItineraryError? {
+        val items = draftOf(date).toSaveItems()
+        var version = savedDays.getValue(date).version
+        var key = idempotencyKeys.getOrPut(date) { UUID.randomUUID().toString() }
+        var attempt = 0
+        while (true) {
+            val result = repository.saveDayItinerary(
+                tripId = tripId,
+                date = date,
+                version = version,
+                items = items,
+                idempotencyKey = key,
+            )
+            if (result is AuthResult.Success) {
+                idempotencyKeys.remove(date)
+                applySaved(result.value)
+                return null
+            }
+            val error = (result as AuthResult.Failure).error.toItineraryError()
+            if (error != ItineraryError.VersionConflict || attempt >= MAX_CONFLICT_RETRIES) return error
+            // 최신 version을 받아 같은 초안을 다시 보낸다(마지막 저장이 이김). 새 시도이므로 키를 새로 만든다.
+            val latest = repository.getDayItinerary(tripId, date)
+            if (latest !is AuthResult.Success) return (latest as AuthResult.Failure).error.toItineraryError()
+            version = latest.value.version
+            key = UUID.randomUUID().toString().also { idempotencyKeys[date] = it }
+            attempt++
+        }
     }
 
     /** 화면을 닫은 뒤 닫기 신호를 비운다. */
@@ -440,46 +440,60 @@ class ItineraryEditViewModel(
         _state.update { it.copy(exit = false) }
     }
 
+    /** 저장 응답을 그 날짜의 저장본이자 초안으로 삼는다. 선택한 날짜면 화면도 바꾼다. */
     private fun applySaved(day: DayItineraryDto) {
         val date = LocalDate.parse(day.date)
         savedDays[date] = day
-        val draft = day.items.map { it.toDraft() }
+        drafts.remove(date)
         _state.update {
-            it.copy(savedVersion = day.version, draft = draft, dirty = false, saving = false, saved = true)
+            if (it.selectedDate == date) {
+                it.copy(savedVersion = day.version, draft = draftOf(date), dirty = dirtyDates().isNotEmpty())
+            } else {
+                it.copy(dirty = dirtyDates().isNotEmpty())
+            }
         }
-        persistDraft(date, draft)
+        persistDrafts()
     }
 
-    private fun switchTo(date: LocalDate) {
-        val saved = savedDays.getValue(date)
-        val draft = saved.items.map { it.toDraft() }
-        idempotencyKey = null
-        _state.update {
-            it.copy(selectedDate = date, savedVersion = saved.version, draft = draft, dirty = false, dialog = null, saveError = null)
-        }
-        persistDraft(date, draft)
+    /** 저장이 실패한 날짜로 옮긴다. [selectDate]는 저장 중 날짜 이동을 막으므로 따로 둔다. */
+    private fun selectDateWhileSaving(date: LocalDate) {
+        _state.update { it.copy(selectedDate = date, savedVersion = savedDays.getValue(date).version, draft = draftOf(date)) }
+        persistDrafts()
     }
 
     private fun updateDraft(draft: List<DraftItem>) {
-        idempotencyKey = null
-        val date = _state.value.selectedDate
-        val saved = date?.let { savedDays[it] }?.items?.map { it.toDraft() }.orEmpty()
-        _state.update { it.copy(draft = draft, dirty = draft != saved, saveError = null) }
-        persistDraft(date, draft)
+        val date = _state.value.selectedDate ?: return
+        // 저장 중에는 보낸 초안이 응답으로 덮이므로 편집을 받지 않는다.
+        if (_state.value.saving) return
+        idempotencyKeys.remove(date)
+        drafts[date] = draft
+        _state.update { it.copy(draft = draft, dirty = dirtyDates().isNotEmpty(), saveError = null) }
+        persistDrafts()
     }
 
-    private fun persistDraft(date: LocalDate?, draft: List<DraftItem>) {
-        savedState[KEY_SELECTED_DATE] = date?.toString()
-        savedState[KEY_DRAFT] = draftJson.encodeToString(draft)
+    /** [date]의 초안. 편집한 적 없으면 저장본이다. */
+    private fun draftOf(date: LocalDate): List<DraftItem> =
+        drafts[date] ?: savedDays[date]?.items?.map { it.toDraft() }.orEmpty()
+
+    /** 초안이 저장본과 다른 날짜들(날짜 순). */
+    private fun dirtyDates(): List<LocalDate> =
+        drafts.filter { (date, draft) -> draft != savedDays[date]?.items?.map { it.toDraft() }.orEmpty() }.keys.sorted()
+
+    private fun persistDrafts() {
+        savedState[KEY_SELECTED_DATE] = _state.value.selectedDate?.toString()
+        savedState[KEY_DRAFTS] = draftJson.encodeToString(drafts.mapKeys { it.key.toString() })
     }
 
     private fun restoredDate(): LocalDate? = savedState.get<String>(KEY_SELECTED_DATE)?.let(LocalDate::parse)
 
-    private fun restoredDraft(): List<DraftItem>? =
-        savedState.get<String>(KEY_DRAFT)?.let { draftJson.decodeFromString<List<DraftItem>>(it) }
+    private fun restoredDrafts(): Map<LocalDate, List<DraftItem>> =
+        savedState.get<String>(KEY_DRAFTS)
+            ?.let { draftJson.decodeFromString<Map<String, List<DraftItem>>>(it) }
+            ?.mapKeys { LocalDate.parse(it.key) }
+            .orEmpty()
 
     companion object {
-        private const val KEY_DRAFT = "itinerary.draft"
+        private const val KEY_DRAFTS = "itinerary.drafts"
         private const val KEY_SELECTED_DATE = "itinerary.selectedDate"
         private const val KEY_OPEN_SEARCH_DONE = "itinerary.openSearchDone"
 
