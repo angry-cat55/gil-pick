@@ -285,11 +285,14 @@ class RouteCalculationService:
                 raise RuntimeError("구간 추정 재시도 상태가 올바르지 않습니다.")
 
         tasks = [asyncio.create_task(calculate(mode)) for mode in requested]
-        done, pending = await asyncio.wait(tasks, timeout=self.deadline_seconds)
-        for task in pending:
-            task.cancel()
-        if pending:
-            await asyncio.gather(*pending, return_exceptions=True)
+        try:
+            done, pending = await asyncio.wait(tasks, timeout=self.deadline_seconds)
+        finally:
+            pending = {task for task in tasks if not task.done()}
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
         return [
             task.result() if task in done else _failed_estimate(mode, "ROUTE_PROVIDER_TIMEOUT", True)
             for mode, task in zip(requested, tasks)
@@ -574,7 +577,7 @@ class RouteService:
                         "transport_mode": value.transport_mode.value,
                         "status": value.status.value,
                         "estimate_payload": value.model_dump(mode="json", by_alias=True),
-                        "calculated_at": now,
+                        "calculated_at": datetime.now(UTC),
                     }
                     statement = pg_insert(RouteEstimateModel).values(**values)
                     await session.execute(

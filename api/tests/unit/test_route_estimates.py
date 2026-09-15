@@ -50,6 +50,31 @@ async def test_estimates_share_bounded_concurrency_and_keep_ready_on_deadline():
 
 
 @pytest.mark.asyncio
+async def test_cancelling_estimates_cancels_provider_calls():
+    cancelled = asyncio.Event()
+
+    class BlockingProvider(FakeProvider):
+        async def calculate(self, *args, **kwargs):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+    calculator = _service(
+        tmap=BlockingProvider(provider=Provider.TMAP),
+        transit=BlockingProvider(provider=Provider.KAKAO),
+    )
+    task = asyncio.create_task(calculator.calculate_estimates(_snapshot(2), sequence=1))
+    await asyncio.sleep(0)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert cancelled.is_set()
+
+
+@pytest.mark.asyncio
 async def test_only_missing_modes_are_calculated_and_retry_once():
     transit = FakeProvider(provider=Provider.KAKAO, failures=[
         RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=True),

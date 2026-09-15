@@ -85,7 +85,8 @@ fun RouteMap(
     val markerColor = MaterialTheme.colorScheme.primary.toArgb()
     val doneColor = gilpickColors.success.toArgb()
     val faintColor = gilpickColors.faint.toArgb()
-    val pathColor = gilpickColors.primaryLight.toArgb()
+    // 밝은 기본 지도에서 옅은 파랑은 도로와 구분이 안 돼 marker와 같은 primary로 그린다(#549).
+    val pathColor = markerColor
     val description = stringResource(R.string.route_map_description, route.markers.size)
     val startLabel = stringResource(R.string.route_marker_start)
     val overlays = remember { RouteOverlays() }
@@ -93,7 +94,8 @@ fun RouteMap(
     NaverMapHost(
         modifier = modifier,
         description = description,
-        drawKey = Triple(route, baseRoute, marks),
+        // sheet 높이가 바뀌면 content padding과 카메라 범위를 다시 맞춘다(#550).
+        drawKey = listOf(route, baseRoute, marks, sheetFraction),
         onDispose = { overlays.clear() },
     ) { map, size ->
         val bottomPadding = (size.height * sheetFraction).toInt()
@@ -186,7 +188,6 @@ internal fun NaverMapHost(
 
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
-            map.isNightModeEnabled = true
             map.uiSettings.isZoomControlEnabled = true
             naverMap = map
         }
@@ -292,9 +293,8 @@ private class RouteOverlays {
                 width = markerSizePx
                 height = markerSizePx
                 anchor = android.graphics.PointF(0.5f, 0.5f)
+                // caption은 SDK 기본값(검은 글자·흰 halo)이 밝은 지도에서 읽힌다(#549).
                 captionText = marker.name
-                captionColor = AndroidColor.WHITE
-                captionHaloColor = AndroidColor.BLACK
                 this.map = map
             }
         }
