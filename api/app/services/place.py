@@ -48,6 +48,13 @@ _CATEGORY_LABEL = {
     PlaceCategory.CAFE: "카페",
     PlaceCategory.SHOPPING: "쇼핑",
 }
+_SEOUL_AREA_CODE = "1"
+_SEOUL_LOCATION_RESTRICTION = {
+    "rectangle": {
+        "low": {"latitude": 37.413294, "longitude": 126.734086},
+        "high": {"latitude": 37.715133, "longitude": 127.269311},
+    }
+}
 
 
 class _PlainTextParser(HTMLParser):
@@ -198,14 +205,17 @@ class PlaceService:
         Raises:
             AppError: cursor가 잘못됐거나 기준 provider 요청에 실패한 경우.
         """
+        area_code = _SEOUL_AREA_CODE
         criteria = self._criteria_hash(query, category, area_code, limit)
         state = self._decode_cursor(cursor, criteria) if cursor else {}
         page_no = int(state.get("tour_page_no", 1))
         seen = set(state.get("seen_place_ids", []))
 
-        params: dict[str, Any] = {"pageNo": page_no, "numOfRows": limit}
-        if area_code:
-            params["areaCode"] = area_code
+        params: dict[str, Any] = {
+            "pageNo": page_no,
+            "numOfRows": limit,
+            "areaCode": area_code,
+        }
         if category in _TOUR_LARGE:
             params["lclsSystm1"] = _TOUR_LARGE[category]
             if category is PlaceCategory.CAFE:
@@ -231,6 +241,8 @@ class PlaceService:
             raw_items = [raw_items]
         items: list[PlaceSummary] = []
         for raw in raw_items if isinstance(raw_items, list) else []:
+            if not self._is_seoul_address(raw.get("addr1")):
+                continue
             item = tour_place(raw)
             if item is None or item.place_id in seen:
                 continue
@@ -246,7 +258,10 @@ class PlaceService:
         ) or category in _COMMERCIAL
         if google_allowed and not google_done and len(items) < limit:
             google_attempted = True
-            params = {"pageSize": limit - len(items)}
+            params = {
+                "pageSize": limit - len(items),
+                "locationRestriction": _SEOUL_LOCATION_RESTRICTION,
+            }
             if category is None:
                 assert query is not None
                 google_query = query
@@ -262,6 +277,8 @@ class PlaceService:
                 self._log_google_degradation("SEARCH_SUPPLEMENT", exc)
             else:
                 for raw in google.get("places", []):
+                    if not self._is_seoul_address(raw.get("formattedAddress")):
+                        continue
                     google_category = self._google_category(raw.get("types", []))
                     if category is not None and google_category is not category:
                         continue
@@ -443,6 +460,13 @@ class PlaceService:
     @staticmethod
     def _normalize(value: str) -> str:
         return "".join(char.lower() for char in value if char.isalnum())
+
+    @classmethod
+    def _is_seoul_address(cls, value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        normalized = cls._normalize(value).removeprefix("대한민국")
+        return normalized.startswith(("서울", "seoul"))
 
     @staticmethod
     def _criteria_hash(

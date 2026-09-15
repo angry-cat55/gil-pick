@@ -793,7 +793,7 @@ Query:
 - `query`: 선택. trim 후 2글자 이상
 - `category`: 선택. `NATURE | HISTORY_CULTURE | FOOD | CAFE | SHOPPING | OTHER`
 - `query`와 `category`는 단독 또는 조합 가능하며 둘 다 없으면 `400 INVALID_REQUEST`
-- 선택 `areaCode`, `cursor`
+- 선택 `areaCode`(서울 코드 `1`만 허용, 생략해도 서울 제한 적용), `cursor`
 - `limit`: 선택, 기본·최대 20
 
 Response `200`:

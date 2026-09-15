@@ -23,10 +23,7 @@ from app.schemas.place import (
 )
 from app.services.place import PlaceService
 
-AreaCode = Literal[
-    "1", "2", "3", "4", "5", "6", "7", "8",
-    "31", "32", "33", "34", "35", "36", "37", "38", "39",
-]
+AreaCode = Literal["1"]
 
 router = APIRouter(
     prefix="/places",
@@ -72,7 +69,7 @@ async def search_places(
     service: Annotated[PlaceService, Depends(_place_service)],
     query: Annotated[str | None, Query()] = None,
     category: Annotated[PlaceCategory | None, Query()] = None,
-    area_code: Annotated[AreaCode | None, Query(alias="areaCode")] = None,
+    area_code: Annotated[AreaCode, Query(alias="areaCode")] = "1",
     cursor: Annotated[str | None, Query(min_length=1)] = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 20,
 ) -> JSONResponse:
@@ -83,7 +80,7 @@ async def search_places(
         service: 외부 provider를 조합하는 장소 service.
         query: 두 글자 이상의 검색어.
         category: 길픽 장소 카테고리 필터.
-        area_code: TourAPI 지역 코드.
+        area_code: 서울로 고정된 TourAPI 지역 코드.
         cursor: 이전 응답에서 받은 pagination cursor.
         limit: 한 페이지에 반환할 최대 장소 수.
 

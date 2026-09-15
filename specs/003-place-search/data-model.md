@@ -8,7 +8,7 @@ F003은 영구 entity나 DB migration을 만들지 않는다. 아래 모델은 T
 |---|---|---:|---|
 | `query` | string | 조건부 | trim 후 2글자 이상. `category`가 없으면 필수 |
 | `category` | `PlaceCategory` | 조건부 | `query`가 없으면 필수 |
-| `area_code` | string | 아니오 | TourAPI `areaCode2` 기준 `1`~`8`, `31`~`39`만 허용. 그 외 값은 `400 INVALID_REQUEST` |
+| `area_code` | string | 아니오 | 서울 코드 `1`만 허용하며 생략해도 서버가 서울 제한을 적용. 그 외 값은 `400 INVALID_REQUEST` |
 | `limit` | integer | 아니오 | 1~20, 기본 20 |
 | `cursor` | opaque string | 아니오 | 같은 criteria에서 발급된 다음 cursor만 허용 |
 
@@ -95,7 +95,7 @@ Client에는 opaque string으로만 노출한다. server 내부 payload는 다�
 | `tour_page_no` | 다음 TourAPI page number |
 | `google_page_token` | 상업 카테고리 보완이 시작된 경우에만 다음 Google page token 또는 null |
 | `seen_place_ids` | 같은 흐름에서 중복 방지에 필요한 제한된 ID 목록 |
-| `criteria_hash` | trim된 query·category·areaCode·limit fingerprint |
+| `criteria_hash` | trim된 query·category·서울 고정 areaCode·limit fingerprint |
 
 서명 오류, version 불일치, 다른 criteria 재사용은 `400 INVALID_CURSOR`다. Cursor에 service key나 검색 결과 원문은 넣지 않는다.
 
@@ -117,7 +117,7 @@ Client에는 opaque string으로만 노출한다. server 내부 payload는 다�
 
 ### `PlaceSearchUiState`
 
-- `draftCriteria`: 사용자가 편집 중인 query/category/areaCode
+- `draftCriteria`: 사용자가 편집 중인 query/category. 지역은 서버에서 서울로 고정한다.
 - `committedCriteria`: 마지막으로 실행한 검색 조건
 - `items`: `placeId`로 dedupe된 immutable 목록
 - `initialLoad`: `Idle | Loading | Empty | Error | Content`
@@ -138,5 +138,5 @@ Client에는 opaque string으로만 노출한다. server 내부 payload는 다�
 
 - 검색·상세 read model은 request와 화면 destination 생명주기에서만 유지한다.
 - 검색 실행만으로 `places` table에 저장하지 않는다.
-- Android는 process death 후 전체 검색 결과를 bundle에 저장하지 않는다. query/category/areaCode와 선택한 place ID 같은 작은 복원 key만 저장하고 필요하면 다시 조회한다.
+- Android는 process death 후 전체 검색 결과를 bundle에 저장하지 않는다. query/category와 선택한 place ID 같은 작은 복원 key만 저장하고 필요하면 다시 조회한다. 지역은 서버의 서울 고정 정책을 따른다.
 - TourAPI·Google credential, provider 원문 오류와 응답 body는 DB, log, cursor, Android 저장소에 남기지 않는다.

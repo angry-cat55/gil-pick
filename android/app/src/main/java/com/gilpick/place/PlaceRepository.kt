@@ -49,7 +49,7 @@ class PlaceRepository(
      * 키워드·category로 장소를 검색한다.
      *
      * 조건 검증(2글자, 조건 없음)은 ViewModel이 요청 전에 끝내므로 여기서는 받은 값을 그대로
-     * 보낸다. 지역 조건(`areaCode`)은 Figma 검색 화면에 없어 보내지 않는다.
+     * 보낸다. 지역 조건(`areaCode`)은 화면 입력이 아니며 server가 서울 제한을 항상 적용하므로 보내지 않는다(#606).
      *
      * @param query 앞뒤 공백을 뗀 키워드. 비어 있으면 생략한다.
      * @param category `null`이면 `전체`다.

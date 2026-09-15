@@ -17,7 +17,7 @@ api\.venv\Scripts\python.exe -m pytest api/tests/contract/test_place_contract.py
 
 필수 시나리오:
 
-1. keyword 단독, category 단독, keyword+category+areaCode 검색이 안정적인 DTO로 변환된다. TourAPI의 `items`가 빈 문자열인 정상 empty 응답도 `200` 빈 목록으로 처리한다.
+1. keyword 단독, category 단독, keyword+category 검색이 안정적인 DTO로 변환되고 모든 요청에 서울 제한이 적용된다. TourAPI의 `items`가 빈 문자열이거나 서울 외 결과만 있는 정상 응답도 `200` 빈 목록으로 처리한다.
 2. query와 category가 모두 없거나 trim 후 query가 한 글자면 `400`이며 TourAPI를 호출하지 않는다.
 3. cursor는 같은 검색 조건에서만 재사용되고 변조·버전 불일치·조건 불일치는 `INVALID_CURSOR`다.
 4. 음식·카페·쇼핑의 TourAPI 정상 결과가 `limit` 미만일 때만 Google Text Search로 부족분을 채우고 다른 유형은 보완하지 않는다.
