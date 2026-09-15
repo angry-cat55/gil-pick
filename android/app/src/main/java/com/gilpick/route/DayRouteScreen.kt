@@ -69,8 +69,9 @@ import kotlinx.coroutines.delay
 /**
  * 날짜별 경로 화면(`spec.md` US2, Figma `DayRouteScreen`).
  *
- * 모양은 Figma의 어두운 전체 화면 지도와 하단 sheet를 따른다. 시작된 날짜는 [RouteUiState.Content.marks]로
- * marker와 구간 목록에 `완료`·`이동 중`·`건너뜀`을 문구+아이콘으로 겹친다(F006 UI-011, T031). `여행 중` 배지와
+ * 모양은 Figma의 전체 화면 지도와 어두운 하단 sheet를 따르되, 지도는 도로·지명이 보이도록 밝은 기본
+ * 지도로 둔다(#549). 시작된 날짜는 [RouteUiState.Content.marks]로 marker와 구간 목록에 `완료`·`이동 중`·
+ * `건너뜀`을 문구+아이콘으로 겹친다(F006 UI-011, T031). `여행 중` 배지와
  * 도착 예정 시각은 진행 화면의 몫이라 그리지 않는다(UI-001·UI-010). 지도 위 정보는 지도를 못 보는 사용자를
  * 위해 같은 순서의 구간 목록으로도 제공한다(UI-005, 가이드라인 10절).
  *
@@ -299,7 +300,8 @@ private fun RouteSheet(route: RouteDto, marks: RouteMarks, modifier: Modifier = 
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = radius.xl, topEnd = radius.xl))
-            .background(colors.darkMap.copy(alpha = 0.92f))
+            // 밝은 지도의 지명이 비치면 sheet 글자를 읽기 어려워 불투명하게 둔다(#549).
+            .background(colors.darkMap)
             .padding(horizontal = spacing.space5)
             .padding(top = spacing.space4)
             .navigationBarsPadding()
