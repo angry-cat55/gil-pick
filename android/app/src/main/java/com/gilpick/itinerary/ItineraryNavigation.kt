@@ -106,9 +106,8 @@ fun NavGraphBuilder.itineraryGraph(
             val result = resultJson.decodeFromString<AddToScheduleResult>(json)
             viewModel.addFromSearch(result.place, AddToScheduleRequest(result.transport, result.stayMinutes))
         }
-        LaunchedEffect(state.saved, state.exit) {
-            if (state.saved || state.exit) {
-                viewModel.consumeSaved()
+        LaunchedEffect(state.exit) {
+            if (state.exit) {
                 viewModel.consumeExit()
                 navController.popBackStack()
             }

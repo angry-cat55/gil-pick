@@ -158,7 +158,7 @@ class ItineraryEditScreenTest {
     fun 취소_확인은_계속_편집과_취소하고_나가기를_호출한다() {
         var keeps = 0
         var discards = 0
-        setScreen(state(dialog = EditDialog.Discard(null)), onDismissDialog = { keeps++ }, onConfirmDiscard = { discards++ })
+        setScreen(state(dialog = EditDialog.Discard), onDismissDialog = { keeps++ }, onConfirmDiscard = { discards++ })
         composeRule.onNodeWithText("편집을 취소할까요?").assertIsDisplayed()
         composeRule.onNodeWithText("저장하지 않은 변경 사항은 사라집니다").assertIsDisplayed()
         composeRule.onNodeWithText("계속 편집").performClick()
