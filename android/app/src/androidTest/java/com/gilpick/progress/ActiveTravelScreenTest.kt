@@ -187,7 +187,8 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("건너뛰기").assertDoesNotExist()
         composeRule.runOnIdle { assertEquals(1, departs) }
 
-        composeRule.onNodeWithText("2일차 · 2/3 완료").assertIsDisplayed()
+        // #591: 도착(출발 전) 장소는 완료로 세지 않는다.
+        composeRule.onNodeWithText("2일차 · 1/3 완료").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("2번째 장소 북촌한옥마을, 도착, 오후 2:18 도착").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("3번째 장소 인사동거리, 예정, 오후 4:00 도착 예정").performScrollTo().assertIsDisplayed()
     }
@@ -201,7 +202,8 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("2곳 방문 · 마지막 도착 오후 3:30").assertIsDisplayed()
         composeRule.onNodeWithText("다음 장소로 출발").assertDoesNotExist()
         composeRule.onNodeWithText("도착했어요").assertDoesNotExist()
-        composeRule.onNodeWithText("2일차 · 2/3 완료").assertIsDisplayed()
+        // #591: 건너뛴 장소는 분모에서 빼고, 당일 완료면 마지막 도착 장소도 방문으로 센다. 카드의 `2곳 방문`과 같다.
+        composeRule.onNodeWithText("2일차 · 2/2 완료").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("2번째 장소 북촌한옥마을, 건너뜀, 건너뜀").performScrollTo().assertIsDisplayed()
     }
 

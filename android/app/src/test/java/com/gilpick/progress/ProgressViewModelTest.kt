@@ -151,7 +151,50 @@ class ProgressViewModelTest {
         assertEquals("북촌한옥마을", content.nextRow?.item?.place?.name)
         assertNull(content.currentRow)
         assertEquals(1, content.visitedCount)
+        assertEquals(3, content.countedPlaceCount)
         assertEquals(1, content.todayItinerary?.dayNumber)
+    }
+
+    /** #591: 헤더 `x/y 완료`는 진행 중엔 `COMPLETED`만 세고, 건너뛴 장소는 분모에서 뺀다. */
+    @Test
+    fun `도착 장소는 완료로 세지 않고 건너뛴 장소는 분모에서 뺀다`() = viewModelTest { viewModel ->
+        val base = inProgress()
+        progressService.onGet = {
+            progressOk(
+                base.copy(
+                    currentItemId = P_ITEM_B,
+                    items = listOf(base.items[0], base.items[1].copy(status = ItemStatus.ARRIVED), base.items[2].copy(status = ItemStatus.SKIPPED)),
+                ),
+            )
+        }
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(1, content.visitedCount)
+        assertEquals(2, content.countedPlaceCount)
+    }
+
+    /** #591: 당일 완료면 마지막 장소가 `ARRIVED`로 남으므로(FR-013) 방문으로 센다. 완료 카드의 `N곳 방문`과 같다. */
+    @Test
+    fun `당일 완료면 마지막 도착 장소도 방문으로 세어 분자와 분모가 같다`() = viewModelTest { viewModel ->
+        val base = inProgress()
+        progressService.onGet = {
+            progressOk(
+                base.copy(
+                    dayStatus = DayStatus.COMPLETED,
+                    currentItemId = null,
+                    nextItemId = null,
+                    items = listOf(base.items[0], base.items[1].copy(status = ItemStatus.SKIPPED), base.items[2].copy(status = ItemStatus.ARRIVED)),
+                ),
+            )
+        }
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(2, content.visitedCount)
+        assertEquals(2, content.countedPlaceCount)
     }
 
     @Test

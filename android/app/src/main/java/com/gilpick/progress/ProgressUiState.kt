@@ -191,8 +191,19 @@ sealed interface ProgressUiState {
         /** 다음 장소(`EN_ROUTE` 또는 첫 `PLANNED`). 남은 장소가 없으면 `null`. */
         val nextRow: ProgressRow? get() = progress.nextItemId?.let { id -> todayRows.firstOrNull { it.item.itemId == id } }
 
-        /** 방문을 마친 장소 수(`COMPLETED`·`ARRIVED`). 헤더의 `x/y 완료`에 쓴다. */
-        val visitedCount: Int get() = progress.items.count { it.status == ItemStatus.COMPLETED || it.status == ItemStatus.ARRIVED }
+        /**
+         * 방문을 마친 장소 수. 헤더 `x/y 완료`의 x와 당일 완료 카드의 `N곳 방문`에 쓴다(#591).
+         *
+         * 진행 중에는 `COMPLETED`만 센다. `ARRIVED`는 아직 출발 전이라 완료가 아니다. 당일 완료면 마지막 장소가
+         * `ARRIVED`로 남으므로(FR-013) 그 장소도 방문으로 센다.
+         */
+        val visitedCount: Int
+            get() = progress.items.count {
+                it.status == ItemStatus.COMPLETED || (progress.dayStatus == DayStatus.COMPLETED && it.status == ItemStatus.ARRIVED)
+            }
+
+        /** 헤더 `x/y 완료`의 y: 오늘 장소 중 건너뛴 장소를 뺀 수(#591). 모두 마치면 x와 같아진다. */
+        val countedPlaceCount: Int get() = todayRows.count { it.progress.status != ItemStatus.SKIPPED }
 
         private fun plannedProgress(item: ItineraryItemDto, status: ItemStatus) = ProgressItemDto(
             itemId = item.itemId, sequence = item.sequence, status = status,
