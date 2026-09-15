@@ -54,7 +54,8 @@ class SettingsPreferenceTest {
 
         composeRule.onNodeWithText("장소 변경 제안 알림").assertIsDisplayed()
         // FR-005. 이 토글이 도착·출발 확인 알림까지 끄는 것으로 오해하면 안 된다.
-        composeRule.onNodeWithText("일정에 변수가 생기면 대체 장소를 제안합니다. 도착·출발 확인 알림은 계속 받습니다.").assertIsDisplayed()
+        // #514 두 문장은 줄바꿈으로 나뉜다.
+        composeRule.onNodeWithText("일정에 변수가 생기면 대체 장소를 제안합니다.\n도착·출발 확인 알림은 계속 받습니다.").assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_TOGGLE).assertIsOn().assertIsEnabled()
     }
 
@@ -78,10 +79,23 @@ class SettingsPreferenceTest {
     // --- UI-004 저장 중 ---
 
     @Test
-    fun 저장_중에는_토글이_잠기고_저장_중임을_문구로_알린다() {
-        // UI-005. 색만으로 상태를 전달하지 않는다.
+    fun 짧은_저장에는_저장_중_배지를_보이지_않고_토글도_잠그지_않는다() {
+        // #514. 1초 안에 끝나는 저장에서 배지가 깜빡이지 않는다.
+        composeRule.mainClock.autoAdvance = false
+        setSection(PreferencePhase.Content(value = false, isSaving = true))
+        composeRule.mainClock.advanceTimeBy(500)
+
+        composeRule.onNodeWithTag(TAG_SAVING_BADGE).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_TOGGLE).assertIsEnabled()
+    }
+
+    @Test
+    fun 저장이_1초를_넘기면_토글이_잠기고_저장_중임을_문구로_알린다() {
+        // UI-004·UI-005. 색만으로 상태를 전달하지 않는다. 오래 걸릴 때만 알린다(#514).
         val selected = mutableListOf<Boolean>()
+        composeRule.mainClock.autoAdvance = false
         setSection(PreferencePhase.Content(value = false, isSaving = true), onToggle = { selected += it })
+        composeRule.mainClock.advanceTimeBy(1_100)
 
         composeRule.onNodeWithTag(TAG_SAVING_BADGE).assertIsDisplayed()
         composeRule.onNodeWithText("저장 중").assertIsDisplayed()

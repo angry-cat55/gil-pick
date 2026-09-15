@@ -707,7 +707,7 @@
     <!-- F012 사용자 설정: 장소 변경 제안 알림(UI-003·UI-004) -->
     <string name="settings_notification_section">알림 설정</string>
     <string name="settings_place_change_title">장소 변경 제안 알림</string>
-    <string name="settings_place_change_description">일정에 변수가 생기면 대체 장소를 제안합니다. 도착·출발 확인 알림은 계속 받습니다.</string>
+    <string name="settings_place_change_description">일정에 변수가 생기면 대체 장소를 제안합니다.\n도착·출발 확인 알림은 계속 받습니다.</string>
     <string name="settings_saving">저장 중</string>
     <string name="settings_loading">설정을 불러오는 중</string>
     <string name="settings_load_failed">설정을 불러오지 못했어요</string>

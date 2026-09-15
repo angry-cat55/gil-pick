@@ -119,7 +119,15 @@ class SettingsAdaptiveTest {
     fun content_꺼짐() = capture("settings_content_off") { Screen(state(PreferencePhase.Content(value = false))) }
 
     @Test
-    fun 저장_중() = capture("settings_saving") { Screen(state(PreferencePhase.Content(value = false, isSaving = true))) }
+    fun 저장_중() {
+        // #514 `저장 중` 배지는 저장이 1초를 넘길 때만 보인다. 그 시점을 찍는다.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent { GilpickTheme { Screen(state(PreferencePhase.Content(value = false, isSaving = true))) } }
+        composeRule.mainClock.advanceTimeBy(1_100)
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        val dir = File(context.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
+        File(dir, "settings_saving.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
 
     @Test
     fun loading_1초_초과() {
