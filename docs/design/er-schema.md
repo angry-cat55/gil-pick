@@ -429,6 +429,8 @@ erDiagram
 
 - `ACTIVE` 상태의 `fingerprint`는 partial unique index를 사용한다.
 - 사용자 승인·거절 전에는 같은 item에 동일 제안 알림을 추가 생성하지 않는다.
+- 재평가에서 모든 위험이 사라지면 해당 `ACTIVE` 행을 `INVALIDATED`로 종료한다.
+- `RESOLVED` 이력은 교체된 장소의 새 감지를 막지 않는다. `DISMISSED` 이력은 최신 거절보다 `primary_type`이 달라졌거나 운영시간 `visitBlocked`가 `false → true`로 악화된 경우에만 새 `ACTIVE` 생성을 허용한다.
 - DETECT-004 감지 거절은 `UPDATE ... SET status='DISMISSED', resolved_at=now() WHERE detection_id=? AND status='ACTIVE'`로 한 번만 반영한다(상태 기반 멱등). 비-`ACTIVE` 감지는 무변경으로 현재 상태를 반환한다.
 - ALT-001·ALT-002 후보 조회·직접 검색은 `detections`를 읽기만 하고 어떤 행도 쓰지 않는다.
 - 후보 추천 결과는 요청 때 계산하며 `alternative_candidates` 테이블을 만들지 않는다.

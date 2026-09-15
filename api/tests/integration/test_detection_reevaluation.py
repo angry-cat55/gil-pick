@@ -19,7 +19,7 @@ async def _value(value):
 
 
 @pytest.mark.asyncio
-async def test_eta_reevaluation_updates_active_detection_without_resolving(
+async def test_eta_reevaluation_invalidates_active_detection_when_risk_disappears(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     engine, session_factory = await factory()
@@ -63,7 +63,8 @@ async def test_eta_reevaluation_updates_active_detection_without_resolving(
                 select(Detection).where(Detection.item_id == item_id)
             )
         assert detection is not None
-        assert detection.status == "ACTIVE"
+        assert detection.status == "INVALIDATED"
+        assert detection.resolved_at is not None
         assert detection.score == Decimal("0")
         assert detection.evaluation_snapshot["variables"]["congestion"]["crowded"] is False
     finally:
