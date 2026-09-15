@@ -396,18 +396,17 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("예정").assertDoesNotExist()
     }
 
-    // ---- #509: 헤더 편집·뒤로 가기 ----
+    // ---- #509: 헤더 편집, #554: 뒤로 가기 없음 ----
 
     @Test
     fun 헤더_편집은_오늘과_예정_날짜에서_보고_있는_날짜로_가고_지난_날짜는_비활성과_사유를_보인다() {
         val edited = mutableListOf<String>()
         var state by mutableStateOf<ProgressUiState>(content(days = threeDays()))
-        var backs = 0
         composeRule.setContent {
             GilpickTheme {
                 ActiveTravelScreen(
                     state = state, tripName = "서울 여행", onRetry = {}, onAddPlace = {}, onOpenRoute = { _, _ -> },
-                    onReauthenticate = {}, onEdit = { edited += it }, onBack = { backs++ },
+                    onReauthenticate = {}, onEdit = { edited += it },
                     map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }
@@ -422,12 +421,11 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithTag(TAG_EDIT).assertIsNotEnabled()
         composeRule.onNodeWithText("지난 날짜의 일정은 편집할 수 없어요").assertIsDisplayed()
 
-        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertHeightIsAtLeast(48.dp).performClick()
-        composeRule.runOnIdle { assertEquals(1, backs) }
     }
 
     @Test
-    fun 뒤로_가기를_넘기지_않으면_버튼이_없다() {
+    fun 헤더에_뒤로_가기가_없다() {
+        // 하단 `내 여행` 탭으로 나가므로 진입 경로와 관계없이 ←를 두지 않는다(#554).
         setScreen(content())
 
         composeRule.onNodeWithTag(TAG_HEADER_BACK).assertDoesNotExist()

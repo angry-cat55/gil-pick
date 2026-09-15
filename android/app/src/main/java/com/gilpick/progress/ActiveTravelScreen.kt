@@ -59,7 +59,6 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.notification.IconBoxButton
 import com.gilpick.alternative.DetectionListItemDto
@@ -118,7 +117,6 @@ import kotlinx.coroutines.delay
  * @param onNotifications 헤더 알림 벨. F011 알림 목록으로 간다.
  * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. F011 감지 목록(US6)으로 간다.
  * @param onEdit 헤더 `편집`. 보고 있는 날짜(`yyyy-MM-dd`)의 일정 편집으로 간다. 지난 날짜에서는 비활성이다(#509).
- * @param onBack 헤더 뒤로 가기. `null`이면 버튼을 그리지 않는다(탭 루트로 쓸 때).
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -149,7 +147,6 @@ fun ActiveTravelScreen(
     onNotifications: () -> Unit = {},
     onOpenVariableMonitor: () -> Unit = {},
     onEdit: (date: String) -> Unit = {},
-    onBack: (() -> Unit)? = null,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -168,7 +165,6 @@ fun ActiveTravelScreen(
             onNotifications = onNotifications,
             onOpenVariableMonitor = onOpenVariableMonitor,
             onEdit = onEdit,
-            onBack = onBack,
         )
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
@@ -203,7 +199,7 @@ fun ActiveTravelScreen(
 /**
  * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시, 오른쪽 알림 벨(F011). 내용이 없으면 여행명만 보인다.
  * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
- * 여행명 줄의 뒤로 가기(`onSurface`)와 `편집`(D7 `headerIcon`)은 #509에서 더했다.
+ * 여행명 줄의 `편집`(D7 `headerIcon`)은 #509에서 더했다. 뒤로 가기는 두지 않는다. 하단 `내 여행` 탭으로 나간다(#554).
  */
 @Composable
 private fun Header(
@@ -214,7 +210,6 @@ private fun Header(
     onNotifications: () -> Unit,
     onOpenVariableMonitor: () -> Unit,
     onEdit: (date: String) -> Unit,
-    onBack: (() -> Unit)?,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -262,23 +257,13 @@ private fun Header(
                 modifier = Modifier.testTag(TAG_VARIABLE_MONITOR),
             )
         }
-        // 위 줄은 Figma 그대로 두고, 뒤로 가기·편집은 여행명 줄 양끝에 둔다. 한 줄에 다섯 요소를 넣으면
+        // 위 줄은 Figma 그대로 두고, 편집은 여행명 줄 오른쪽에 둔다. 한 줄에 넣으면
         // 360dp·글자 2.0에서 오른쪽 버튼이 밀려난다(#509).
         Row(
             modifier = Modifier.padding(top = spacing.space1),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.space2),
         ) {
-            if (onBack != null) {
-                IconBoxButton(
-                    icon = R.drawable.ic_lucide_arrow_left,
-                    contentDescription = stringResource(R.string.progress_back),
-                    // 뒤로 가기·닫기는 D7이 아니라 onSurface다(가이드라인 7절 "헤더 아이콘 색").
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    onClick = onBack,
-                    modifier = Modifier.testTag(TAG_HEADER_BACK),
-                )
-            }
             Text(
                 text = tripName,
                 style = MaterialTheme.typography.titleLarge,
