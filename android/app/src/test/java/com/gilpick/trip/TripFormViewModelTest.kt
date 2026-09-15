@@ -176,6 +176,29 @@ class TripFormViewModelTest {
     }
 
     @Test
+    fun `지난 기간으로 만든 여행의 사진만 다시 저장하면 기간을 보내지 않아 잠금에 걸리지 않는다`() = runTest {
+        // 서버처럼 완료된 여행에 기간이 오면 TRIP_LOCKED로 거절한다(#569).
+        service.onCreate = { detail(trip("t1", status = TripStatus.COMPLETED, version = 1)) }
+        service.onUpdate = { body ->
+            if (body.startDate != null || body.endDate != null) errorResponse(409, TripErrorCodes.TRIP_LOCKED)
+            else detail(trip("t1", status = TripStatus.COMPLETED, version = 2))
+        }
+        service.onUpload = { errorResponse(413, TripErrorCodes.IMAGE_TOO_LARGE) }
+        val viewModel = filledViewModel()
+        viewModel.onImagePicked(TripImagePick.Picked(PickedTripImage(byteArrayOf(1), "image/jpeg")))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        service.onUpload = { detail(trip("t1", status = TripStatus.COMPLETED, version = 3, imageUrl = IMAGE_URL)) }
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.submitError)
+        assertEquals("t1", viewModel.state.value.savedTripId)
+        assertEquals(listOf(null to null), service.updateCalls.map { it.startDate to it.endDate })
+    }
+
+    @Test
     fun `수정 중 업로드가 실패하면 다시 저장할 때 서버가 올린 version으로 보낸다`() = runTest {
         service.onUpdate = { body -> detail(trip("t1", version = body.version + 1)) }
         service.onUpload = { throw java.io.IOException("offline") }

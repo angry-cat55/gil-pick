@@ -561,14 +561,18 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
         val created = createdTrip
         val result = when (val mode = current.mode) {
             // 이미지 업로드만 실패했던 새 여행은 다시 만들지 않고 고친다(#499).
-            is FormMode.Create if created != null -> repository.updateTrip(
-                tripId = created.tripId,
-                version = created.version,
-                name = current.name,
-                startDate = start,
-                endDate = end,
-                confirmDeleteOutOfRangeItems = false,
-            )
+            // 기간은 바뀐 때만 보낸다. 지난 날짜로 만든 여행은 이미 완료 상태라 같은 기간도 TRIP_LOCKED로 거절된다(#569).
+            is FormMode.Create if created != null -> {
+                val periodChanged = start.toString() != created.startDate || end.toString() != created.endDate
+                repository.updateTrip(
+                    tripId = created.tripId,
+                    version = created.version,
+                    name = current.name,
+                    startDate = start.takeIf { periodChanged },
+                    endDate = end.takeIf { periodChanged },
+                    confirmDeleteOutOfRangeItems = false,
+                )
+            }
 
             is FormMode.Create -> {
                 // 같은 입력의 재시도는 같은 키로 보낸다. 통신 실패 후 다시 눌렀을 때
