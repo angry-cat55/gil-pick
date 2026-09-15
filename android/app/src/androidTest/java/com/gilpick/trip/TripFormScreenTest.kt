@@ -152,6 +152,35 @@ class TripFormScreenTest {
         composeRule.onNode(hasText(string(R.string.trip_form_submit)) and hasClickAction()).assertIsNotEnabled()
     }
 
+    /** #501: 다른 여행이 차지한 날짜는 누를 수 없고, 사이에 끼는 종료일은 새 시작일이 된다. */
+    @Test
+    fun 다른_여행_날짜는_누를_수_없고_건너뛰는_종료일은_새_시작일이다() {
+        val occupied = listOf(OccupiedPeriod("t9", LocalDate.of(2026, 9, 4), LocalDate.of(2026, 9, 4)))
+        val period = setCalendarContent(start = LocalDate.of(2026, 9, 2), end = null, occupied = occupied)
+
+        composeRule.onNodeWithContentDescription("9월 4일").assertIsNotEnabled()
+
+        composeRule.onNodeWithContentDescription("9월 6일").performClick()
+        assertEquals(LocalDate.of(2026, 9, 6) to null, period())
+    }
+
+    /** #501: 수정 중인 자기 여행 기간은 다시 고를 수 있다. */
+    @Test
+    fun 수정_중인_자기_여행_기간은_비활성이_아니다() {
+        setContent(editState(TripStatus.UPCOMING).copy(occupiedPeriods = listOf(OccupiedPeriod("t1", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 3)))))
+
+        composeRule.onNodeWithText("2026. 9. 3").performClick()
+        composeRule.onNodeWithContentDescription("9월 2일").assertIsEnabled()
+    }
+
+    /** #501: `409 TRIP_PERIOD_CONFLICT`는 겹친 여행 이름과 다음 행동을 함께 안내한다. */
+    @Test
+    fun 기간_충돌은_겹친_여행_이름과_함께_안내한다() {
+        setContent(TripFormUiState(submitError = TripFormSubmitError.PERIOD_CONFLICT, conflictTripName = "제주 여행"))
+
+        composeRule.onNodeWithText(context.getString(R.string.trip_form_error_period_conflict, "제주 여행")).assertIsDisplayed()
+    }
+
     @Test
     fun 달력_날짜_칸은_48dp_터치_영역이다() {
         setCalendarContent(start = LocalDate.of(2026, 9, 1), end = null)
@@ -265,10 +294,16 @@ class TripFormScreenTest {
     }
 
     /** 달력 선택이 상태에 반영되는 화면. 마지막으로 전달된 기간을 돌려준다. */
-    private fun setCalendarContent(start: LocalDate?, end: LocalDate?): () -> Pair<LocalDate?, LocalDate?> {
+    private fun setCalendarContent(
+        start: LocalDate?,
+        end: LocalDate?,
+        occupied: List<OccupiedPeriod> = emptyList(),
+    ): () -> Pair<LocalDate?, LocalDate?> {
         var last: Pair<LocalDate?, LocalDate?> = start to end
         composeRule.setContent {
-            var state by remember { mutableStateOf(TripFormUiState(name = "서울 여행", startDate = start, endDate = end)) }
+            var state by remember {
+                mutableStateOf(TripFormUiState(name = "서울 여행", startDate = start, endDate = end, occupiedPeriods = occupied))
+            }
             GilpickTheme {
                 TripFormScreen(
                     state = state,

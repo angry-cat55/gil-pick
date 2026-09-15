@@ -104,6 +104,8 @@ class TripEditFlowTest {
             override fun dispatch(request: mockwebserver3.RecordedRequest): MockResponse {
                 // F004 일정 개요. 이 test의 관심사가 아니므로 빈 일정을 준다.
                 if (request.url.encodedPath.endsWith("/itinerary")) return json(itineraryJson())
+                // #501 폼이 달력 비활성 표시용으로 내 여행 목록을 읽는다. 이 test의 관심사가 아니므로 빈 목록을 준다.
+                if (request.url.encodedPath.endsWith("/trips")) return json(emptyListJson())
 
                 if (request.method == "GET") return json(tripJson())
 
@@ -383,6 +385,11 @@ class TripEditFlowTest {
         composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).performClick()
         composeRule.onNodeWithText(string(R.string.trip_detail_edit)).performClick()
         composeRule.waitForIdle()
+        // 수정 폼이 서버 값을 채울 때까지 기다린다. 채우기 전에 기간을 바꾸면 늦게 도착한 조회 결과가 덮어쓴다.
+        // 폼은 달력 비활성 표시용 목록도 함께 읽어(#501) 조회 도착 시점이 흔들린다.
+        composeRule.waitUntil(TIMEOUT_MILLIS) {
+            formViewModel?.state?.value?.let { it.mode is FormMode.Edit && !it.loading } == true
+        }
     }
 
     /** 이름 입력을 비우고 새 이름을 넣는다. */
@@ -474,6 +481,12 @@ class TripEditFlowTest {
                  "endDate":"$storedEndDate","status":"UPCOMING","dayCount":3,
                  "version":$storedVersion},
          "meta":{"requestId":"$REQUEST_ID"}}
+    """.trimIndent()
+
+    private fun emptyListJson() = """
+        {"success":true,
+         "data":{"items":[]},
+         "meta":{"requestId":"$REQUEST_ID","pagination":{"nextCursor":null,"hasNext":false}}}
     """.trimIndent()
 
     private fun itineraryJson() = """

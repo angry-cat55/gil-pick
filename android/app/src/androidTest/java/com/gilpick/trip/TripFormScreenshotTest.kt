@@ -62,6 +62,12 @@ class TripFormScreenshotTest {
     @Test
     fun 달력_시작_종료_같은_날() = capture("trip_form_calendar_same_day") { Screen(created().copy(endDate = LocalDate.of(2026, 9, 12))) }
 
+    /** #501: 다른 여행이 차지한 9/20~9/22는 흐리게 비활성으로 보인다. */
+    @Test
+    fun 달력_다른_여행_기간() = capture("trip_form_calendar_occupied") {
+        Screen(created().copy(occupiedPeriods = listOf(OccupiedPeriod("t9", LocalDate.of(2026, 9, 20), LocalDate.of(2026, 9, 22)))))
+    }
+
     @Test
     fun 여행_수정_기간_축소() = capture("trip_form_edit_shrunk") { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2))) }
 

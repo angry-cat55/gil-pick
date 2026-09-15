@@ -40,11 +40,21 @@ class FakeTripService : TripService {
         return onList(call)
     }
 
+    /** 지금까지 도착한 생성 요청의 body. 호출 순서대로 쌓인다. */
+    val createCalls = mutableListOf<CreateTripRequest>()
+
+    /** 생성 요청을 받아 응답을 만든다. 기본값은 계약에 없는 호출을 막는 실패다. */
+    var onCreate: (CreateTripRequest) -> Response<SuccessEnvelope<TripDto>> =
+        { error("이 test는 생성 endpoint를 호출하지 않는다") }
+
     override suspend fun createTrip(
         bearer: String,
         idempotencyKey: String,
         body: CreateTripRequest,
-    ): Response<SuccessEnvelope<TripDto>> = error("이 test는 생성 endpoint를 호출하지 않는다")
+    ): Response<SuccessEnvelope<TripDto>> {
+        createCalls += body
+        return onCreate(body)
+    }
 
     /** 지금까지 도착한 상세 요청의 `tripId`. 호출 순서대로 쌓인다. */
     val getCalls = mutableListOf<String>()
@@ -158,5 +168,19 @@ fun confirmationRequired(deletedItemCount: Int): Response<SuccessEnvelope<TripDt
         """{"success":false,"error":{"code":"${TripErrorCodes.CONFIRMATION_REQUIRED}","message":"진단용 설명","retryable":false,"details":{"deletedItemCount":$deletedItemCount}},"meta":{"requestId":"$REQUEST_ID"}}"""
             .toResponseBody("application/json".toMediaType()),
     )
+
+/**
+ * 기간이 겹치는 여행이 있어 거절한 `409 TRIP_PERIOD_CONFLICT` 응답(F002 FR-002a).
+ *
+ * Backend는 `details`에 겹친 여행의 `tripId`와 `name`을 싣는다. [name]이 `null`이면 `details` 없이 보낸다.
+ */
+fun periodConflict(name: String?): Response<SuccessEnvelope<TripDto>> {
+    val details = name?.let { ",\"details\":{\"tripId\":\"t9\",\"name\":\"$it\"}" }.orEmpty()
+    return Response.error(
+        409,
+        """{"success":false,"error":{"code":"${TripErrorCodes.TRIP_PERIOD_CONFLICT}","message":"진단용 설명","retryable":false$details},"meta":{"requestId":"$REQUEST_ID"}}"""
+            .toResponseBody("application/json".toMediaType()),
+    )
+}
 
 private const val REQUEST_ID = "11111111-2222-4333-8444-555555555555"

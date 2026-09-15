@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
 
 /** 여행명 입력이 어긋난 방식. */
 enum class TripNameError {
@@ -149,6 +150,13 @@ enum class TripFormSubmitError {
      */
     CONFIRMATION_REQUIRED,
 
+    /**
+     * `409 TRIP_PERIOD_CONFLICT`. 같은 사용자의 다른 여행과 기간이 하루라도 겹친다(FR-002a).
+     *
+     * 입력은 그대로 두고 다른 기간을 고르도록 안내한다. 겹친 여행 이름은 [TripFormUiState.conflictTripName]에 있다.
+     */
+    PERIOD_CONFLICT,
+
     /** 그 밖의 실패. 잠시 후 다시 시도한다. */
     UNEXPECTED,
 }
@@ -180,6 +188,13 @@ sealed interface FormMode {
 }
 
 /**
+ * 달력에서 고를 수 없는 다른 여행의 기간(#501). 내 여행 목록에서 읽는다.
+ *
+ * @property tripId 수정 중인 자기 여행을 빼기 위한 식별자.
+ */
+data class OccupiedPeriod(val tripId: String, val startDate: LocalDate, val endDate: LocalDate)
+
+/**
  * 여행 생성 폼 상태.
  *
  * @property showErrors 검증 오류를 화면에 표시할지 여부. 입력 도중에 빨간 글씨를 띄우지
@@ -193,6 +208,8 @@ sealed interface FormMode {
  * @property originalStartDate 수정 모드에서 조회한 원래 시작일. 저장 전 기간 축소 표시(Figma `EditTripScreen`)에만 쓴다.
  * @property originalEndDate 수정 모드에서 조회한 원래 종료일.
  * @property deletion 수정 화면 `여행 삭제` 요청 단계(Figma `EditTripScreen`, #443). 상세의 삭제와 같은 단계를 쓴다.
+ * @property occupiedPeriods 내 여행들의 기간. 수정 중인 자기 여행도 들어 있으며 [occupiedDates]가 뺀다.
+ * @property conflictTripName `409 TRIP_PERIOD_CONFLICT`에서 서버가 알려 준 겹친 여행 이름. 없으면 이름 없이 안내한다.
  */
 data class TripFormUiState(
     val name: String = "",
@@ -209,7 +226,22 @@ data class TripFormUiState(
     val originalStartDate: LocalDate? = null,
     val originalEndDate: LocalDate? = null,
     val deletion: TripDeletePhase = TripDeletePhase.Idle,
+    val occupiedPeriods: List<OccupiedPeriod> = emptyList(),
+    val conflictTripName: String? = null,
 ) {
+    /**
+     * 달력에서 비활성으로 둘 날짜(#501, FR-002a). 수정 중인 자기 여행의 기간은 다시 고를 수 있어야 하므로 뺀다.
+     */
+    val occupiedDates: Set<LocalDate>
+        get() {
+            val own = (mode as? FormMode.Edit)?.tripId
+            return occupiedPeriods
+                .filter { it.tripId != own }
+                .flatMapTo(HashSet()) { period ->
+                    generateSequence(period.startDate) { day -> day.plusDays(1).takeIf { it <= period.endDate } }.toList()
+                }
+        }
+
     /**
      * 기간 입력을 잠글지 여부.
      *
@@ -251,11 +283,48 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
      */
     private var idempotencyKey: String? = null
 
+    /** 마지막으로 읽은 내 여행 기간. 수정 조회가 폼 상태를 새로 만들어도 유지한다. */
+    private var occupiedPeriods: List<OccupiedPeriod> = emptyList()
+
+    init {
+        viewModelScope.launch { loadOccupiedPeriods() }
+    }
+
+    /**
+     * 달력 비활성 표시에 쓸 내 여행 기간을 모든 page에서 읽는다(#501).
+     *
+     * 실패하면 조용히 넘어간다. 비활성 표시는 보조 수단이고, 겹치는 기간은 저장할 때 서버가
+     * `409 TRIP_PERIOD_CONFLICT`로 막으므로 폼 사용을 막을 이유가 없다.
+     */
+    private suspend fun loadOccupiedPeriods() {
+        val periods = mutableListOf<OccupiedPeriod>()
+        var cursor: String? = null
+        do {
+            // 응답 형식이 어긋나면 repository가 변환 예외를 그대로 던진다. 보조 조회라 폼을 멈추지 않고 넘어간다.
+            val result = try {
+                repository.listTrips(cursor = cursor, limit = OCCUPIED_PAGE_SIZE)
+            } catch (e: SerializationException) {
+                return
+            }
+            val page = when (result) {
+                is AuthResult.Success -> result.value
+                is AuthResult.Failure -> return
+            }
+            page.trips.mapTo(periods) {
+                OccupiedPeriod(it.tripId, LocalDate.parse(it.startDate), LocalDate.parse(it.endDate))
+            }
+            cursor = page.nextCursor
+        } while (page.hasNext && cursor != null)
+
+        occupiedPeriods = periods
+        _state.update { it.copy(occupiedPeriods = periods) }
+    }
+
     /** 여행명 입력을 반영한다. */
     fun onNameChange(value: String) {
         idempotencyKey = null
         _state.update {
-            it.copy(name = value, submitError = null, deleteConfirmation = null).revalidated()
+            it.copy(name = value, submitError = null, conflictTripName = null, deleteConfirmation = null).revalidated()
         }
     }
 
@@ -267,6 +336,7 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                 startDate = startDate,
                 endDate = endDate,
                 submitError = null,
+                conflictTripName = null,
                 deleteConfirmation = null,
             ).revalidated()
         }
@@ -284,7 +354,7 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
     fun loadForEdit(tripId: String) {
         if (_state.value.loading) return
 
-        _state.value = TripFormUiState(loading = true)
+        _state.value = TripFormUiState(loading = true, occupiedPeriods = occupiedPeriods)
         viewModelScope.launch {
             when (val result = repository.getTrip(tripId)) {
                 is AuthResult.Success -> startEditing(result.value)
@@ -315,6 +385,7 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                 version = trip.version,
                 status = trip.status,
             ),
+            occupiedPeriods = occupiedPeriods,
         )
     }
 
@@ -343,6 +414,7 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                 submitting = true,
                 showErrors = true,
                 submitError = null,
+                conflictTripName = null,
                 deleteConfirmation = null,
             )
         }
@@ -420,6 +492,8 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                 is AuthResult.Failure -> state.afterFailure(result.error)
             }
         }
+        // 목록을 읽은 뒤 다른 기기에서 여행이 생겼을 수 있다. 겹친 여행 기간이 달력에 보이도록 다시 읽는다.
+        if (_state.value.submitError == TripFormSubmitError.PERIOD_CONFLICT) loadOccupiedPeriods()
     }
 
     /**
@@ -441,7 +515,11 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
         return if (deletedItemCount != null) {
             copy(submitting = false, deleteConfirmation = deletedItemCount)
         } else {
-            copy(submitting = false, submitError = error.toSubmitError())
+            copy(
+                submitting = false,
+                submitError = error.toSubmitError(),
+                conflictTripName = server?.details?.name.takeIf { server?.code == TripErrorCodes.TRIP_PERIOD_CONFLICT },
+            )
         }
     }
 
@@ -489,6 +567,9 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
 
     companion object {
 
+        /** 내 여행 기간 조회 page 크기. 계약 최대값(100)이라 보통 한 번에 끝난다. */
+        private const val OCCUPIED_PAGE_SIZE = 100
+
         /**
          * 화면이 사용할 의존성을 조립한다.
          *
@@ -533,6 +614,7 @@ internal fun AuthError.toSubmitError(): TripFormSubmitError = when (this) {
         TripErrorCodes.VERSION_CONFLICT -> TripFormSubmitError.VERSION_CONFLICT
         TripErrorCodes.TRIP_LOCKED -> TripFormSubmitError.TRIP_LOCKED
         TripErrorCodes.CONFIRMATION_REQUIRED -> TripFormSubmitError.CONFIRMATION_REQUIRED
+        TripErrorCodes.TRIP_PERIOD_CONFLICT -> TripFormSubmitError.PERIOD_CONFLICT
         in INPUT_ERROR_CODES -> TripFormSubmitError.INVALID_INPUT
         else -> TripFormSubmitError.UNEXPECTED
     }
