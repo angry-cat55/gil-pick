@@ -277,6 +277,7 @@ class ActiveTravelScreenshotTest {
             onAddPlace = {},
             onOpenRoute = { _, _ -> },
             onReauthenticate = {},
+            onBack = {},
             map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
         )
     }

@@ -136,6 +136,9 @@ fun NavGraphBuilder.progressGraph(
             onOpenAlternatives = { detectionId -> navController.navigate(AlternativePlacesRoute(detectionId, route.tripId)) },
             onNotifications = onNotifications,
             onOpenVariableMonitor = { onOpenVariableMonitor(route.tripId) },
+            // 보고 있는 날짜의 일정 편집. 돌아오면 위 재개 조회가 새 일정을 받고 보던 날짜는 유지된다(#509).
+            onEdit = { date -> navController.navigate(ItineraryEditRoute(route.tripId, date)) },
+            onBack = { navController.popBackStack() },
             map = map,
         )
     }
