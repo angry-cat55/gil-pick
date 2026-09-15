@@ -106,6 +106,22 @@ class PlaceDetailScreenTest {
         composeRule.onAllNodes(hasText("GOOGLE_PLACES")).assertCountEquals(0)
     }
 
+    /** #578 F003 UI-012: `tourapi:` 장소면 정보 영역 하단에 공공데이터 출처를 한 줄 둔다. */
+    @Test
+    fun tourapi_장소면_정보_영역_하단에_공공데이터_출처를_보여준다() {
+        setScreen(content(testPlace("tourapi:1", name = "경복궁")))
+
+        composeRule.onNodeWithText("출처: ⓒ한국관광공사").performScrollTo().assertIsDisplayed()
+    }
+
+    /** #578: Google 장소에는 공공데이터 출처를 표시하지 않는다. */
+    @Test
+    fun google_장소에는_공공데이터_출처가_없다() {
+        setScreen(content(testPlace("google:1", name = "구글 카페", rating = 4.2)))
+
+        composeRule.onAllNodes(hasText("출처: ⓒ한국관광공사")).assertCountEquals(0)
+    }
+
     @Test
     fun google_데이터가_없으면_attribution이_없다() {
         setScreen(content(testPlace("tourapi:1", name = "경복궁")))

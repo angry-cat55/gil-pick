@@ -444,8 +444,8 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
   - 담당: jy
   - 선행: T043, T044, T046
   - 검증: quickstart AND 2의 지도 확인·조건부 표시 확인·반경 확인(확정 전) 절차를 `gilpick_api36_play` 또는 실기기에서 수행하고 결과·screenshot 경로를 quickstart 검증 기록에 추가. 반경 확정 후 확인은 T040 병합 뒤 다시 기록
-- [ ] T048 대체 장소 후보 목록·직접 검색 결과 시트 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/alternative/AlternativePlacesScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt per UI-011, plan: Attribution (missing)
+- [X] T048 대체 장소 후보 목록·직접 검색 결과 시트 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/alternative/AlternativePlacesScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt per UI-011, plan: Attribution (missing)
   - 영역: FE
   - 담당: hs
-  - 선행: F003 T037(`tourApiAttributionText()`)
+  - 선행: F003 T038(`tourApiAttributionText()`)
   - 검증: TourAPI 결과가 있으면 후보 목록 하단·결과 시트 하단에 한 줄 표시, TourAPI 결과가 없으면 미표시, 후보·결과별 배지·로고 이미지 없음; UI test와 360dp·최대 글자 배율 screenshot

@@ -109,6 +109,10 @@ class SettingsAccountInfoTest {
         }
 
         composeRule.onNodeWithTag(TAG_APP_VERSION).assertIsDisplayed()
+        // #578 F012 FR-009a: 서비스 전체 데이터 출처 행이 앱 정보에 항상 있다.
+        composeRule.onNodeWithTag(TAG_DATA_SOURCE).assertIsDisplayed()
+        composeRule.onNodeWithText("장소 정보").assertIsDisplayed()
+        composeRule.onNodeWithText("출처: ⓒ한국관광공사").assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_PRIVACY_POLICY).assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_TERMS_OF_SERVICE).assertIsDisplayed()
     }

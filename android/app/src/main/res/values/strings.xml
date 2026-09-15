@@ -170,6 +170,8 @@
     <string name="place_business_closed_temporarily">임시 휴업</string>
     <string name="place_business_closed_permanently">폐업</string>
     <string name="place_google_attribution">평점·영업정보 제공: %1$s</string>
+    <!-- #578 한국관광공사 TourAPI 공공데이터 출처 표기(공모전 규정 필수). 로고 이미지·`TourAPI` 단독 표기 금지. -->
+    <string name="place_tourapi_attribution">출처: ⓒ한국관광공사</string>
     <string name="place_google_attribution_default">Google</string>
 
     <!-- 장소 상세 화면 (Figma Make `PlaceDetailScreen`) -->
@@ -720,6 +722,8 @@
     <string name="settings_account_default_name">카카오 사용자</string>
     <string name="settings_account_kakao_connected">카카오 연동</string>
     <string name="settings_app_version">버전</string>
+    <!-- #578 F012 FR-009a 서비스 전체 데이터 출처. 값은 place_tourapi_attribution을 쓴다. -->
+    <string name="settings_data_source">장소 정보</string>
 
     <!-- F012 사용자 설정: 장소 변경 제안 알림(UI-003·UI-004) -->
     <string name="settings_notification_section">알림 설정</string>

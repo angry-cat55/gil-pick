@@ -160,6 +160,25 @@ class PlaceSearchScreenTest {
         composeRule.onNodeWithText("평점·영업정보 제공: Google 제공").assertIsDisplayed()
     }
 
+    /** #578 F003 UI-012: TourAPI 결과가 있으면 목록 하단에 공공데이터 출처를 한 줄만 둔다. Google 출처와 함께 보인다. */
+    @Test
+    fun TourAPI_결과가_있으면_목록_하단에_공공데이터_출처를_한_번만_보여준다() {
+        setScreen(content(testPlace("tourapi:1", name = "경복궁"), testPlace("google:2", name = "구글 카페", rating = 4.2)))
+
+        composeRule.onNodeWithText("출처: ⓒ한국관광공사").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("출처: ⓒ한국관광공사")).assertCountEquals(1)
+        composeRule.onNodeWithText("평점·영업정보 제공: Google").assertIsDisplayed()
+    }
+
+    /** #578: Google 결과만 있으면 공공데이터 출처를 표시하지 않는다. */
+    @Test
+    fun Google_결과만_있으면_공공데이터_출처가_없다() {
+        setScreen(content(testPlace("google:1", name = "구글 카페", rating = 4.2)))
+
+        composeRule.onNodeWithText("구글 카페").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("출처: ⓒ한국관광공사")).assertCountEquals(0)
+    }
+
     @Test
     fun 응답_출처가_비면_기본_Google_출처를_쓴다() {
         setScreen(content(testPlace("google:1", name = "구글 카페", rating = 4.2, googleAttributions = emptyList())))
