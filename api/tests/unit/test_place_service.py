@@ -106,6 +106,10 @@ class StubTourClient:
         self.calls.append(("area", params))
         return deepcopy(self.responses.pop(0))
 
+    async def search_by_location(self, **params: Any) -> dict[str, Any]:
+        self.calls.append(("location", params))
+        return deepcopy(self.responses.pop(0))
+
 
 class StubGoogleClient:
     """Text Search 응답과 호출 순서를 기록하는 Google 대역."""
@@ -269,6 +273,144 @@ async def test_search_always_restricts_tourapi_to_seoul() -> None:
     )
 
     assert [call[1]["areaCode"] for call in tour.calls] == ["1", "1"]
+
+
+@pytest.mark.asyncio
+async def test_queryless_search_uses_nearest_tourapi_order() -> None:
+    """검색어가 없으면 사용자 위치 기준 5km 거리순 목록을 요청한다."""
+    tour = StubTourClient([tour_response([tour_item("1")])])
+
+    await service(tour).search_places(
+        query=None,
+        category=None,
+        area_code="1",
+        latitude=37.5884,
+        longitude=127.0060,
+        radius_meters=5000,
+        cursor=None,
+        limit=20,
+    )
+
+    assert tour.calls == [
+        (
+            "location",
+            {
+                "pageNo": 1,
+                "numOfRows": 20,
+                "mapX": 127.0060,
+                "mapY": 37.5884,
+                "radius": 5000,
+                "arrange": "S",
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_queryless_category_search_keeps_location_and_category_filter() -> None:
+    """검색어 없이 category를 바꿔도 위치 기반 검색과 분류 조건을 함께 쓴다."""
+    tour = StubTourClient([tour_response([tour_item("1", large="NA")])])
+
+    await service(tour).search_places(
+        query=None,
+        category=PlaceCategory.NATURE,
+        area_code="1",
+        latitude=37.5884,
+        longitude=127.0060,
+        radius_meters=5000,
+        cursor=None,
+        limit=20,
+    )
+
+    assert tour.calls[0][0] == "location"
+    assert tour.calls[0][1]["lclsSystm1"] == "NA"
+
+
+@pytest.mark.asyncio
+async def test_nearby_cursor_binds_location_radius_category_and_limit() -> None:
+    """거리순 다음 페이지 cursor는 최초 위치 검색 조건에서만 재사용할 수 있다."""
+    tour = StubTourClient(
+        [
+            tour_response([tour_item("1")], total=2),
+            tour_response([tour_item("2")], page=2, total=2),
+        ]
+    )
+    place_service = service(tour)
+    _, cursor, _ = await place_service.search_places(
+        query=None,
+        category=None,
+        area_code="1",
+        latitude=37.5884,
+        longitude=127.0060,
+        radius_meters=5000,
+        cursor=None,
+        limit=1,
+    )
+    assert cursor is not None
+
+    items, _, _ = await place_service.search_places(
+        query=None,
+        category=None,
+        area_code="1",
+        latitude=37.5884,
+        longitude=127.0060,
+        radius_meters=5000,
+        cursor=cursor,
+        limit=1,
+    )
+
+    assert [item.place_id for item in items] == ["tourapi:2"]
+    assert tour.calls[1][1]["pageNo"] == 2
+
+    with pytest.raises(AppError) as error:
+        await place_service.search_places(
+            query=None,
+            category=None,
+            area_code="1",
+            latitude=37.5885,
+            longitude=127.0060,
+            radius_meters=5000,
+            cursor=cursor,
+            limit=1,
+        )
+
+    assert error.value.code == "INVALID_CURSOR"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"longitude": 127.0061},
+        {"radius_meters": 3000},
+        {"category": PlaceCategory.NATURE},
+        {"limit": 2},
+    ],
+)
+async def test_nearby_cursor_rejects_every_changed_search_condition(
+    changed: dict[str, Any],
+) -> None:
+    """경도·반경·category·limit 중 하나라도 바뀌면 cursor를 거부한다."""
+    place_service = service(
+        StubTourClient([tour_response([tour_item("1")], total=2)])
+    )
+    criteria: dict[str, Any] = {
+        "query": None,
+        "category": None,
+        "area_code": "1",
+        "latitude": 37.5884,
+        "longitude": 127.0060,
+        "radius_meters": 5000,
+        "cursor": None,
+        "limit": 1,
+    }
+    _, cursor, _ = await place_service.search_places(**criteria)
+    assert cursor is not None
+
+    with pytest.raises(AppError) as error:
+        await place_service.search_places(**(criteria | changed | {"cursor": cursor}))
+
+    assert error.value.code == "INVALID_CURSOR"
 
 
 @pytest.mark.asyncio

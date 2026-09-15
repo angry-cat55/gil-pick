@@ -793,8 +793,9 @@ Response `200` 또는 신규 일자 `201`:
 Query:
 - `query`: 선택. trim 후 2글자 이상
 - `category`: 선택. `NATURE | HISTORY_CULTURE | FOOD | CAFE | SHOPPING | OTHER`
-- `query`와 `category`는 단독 또는 조합 가능하며 둘 다 없으면 `400 INVALID_REQUEST`
-- 선택 `areaCode`(서울 코드 `1`만 허용, 생략해도 서울 제한 적용), `cursor`
+- `query`가 있으면 기존 키워드 검색. `query`가 없으면 `latitude`·`longitude` 쌍이 필수이며 TourAPI 주변 검색을 사용
+- 선택 `category`, `areaCode`(서울 코드 `1`만 허용), `latitude`(-90~90), `longitude`(-180~180), `radiusMeters`(1~20000, 기본 5000), `cursor`
+- 주변 검색은 5km·거리순이며 결과가 없어도 반경을 자동 확장하거나 Google 결과로 보완하지 않음
 - `limit`: 선택, 기본·최대 20
 
 Response `200`:

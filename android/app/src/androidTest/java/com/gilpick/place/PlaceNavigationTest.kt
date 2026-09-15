@@ -118,7 +118,7 @@ class PlaceNavigationTest {
         navController = rememberNavController()
         GilpickTheme {
             NavHost(navController = navController, startDestination = PlaceSearchRoute) {
-                placeGraph(navController, onSessionExpired = {})
+                placeGraph(navController, onSessionExpired = {}, loadNearbyOnEntry = false)
             }
         }
     }

@@ -22,8 +22,10 @@ class TourStub:
 
     def __init__(self, pages: list[list[dict[str, str]]]) -> None:
         self.pages = pages
+        self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def search_keyword(self, **params: Any) -> dict[str, Any]:
+        self.calls.append(("keyword", params))
         page = int(params["pageNo"])
         items = deepcopy(self.pages[page - 1])
         return {
@@ -39,6 +41,21 @@ class TourStub:
 
     async def search_by_area(self, **params: Any) -> dict[str, Any]:
         return await self.search_keyword(**params)
+
+    async def search_by_location(self, **params: Any) -> dict[str, Any]:
+        self.calls.append(("location", params))
+        page = int(params["pageNo"])
+        items = deepcopy(self.pages[page - 1])
+        return {
+            "response": {
+                "body": {
+                    "items": {"item": items},
+                    "pageNo": page,
+                    "numOfRows": params["numOfRows"],
+                    "totalCount": sum(len(entries) for entries in self.pages),
+                }
+            }
+        }
 
     async def get_common_detail(self, content_id: str) -> dict[str, Any]:
         matches = [item for page in self.pages for item in page if item["contentid"] == content_id]
@@ -114,6 +131,37 @@ def test_search_returns_empty_result() -> None:
         "nextCursor": None,
         "hasNext": False,
     }
+
+
+@pytest.mark.usefixtures("principal_override")
+def test_queryless_search_uses_user_location_and_default_radius() -> None:
+    """초기 장소 목록은 사용자 위치 기준 5km 거리순 TourAPI 검색을 사용한다."""
+    tour = TourStub([[tour_item("1")]])
+    service = PlaceService(tour, GoogleStub(), cursor_secret="test-secret")
+    app.dependency_overrides[_place_service] = lambda: service
+
+    response = TestClient(app).get(
+        "/api/v1/places/search",
+        params={"latitude": 37.5884, "longitude": 127.0060},
+    )
+
+    assert response.status_code == 200
+    assert [item["placeId"] for item in response.json()["data"]["items"]] == [
+        "tourapi:1"
+    ]
+    assert tour.calls == [
+        (
+            "location",
+            {
+                "pageNo": 1,
+                "numOfRows": 20,
+                "mapX": 127.006,
+                "mapY": 37.5884,
+                "radius": 5000,
+                "arrange": "S",
+            },
+        )
+    ]
 
 
 @pytest.mark.usefixtures("principal_override")

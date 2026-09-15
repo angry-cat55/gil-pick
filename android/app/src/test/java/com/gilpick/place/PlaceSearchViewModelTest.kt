@@ -13,6 +13,7 @@ import com.gilpick.progress.CurrentLocationDto
 import com.gilpick.progress.CurrentLocationProvider
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +36,7 @@ import org.junit.rules.TemporaryFolder
 /**
  * T012·T016·T027: 검색 화면 상태 전이 검증.
  *
- * `spec.md` US1 Acceptance Scenario 1~3·5~8과 FR-003a(명시적 검색), FR-005(dedupe),
+ * `spec.md` US1 Acceptance Scenario 1~3·5~8과 FR-003a(키워드 실행 검색·주변 자동 조회), FR-005(dedupe),
  * FR-012(추가 조회 실패 시 기존 결과 유지), UI-003(교체)이 대상이다. US3 Scenario 1~4는
  * 장애를 empty와 구분하고 첫 페이지·추가 조회 재시도를 분리하는지 본다.
  */
@@ -106,17 +107,40 @@ class PlaceSearchViewModelTest {
         assertEquals(1, service.searchCalls.size)
     }
 
+    @Test
+    fun `위치 획득 중 시작한 키워드 검색은 늦은 위치 결과에 덮이지 않는다`() = runTest {
+        val pendingLocation = CompletableDeferred<CurrentLocationDto?>()
+        service.onSearch = { call -> placePage(listOf(place("tourapi:${call.query ?: "nearby"}"))) }
+        val viewModel = newViewModel(location = { pendingLocation.await() })
+
+        viewModel.loadNearby()
+        dispatcher.scheduler.runCurrent()
+        viewModel.onQueryChange("경복궁")
+        viewModel.search()
+        dispatcher.scheduler.runCurrent()
+        pendingLocation.complete(CurrentLocationDto(37.5884, 127.0069, 10.0, "2026-09-16T00:00:00Z"))
+        advanceUntilIdle()
+
+        assertEquals("경복궁", viewModel.state.value.committedQuery)
+        assertEquals(listOf("tourapi:경복궁"), viewModel.state.value.results.map { it.placeId })
+        assertEquals(1, service.searchCalls.size)
+    }
+
     // --- 조건 검증: Scenario 8, FR-003·FR-003b ---
 
     @Test
-    fun `조건이 없으면 요청하지 않고 안내한다`() = runTest {
+    fun `조건이 없으면 현재 위치로 주변 장소를 요청한다`() = runTest {
+        service.onSearch = { placePage(listOf(place("tourapi:near"))) }
         val viewModel = newViewModel()
 
         viewModel.search()
         advanceUntilIdle()
 
-        assertEquals(PlaceSearchPhase.Invalid(InvalidReason.NO_CONDITION), viewModel.state.value.phase)
-        assertTrue(service.searchCalls.isEmpty())
+        assertEquals(PlaceSearchPhase.Content, viewModel.state.value.phase)
+        assertEquals(
+            FakePlaceService.SearchCall(null, null, null, 37.5884, 127.0069, 5_000),
+            service.searchCalls.single(),
+        )
     }
 
     @Test
@@ -140,7 +164,10 @@ class PlaceSearchViewModelTest {
         viewModel.onCategoryChange(PlaceCategory.CAFE)
         advanceUntilIdle()
 
-        assertEquals(FakePlaceService.SearchCall(null, PlaceCategory.CAFE, null), service.searchCalls.single())
+        assertEquals(
+            FakePlaceService.SearchCall(null, PlaceCategory.CAFE, null, 37.5884, 127.0069, 5_000),
+            service.searchCalls.single(),
+        )
         assertEquals(PlaceSearchPhase.Content, viewModel.state.value.phase)
     }
 
@@ -170,7 +197,7 @@ class PlaceSearchViewModelTest {
     }
 
     @Test
-    fun `검색어 없이 전체로 돌아가면 요청하지 않고 검색 전 화면이 된다`() = runTest {
+    fun `검색어 없이 전체로 돌아가면 같은 위치로 주변 전체를 다시 요청한다`() = runTest {
         service.onSearch = { placePage(listOf(place("tourapi:1"))) }
         val viewModel = newViewModel()
         viewModel.onCategoryChange(PlaceCategory.CAFE)
@@ -180,9 +207,10 @@ class PlaceSearchViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.state.value
-        assertEquals(PlaceSearchPhase.Idle, state.phase)
-        assertTrue(state.results.isEmpty())
-        assertEquals(1, service.searchCalls.size)
+        assertEquals(PlaceSearchPhase.Content, state.phase)
+        assertEquals(2, service.searchCalls.size)
+        assertEquals(service.searchCalls[0].latitude, service.searchCalls[1].latitude)
+        assertEquals(service.searchCalls[0].longitude, service.searchCalls[1].longitude)
     }
 
     // --- 거리순: #505 ---
@@ -202,8 +230,6 @@ class PlaceSearchViewModelTest {
         viewModel.onCategoryChange(PlaceCategory.CAFE)
         advanceUntilIdle()
 
-        viewModel.toggleDistanceSort()
-        advanceUntilIdle()
         assertEquals(listOf("tourapi:near", "tourapi:far", "tourapi:none"), viewModel.state.value.displayedResults.map { it.placeId })
 
         viewModel.toggleDistanceSort()
@@ -221,7 +247,7 @@ class PlaceSearchViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.state.value
-        assertTrue(state.distanceSortUnavailable)
+        assertEquals(PlaceSearchPhase.LocationUnavailable, state.phase)
         assertNull(state.distanceOrigin)
     }
 
@@ -234,7 +260,7 @@ class PlaceSearchViewModelTest {
     // --- 빈 결과: Scenario 6 ---
 
     @Test
-    fun `결과가 없으면 empty가 되고 카테고리로 찾기는 검색 전 상태로 돌린다`() = runTest {
+    fun `결과가 없으면 empty가 되고 카테고리로 찾기는 주변 조회로 전환한다`() = runTest {
         service.onSearch = { placePage(emptyList()) }
         val viewModel = newViewModel()
         viewModel.onQueryChange("없는곳")
@@ -243,9 +269,10 @@ class PlaceSearchViewModelTest {
         assertEquals(PlaceSearchPhase.Empty, viewModel.state.value.phase)
 
         viewModel.onSearchByCategory()
+        advanceUntilIdle()
 
         val state = viewModel.state.value
-        assertEquals(PlaceSearchPhase.Idle, state.phase)
+        assertEquals(PlaceSearchPhase.Empty, state.phase)
         assertEquals("", state.query)
         assertTrue(state.results.isEmpty())
     }
@@ -455,7 +482,11 @@ class PlaceSearchViewModelTest {
         assertEquals(PlaceErrorKind.SESSION_EXPIRED, state.loadMoreError?.kind)
     }
 
-    private suspend fun newViewModel(location: CurrentLocationProvider = CurrentLocationProvider { null }): PlaceSearchViewModel =
+    private suspend fun newViewModel(
+        location: CurrentLocationProvider = CurrentLocationProvider {
+            CurrentLocationDto(37.5884, 127.0069, 10.0, "2026-09-16T00:00:00Z")
+        },
+    ): PlaceSearchViewModel =
         PlaceSearchViewModel(repository(), location)
 
     /** 로그인된 session을 가진 repository를 만든다. `PlaceDetailViewModelTest`와 같다. */

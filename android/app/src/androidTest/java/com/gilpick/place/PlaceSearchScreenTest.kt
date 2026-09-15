@@ -92,6 +92,20 @@ class PlaceSearchScreenTest {
     }
 
     @Test
+    fun 위치를_얻지_못하면_안내와_재시도_행동을_제공한다() {
+        var retries = 0
+        setScreen(
+            PlaceSearchUiState(phase = PlaceSearchPhase.LocationUnavailable),
+            onRetry = { retries++ },
+        )
+
+        composeRule.onNodeWithText("현재 위치를 확인할 수 없어요").assertIsDisplayed()
+        composeRule.onNodeWithText("주변 서울 명소를 찾으려면\n위치 권한이 필요해요").assertIsDisplayed()
+        composeRule.onNodeWithText("위치 다시 확인").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle { assertEquals(1, retries) }
+    }
+
+    @Test
     fun content는_요약과_행을_보여주고_행은_상세로_플러스는_시트로_간다() {
         var opened: String? = null
         setScreen(

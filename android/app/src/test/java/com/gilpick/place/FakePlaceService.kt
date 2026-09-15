@@ -26,16 +26,26 @@ class FakePlaceService : PlaceService {
         query: String?,
         category: PlaceCategory?,
         areaCode: String?,
+        latitude: Double?,
+        longitude: Double?,
+        radiusMeters: Int?,
         cursor: String?,
         limit: Int?,
     ): Response<PlaceListEnvelope> {
-        val call = SearchCall(query, category, cursor)
+        val call = SearchCall(query, category, cursor, latitude, longitude, radiusMeters)
         searchCalls += call
         return onSearch(call)
     }
 
     /** 검색 요청의 조건. */
-    data class SearchCall(val query: String?, val category: PlaceCategory?, val cursor: String?)
+    data class SearchCall(
+        val query: String?,
+        val category: PlaceCategory?,
+        val cursor: String?,
+        val latitude: Double? = null,
+        val longitude: Double? = null,
+        val radius: Int? = null,
+    )
 
     /** 지금까지 도착한 상세 요청의 `placeId`. 호출 순서대로 쌓인다. */
     val getCalls = mutableListOf<String>()

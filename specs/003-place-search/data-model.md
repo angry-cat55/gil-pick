@@ -6,13 +6,16 @@ F003은 영구 entity나 DB migration을 만들지 않는다. 아래 모델은 T
 
 | Field | Type | Required | Rule |
 |---|---|---:|---|
-| `query` | string | 조건부 | trim 후 2글자 이상. `category`가 없으면 필수 |
-| `category` | `PlaceCategory` | 조건부 | `query`가 없으면 필수 |
+| `query` | string | 조건부 | trim 후 2글자 이상. 없으면 위도·경도 쌍 필수 |
+| `category` | `PlaceCategory` | 아니오 | 키워드·주변 검색 모두에 적용 가능 |
 | `area_code` | string | 아니오 | 서울 코드 `1`만 허용하며 생략해도 서버가 서울 제한을 적용. 그 외 값은 `400 INVALID_REQUEST` |
+| `latitude` | number | 조건부 | -90~90. 검색어가 없으면 `longitude`와 함께 필수 |
+| `longitude` | number | 조건부 | -180~180. 검색어가 없으면 `latitude`와 함께 필수 |
+| `radius_meters` | integer | 아니오 | 1~20000, 기본 5000. 자동 확장하지 않음 |
 | `limit` | integer | 아니오 | 1~20, 기본 20 |
 | `cursor` | opaque string | 아니오 | 같은 criteria에서 발급된 다음 cursor만 허용 |
 
-`query`와 `category`는 단독 또는 조합할 수 있다. 두 값이 모두 없으면 invalid다.
+`query`가 있으면 기존 키워드 검색을 사용한다. `query`가 없으면 좌표 쌍으로 주변 검색을 사용하며 `category`는 두 모드 모두에서 결과를 좁힌다.
 
 ## 2. `PlaceCategory`
 
@@ -95,7 +98,7 @@ Client에는 opaque string으로만 노출한다. server 내부 payload는 다�
 | `tour_page_no` | 다음 TourAPI page number |
 | `google_page_token` | 상업 카테고리 보완이 시작된 경우에만 다음 Google page token 또는 null |
 | `seen_place_ids` | 같은 흐름에서 중복 방지에 필요한 제한된 ID 목록 |
-| `criteria_hash` | trim된 query·category·서울 고정 areaCode·limit fingerprint |
+| `criteria_hash` | trim된 query·category·서울 고정 areaCode·위도·경도·반경·limit fingerprint |
 
 서명 오류, version 불일치, 다른 criteria 재사용은 `400 INVALID_CURSOR`다. Cursor에 service key나 검색 결과 원문은 넣지 않는다.
 
@@ -120,10 +123,11 @@ Client에는 opaque string으로만 노출한다. server 내부 payload는 다�
 - `draftCriteria`: 사용자가 편집 중인 query/category. 지역은 서버에서 서울로 고정한다.
 - `committedCriteria`: 마지막으로 실행한 검색 조건
 - `items`: `placeId`로 dedupe된 immutable 목록
-- `initialLoad`: `Idle | Loading | Empty | Error | Content`
+- `initialLoad`: `Idle | Loading | Empty | LocationUnavailable | Error | Content`
 - `appendLoad`: `Idle | Loading | Error`
 - `nextCursor`, `hasNext`
-- `validationMessage`: 2글자·필수 조건 오류
+- `nearbyOrigin`: 주변 조회와 다음 페이지에 재사용할 현재 좌표
+- `validationMessage`: 2글자·좌표 쌍 오류
 
 새 검색 성공 시 `items`를 교체한다. append 성공 시 dedupe해 뒤에 추가하고, append 실패 시 기존 `items`를 유지한다.
 

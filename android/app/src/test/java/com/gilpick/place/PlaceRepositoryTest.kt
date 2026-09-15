@@ -57,6 +57,23 @@ class PlaceRepositoryTest {
     }
 
     @Test
+    fun `주변 조회는 좌표와 5km 반경을 전달한다`() = runTest {
+        service.onSearch = { placePage(emptyList()) }
+
+        repository().searchPlaces(
+            query = null,
+            category = PlaceCategory.NATURE,
+            latitude = 37.5884,
+            longitude = 127.0069,
+        )
+
+        assertEquals(
+            FakePlaceService.SearchCall(null, PlaceCategory.NATURE, null, 37.5884, 127.0069, 5_000),
+            service.searchCalls.single(),
+        )
+    }
+
+    @Test
     fun `계약 error code를 원인과 retryable로 좁힌다`() = runTest {
         service.onSearch = { placeError(429, PlaceErrorCodes.TOUR_API_RATE_LIMITED, retryable = false) }
 

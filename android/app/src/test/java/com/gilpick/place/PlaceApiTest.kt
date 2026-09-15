@@ -81,7 +81,10 @@ class PlaceApiTest {
             BEARER,
             query = "성산 일출봉",
             category = PlaceCategory.HISTORY_CULTURE,
-            areaCode = "39",
+            areaCode = "1",
+            latitude = 37.5884,
+            longitude = 127.0069,
+            radiusMeters = 5_000,
             cursor = "prev-cursor",
             limit = 20,
         )
@@ -89,7 +92,10 @@ class PlaceApiTest {
         val url = server.takeRequest().url
         assertEquals("성산 일출봉", url.queryParameter("query"))
         assertEquals("HISTORY_CULTURE", url.queryParameter("category"))
-        assertEquals("39", url.queryParameter("areaCode"))
+        assertEquals("1", url.queryParameter("areaCode"))
+        assertEquals("37.5884", url.queryParameter("latitude"))
+        assertEquals("127.0069", url.queryParameter("longitude"))
+        assertEquals("5000", url.queryParameter("radiusMeters"))
         assertEquals("prev-cursor", url.queryParameter("cursor"))
         assertEquals("20", url.queryParameter("limit"))
     }

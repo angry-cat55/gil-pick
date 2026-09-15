@@ -70,6 +70,9 @@ async def search_places(
     query: Annotated[str | None, Query()] = None,
     category: Annotated[PlaceCategory | None, Query()] = None,
     area_code: Annotated[AreaCode, Query(alias="areaCode")] = "1",
+    latitude: Annotated[float | None, Query(ge=-90, le=90)] = None,
+    longitude: Annotated[float | None, Query(ge=-180, le=180)] = None,
+    radius_meters: Annotated[int, Query(alias="radiusMeters", ge=1, le=20_000)] = 5000,
     cursor: Annotated[str | None, Query(min_length=1)] = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 20,
 ) -> JSONResponse:
@@ -81,6 +84,9 @@ async def search_places(
         query: 두 글자 이상의 검색어.
         category: 길픽 장소 카테고리 필터.
         area_code: 서울로 고정된 TourAPI 지역 코드.
+        latitude: 주변 검색의 기준 위도.
+        longitude: 주변 검색의 기준 경도.
+        radius_meters: 주변 검색 반경. 기본 5km.
         cursor: 이전 응답에서 받은 pagination cursor.
         limit: 한 페이지에 반환할 최대 장소 수.
 
@@ -93,13 +99,19 @@ async def search_places(
     normalized_query = query.strip() if query is not None else None
     if normalized_query is not None and len(normalized_query) < 2:
         raise AppError(400, "INVALID_REQUEST", "검색어는 2글자 이상이어야 합니다.")
-    if normalized_query is None and category is None:
-        raise AppError(400, "INVALID_REQUEST", "검색어 또는 카테고리가 필요합니다.")
+    has_location = latitude is not None and longitude is not None
+    if (latitude is None) != (longitude is None):
+        raise AppError(400, "INVALID_REQUEST", "위도와 경도를 함께 입력해야 합니다.")
+    if normalized_query is None and not has_location:
+        raise AppError(400, "INVALID_REQUEST", "검색어가 없으면 현재 위치가 필요합니다.")
 
     items, next_cursor, has_next = await service.search_places(
         query=normalized_query,
         category=category,
         area_code=area_code,
+        latitude=latitude,
+        longitude=longitude,
+        radius_meters=radius_meters,
         cursor=cursor,
         limit=limit,
     )
