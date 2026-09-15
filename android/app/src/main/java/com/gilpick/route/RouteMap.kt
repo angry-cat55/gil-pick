@@ -94,7 +94,8 @@ fun RouteMap(
     NaverMapHost(
         modifier = modifier,
         description = description,
-        drawKey = Triple(route, baseRoute, marks),
+        // sheet 높이가 바뀌면 content padding과 카메라 범위를 다시 맞춘다(#550).
+        drawKey = listOf(route, baseRoute, marks, sheetFraction),
         onDispose = { overlays.clear() },
     ) { map, size ->
         val bottomPadding = (size.height * sheetFraction).toInt()

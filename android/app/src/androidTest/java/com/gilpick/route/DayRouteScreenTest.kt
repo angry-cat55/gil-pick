@@ -11,7 +11,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
@@ -284,6 +292,69 @@ class DayRouteScreenTest {
         }
     }
 
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun sheet는_끌거나_손잡이로_접고_펼치며_지도_비율이_따라간다() {
+        var fraction = -1f
+        composeRule.setContent {
+            GilpickTheme {
+                DayRouteScreen(
+                    state = RouteUiState.Content(readyRoute()),
+                    dayNumber = 2,
+                    date = LocalDate.of(2026, 5, 21),
+                    onBack = {},
+                    onRetry = {},
+                    onAddPlace = {},
+                    onReauthenticate = {},
+                    map = { _, _, sheetFraction, modifier ->
+                        fraction = sheetFraction
+                        Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
+                    },
+                )
+            }
+        }
+        val handle = composeRule.onNodeWithTag(TAG_SHEET_HANDLE)
+        fun sheetHeight() = composeRule.onNodeWithTag(TAG_SHEET).getBoundsInRoot().let { it.bottom - it.top }
+        composeRule.waitForIdle()
+        handle.assertHeightIsAtLeast(48.dp).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "기본"))
+        val defaultHeight = sheetHeight()
+        val defaultFraction = fraction
+        assertTrue("default=$defaultFraction", defaultFraction in 0.01f..0.45f)
+
+        // 아래로 끌면 합계만 남고 가려진 구간 목록은 접근성 트리에서도 빠진다.
+        handle.performTouchInput { swipeDown(startY = centerY, endY = centerY + 2_000f) }
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "접힘"))
+        composeRule.onNodeWithTag(TAG_SUMMARY).assertIsDisplayed()
+        composeRule.onNodeWithTag("${TAG_SEGMENT_PREFIX}1").assertDoesNotExist()
+        assertTrue(sheetHeight() < defaultHeight)
+        assertTrue("collapsed=$fraction default=$defaultFraction", fraction < defaultFraction)
+
+        // 손잡이를 누르면 한 단계 펼쳐 기본으로 돌아온다.
+        handle.performClick()
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "기본"))
+        composeRule.onNodeWithTag("${TAG_SEGMENT_PREFIX}1").assertExists()
+        assertEquals(defaultFraction, fraction, 0.01f)
+
+        // 끌기가 어려우면 접근성 action으로 펼치고 접는다.
+        handle.performCustomAccessibilityActionWithLabel("펼치기")
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "펼침"))
+        handle.performCustomAccessibilityActionWithLabel("접기")
+        handle.performCustomAccessibilityActionWithLabel("접기")
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "접힘"))
+
+        // 조금만 끌면 그대로, 충분히 끌어 올리면 한 단계 펼친다.
+        handle.performTouchInput { swipeUp(startY = centerY, endY = centerY - 24.dp.toPx(), durationMillis = 1_000) }
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "접힘"))
+        handle.performTouchInput { swipeUp(startY = centerY, endY = centerY - 150.dp.toPx(), durationMillis = 1_000) }
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "기본"))
+    }
+
     @Composable
     private fun Screen(
         state: RouteUiState,
@@ -300,7 +371,7 @@ class DayRouteScreenTest {
             onRetry = onRetry,
             onAddPlace = onAddPlace,
             onReauthenticate = onReauthenticate,
-            map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
+            map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
         )
     }
 }
