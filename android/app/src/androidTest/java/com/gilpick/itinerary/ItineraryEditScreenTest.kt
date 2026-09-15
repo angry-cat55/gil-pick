@@ -3,6 +3,7 @@ package com.gilpick.itinerary
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
@@ -201,7 +202,7 @@ class ItineraryEditScreenTest {
     // --- US2 편집 조작(T020·T022·T023): UI-002·003·004·008·009 ---
 
     @Test
-    fun 행은_손잡이_이동_삭제_변경을_제공하고_첫_행_위와_마지막_행_아래는_비활성이다() {
+    fun 행은_손잡이_삭제_변경을_제공하고_이동은_손잡이의_접근성_액션으로_첫_행_위와_마지막_행_아래는_없다() {
         val calls = mutableListOf<String>()
         setScreen(
             state(draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을"))),
@@ -212,13 +213,16 @@ class ItineraryEditScreenTest {
         )
 
         composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("경복궁 위로 이동").assertIsNotEnabled()
-        composeRule.onNodeWithContentDescription("북촌한옥마을 아래로 이동").assertIsNotEnabled()
+        // 위·아래 버튼은 없다(#507).
+        composeRule.onNodeWithContentDescription("위로 이동", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("아래로 이동", substring = true).assertDoesNotExist()
+        assertEquals(listOf("아래로 이동"), moveActionLabels("경복궁"))
+        assertEquals(listOf("위로 이동"), moveActionLabels("북촌한옥마을"))
         // 마지막 항목에는 다음 구간이 없으므로 `변경`도 없다(FR-006).
         composeRule.onNodeWithContentDescription("북촌한옥마을 다음 이동 수단 변경").assertDoesNotExist()
 
-        composeRule.onNodeWithContentDescription("경복궁 아래로 이동").performClick()
-        composeRule.onNodeWithContentDescription("북촌한옥마을 위로 이동").performClick()
+        performMoveAction("경복궁", "아래로 이동")
+        performMoveAction("북촌한옥마을", "위로 이동")
         composeRule.onNodeWithContentDescription("경복궁 삭제").performClick()
         composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").performClick()
         composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").performClick()
@@ -245,13 +249,11 @@ class ItineraryEditScreenTest {
         composeRule.onNodeWithText("건너뜀").assertIsDisplayed()
         composeRule.onNodeWithText("도보").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("경복궁 위로 이동").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("경복궁 아래로 이동").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("경복궁 삭제").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("북촌한옥마을 삭제").assertDoesNotExist()
         // 처리된 항목 바로 아래의 예정 항목은 위로 옮길 수 없다(FR-017).
-        composeRule.onNodeWithContentDescription("창덕궁 위로 이동").assertIsNotEnabled()
+        assertEquals(emptyList<String>(), moveActionLabels("창덕궁"))
         composeRule.onNodeWithContentDescription("창덕궁 삭제").assertIsEnabled()
 
         composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").performClick()
@@ -354,7 +356,7 @@ class ItineraryEditScreenTest {
     fun 편집_조작의_터치_영역은_48dp_이상이다() {
         setScreen(state(draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을")), dialog = EditDialog.StayTime(0)))
 
-        listOf("경복궁 순서 변경 손잡이", "경복궁 위로 이동", "경복궁 아래로 이동", "경복궁 삭제").forEach {
+        listOf("경복궁 순서 변경 손잡이", "경복궁 삭제").forEach {
             composeRule.onNodeWithContentDescription(it).assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
         }
         composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").assertHeightIsAtLeast(48.dp)
@@ -363,6 +365,19 @@ class ItineraryEditScreenTest {
         composeRule.onNodeWithContentDescription("체류 시간 30분 늘리기").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
         composeRule.onNodeWithText("60분").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithText("적용").assertHeightIsAtLeast(48.dp)
+    }
+
+    /** [name] 행 손잡이의 이동 커스텀 액션 이름들. */
+    private fun moveActionLabels(name: String): List<String> =
+        composeRule.onNodeWithContentDescription("$name 순서 변경 손잡이").fetchSemanticsNode()
+            .config.getOrElse(SemanticsActions.CustomActions) { emptyList() }
+            .map { it.label }
+
+    /** TalkBack이 하듯 [name] 행 손잡이의 [label] 커스텀 액션을 실행한다. */
+    private fun performMoveAction(name: String, label: String) {
+        val action = composeRule.onNodeWithContentDescription("$name 순서 변경 손잡이").fetchSemanticsNode()
+            .config[SemanticsActions.CustomActions].single { it.label == label }
+        composeRule.runOnIdle { action.action() }
     }
 
     private fun setScreen(

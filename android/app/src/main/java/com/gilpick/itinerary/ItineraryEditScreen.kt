@@ -68,13 +68,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.gilpick.R
@@ -360,7 +361,7 @@ private fun Content(
     val spacing = LocalGilpickSpacing.current
     val date = state.selectedDate ?: return
     val day = state.selectedDay ?: return
-    // ponytail: 끌기 중 자동 스크롤은 없다. 화면 밖 위치로는 위·아래 버튼을 쓴다. 필요해지면 verticalScroll 상태로 보강한다.
+    // ponytail: 끌기 중 자동 스크롤은 없다. 화면 밖 위치로는 나눠 끌거나 TalkBack 커스텀 액션을 쓴다. 필요해지면 verticalScroll 상태로 보강한다.
     var dragging by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val rowHeights = remember { mutableStateMapOf<Int, Int>() }
@@ -412,13 +413,11 @@ private fun Content(
                             index = index,
                             item = item,
                             isLast = index == draft.lastIndex,
-                            canMoveUp = canMove(index, index - 1),
-                            canMoveDown = canMove(index, index + 1),
                             onEditStay = { onEditStay(index) },
                             onChangeTransport = { onChangeTransport(index) },
                             onRemove = { onRemove(index) },
-                            onMoveUp = { onMove(index, index - 1) },
-                            onMoveDown = { onMove(index, index + 1) },
+                            onMoveUp = if (canMove(index, index - 1)) ({ onMove(index, index - 1) }) else null,
+                            onMoveDown = if (canMove(index, index + 1)) ({ onMove(index, index + 1) }) else null,
                             onDragStart = { dragging = index; dragOffset = 0f },
                             onDragEnd = { dragging = null; dragOffset = 0f },
                             onDrag = { dy ->
@@ -508,11 +507,15 @@ private fun EmptyCard() {
 
 /**
  * 방문 장소 행(UI-002): 손잡이, 순서 번호 또는 상태 원, 장소명, 체류 시간, 다음 구간 이동 수단과
- * `변경`, 위·아래 이동 버튼, 삭제 버튼.
+ * `변경`, 삭제 버튼.
  *
- * 도착 시각은 경로가 계산되기 전이라 표시하지 않는다(FR-018). 처리된 항목은 손잡이·이동·삭제·
- * `변경`을 숨기고 체류 시간만 바꿀 수 있으며 상태를 색·아이콘·문구로 함께 보인다(FR-017, UI-009).
- * Figma의 28dp 이동 버튼과 32dp 삭제 버튼은 48dp 터치 영역 안에 둔다.
+ * 순서 변경은 손잡이 끌기만 보인다(#507). 끌기가 어려운 사용자를 위해 손잡이에 TalkBack 커스텀 액션
+ * `위로 이동`·`아래로 이동`을 붙인다. [onMoveUp]·[onMoveDown]이 `null`이면 그 방향으로 옮길 수 없어
+ * 액션을 두지 않는다.
+ *
+ * 도착 시각은 경로가 계산되기 전이라 표시하지 않는다(FR-018). 처리된 항목은 손잡이·삭제·`변경`을
+ * 숨기고 체류 시간만 바꿀 수 있으며 상태를 색·아이콘·문구로 함께 보인다(FR-017, UI-009).
+ * Figma의 32dp 삭제 버튼은 48dp 터치 영역 안에 둔다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -520,13 +523,11 @@ private fun PlaceRow(
     index: Int,
     item: DraftItem,
     isLast: Boolean,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
     onEditStay: () -> Unit,
     onChangeTransport: () -> Unit,
     onRemove: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
+    onMoveUp: (() -> Unit)?,
+    onMoveDown: (() -> Unit)?,
     onDragStart: () -> Unit,
     onDragEnd: () -> Unit,
     onDrag: (Float) -> Unit,
@@ -537,6 +538,8 @@ private fun PlaceRow(
     val name = item.place.name
     val sequence = stringResource(R.string.itinerary_edit_sequence, index + 1)
     val handleDescription = stringResource(R.string.itinerary_edit_drag_handle, name)
+    val moveUpLabel = stringResource(R.string.itinerary_edit_move_up)
+    val moveDownLabel = stringResource(R.string.itinerary_edit_move_down)
     val editable = item.editable
 
     Row(
@@ -552,7 +555,13 @@ private fun PlaceRow(
                 .size(MIN_TOUCH)
                 .then(
                     if (editable) Modifier
-                        .semantics { contentDescription = handleDescription }
+                        .semantics {
+                            contentDescription = handleDescription
+                            customActions = listOfNotNull(
+                                onMoveUp?.let { move -> CustomAccessibilityAction(moveUpLabel) { move(); true } },
+                                onMoveDown?.let { move -> CustomAccessibilityAction(moveDownLabel) { move(); true } },
+                            )
+                        }
                         .pointerInput(index) {
                             detectDragGestures(
                                 onDragStart = { onDragStart() },
@@ -602,35 +611,10 @@ private fun PlaceRow(
             }
         }
         if (editable) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
-                Column {
-                    SmallIconButton(
-                        icon = R.drawable.ic_lucide_chevron_up,
-                        description = stringResource(R.string.itinerary_edit_move_up, name),
-                        enabled = canMoveUp,
-                        onClick = onMoveUp,
-                    )
-                    SmallIconButton(
-                        icon = R.drawable.ic_lucide_chevron_down,
-                        description = stringResource(R.string.itinerary_edit_move_down, name),
-                        enabled = canMoveDown,
-                        onClick = onMoveDown,
-                    )
-                }
-                SmallIconButton(
-                    icon = R.drawable.ic_lucide_trash,
-                    description = stringResource(R.string.itinerary_edit_remove, name),
-                    enabled = true,
-                    onClick = onRemove,
-                    visibleSize = DELETE_BUTTON,
-                    iconSize = 14.dp,
-                    background = MaterialTheme.colorScheme.errorContainer,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
+            DeleteButton(name = name, onClick = onRemove, modifier = Modifier.align(Alignment.CenterVertically))
         } else {
-            // 처리된 행도 장소명 폭이 같도록 조작 영역을 비워 둔다(Figma `w-[62px]`).
-            Spacer(modifier = Modifier.size(width = MIN_TOUCH * 2 + spacing.space2, height = 0.dp))
+            // 처리된 행도 장소명 폭이 같도록 삭제 버튼 자리를 비워 둔다.
+            Spacer(modifier = Modifier.size(width = MIN_TOUCH, height = 0.dp))
         }
     }
 }
@@ -737,35 +721,31 @@ private fun TransportChip(transport: TransportMode, name: String, editable: Bool
     }
 }
 
-/** Figma 28dp 이동 버튼·32dp 삭제 버튼을 48dp 터치 영역 안에 둔다. 비활성은 30% 투명(UI-009). */
+/** Figma 32dp 삭제 버튼을 48dp 터치 영역 안에 둔다. */
 @Composable
-private fun SmallIconButton(
-    icon: Int,
-    description: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    visibleSize: Dp = MOVE_BUTTON,
-    iconSize: Dp = 12.dp,
-    background: Color = MaterialTheme.colorScheme.background,
-    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-) {
+private fun DeleteButton(name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.itinerary_edit_remove, name)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(MIN_TOUCH)
             .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
-            .clickable(enabled = enabled, onClick = onClick, role = Role.Button)
-            .semantics { contentDescription = description }
-            .alpha(if (enabled) 1f else 0.3f),
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .size(visibleSize)
+                .size(DELETE_BUTTON)
                 .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
-                .background(background),
+                .background(MaterialTheme.colorScheme.errorContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painter = painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_trash),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }
@@ -1152,7 +1132,6 @@ private val HEADER_BUTTON = 36.dp
 private val SEQUENCE_CIRCLE = 28.dp
 
 /** Figma 위·아래 이동 버튼(`w-7 h-7`)과 삭제 버튼(`w-8 h-8`). */
-private val MOVE_BUTTON = 28.dp
 private val DELETE_BUTTON = 32.dp
 
 /** Figma 체류 시간 대화상자 `−`·`+` 원(`w-11 h-11`). F003 시트의 40dp보다 크다. */
