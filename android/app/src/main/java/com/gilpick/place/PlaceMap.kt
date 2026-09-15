@@ -74,8 +74,6 @@ fun PlaceMap(
         drawKey = Triple(name, latitude, longitude),
         onDispose = { marker.map = null },
     ) { map, _ ->
-        // 상세는 밝은 화면이라 F005의 야간 스타일을 쓰지 않는다.
-        map.isNightModeEnabled = false
         map.uiSettings.isZoomControlEnabled = zoomControls
         map.uiSettings.setAllGesturesEnabled(true)
         val position = LatLng(latitude, longitude)

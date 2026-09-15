@@ -147,7 +147,6 @@ fun ItineraryEditScreen(
     val noticeText = state.notice?.let {
         stringResource(
             when (it) {
-                EditNotice.SAVED -> R.string.itinerary_edit_notice_saved
                 EditNotice.NO_COORDINATES -> R.string.itinerary_edit_notice_no_coordinates
                 EditNotice.LIMIT_REACHED -> R.string.itinerary_edit_notice_limit
             },

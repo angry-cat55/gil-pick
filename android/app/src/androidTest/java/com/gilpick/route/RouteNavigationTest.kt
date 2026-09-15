@@ -230,7 +230,7 @@ class RouteNavigationTest {
                         onSessionExpired = {},
                         repository = { routeRepository },
                         progressRepository = { progressRepository },
-                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
+                        map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
                     )
                 }
             }

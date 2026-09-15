@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -66,6 +67,8 @@ class TripDetailNavigationTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val server = MockWebServer()
+    private val saveCalls = java.util.concurrent.atomic.AtomicInteger()
+    private val overviewCalls = java.util.concurrent.atomic.AtomicInteger()
     private lateinit var navController: NavHostController
     private lateinit var repository: TripRepository
     private lateinit var itineraryRepository: ItineraryRepository
@@ -79,7 +82,15 @@ class TripDetailNavigationTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.url.encodedPath
                 return when {
-                    path.endsWith("/itinerary") -> json(OVERVIEW_JSON)
+                    // #556 날짜 일정 저장. 조회 개요보다 먼저 가른다(둘 다 `/itinerary`로 끝난다).
+                    request.method == "PUT" && path.contains("/days/") -> {
+                        saveCalls.incrementAndGet()
+                        json(SAVED_DAY_JSON)
+                    }
+                    path.endsWith("/itinerary") -> {
+                        overviewCalls.incrementAndGet()
+                        json(OVERVIEW_JSON)
+                    }
                     path.contains("/trips/") -> json(TRIP_JSON)
                     // F003 장소 상세. 제목만 확인하므로 내용은 주지 않는다.
                     else -> MockResponse(code = 404)
@@ -139,6 +150,27 @@ class TripDetailNavigationTest {
         composeRule.onNodeWithText("1일차 · 1곳").assertIsDisplayed()
         composeRule.runOnIdle {
             assertEquals(ItineraryEditRoute(TRIP_ID, "2026-09-01"), currentRoute<ItineraryEditRoute>())
+        }
+    }
+
+    /** #556: 일정 편집에서 저장에 성공하면 여행 상세로 돌아가고, 상세는 일정을 다시 조회한다. */
+    @Test
+    fun 일정_편집에서_저장하면_여행_상세로_돌아가_일정을_다시_조회한다() {
+        setGraph()
+        awaitDetail()
+        composeRule.onNodeWithText("일정 편집").performClick()
+        awaitEditContent()
+        val overviewBeforeSave = overviewCalls.get()
+
+        composeRule.onNodeWithText("저장").performClick()
+
+        composeRule.waitUntil(WAIT_MILLIS) {
+            navController.currentBackStackEntry?.destination?.hasRoute<DetailRoute>() == true
+        }
+        awaitDetail()
+        composeRule.runOnIdle {
+            assertEquals(1, saveCalls.get())
+            assertTrue("상세가 일정을 다시 조회하지 않았다", overviewCalls.get() > overviewBeforeSave)
         }
     }
 
@@ -266,6 +298,17 @@ class TripDetailNavigationTest {
              "data":{"tripId":"$TRIP_ID","name":"서울 여행","startDate":"2026-09-01",
                      "endDate":"2026-09-02","status":"UPCOMING","dayCount":2,"version":1},
              "meta":{"requestId":"$REQUEST_ID"}}
+        """.trimIndent()
+        /** 첫날 저장 응답. 저장본 version이 1에서 2로 오른다. */
+        val SAVED_DAY_JSON = """
+            {"success":true,"data":
+              {"date":"2026-09-01","dayNumber":1,"version":2,"routeStatus":"NOT_CALCULATED","items":[
+                {"itemId":"aaaaaaaa-1111-4222-8333-444444444444",
+                 "place":{"placeId":"$PLACE_ID","name":"경복궁","category":"HISTORY_CULTURE",
+                          "address":"서울 종로구","imageUrl":null},
+                 "sequence":1,"plannedStayMinutes":90,"staySource":"RECOMMENDED",
+                 "transportModeToNext":null,"status":"PLANNED"}
+              ]},"meta":{"requestId":"$REQUEST_ID"}}
         """.trimIndent()
         val OVERVIEW_JSON = """
             {"success":true,"data":{"tripId":"$TRIP_ID","days":[
