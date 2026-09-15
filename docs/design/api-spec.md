@@ -727,8 +727,9 @@ Request Body:
 - 한 날짜의 항목 전체를 한 transaction에서 저장하고 요청 `version`과 `trip_days.schedule_version`으로 충돌을 감지
 - 신규 항목은 서버의 기존 장소 저장 여부와 무관하게 `place` snapshot 필수
 - 같은 요청의 재전송은 항목 중복과 version 이중 증가 없이 현재 결과 반환
-- 처리된 장소는 장소·`transportModeToNext` 값·순서 변경과 삭제를 거부하고 체류시간만 수정 가능
+- 처리된 장소는 장소·`transportModeToNext` 값·순서 변경과 삭제를 거부하고 체류시간만 수정 가능. 단 처리된 장소가 그 날짜의 마지막이라 `transportModeToNext`가 `null`이던 상태에서, 뒤에 새 장소가 추가돼 더 이상 마지막이 아니게 되면 그 값을 채우는 것은 허용한다(2026-09-16 #582).
 - 처리된 장소의 상태 수정은 진행 API에서 처리
+- 기존 항목은 `itemId`를 유지한 채 update로 반영하며 delete 후 재삽입하지 않는다. 진행 이력·감지·교체 이력이 `itemId`를 참조하므로 재삽입하면 FK 위반이 난다(2026-09-16 #582). 요청에 없는 기존 항목만 삭제한다.
 - F004 단독 범위에서는 `routeStatus: NOT_CALCULATED`, `route: null`을 반환한다. F005 적용 뒤에는 일정 저장 성공 후 계획 경로를 자동 계산해 `READY` 또는 `FAILED`와 경로 정보를 반환한다.
 
 Response `200` 또는 신규 일자 `201`:

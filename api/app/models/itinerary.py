@@ -135,7 +135,11 @@ class ItineraryItem(TimestampMixin, Base):
     __tablename__ = "itinerary_items"
     __table_args__ = (
         UniqueConstraint(
-            "trip_day_id", "sequence", name="uq_itinerary_items_day_sequence"
+            "trip_day_id",
+            "sequence",
+            name="uq_itinerary_items_day_sequence",
+            deferrable=True,
+            initially="DEFERRED",
         ),
         CheckConstraint("sequence BETWEEN 1 AND 10", name="ck_itinerary_items_sequence"),
         CheckConstraint(

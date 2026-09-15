@@ -129,3 +129,90 @@ def test_processed_item_rejects_locked_changes(
 
     assert error.value.code == "ITINERARY_ITEM_LOCKED"
     assert error.value.details == {"itemId": str(item_id)}
+
+
+def test_processed_last_item_allows_filling_null_transport() -> None:
+    """처리된 마지막 장소 뒤에 새 장소가 붙어 null이던 이동 수단이 채워지는 것은 허용한다(#582)."""
+    item_id = uuid.uuid4()
+    stored = ItineraryItem(
+        item_id=item_id,
+        trip_day_id=uuid.uuid4(),
+        place_id=uuid.uuid4(),
+        sequence=1,
+        status="COMPLETED",
+        planned_stay_minutes=60,
+        stay_source="RECOMMENDED",
+        transport_mode_to_next=None,
+    )
+    stored.place = Place(
+        place_id=stored.place_id,
+        tour_content_id="12345",
+        name="처리된 장소",
+        category="OTHER",
+        location="POINT(127 37)",
+    )
+    day = TripDay(
+        trip_day_id=stored.trip_day_id,
+        trip_id=uuid.uuid4(),
+        visit_date=date(2026, 9, 1),
+        day_number=1,
+        schedule_version=1,
+        items=[stored],
+    )
+    incoming = _payload(
+        [
+            {
+                **_new_item(1, "WALK"),
+                "itemId": str(item_id),
+                "placeId": "tourapi:12345",
+                "place": None,
+            }
+        ]
+    ).items
+
+    _validate_locked_items(day, incoming)  # 예외 없이 통과해야 한다.
+
+
+def test_processed_item_still_rejects_changing_existing_transport() -> None:
+    """이미 있던 이동 수단을 다른 값으로 바꾸는 것은 여전히 막는다(#582)."""
+    item_id = uuid.uuid4()
+    stored = ItineraryItem(
+        item_id=item_id,
+        trip_day_id=uuid.uuid4(),
+        place_id=uuid.uuid4(),
+        sequence=1,
+        status="COMPLETED",
+        planned_stay_minutes=60,
+        stay_source="RECOMMENDED",
+        transport_mode_to_next="WALK",
+    )
+    stored.place = Place(
+        place_id=stored.place_id,
+        tour_content_id="12345",
+        name="처리된 장소",
+        category="OTHER",
+        location="POINT(127 37)",
+    )
+    day = TripDay(
+        trip_day_id=stored.trip_day_id,
+        trip_id=uuid.uuid4(),
+        visit_date=date(2026, 9, 1),
+        day_number=1,
+        schedule_version=1,
+        items=[stored],
+    )
+    incoming = _payload(
+        [
+            {
+                **_new_item(1, "TRANSIT"),
+                "itemId": str(item_id),
+                "placeId": "tourapi:12345",
+                "place": None,
+            }
+        ]
+    ).items
+
+    with pytest.raises(AppError) as error:
+        _validate_locked_items(day, incoming)
+
+    assert error.value.code == "ITINERARY_ITEM_LOCKED"

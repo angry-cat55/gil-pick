@@ -15,6 +15,7 @@ from app.api.errors import AppError
 from app.db import transaction_session
 from app.models.auth import User
 from app.models.itinerary import ItineraryItem, Place, TripDay
+from app.models.progress import ProgressTransition
 from app.models.route import Route as RouteModel
 from app.models.trip import Trip
 from app.schemas.itinerary import SaveDayItineraryRequest, StaySource
@@ -409,6 +410,139 @@ async def test_processed_item_allows_stay_change_but_rejects_delete(
     assert locked.value.status_code == 409
     assert locked.value.code == "ITINERARY_ITEM_LOCKED"
     assert locked.value.details == {"itemId": str(saved.items[0].item_id)}
+
+
+def _second_place_item(sequence: int, transport: str | None) -> dict[str, object]:
+    return {
+        "itemId": None,
+        "placeId": "tourapi:999001",
+        "place": {
+            "name": "다른 장소",
+            "category": "HISTORY_CULTURE",
+            "tourApiCategory": {"large": "A02", "middle": None, "small": None},
+            "address": "서울 종로구",
+            "latitude": 37.58,
+            "longitude": 126.98,
+            "imageUrl": None,
+        },
+        "sequence": sequence,
+        "plannedStayMinutes": 90,
+        "staySource": "RECOMMENDED",
+        "transportModeToNext": transport,
+    }
+
+
+async def _insert_progress_transition(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    trip_day_id: uuid.UUID,
+    primary_item_id: uuid.UUID,
+) -> None:
+    """건너뛰기 → 건너뛰기 취소처럼 이력만 남기는 전환 기록을 흉내 낸다(#582 재현)."""
+    now = datetime.now(UTC)
+    async with transaction_session(session_factory) as session:
+        session.add(
+            ProgressTransition(
+                trip_day_id=trip_day_id,
+                primary_item_id=primary_item_id,
+                transition_type="SKIP",
+                status="CANCELLED",
+                source="USER",
+                decision=None,
+                affected_items=[],
+                detected_at=now,
+                schedule_version_before=1,
+                schedule_version_after=1,
+                progress_version_after=1,
+                idempotency_key=uuid.uuid4(),
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_reordering_item_with_transition_history_saves_without_fk_violation(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """건너뛰기 이력이 남은(PLANNED로 되돌아온) 항목을 재정렬해도 FK 위반 없이 저장된다(#582)."""
+    trip_id, visit_date = await _seed(session_factory)
+    payload = SaveDayItineraryRequest(
+        version=0, items=[_place_item(1, "WALK"), _second_place_item(2, None)]
+    )
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=payload, idempotency_key=uuid.uuid4(),
+        )
+    first_item_id = saved.items[0].item_id
+    second_item_id = saved.items[1].item_id
+    async with session_factory() as session:
+        trip_day_id = await session.scalar(
+            select(TripDay.trip_day_id).where(TripDay.trip_id == trip_id)
+        )
+    await _insert_progress_transition(
+        session_factory, trip_day_id=trip_day_id, primary_item_id=first_item_id
+    )
+
+    reordered = SaveDayItineraryRequest(
+        version=saved.version,
+        items=[
+            {**_second_place_item(1, "WALK"), "itemId": str(second_item_id), "place": None},
+            {**_place_item(2, None), "itemId": str(first_item_id), "place": None},
+        ],
+    )
+    async with transaction_session(session_factory) as session:
+        updated, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=reordered, idempotency_key=uuid.uuid4(),
+        )
+
+    assert {item.item_id for item in updated.items} == {first_item_id, second_item_id}
+    async with session_factory() as session:
+        transition_item_id = await session.scalar(
+            select(ProgressTransition.primary_item_id).where(
+                ProgressTransition.trip_day_id == trip_day_id
+            )
+        )
+    assert transition_item_id == first_item_id
+
+
+@pytest.mark.asyncio
+async def test_appending_after_completed_last_item_fills_null_transport(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """완료된 마지막 장소 뒤에 장소를 추가하면 그 장소의 이동 수단이 채워져 저장된다(#582)."""
+    trip_id, visit_date = await _seed(session_factory)
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=_create_payload(), idempotency_key=uuid.uuid4(),
+        )
+        await session.execute(
+            update(ItineraryItem)
+            .where(ItineraryItem.item_id == saved.items[0].item_id)
+            .values(status="COMPLETED")
+        )
+
+    appended = SaveDayItineraryRequest(
+        version=saved.version,
+        items=[
+            {
+                **_place_item(1, "WALK"),
+                "itemId": str(saved.items[0].item_id),
+                "place": None,
+            },
+            _second_place_item(2, None),
+        ],
+    )
+    async with transaction_session(session_factory) as session:
+        updated, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=appended, idempotency_key=uuid.uuid4(),
+        )
+
+    assert updated.items[0].status == "COMPLETED"
+    assert updated.items[0].transport_mode_to_next == "WALK"
+    assert updated.items[1].transport_mode_to_next is None
 
 
 @pytest.mark.asyncio
