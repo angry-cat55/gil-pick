@@ -272,6 +272,18 @@ description: "F003 장소 검색 구현 task 목록"
 
 ---
 
+## Phase 7: Convergence
+
+**Purpose**: 2026-09-16 공모전 규정(한국관광공사 출처 표기 필수)에 따라 UI-012에 추가된 공공데이터 출처 표기를 구현·검증한다.
+
+- [ ] T037 검색 결과 목록·상세 정보 영역 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/place/PlaceLabels.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt per UI-012 (missing)
+  - 영역: FE
+  - 담당: hs
+  - 선행: 없음
+  - 검증: `placeId`가 `tourapi:`인 결과가 있으면 검색 목록 하단·상세 정보 영역 하단에 한 줄 표시, Google 결과만 있으면 미표시, `googleAttributionText()`와 같은 방식의 `tourApiAttributionText()` 사용, 로고 이미지·`TourAPI` 단독 표기 없음; UI test와 360dp·최대 글자 배율 screenshot
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

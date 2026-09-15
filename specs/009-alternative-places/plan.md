@@ -60,6 +60,8 @@ Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma
 
 **Accessibility & Adaptive Layout**: 터치 대상 `sizeIn(minHeight = 48.dp)`·간격 8dp, 아이콘 버튼 `contentDescription`, 후보 행 `contentDescription = "N위 이름, 카테고리, 거리, 운영 상태"`, TOP·폐점 임박·방문 불가는 배지·문구·테두리 병기(색 단독 금지), 360dp·fontScale 2.0에서 `weight(1f)`+줄바꿈으로 잘림 없음(F006 `오늘로 돌아가기` 교훈), 지도 정보는 목록으로 중복 제공(UI-004), `statusBarsPadding`/`navigationBarsPadding`
 
+**Attribution (UI-011, 2026-09-16)**: 대체 장소 후보 목록 하단과 직접 검색 결과 시트 하단에 TourAPI 결과(`placeId`가 `tourapi:`)가 하나라도 있으면 `출처: ⓒ한국관광공사`를 목록 단위 한 줄 텍스트로 표시한다(필수). 문구·표시 조건은 F003 `place/PlaceLabels.kt`의 `tourApiAttributionText()`를 재사용하고, 후보·결과별 배지·로고 이미지는 쓰지 않는다.
+
 **Visual Validation**: `AlternativeScreenshotTest` 4상태 × 2배율 8장 + `ActiveTravelScreenshotTest` 배너 2장 + 직접 검색 지도형 4상태(검색 전·결과 있음·결과 없음·검색 실패) × 2배율 8장(UI-009·UI-010·SC-009, tasks T046)(ATD `captureToImage`; 다이얼로그·시트는 inline content로 캡처). 실기기/`gilpick_api36_play` 실서버 절차는 quickstart AND 5. 적용하지 않는 상태: ~~직접 검색 화면의 `empty`는 F003 `EmptyState` 재사용(새 표현 없음)~~ → 지도형 전환 후 직접 검색 `empty`는 결과 시트 안 빈 상태로 표시(#450, ui-guidelines 5절 "목록·검색 영역 안 빈 상태"), 배너의 `loading`·`error`는 없음(실패 = 숨김)
 
 ### Figma 대조 결과 (T003, 2026-09-09)

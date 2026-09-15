@@ -43,7 +43,7 @@ android\gradlew.bat -p android connectedDebugAndroidTest
 4. nullable 주소·좌표·이미지·연락처·운영 안내를 안전하게 표시하고 이미지 fallback을 제공한다.
 5. 상세 화면에서 뒤로 가면 검색 조건·결과·scroll 위치가 유지된다.
 6. 360dp 폭, 최대 font scale, TalkBack focus 순서, live region, 48dp touch target을 확인한다.
-7. 장소별 provider 배지·출처 문구는 표시하지 않고 Google 정보가 있는 영역에는 필수 attribution이 표시된다.
+7. 장소별 provider 배지는 표시하지 않는다. Google 정보가 있는 영역에는 필수 attribution이, TourAPI 결과가 있는 검색 결과 목록·상세 정보 영역에는 `출처: ⓒ한국관광공사` 한 줄이 표시된다. Google 결과만 있으면 공공데이터 출처는 표시되지 않는다(UI-012, 2026-09-16).
 
 ## 실제 외부 API 수동 검증
 
