@@ -84,7 +84,12 @@ def test_replacement_migration_round_trip() -> None:
     assert "ix_place_replacements_day" in schema["replacement_indexes"]
     assert {"idempotency_key", "response_snapshot"} <= schema["replacement_columns"]
     migrated_columns = asyncio.run(_existing_columns(database_url))
-    assert {table: migrated_columns[table] for table in existing_columns} == existing_columns
+    expected_columns = {
+        table: columns
+        for table, columns in existing_columns.items()
+    }
+    expected_columns["trips"] = (*expected_columns["trips"], "image_url")
+    assert {table: migrated_columns[table] for table in expected_columns} == expected_columns
 
     command.downgrade(config, "008_create_detections")
     assert not {"route_previews", "place_replacements"} & asyncio.run(_tables(database_url))
