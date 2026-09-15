@@ -88,9 +88,6 @@ sealed interface EditDialog {
 
 /** 짧게 띄우는 안내. 화면이 스낵바로 보이고 사용자가 닫는다. */
 enum class EditNotice {
-    /** 변경된 날짜를 모두 저장했다. 화면은 그대로 머문다(#506). */
-    SAVED,
-
     /** 좌표 없는 장소는 일정에 넣을 수 없다(FR-002). */
     NO_COORDINATES,
 
@@ -105,7 +102,7 @@ enum class EditNotice {
  * @property draft 선택한 날짜의 편집 상태. 다른 날짜의 초안은 ViewModel이 따로 들고 있다.
  * @property dirty 어느 날짜든 초안이 저장본과 다르면 참이다.
  * @property saveError 마지막 저장 실패 원인. 초안은 그대로 남아 `저장`이 곧 재시도다(FR-019).
- * @property exit 변경 없이 닫거나 버리기를 확정했다. 이동 뒤 [ItineraryEditViewModel.consumeExit]로 비운다.
+ * @property exit 변경을 모두 저장했거나(#556), 변경 없이 닫거나 버리기를 확정했다. 이동 뒤 [ItineraryEditViewModel.consumeExit]로 비운다.
  */
 data class ItineraryEditUiState(
     val tripId: String,
@@ -386,12 +383,13 @@ class ItineraryEditViewModel(
     }
 
     /**
-     * 초안이 저장본과 다른 날짜를 날짜 순으로 모두 저장하고 화면에 머문다(FR-008, #506).
+     * 초안이 저장본과 다른 날짜를 날짜 순으로 모두 저장하고 편집 화면을 닫는다(FR-008, #506·#556). 호출부는 여행 상세로 돌아가고,
+     * 상세는 다시 조회해 저장한 일정을 보인다.
      *
      * 바뀐 날짜가 없으면 선택한 날짜를 그대로 저장한다. 날짜마다 순서는 목록 위치대로 1..N을 매기고
      * 마지막 항목의 이동 수단은 비운다. `409 VERSION_CONFLICT`면 최신 일정을 조회해 version만 바꾼 뒤
      * 같은 초안을 최대 2회 더 보낸다(`research.md` 4절). 한 날짜라도 실패하면 거기서 멈추고 그 날짜로
-     * 옮겨 초안을 유지한 채 실패를 안내한다. 앞서 성공한 날짜는 저장본이 된다.
+     * 옮겨 초안을 유지한 채 실패를 안내하고 화면에 남는다. 앞서 성공한 날짜는 저장본이 된다.
      */
     fun save() {
         val current = _state.value
@@ -409,7 +407,7 @@ class ItineraryEditViewModel(
                     return@launch
                 }
             }
-            _state.update { it.copy(saving = false, notice = EditNotice.SAVED) }
+            _state.update { it.copy(saving = false, exit = true) }
         }
     }
 

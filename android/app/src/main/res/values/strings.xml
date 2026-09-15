@@ -307,7 +307,6 @@
     <string name="itinerary_edit_discard_body">저장하지 않은 변경 사항은 사라집니다</string>
     <string name="itinerary_edit_discard_keep">계속 편집</string>
     <string name="itinerary_edit_discard_confirm">취소하고 나가기</string>
-    <string name="itinerary_edit_notice_saved">일정을 저장했어요</string>
     <string name="itinerary_edit_notice_no_coordinates">위치 정보가 없는 장소는 일정에 추가할 수 없어요</string>
     <string name="itinerary_edit_notice_limit">하루에 최대 10곳까지 담을 수 있어요</string>
     <string name="itinerary_edit_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
