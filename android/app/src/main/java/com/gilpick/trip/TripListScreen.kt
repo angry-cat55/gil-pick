@@ -56,8 +56,6 @@ import com.gilpick.ui.component.CompletedTripCard
 import com.gilpick.ui.component.EmptyState
 import com.gilpick.ui.component.EmptyStateSize
 import com.gilpick.ui.component.ErrorState as CommonErrorState
-import com.gilpick.ui.component.GradientButton
-import com.gilpick.ui.component.GradientButtonWidth
 import com.gilpick.ui.component.SecondaryButton
 import com.gilpick.ui.component.UpcomingTripCard
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -121,7 +119,6 @@ fun TripListScreen(
 
                     TripListPhase.Empty -> TripsEmptyState(
                         filtered = state.filtered,
-                        onCreateTrip = onCreateTrip,
                         onResetFilters = {
                             onQueryChange("")
                             onStatusFilterChange(null)
@@ -436,13 +433,12 @@ private fun LoadingState() {
 /**
  * 결과가 없는 상태(공통 [EmptyState], 가이드라인 5절 "화면 전체 빈 상태" 80dp).
  *
- * 여행이 아예 없는 경우와 조건에 맞는 결과가 없는 경우는 다음 행동이 다르다. 여행이 없으면 `첫 여행 만들기`
- * [GradientButton](Figma, 너비 자동 16dp), 조건에 맞는 결과가 없으면 조건 초기화 보조 버튼이다(Figma에 없는 상태라 공통 보조 버튼).
+ * 여행이 아예 없으면 버튼을 두지 않는다. 하단 `새 여행 만들기` FAB와 같은 곳으로 가는 중복 진입점이라 FAB 하나만 남긴다(#568).
+ * 조건에 맞는 결과가 없으면 조건 초기화 보조 버튼이다(Figma에 없는 상태라 공통 보조 버튼).
  */
 @Composable
 private fun TripsEmptyState(
     filtered: Boolean,
-    onCreateTrip: () -> Unit,
     onResetFilters: () -> Unit,
 ) {
     EmptyState(
@@ -452,17 +448,10 @@ private fun TripsEmptyState(
         modifier = Modifier.fillMaxSize(),
         size = EmptyStateSize.Screen,
         titleStyle = MaterialTheme.typography.titleMedium,
-        action = {
-            if (filtered) {
-                SecondaryButton(label = stringResource(R.string.trips_reset_filters), onClick = onResetFilters)
-            } else {
-                GradientButton(
-                    label = stringResource(R.string.trips_empty_create),
-                    onClick = onCreateTrip,
-                    width = GradientButtonWidth.Standalone,
-                    height = EMPTY_BUTTON_HEIGHT,
-                )
-            }
+        action = if (filtered) {
+            { SecondaryButton(label = stringResource(R.string.trips_reset_filters), onClick = onResetFilters) }
+        } else {
+            null
         },
     )
 }
@@ -667,7 +656,6 @@ private val FAB_HEIGHT = 52.dp
 private val FAB_HORIZONTAL_PADDING = 28.dp
 private val FAB_ICON = 18.dp
 private val FAB_CLEARANCE = 112.dp
-private val EMPTY_BUTTON_HEIGHT = 52.dp
 
 /** 헤더 알림 벨 test tag. */
 const val TAG_NOTIFICATIONS = "trips_notifications"
