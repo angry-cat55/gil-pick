@@ -188,6 +188,22 @@ class _NoRisk(Exception):
     """저장할 위험이 없는 정상 평가를 장소 단위 savepoint에서 제외한다."""
 
 
+def _should_redetect_dismissed(
+    *,
+    dismissed_primary_type: str,
+    dismissed_snapshot: dict[str, object],
+    current_primary_type: str,
+    current_visit_blocked: bool,
+) -> bool:
+    """거절했던 경고와 이유가 달라졌거나 방문 불가로 악화됐는지 판정한다."""
+    dismissed_hours = (
+        dismissed_snapshot.get("variables", {}).get("operatingHours", {})
+    )
+    return dismissed_primary_type != current_primary_type or (
+        current_visit_blocked and not bool(dismissed_hours.get("visitBlocked"))
+    )
+
+
 async def _store_detection(
     session: AsyncSession,
     *,
@@ -225,13 +241,18 @@ async def _store_detection(
         or not eligibility[3]
     ):
         raise _NoRisk
-    detection_statuses = (
+    previous_detections = (
         await session.execute(
-            select(Detection.status)
+            select(
+                Detection.status,
+                Detection.primary_type,
+                Detection.evaluation_snapshot,
+            )
             .where(Detection.item_id == item.item_id)
+            .order_by(Detection.detected_at.desc())
             .with_for_update()
         )
-    ).scalars().all()
+    ).all()
     score = score_variables(
         congestion=congestion,
         weather=weather,
@@ -273,6 +294,8 @@ async def _store_detection(
                 Detection.status == "ACTIVE",
             )
             .values(
+                status="INVALIDATED",
+                resolved_at=now,
                 eta=eta,
                 score=Decimal(str(score.score)),
                 evaluation_snapshot=snapshot,
@@ -282,8 +305,18 @@ async def _store_detection(
         if result.rowcount == 0:
             raise _NoRisk
         return None
-    if any(status in ("RESOLVED", "DISMISSED") for status in detection_statuses):
-        raise _NoRisk
+    if not any(row.status == "ACTIVE" for row in previous_detections):
+        latest_dismissed = next(
+            (row for row in previous_detections if row.status == "DISMISSED"),
+            None,
+        )
+        if latest_dismissed is not None and not _should_redetect_dismissed(
+            dismissed_primary_type=latest_dismissed.primary_type,
+            dismissed_snapshot=latest_dismissed.evaluation_snapshot,
+            current_primary_type=score.primary_type.value,
+            current_visit_blocked=bool(operating.visit_blocked),
+        ):
+            raise _NoRisk
     values = {
         "trip_day_id": day.trip_day_id,
         "item_id": item.item_id,

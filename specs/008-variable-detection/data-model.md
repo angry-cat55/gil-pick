@@ -103,18 +103,19 @@
    (행 없음) ───────────────────────────▶ ACTIVE
       ▲                                    │  │
       │ 날짜 IN_PROGRESS 복귀 후 재위험      │  │ 같은 장소 재평가: 새 행 X, 스냅샷·score·eta 갱신
-      │ (새 ACTIVE 행 생성)                 │  │ (self-loop)
+      │ RESOLVED 뒤 새 장소 위험             │  │ (self-loop)
+      │ DISMISSED 뒤 새 종류·방문 불가 악화   │  │
       │                                    │  │
       │           F009·F010 사용자 결정     │  ▼
    INVALIDATED ◀───────────────           RESOLVED / DISMISSED
-      ▲   (항목 COMPLETED·SKIPPED·         (F008은 읽기만; 이 상태에는 새 ACTIVE를
-      │    일정 제거·날짜 COMPLETED)         만들지 않음 = 중복 경고 억제, FR-013)
+      ▲   (위험 없음·항목 COMPLETED·SKIPPED·
+      │    일정 제거·날짜 COMPLETED)
       └── F008이 설정, resolved_at=now
 ```
 
-- **생성**: §2 대상 장소에서 개별 변수 중 하나라도 위험이고 그 장소에 `ACTIVE`/`RESOLVED`/`DISMISSED` 행이 없으면 `INSERT`. 있으면(=`ACTIVE`) upsert로 갱신만. `RESOLVED`/`DISMISSED`가 있으면 아무것도 하지 않는다(사용자가 이미 결정 중/결정함).
-- **갱신**: `ACTIVE` 행에 대해 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 갱신. 모든 위험이 사라져도 `status`는 `ACTIVE` 유지(US2 Scenario 2), `score`는 낮아진 값으로 갱신.
-- **종료**(`ACTIVE` → `INVALIDATED`, `resolved_at=now`): 대상 항목 `status ∈ {ARRIVED, COMPLETED, SKIPPED}` 또는 `trip_days.status = COMPLETED`.
+- **생성**: §2 대상 장소에서 개별 변수 중 하나라도 위험이면 `INSERT ... ON CONFLICT`를 실행한다. 기존 `ACTIVE`가 있으면 upsert로 갱신만 한다. `RESOLVED` 이력은 새 장소의 감지를 막지 않는다. `DISMISSED` 이력이 있으면 최신 거절 감지보다 `primary_type`이 달라졌거나 운영시간 `visitBlocked`가 `false → true`로 악화된 경우에만 새 `ACTIVE`를 만든다.
+- **갱신**: `ACTIVE` 행에 대해 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at`을 갱신한다.
+- **종료**(`ACTIVE` → `INVALIDATED`, `resolved_at=now`): 모든 변수 위험이 사라지거나 대상 항목 `status ∈ {ARRIVED, COMPLETED, SKIPPED}`이거나 `trip_days.status = COMPLETED`일 때다. 위험이 사라진 경우 최신 `eta`·`evaluation_snapshot`·`score`·`last_evaluated_at`도 함께 저장한다.
 - **일정 삭제**: `itinerary_items`에서 항목이 삭제되면 `detections.item_id ON DELETE CASCADE`로 연결된 감지 결과도 함께 삭제한다. 삭제된 일정 항목의 감지 이력은 보존하지 않는다.
 - **재개**: 날짜가 `COMPLETED` → `IN_PROGRESS`(`detection_active=true`)로 복귀하면 다음 평가에서 새 `ACTIVE` 행이 생길 수 있다. `INVALIDATED` 행은 재사용하지 않는다.
 - **읽음**: `read_at` 갱신은 다른 상태 전이와 독립. 어느 `status`에서도 가능.

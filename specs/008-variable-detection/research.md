@@ -121,13 +121,14 @@
 **Decision**:
 - `fingerprint = f"{trip_day_id}:{item_id}"`. `detections`에 `status='ACTIVE'` 조건의 partial unique index(`er-schema.md` §8.1 "active fingerprint partial unique").
 - 생성은 `INSERT ... ON CONFLICT (fingerprint) WHERE status='ACTIVE' DO UPDATE`(upsert): 이미 `ACTIVE` 행이 있으면 `eta`·`evaluation_snapshot`·`score`·`reason`·`last_evaluated_at`만 갱신하고 새 행을 만들지 않는다(FR-013·FR-016). 주기·재평가가 겹쳐도 두 번째 INSERT는 conflict로 흡수된다.
-- 어느 변수도 위험이 아니면 행을 만들지 않는다. 이미 `ACTIVE` 행이 있는데 모든 위험이 사라지면 `evaluation_snapshot`·`score`를 갱신하되 `status`는 유지한다(사용자가 아직 볼 수 있어야 함; US2 Scenario 2). 종료는 아래 조건에서만.
-- 종료(`status='INVALIDATED'`, `resolved_at=now`): 대상 항목이 `COMPLETED`·`SKIPPED`가 되거나 일정에서 제거되거나 그 날짜가 `COMPLETED`가 될 때(FR-014). 재평가·주기 진입 시 대상 목록과 대조해 처리한다.
+- 어느 변수도 위험이 아니면 행을 만들지 않는다. 이미 `ACTIVE` 행이 있는데 모든 위험이 사라지면 최신 `evaluation_snapshot`·`score`를 저장하고 `INVALIDATED`로 종료한다.
+- 종료(`status='INVALIDATED'`, `resolved_at=now`): 모든 위험이 사라지거나 대상 항목이 `COMPLETED`·`SKIPPED`가 되거나 일정에서 제거되거나 그 날짜가 `COMPLETED`가 될 때(FR-014). 재평가·주기 진입 시 대상 목록과 대조해 처리한다.
+- 사용자 결정 뒤 재감지: `RESOLVED`는 장소 교체 전 이력이므로 새 장소의 감지를 막지 않는다. `DISMISSED`는 최신 거절 감지와 비교해 `primary_type`이 달라졌거나 운영시간 `visitBlocked`가 `false → true`로 악화됐을 때만 새 `ACTIVE`를 만든다.
 - 재개: 날짜가 `COMPLETED`→`IN_PROGRESS`로 복귀하면(`detection_active=true`) 다음 주기에서 다시 `ACTIVE` 행이 생길 수 있다. `INVALIDATED` 행은 되살리지 않고 새로 만든다.
 
 **Rationale**: `er-schema.md` §8.1이 `fingerprint` 컬럼과 active partial unique를 이미 규정한다. upsert는 constitution III의 멱등 요구를 DB 제약으로 보장하는 가장 단순한 방법이다.
 
-**status 개념 매핑**: spec의 `pending`=`ACTIVE`(F008 생성), `결정됨`=`RESOLVED`/`DISMISSED`(F009·F010이 설정), `종료`=`INVALIDATED`(F008이 설정). F008은 `ACTIVE`·`INVALIDATED`만 쓰고 네 값을 모두 읽는다. FR-013의 "pending"은 `status='ACTIVE'`로 판정한다.
+**status 개념 매핑**: spec의 `pending`=`ACTIVE`(F008 생성), `결정됨`=`RESOLVED`/`DISMISSED`(F009·F010이 설정), `종료`=`INVALIDATED`(F008이 설정). F008은 `ACTIVE`·`INVALIDATED`를 쓰고 네 값을 모두 읽어 재감지 여부를 판정한다. FR-013의 "pending"은 `status='ACTIVE'`로 판정한다.
 
 ---
 
