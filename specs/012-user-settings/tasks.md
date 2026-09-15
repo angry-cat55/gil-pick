@@ -274,6 +274,18 @@
 
 ---
 
+## Phase 8: Convergence
+
+**Purpose**: 2026-09-16 공모전 규정(한국관광공사 출처 표기 필수, 서비스 단위)에 따라 추가된 FR-009a를 구현·검증한다.
+
+- [ ] T030 설정 앱 정보 섹션 `장소 정보` · `출처: ⓒ한국관광공사` 데이터 출처 행 in android/app/src/main/java/com/gilpick/settings/SettingsScreen.kt, android/app/src/main/res/values/strings.xml per FR-009a, plan: Data Attribution (missing)
+  - 영역: FE
+  - 담당: hs
+  - 선행: 없음
+  - 검증: 앱 정보 섹션에 항상 표시되고 누를 수 없음, 로고 이미지·`TourAPI` 단독 표기 없음; UI test와 360dp·최대 글자 배율 screenshot
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

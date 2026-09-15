@@ -38,6 +38,8 @@
 
 **Navigation**: `SettingsRoute`를 최상위 설정 진입점으로 추가하고 기존 여행·진행 destination을 재사용한다. F012는 설정 destination과 선택 상태만 소유하며, 진행 중 여행을 고르는 정책이나 `ActiveTravelRoute`의 식별자 결정은 새로 구현하지 않는다. 최상위 진행 탭 연결이 필요하면 사용자별 여행 기간 중복 금지 구현 결과에 의존하며, 그 전에는 기존 여행 목록·상세에서 제공하는 진행 진입 흐름을 유지한다.
 
+**Data Attribution (FR-009a, 2026-09-16)**: 앱 정보 섹션의 버전 행과 정책 문서 행 사이에 읽기 전용 `장소 정보` 행을 두고 값으로 `출처: ⓒ한국관광공사`를 표시한다. 버전 행과 같은 모양(라벨·오른쪽 `muted` 값)을 따르고 누를 수 없다. 로고 이미지는 쓰지 않는다. 서비스 단위 출처 표기이므로 장소 이름만 재노출하는 화면에는 추가하지 않는다.
+
 **Account Display**: MVP 인증 provider는 카카오 하나뿐이므로 F001의 인증된 session 존재를 카카오 연동 상태로 표시한다. `SessionEnvelope`에 provider를 추가하거나 별도 profile API를 만들지 않는다.
 
 **Accessibility & Adaptive Layout**: 모든 터치 대상 48×48dp 이상, 대상 간 8dp 이상을 보장한다. 토글과 오류는 문구·상태 표현을 함께 제공하고 아이콘 전용 control에는 식별 가능한 설명을 둔다. `verticalScroll`, system bar inset, 하단 탐색 inset을 적용해 360dp와 phone/tablet 세로·가로 및 시스템 최대 글자 크기에서 가로 스크롤·잘림·겹침이 없도록 한다.
