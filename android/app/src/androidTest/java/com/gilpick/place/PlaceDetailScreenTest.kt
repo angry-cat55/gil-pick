@@ -65,7 +65,9 @@ class PlaceDetailScreenTest {
         composeRule.onNodeWithText("매주 화요일 휴무").performScrollTo().assertIsDisplayed()
         // 평점이 없으면 `정보 없음` 대신 행 자체가 없다(#481).
         composeRule.onAllNodes(hasText("평점")).assertCountEquals(0)
-        composeRule.onNodeWithContentDescription("경복궁 대표 사진").assertIsDisplayed()
+        // `example.test` 사진은 받을 수 없다. 사진이 그려지기 전에는 사진이 있는 것처럼 읽지 않는다(#515).
+        // 받은 사진의 설명은 `PlaceHeroImageTest`가 본다.
+        composeRule.onNodeWithContentDescription("경복궁 대표 사진").assertDoesNotExist()
         composeRule.onNodeWithText("일정에 추가").assertIsDisplayed()
     }
 
