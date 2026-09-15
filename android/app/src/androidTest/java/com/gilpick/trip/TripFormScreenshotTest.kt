@@ -50,6 +50,18 @@ class TripFormScreenshotTest {
         }
     }
 
+    /** #497: 시작·중간·종료 범위 띠가 원 위아래로 튀어나오지 않는지 기록한다(9/12 토요일 → 주가 바뀌는 범위). */
+    @Test
+    fun 달력_범위_선택() = capture("trip_form_calendar_range") { Screen(created()) }
+
+    /** #497: 시작일만 고른 상태. 범위 띠가 없다. */
+    @Test
+    fun 달력_단일_선택() = capture("trip_form_calendar_single") { Screen(created().copy(endDate = null)) }
+
+    /** #497: 시작일=종료일(당일 여행). 범위 띠가 없다. */
+    @Test
+    fun 달력_시작_종료_같은_날() = capture("trip_form_calendar_same_day") { Screen(created().copy(endDate = LocalDate.of(2026, 9, 12))) }
+
     @Test
     fun 여행_수정_기간_축소() = capture("trip_form_edit_shrunk") { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2))) }
 

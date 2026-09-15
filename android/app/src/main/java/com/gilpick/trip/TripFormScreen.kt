@@ -505,14 +505,16 @@ private fun DayCell(
         val inRange = startDate != null && endDate != null && date > startDate && date < endDate
         val label = stringResource(R.string.trip_form_calendar_day, date.monthValue, date.dayOfMonth)
 
+        // 범위 띠는 48dp 터치 칸이 아니라 Figma 칸 높이(40dp)만 채운다. 칸 높이를 채우면 36dp 원 위아래로 튀어나온다(#497).
+        val band = Modifier.fillMaxWidth().height(DAY_RANGE_HEIGHT)
         when {
-            inRange -> Box(modifier = Modifier.matchParentSize().background(range))
-            // 시작·종료일 칸은 범위 쪽 절반만 채워 띠가 원에 이어진다.
-            isStart && endDate != null && endDate != startDate -> Row(Modifier.matchParentSize()) {
+            inRange -> Box(modifier = band.background(range))
+            // 시작·종료일 칸은 범위 쪽 절반만 채워 띠가 원의 중심에서 이어진다.
+            isStart && endDate != null && endDate != startDate -> Row(band) {
                 Box(Modifier.weight(1f))
                 Box(Modifier.weight(1f).fillMaxHeight().background(range))
             }
-            isEnd && startDate != null && endDate != startDate -> Row(Modifier.matchParentSize()) {
+            isEnd && startDate != null && endDate != startDate -> Row(band) {
                 Box(Modifier.weight(1f).fillMaxHeight().background(range))
                 Box(Modifier.weight(1f))
             }
@@ -952,6 +954,9 @@ private val FIELD_TEXT_SIZE = 16.sp
 /** 가이드라인 7절 날짜 선택: 보이는 날짜 버튼 36, 칸 높이(터치 48, 인라인 달력 KDoc), 월 이동 버튼 32·아이콘 14. */
 private val DAY_BUTTON = 36.dp
 private val DAY_CELL_HEIGHT = 48.dp
+
+/** 범위 띠 높이. Figma 달력 칸 `h-10`이다. */
+private val DAY_RANGE_HEIGHT = 40.dp
 private val MONTH_BUTTON = 32.dp
 private val MONTH_ICON = 14.dp
 private val MONTH_BUTTON_INSET = 8.dp
