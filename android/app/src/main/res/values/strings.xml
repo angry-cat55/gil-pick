@@ -190,7 +190,6 @@
 
     <string name="place_detail_title">장소 상세</string>
     <string name="place_detail_back">뒤로 가기</string>
-    <string name="place_detail_favorite">찜</string>
     <string name="place_detail_loading">장소 정보를 불러오는 중</string>
     <string name="place_detail_image_description">%1$s 대표 사진</string>
     <string name="place_detail_no_image">대표 사진 없음</string>
