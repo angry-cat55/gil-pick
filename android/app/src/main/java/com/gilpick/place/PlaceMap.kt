@@ -36,15 +36,17 @@ import com.naver.maps.map.overlay.Marker
  * F005 [NaverMapHost]를 그대로 써서 lifecycle·인증 실패(`지도를 표시할 수 없어요`)를 맡긴다.
  * 좌표가 없으면 지도 대신 안내를 둔다. 상세의 130dp 미리보기와 전체 화면이 같은 composable이다.
  *
- * @param interactive `false`면 스크롤 안의 미리보기라 제스처·확대 버튼을 끈다. 그렇지 않으면 130dp
- *   지도가 화면 스크롤을 삼킨다.
+ * 확대·축소·이동 제스처는 미리보기에서도 켠다(#503). 스크롤 화면 안에서도 지도 위에서 시작한 손가락 움직임은 지도
+ * (`MapView`)가 받아 처리하므로 지도 영역에서는 지도 제스처가 우선하고, 지도 밖에서 시작하면 화면이 스크롤된다.
+ *
+ * @param zoomControls 확대 버튼을 보일지. 130dp 미리보기는 버튼이 지도를 가려 끄고, 전체 화면은 켠다.
  */
 @Composable
 fun PlaceMap(
     name: String,
     latitude: Double?,
     longitude: Double?,
-    interactive: Boolean,
+    zoomControls: Boolean,
     modifier: Modifier = Modifier,
 ) {
     if (latitude == null || longitude == null) {
@@ -74,8 +76,8 @@ fun PlaceMap(
     ) { map, _ ->
         // 상세는 밝은 화면이라 F005의 야간 스타일을 쓰지 않는다.
         map.isNightModeEnabled = false
-        map.uiSettings.isZoomControlEnabled = interactive
-        map.uiSettings.setAllGesturesEnabled(interactive)
+        map.uiSettings.isZoomControlEnabled = zoomControls
+        map.uiSettings.setAllGesturesEnabled(true)
         val position = LatLng(latitude, longitude)
         marker.position = position
         marker.captionText = name
@@ -116,7 +118,7 @@ fun PlaceMapScreen(
             name = name,
             latitude = latitude,
             longitude = longitude,
-            interactive = true,
+            zoomControls = true,
             modifier = Modifier.fillMaxSize(),
         )
     }

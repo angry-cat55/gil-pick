@@ -478,14 +478,18 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String, descri
     }
 }
 
-/** Figma `Map` 자리(130dp)에 실제 Naver 지도를 넣는다(#479). 스크롤 안이라 제스처는 끈다. */
+/**
+ * Figma `Map` 자리(130dp)에 실제 Naver 지도를 넣는다(#479).
+ *
+ * 확대·이동할 수 있다(#503). 지도 위에서 시작한 제스처는 지도가 받고, 화면 스크롤은 지도 밖에서 한다.
+ */
 @Composable
 private fun MapPreview(place: PlaceDto) {
     PlaceMap(
         name = place.name,
         latitude = place.latitude,
         longitude = place.longitude,
-        interactive = false,
+        zoomControls = false,
         modifier = Modifier
             .padding(top = LocalGilpickSpacing.current.space2, start = LocalGilpickSpacing.current.space4, end = LocalGilpickSpacing.current.space4)
             .fillMaxWidth()
