@@ -288,6 +288,26 @@
 
 ---
 
+## Phase 8: 대중교통 상세 단계 계약 (#548)
+
+- [X] T041 Kakao 상세 단계 정규화 test 작성 in api/tests/unit/test_transit_steps.py
+  - 영역: BE·계약
+  - 담당: jh
+  - 선행: T040
+  - 검증: 공식 `StepProperties` 순서·단위·명칭, 유효하지 않은 상세 전체 폐기, geometry 오류 우선, 기존 payload 호환을 단위 test로 확인
+- [X] T042 provider-neutral 단계 model과 Kakao adapter 구현 in api/app/clients/route_provider.py, api/app/clients/kakao_transit.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T041
+  - 검증: `WALKING` mapping, 승하차명, 중복 제거 노선명, nullable `stopCount`와 상세 오류 격리를 T041로 확인
+- [X] T043 공개 Route 계약·JSONB 호환과 문서 동기화 in api/app/schemas/route.py, api/app/services/route.py, specs/005-route-calculation/, docs/design/api-spec.md
+  - 영역: BE·계약
+  - 담당: jh
+  - 선행: T042
+  - 검증: WALK·CAR와 legacy JSONB는 `steps: []`, TRANSIT 상세은 저장·조회 round-trip, OpenAPI·공용 API 문서 일치, 관련 unit·contract test와 `git diff --check` 통과
+
+---
+
 ## Dependencies & Execution Order
 
 ### Issue #536 구간별 이동 수단 추정

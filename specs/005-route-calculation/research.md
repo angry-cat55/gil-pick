@@ -34,11 +34,11 @@
 
 ## 결정 4: Kakao Maps 지도 형상
 
-**Decision**: 대중교통 응답의 첫 번째 `routes` 항목을 기본 추천 경로로 채택하고 `steps[].path.points`를 제공 순서대로 이어 지도 형상으로 사용한다. 응답 한 번으로 시간·거리·형상을 함께 얻는다.
+**Decision**: 대중교통 응답의 첫 번째 `routes` 항목을 기본 추천 경로로 채택하고 `steps[].path.points`를 제공 순서대로 이어 지도 형상으로 사용한다. 공식 `StepProperties`의 `WALKING`·`BUS`·`SUBWAY`를 각각 `WALK`·`BUS`·`SUBWAY`로 정규화하고, `time`·`distance`는 초·미터 그대로 사용한다. `stops`의 첫 번째·마지막 이름은 승차·하차 지점으로, 중복을 제거한 `vehicles[].name`은 제공 순서대로 ` / `로 연결한 노선명으로 사용한다. 공식 계약에 정류장 수 의미가 없으므로 `stopCount`는 null이다.
 
-**Rationale**: Kakao Maps 공식 응답이 기본 추천 경로의 단계별 실제 좌표를 제공하므로 별도 형상 호출이나 임의 직선 연결이 필요 없다.
+**Rationale**: Kakao Maps 공식 응답이 기본 추천 경로의 단계별 실제 좌표와 상세 이동 정보를 제공하므로 별도 형상 호출이나 임의 직선 연결이 필요 없다. 상세 정보는 보조 정보이므로 누락·오류가 있어도 유효한 전체 경로를 실패시키지 않는다.
 
-**Alternatives considered**: 정류장 좌표 직선 연결은 FR-003을 충족하지 못한다.
+**Alternatives considered**: 정류장 좌표 직선 연결은 FR-003을 충족하지 못한다. 제공자 원문을 그대로 공개하거나 일부 단계만 반환하면 계약 결합과 불완전한 안내가 생겨 제외했다.
 
 ## 결정 5: 상태와 재시도 API
 

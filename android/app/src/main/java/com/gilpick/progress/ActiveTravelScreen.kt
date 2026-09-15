@@ -1,5 +1,6 @@
 package com.gilpick.progress
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,7 +60,6 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.notification.IconBoxButton
 import com.gilpick.alternative.DetectionListItemDto
@@ -68,6 +68,8 @@ import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
 import com.gilpick.route.RouteDto
+import com.gilpick.route.RouteStepDto
+import com.gilpick.route.RouteStepType
 import com.gilpick.route.RouteMap
 import com.gilpick.route.RouteMarks
 import com.gilpick.route.distanceLabel
@@ -118,7 +120,6 @@ import kotlinx.coroutines.delay
  * @param onNotifications 헤더 알림 벨. F011 알림 목록으로 간다.
  * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. F011 감지 목록(US6)으로 간다.
  * @param onEdit 헤더 `편집`. 보고 있는 날짜(`yyyy-MM-dd`)의 일정 편집으로 간다. 지난 날짜에서는 비활성이다(#509).
- * @param onBack 헤더 뒤로 가기. `null`이면 버튼을 그리지 않는다(탭 루트로 쓸 때).
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -149,7 +150,6 @@ fun ActiveTravelScreen(
     onNotifications: () -> Unit = {},
     onOpenVariableMonitor: () -> Unit = {},
     onEdit: (date: String) -> Unit = {},
-    onBack: (() -> Unit)? = null,
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
     },
@@ -168,7 +168,6 @@ fun ActiveTravelScreen(
             onNotifications = onNotifications,
             onOpenVariableMonitor = onOpenVariableMonitor,
             onEdit = onEdit,
-            onBack = onBack,
         )
         Box(modifier = Modifier.weight(1f)) {
             when (state) {
@@ -203,7 +202,7 @@ fun ActiveTravelScreen(
 /**
  * Figma 헤더: `여행 중` 칩, `N일차 · x/y 완료`, 여행명, 날짜 진행 표시, 오른쪽 알림 벨(F011). 내용이 없으면 여행명만 보인다.
  * 오늘이 아닌 날짜를 보면 `N일차 · 지난/예정 일정`과 `오늘로 돌아가기`가 아래에 붙는다(UI-005).
- * 여행명 줄의 뒤로 가기(`onSurface`)와 `편집`(D7 `headerIcon`)은 #509에서 더했다.
+ * 여행명 줄의 `편집`(D7 `headerIcon`)은 #509에서 더했다. 뒤로 가기는 두지 않는다. 하단 `내 여행` 탭으로 나간다(#554).
  */
 @Composable
 private fun Header(
@@ -214,7 +213,6 @@ private fun Header(
     onNotifications: () -> Unit,
     onOpenVariableMonitor: () -> Unit,
     onEdit: (date: String) -> Unit,
-    onBack: (() -> Unit)?,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -262,23 +260,13 @@ private fun Header(
                 modifier = Modifier.testTag(TAG_VARIABLE_MONITOR),
             )
         }
-        // 위 줄은 Figma 그대로 두고, 뒤로 가기·편집은 여행명 줄 양끝에 둔다. 한 줄에 다섯 요소를 넣으면
+        // 위 줄은 Figma 그대로 두고, 편집은 여행명 줄 오른쪽에 둔다. 한 줄에 넣으면
         // 360dp·글자 2.0에서 오른쪽 버튼이 밀려난다(#509).
         Row(
             modifier = Modifier.padding(top = spacing.space1),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.space2),
         ) {
-            if (onBack != null) {
-                IconBoxButton(
-                    icon = R.drawable.ic_lucide_arrow_left,
-                    contentDescription = stringResource(R.string.progress_back),
-                    // 뒤로 가기·닫기는 D7이 아니라 onSurface다(가이드라인 7절 "헤더 아이콘 색").
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    onClick = onBack,
-                    modifier = Modifier.testTag(TAG_HEADER_BACK),
-                )
-            }
             Text(
                 text = tripName,
                 style = MaterialTheme.typography.titleLarge,
@@ -1049,6 +1037,9 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, pendi
             color = colors.muted,
             modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space4),
         )
+        inboundSteps(content, row).takeIf { it.isNotEmpty() }?.let { steps ->
+            TransitSteps(steps = steps, modifier = Modifier.padding(bottom = spacing.space4))
+        }
         val enabled = pending == null
         Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
             // 도착 확정 행동은 성공 gradient(가이드라인 3절 "버튼 gradient"). 한 줄을 나눈 버튼이라 곡률 12dp(6절 R3).
@@ -1112,6 +1103,56 @@ private fun inboundLabel(content: ProgressUiState.Content, row: ProgressRow): St
         stringResource(R.string.progress_inbound_from, from, mode, duration, distance)
     } else {
         stringResource(R.string.progress_inbound_from_start, mode, duration, distance)
+    }
+}
+
+/**
+ * 이동 중인 구간의 대중교통 상세 단계(#553). 오늘 경로에서 직전 장소 → 이 장소 구간을 찾는다.
+ * 시작 위치에서 오거나, 건너뛰기로 경로에 없는 구간이 되었거나, 단계가 없으면 비어 있어 합계 문구만 남는다.
+ */
+private fun inboundSteps(content: ProgressUiState.Content, row: ProgressRow): List<RouteStepDto> {
+    val from = row.progress.inboundTravel?.fromItemId ?: return emptyList()
+    return content.todayItinerary?.route?.segments
+        ?.firstOrNull { it.fromItemId == from && it.toItemId == row.item.itemId }
+        ?.steps.orEmpty()
+}
+
+/**
+ * `도보 4분 → 경복궁역에서 지하철 3호선 승차 · 5분 → 종로3가역에서 지하철 1호선 환승 · 4분 → 시청역 하차 → 도보 6분`을
+ * 한 줄씩 보인다. 노선은 색이 아니라 `지하철`·`버스`와 노선 이름으로 구분한다(가이드라인 10절).
+ */
+@Composable
+private fun TransitSteps(steps: List<RouteStepDto>, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val lastRide = steps.indexOfLast { it.type != RouteStepType.WALK }
+    val firstRide = steps.indexOfFirst { it.type != RouteStepType.WALK }
+
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.space1), modifier = modifier.testTag(TAG_TRANSIT_STEPS)) {
+        steps.forEachIndexed { index, step ->
+            val duration = durationLabel(step.durationSeconds)
+            if (step.type == RouteStepType.WALK) {
+                TransitStepLine(R.drawable.ic_lucide_walk, stringResource(R.string.progress_step_walk, duration))
+                return@forEachIndexed
+            }
+            val mode = stringResource(if (step.type == RouteStepType.BUS) R.string.progress_step_bus else R.string.progress_step_subway)
+            val line = step.lineName?.let { "$mode $it" } ?: mode
+            val action = stringResource(if (index == firstRide) R.string.progress_step_board else R.string.progress_step_transfer)
+            val text = step.boardingName?.let { stringResource(R.string.progress_step_ride_at, it, line, action, duration) }
+                ?: stringResource(R.string.progress_step_ride, line, action, duration)
+            TransitStepLine(R.drawable.ic_lucide_transit, text)
+            if (index == lastRide) {
+                step.alightingName?.let { TransitStepLine(R.drawable.ic_lucide_transit, stringResource(R.string.progress_step_alight, it)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransitStepLine(@DrawableRes icon: Int, text: String) {
+    val colors = LocalGilpickColors.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space2)) {
+        Icon(painter = painterResource(icon), contentDescription = null, tint = colors.muted, modifier = Modifier.size(STEP_ICON))
+        Text(text = text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1517,6 +1558,7 @@ internal const val TAG_NOTIFICATIONS = "progress_notifications"
 internal const val TAG_EDIT = "progress_edit"
 internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
+internal const val TAG_TRANSIT_STEPS = "progress_transit_steps"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"
 internal const val TAG_CARD_ALL_DONE = "progress_card_all_done"
 internal const val TAG_ETA = "progress_eta"
@@ -1565,6 +1607,7 @@ private val DAY_DOT_RING: Dp = 18.dp
 private val STATUS_CIRCLE: Dp = 24.dp
 private val ROW_LINE_HEIGHT: Dp = 28.dp
 private val TRANSPORT_ICON: Dp = 11.dp
+private val STEP_ICON: Dp = 14.dp
 
 /** Figma 카드 안 행동 버튼 높이(`h-[48px]`). */
 private val CARD_BUTTON_HEIGHT: Dp = 48.dp

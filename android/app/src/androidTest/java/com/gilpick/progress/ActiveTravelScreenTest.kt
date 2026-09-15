@@ -396,18 +396,17 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithText("예정").assertDoesNotExist()
     }
 
-    // ---- #509: 헤더 편집·뒤로 가기 ----
+    // ---- #509: 헤더 편집, #554: 뒤로 가기 없음 ----
 
     @Test
     fun 헤더_편집은_오늘과_예정_날짜에서_보고_있는_날짜로_가고_지난_날짜는_비활성과_사유를_보인다() {
         val edited = mutableListOf<String>()
         var state by mutableStateOf<ProgressUiState>(content(days = threeDays()))
-        var backs = 0
         composeRule.setContent {
             GilpickTheme {
                 ActiveTravelScreen(
                     state = state, tripName = "서울 여행", onRetry = {}, onAddPlace = {}, onOpenRoute = { _, _ -> },
-                    onReauthenticate = {}, onEdit = { edited += it }, onBack = { backs++ },
+                    onReauthenticate = {}, onEdit = { edited += it },
                     map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }
@@ -422,12 +421,11 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithTag(TAG_EDIT).assertIsNotEnabled()
         composeRule.onNodeWithText("지난 날짜의 일정은 편집할 수 없어요").assertIsDisplayed()
 
-        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertHeightIsAtLeast(48.dp).performClick()
-        composeRule.runOnIdle { assertEquals(1, backs) }
     }
 
     @Test
-    fun 뒤로_가기를_넘기지_않으면_버튼이_없다() {
+    fun 헤더에_뒤로_가기가_없다() {
+        // 하단 `내 여행` 탭으로 나가므로 진입 경로와 관계없이 ←를 두지 않는다(#554).
         setScreen(content())
 
         composeRule.onNodeWithTag(TAG_HEADER_BACK).assertDoesNotExist()
@@ -477,6 +475,32 @@ class ActiveTravelScreenTest {
     }
 
     private fun row(sequence: Int) = composeRule.onNodeWithTag("$TAG_ROW_PREFIX$sequence")
+
+    // ---- #553: 대중교통 상세 단계 ----
+
+    @Test
+    fun 이동_중_대중교통_구간은_카드에_승차_환승_하차_단계를_보인다() {
+        setScreen(content(days = transitStepsDays()))
+
+        composeRule.onNodeWithTag(TAG_TRANSIT_STEPS).assertIsDisplayed()
+        listOf(
+            "도보 4분",
+            "경복궁역에서 지하철 3호선 승차 · 5분",
+            "종로3가역에서 지하철 1호선 환승 · 4분",
+            "종각역 하차",
+            "도보 6분",
+        ).forEach { cardText(TAG_CARD_NEXT, it).assertIsDisplayed() }
+        // 합계 문구는 그대로 남는다.
+        cardText(TAG_CARD_NEXT, "경복궁에서 대중교통 20분 · 3.4km").assertIsDisplayed()
+    }
+
+    @Test
+    fun 구간에_상세_단계가_없으면_합계만_보인다() {
+        setScreen(content())
+
+        composeRule.onNodeWithText("경복궁에서 대중교통 20분 · 3.4km").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_TRANSIT_STEPS).assertDoesNotExist()
+    }
 
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
     private fun cardText(cardTag: String, text: String) =

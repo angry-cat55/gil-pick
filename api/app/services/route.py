@@ -40,6 +40,7 @@ from app.schemas.route import (
     RouteModeEstimate,
     RouteSegment,
     RouteSegmentEstimatesData,
+    RouteStep,
     RouteStatus,
     RouteData,
     TransportMode,
@@ -771,6 +772,7 @@ def _segment(
             coordinates=[(point.longitude, point.latitude) for point in value.coordinates],
         ),
         provider_attribution=value.attribution,
+        steps=[RouteStep.model_validate(step.model_dump()) for step in value.steps],
     )
 
 

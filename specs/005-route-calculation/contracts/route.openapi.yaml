@@ -173,9 +173,20 @@ components:
         name: { type: string, minLength: 1 }
         latitude: { type: number, minimum: -90, maximum: 90 }
         longitude: { type: number, minimum: -180, maximum: 180 }
+    RouteStep:
+      type: object
+      required: [type, durationSeconds, distanceMeters, boardingName, alightingName, lineName, stopCount]
+      properties:
+        type: { type: string, enum: [WALK, BUS, SUBWAY] }
+        durationSeconds: { type: integer, minimum: 0 }
+        distanceMeters: { type: integer, minimum: 0 }
+        boardingName: { type: [string, "null"] }
+        alightingName: { type: [string, "null"] }
+        lineName: { type: [string, "null"] }
+        stopCount: { type: [integer, "null"], minimum: 0 }
     RouteSegment:
       type: object
-      required: [sequence, fromItemId, toItemId, transportMode, provider, durationSeconds, distanceMeters, geometry, providerAttribution]
+      required: [sequence, fromItemId, toItemId, transportMode, provider, durationSeconds, distanceMeters, geometry, providerAttribution, steps]
       properties:
         sequence: { type: integer, minimum: 1, maximum: 9 }
         fromItemId: { type: string, format: uuid }
@@ -186,6 +197,10 @@ components:
         distanceMeters: { type: integer, minimum: 0 }
         geometry: { $ref: '#/components/schemas/RouteGeometry' }
         providerAttribution: { type: string, minLength: 1 }
+        steps:
+          type: array
+          default: []
+          items: { $ref: '#/components/schemas/RouteStep' }
     Route:
       type: object
       required: [routeId, scheduleVersion, totalDurationSeconds, totalDistanceMeters, markers, segments, providerAttributions, calculatedAt]

@@ -927,7 +927,8 @@ Response `200`:
           "durationSeconds": 1200,
           "distanceMeters": 1600,
           "geometry": {"type": "LineString", "coordinates": [[126.9770, 37.5796], [126.9830, 37.5826]]},
-          "providerAttribution": "TMAP"
+          "providerAttribution": "TMAP",
+          "steps": []
         }
       ],
       "providerAttributions": ["TMAP"],
@@ -944,6 +945,8 @@ Response `200`:
 장소가 0곳인 날짜는 `NOT_CALCULATED`와 `route: null`, `failure: null`을 반환한다. 경로 계산이 실패한 날짜는 `FAILED`, `route: null`과 안정적인 `failure` code를 반환한다.
 
 경로 실패 code는 `ROUTE_PROVIDER_TIMEOUT`, `ROUTE_PROVIDER_RATE_LIMITED`, `ROUTE_PROVIDER_UNAVAILABLE`, `ROUTE_NOT_FOUND`, `ROUTE_INVALID_RESULT`다. Provider 호출은 시도당 최대 5초, 날짜 전체 계산은 최대 10초이며 timeout·네트워크 요청 오류·429·5xx만 남은 시간 안에서 한 번 재시도한다. 각 구간과 응답의 `providerAttribution`·`providerAttributions`는 화면에 표시해야 한다.
+
+Kakao Maps 대중교통 구간의 `steps`는 제공 순서의 `WALK`·`BUS`·`SUBWAY` 단계다. 각 단계는 `durationSeconds`(초), `distanceMeters`(미터), nullable `boardingName`·`alightingName`·`lineName`·`stopCount`를 가진다. WALK·CAR, 기존 저장 경로, 또는 일부 상세 메타데이터가 유효하지 않은 대중교통 구간은 `steps: []`이며, 상세 오류만으로 유효한 경로·형상을 실패 처리하지 않는다.
 
 주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 

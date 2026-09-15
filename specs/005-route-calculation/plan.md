@@ -85,7 +85,7 @@ android/app/src/main/java/com/gilpick/
 2. 짧은 transaction에서 일정을 저장하고 `schedule_version`을 확정한다. 경로 입력이 바뀌면 이전 현재 경로를 `HISTORICAL`로 바꾸고 커밋한다.
 3. 0개는 `NOT_CALCULATED`, 1개는 외부 호출 없이 합계 0의 `READY`를 저장한다.
 4. 2개 이상이면 immutable snapshot의 구간을 구조적 동시성으로 계산한다. 전체 deadline은 10초, 시도 timeout은 `min(5초, 남은 시간)`이다. timeout·429·5xx만 남은 시간 안에서 1회 재시도한다.
-5. Kakao Maps는 대중교통 응답의 첫 번째 기본 추천 경로만 채택하고 `steps[].path.points`를 지도 형상으로 정규화한다.
+5. Kakao Maps는 대중교통 응답의 첫 번째 기본 추천 경로만 채택하고 `steps[].path.points`를 지도 형상으로 정규화한다. 공식 `StepProperties`의 `WALKING`·`BUS`·`SUBWAY`, 초·미터, `stops[].name`, `vehicles[].name`은 provider-neutral 상세 단계로 변환한다. 상세 메타데이터가 일부라도 유효하지 않으면 상세 단계만 빈 목록으로 낮추고, 형상이 유효하면 경로 계산은 성공으로 유지한다.
 6. 모든 구간 성공 시 별도 transaction에서 현재 version을 재확인하고 `READY`를 활성화한다. 하나라도 실패하면 `FAILED`를 기록한다. version이 달라졌다면 결과를 현재 경로로 저장하지 않는다.
 7. 일정 저장 응답은 경로 실패와 관계없이 성공이다. 재시도 endpoint는 현재 `FAILED`·같은 version만 허용한다. 별도 멱등성 저장소 없이 `(trip_day_id, schedule_version)` 경로를 upsert하여 중복 요청에도 같은 경로 하나만 유지한다.
 

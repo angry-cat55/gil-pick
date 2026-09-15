@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from pathlib import Path
 from unittest.mock import ANY
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_principal
@@ -239,6 +241,24 @@ def test_route_openapi_declares_contract_responses() -> None:
     operation = app.openapi()["paths"]["/api/v1/trips/{tripId}/days/{date}/route"]["get"]
 
     assert {"200", "401", "403", "404"} <= set(operation["responses"])
+
+
+def test_route_source_contract_requires_steps_and_nullable_step_fields() -> None:
+    contract = yaml.safe_load(
+        (
+            Path(__file__).parents[3]
+            / "specs/005-route-calculation/contracts/route.openapi.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    schemas = contract["components"]["schemas"]
+
+    assert "steps" in schemas["RouteSegment"]["required"]
+    assert {
+        "boardingName",
+        "alightingName",
+        "lineName",
+        "stopCount",
+    } <= set(schemas["RouteStep"]["required"])
 
 
 @pytest.mark.parametrize("status", ["READY", "FAILED"])
