@@ -15,6 +15,9 @@ import com.gilpick.auth.toEmptyAuthResult
 import com.gilpick.notification.FcmTokenClearWorker
 import com.gilpick.notification.FcmTokenSyncWorker
 import java.io.IOException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -171,6 +174,49 @@ class TripRepository(
                     bearer = "Bearer $accessToken",
                     tripId = tripId,
                 ).toEmptyAuthResult()
+            } catch (e: IOException) {
+                AuthResult.Failure(AuthError.Offline(e))
+            }
+        }
+
+    /**
+     * 여행 대표 이미지를 올리거나 교체한다(`POST /trips/{tripId}/image`, FR-019, #499).
+     *
+     * 형식·크기 제한은 고를 때 화면이 먼저 확인하지만 서버가 최종 판정한다(`413 IMAGE_TOO_LARGE`, `415 UNSUPPORTED_IMAGE_TYPE`).
+     * 서버는 성공 시 여행 `version`을 올리므로, 이어서 수정 요청을 보낼 때는 돌려받은 값을 써야 한다.
+     *
+     * @param bytes 이미지 원본.
+     * @param mimeType `image/jpeg`·`image/png`·`image/webp` 중 하나.
+     */
+    suspend fun uploadTripImage(tripId: String, bytes: ByteArray, mimeType: String): AuthResult<TripDto> =
+        auth.withAccessToken { accessToken ->
+            api.uploadTripImage(
+                bearer = "Bearer $accessToken",
+                tripId = tripId,
+                image = MultipartBody.Part.createFormData(
+                    name = "image",
+                    filename = "trip-image.${mimeType.substringAfter('/')}",
+                    body = bytes.toRequestBody(mimeType.toMediaType()),
+                ),
+            )
+        }
+
+    /** 여행 대표 이미지를 지운다(`DELETE /trips/{tripId}/image`). 서버는 성공 시 `version`을 올린다. */
+    suspend fun deleteTripImage(tripId: String): AuthResult<TripDto> =
+        auth.withAccessToken { accessToken ->
+            api.deleteTripImage(bearer = "Bearer $accessToken", tripId = tripId)
+        }
+
+    /**
+     * 여행 대표 이미지 원본을 받는다(`GET /trips/{tripId}/image/content`).
+     *
+     * 응답의 `imageUrl`을 직접 쓰지 않는 이유: 인증 header가 필요하고, 서버가 요청 host로 만든 절대 주소라 proxy 뒤에서는
+     * 앱이 닿지 못하는 주소일 수 있다. 같은 base URL·갱신 정책을 쓰도록 tripId로 부른다.
+     */
+    suspend fun getTripImage(tripId: String): AuthResult<ByteArray> =
+        auth.withAuthorizedCall { accessToken ->
+            try {
+                api.getTripImageContent(bearer = "Bearer $accessToken", tripId = tripId).toAuthResult { it.bytes() }
             } catch (e: IOException) {
                 AuthResult.Failure(AuthError.Offline(e))
             }

@@ -399,6 +399,8 @@ private fun TripRoute(
                     onPeriodChange = viewModel::onPeriodChange,
                     onSubmit = viewModel::submit,
                     onBack = { navController.popBackStack() },
+                    onImagePicked = viewModel::onImagePicked,
+                    onRemoveImage = viewModel::onRemoveImage,
                 )
             }
 
@@ -503,6 +505,8 @@ private fun TripRoute(
                     onBack = { navController.popBackStack() },
                     onDelete = viewModel::delete,
                     onDeleteErrorShown = viewModel::clearDeleteError,
+                    onImagePicked = viewModel::onImagePicked,
+                    onRemoveImage = viewModel::onRemoveImage,
                 )
             }
 

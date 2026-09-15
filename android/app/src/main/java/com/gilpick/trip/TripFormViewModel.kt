@@ -157,6 +157,12 @@ enum class TripFormSubmitError {
      */
     PERIOD_CONFLICT,
 
+    /** `413 IMAGE_TOO_LARGE`. 대표 이미지가 5MB를 넘는다(FR-019). 여행 이름·기간은 이미 저장됐을 수 있다. */
+    IMAGE_TOO_LARGE,
+
+    /** `415 UNSUPPORTED_IMAGE_TYPE`. jpeg·png·webp가 아니다(FR-019). */
+    IMAGE_UNSUPPORTED_TYPE,
+
     /** 그 밖의 실패. 잠시 후 다시 시도한다. */
     UNEXPECTED,
 }
@@ -188,6 +194,37 @@ sealed interface FormMode {
 }
 
 /**
+ * 사용자가 고른 대표 이미지(#499). 저장할 때 업로드한다.
+ *
+ * 배열 내용 비교가 필요 없어 data class로 두지 않는다. 같은 선택인지는 참조로 충분하다.
+ *
+ * @property bytes 이미지 원본. 고를 때 5MB 이하임을 확인했다.
+ * @property mimeType `image/jpeg`·`image/png`·`image/webp` 중 하나.
+ */
+class PickedTripImage(val bytes: ByteArray, val mimeType: String)
+
+/** 고른 이미지를 쓸 수 없는 이유(FR-019). 고르는 즉시 안내하고 선택은 바꾸지 않는다. */
+enum class TripImageError {
+    /** 5MB를 넘는다. */
+    TOO_LARGE,
+
+    /** jpeg·png·webp가 아니다. */
+    UNSUPPORTED_TYPE,
+
+    /** 파일을 읽지 못했다. */
+    UNREADABLE,
+}
+
+/** Photo Picker 결과를 읽어 확인한 값. [readTripImage]가 만든다. */
+sealed interface TripImagePick {
+    /** 올릴 수 있는 이미지. */
+    data class Picked(val image: PickedTripImage) : TripImagePick
+
+    /** 제한에 걸린 이미지. */
+    data class Rejected(val error: TripImageError) : TripImagePick
+}
+
+/**
  * 달력에서 고를 수 없는 다른 여행의 기간(#501). 내 여행 목록에서 읽는다.
  *
  * @property tripId 수정 중인 자기 여행을 빼기 위한 식별자.
@@ -210,6 +247,11 @@ data class OccupiedPeriod(val tripId: String, val startDate: LocalDate, val endD
  * @property deletion 수정 화면 `여행 삭제` 요청 단계(Figma `EditTripScreen`, #443). 상세의 삭제와 같은 단계를 쓴다.
  * @property occupiedPeriods 내 여행들의 기간. 수정 중인 자기 여행도 들어 있으며 [occupiedDates]가 뺀다.
  * @property conflictTripName `409 TRIP_PERIOD_CONFLICT`에서 서버가 알려 준 겹친 여행 이름. 없으면 이름 없이 안내한다.
+ * @property imageUrl 서버에 저장된 대표 이미지 표시(수정 모드). 값은 "이미지 있음"으로만 쓴다.
+ * @property currentImage [imageUrl]의 원본 bytes. 받기 전이거나 실패하면 `null`이고 대체 배경이 보인다.
+ * @property pickedImage 새로 고른 이미지. 저장할 때 업로드한다.
+ * @property removeImage 저장된 이미지를 지우기로 했는지(`기본으로`). 저장할 때 삭제한다.
+ * @property imageError 방금 고른 이미지를 쓸 수 없는 이유.
  */
 data class TripFormUiState(
     val name: String = "",
@@ -228,7 +270,20 @@ data class TripFormUiState(
     val deletion: TripDeletePhase = TripDeletePhase.Idle,
     val occupiedPeriods: List<OccupiedPeriod> = emptyList(),
     val conflictTripName: String? = null,
+    val imageUrl: String? = null,
+    val currentImage: ByteArray? = null,
+    val pickedImage: PickedTripImage? = null,
+    val removeImage: Boolean = false,
+    val imageError: TripImageError? = null,
 ) {
+    /** 커버에 그릴 이미지. 새로 고른 것이 우선이고, 지우기로 했으면 없다. */
+    val coverImage: ByteArray?
+        get() = pickedImage?.bytes ?: currentImage.takeUnless { removeImage }
+
+    /** 기본 이미지가 아닌지. `기본으로` 버튼과 `커스텀 이미지` 라벨이 이 값을 따른다. */
+    val hasCustomImage: Boolean
+        get() = pickedImage != null || (imageUrl != null && !removeImage)
+
     /**
      * 달력에서 비활성으로 둘 날짜(#501, FR-002a). 수정 중인 자기 여행의 기간은 다시 고를 수 있어야 하므로 뺀다.
      */
@@ -282,6 +337,12 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
      * 입력이 바뀌거나 생성에 성공하면 비운다. 그래야 다음 제출이 새 여행으로 처리된다.
      */
     private var idempotencyKey: String? = null
+
+    /**
+     * 이미지 업로드만 실패한 새 여행(#499). 여행은 이미 만들어졌으므로 다시 저장하면 새로 만들지 않고 이 여행을 고친 뒤
+     * 이미지를 다시 올린다. 이름·기간을 바꿔도 여행이 두 건 생기지 않게 한다.
+     */
+    private var createdTrip: TripDto? = null
 
     /** 마지막으로 읽은 내 여행 기간. 수정 조회가 폼 상태를 새로 만들어도 유지한다. */
     private var occupiedPeriods: List<OccupiedPeriod> = emptyList()
@@ -386,7 +447,43 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                 status = trip.status,
             ),
             occupiedPeriods = occupiedPeriods,
+            imageUrl = trip.imageUrl,
         )
+        if (trip.imageUrl != null) loadCurrentImage(trip.tripId, trip.imageUrl)
+    }
+
+    /**
+     * 저장된 대표 이미지 원본을 받아 커버에 채운다(#499).
+     *
+     * 실패하면 대체 배경을 그대로 둔다. 미리보기일 뿐이라 폼 사용을 막지 않는다. 받는 사이 사용자가 다른 이미지를 고르거나
+     * 지웠으면 [TripFormUiState.coverImage]가 그 선택을 우선하므로 덮어써도 보이지 않는다.
+     */
+    private fun loadCurrentImage(tripId: String, imageUrl: String) {
+        viewModelScope.launch {
+            val result = repository.getTripImage(tripId) as? AuthResult.Success ?: return@launch
+            _state.update { if (it.imageUrl == imageUrl) it.copy(currentImage = result.value) else it }
+        }
+    }
+
+    /**
+     * Photo Picker에서 고른 결과를 반영한다(#499).
+     *
+     * 제한에 걸리면 원인만 알리고 이전 선택은 그대로 둔다.
+     */
+    fun onImagePicked(pick: TripImagePick) {
+        _state.update {
+            when (pick) {
+                is TripImagePick.Picked -> it.copy(pickedImage = pick.image, removeImage = false, imageError = null, submitError = null)
+                is TripImagePick.Rejected -> it.copy(imageError = pick.error)
+            }
+        }
+    }
+
+    /** `기본으로`. 새로 고른 이미지를 버리고, 저장된 이미지가 있으면 저장할 때 지운다. */
+    fun onRemoveImage() {
+        _state.update {
+            it.copy(pickedImage = null, removeImage = it.imageUrl != null, imageError = null, submitError = null)
+        }
     }
 
     /**
@@ -461,7 +558,18 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
         end: LocalDate,
         confirmDeleteOutOfRangeItems: Boolean,
     ) {
+        val created = createdTrip
         val result = when (val mode = current.mode) {
+            // 이미지 업로드만 실패했던 새 여행은 다시 만들지 않고 고친다(#499).
+            is FormMode.Create if created != null -> repository.updateTrip(
+                tripId = created.tripId,
+                version = created.version,
+                name = current.name,
+                startDate = start,
+                endDate = end,
+                confirmDeleteOutOfRangeItems = false,
+            )
+
             is FormMode.Create -> {
                 // 같은 입력의 재시도는 같은 키로 보낸다. 통신 실패 후 다시 눌렀을 때
                 // 여행이 두 건 생기지 않게 한다.
@@ -482,18 +590,53 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
             )
         }
 
-        _state.update { state ->
-            when (result) {
+        if (result is AuthResult.Failure) {
+            _state.update { it.afterFailure(result.error) }
+        } else {
+            val saved = (result as AuthResult.Success).value
+            // 이름·기간 저장 뒤에 이미지를 올리거나 지운다. 둘 다 서버가 version을 올린다.
+            when (val image = saveImage(current, saved)) {
                 is AuthResult.Success -> {
                     idempotencyKey = null
-                    state.copy(submitting = false, savedTripId = result.value.tripId)
+                    createdTrip = null
+                    _state.update { it.copy(submitting = false, savedTripId = image.value.tripId) }
                 }
 
-                is AuthResult.Failure -> state.afterFailure(result.error)
+                is AuthResult.Failure -> {
+                    // 여행은 저장됐다. 폼에 남아 원인을 알리고, 다시 저장하면 방금 받은 version으로 이어서 보낸다.
+                    if (current.mode is FormMode.Create) createdTrip = saved
+                    _state.update { state ->
+                        val mode = state.mode
+                        state.copy(
+                            submitting = false,
+                            submitError = image.error.toSubmitError(),
+                            mode = if (mode is FormMode.Edit) mode.copy(version = saved.version) else mode,
+                        )
+                    }
+                }
             }
         }
         // 목록을 읽은 뒤 다른 기기에서 여행이 생겼을 수 있다. 겹친 여행 기간이 달력에 보이도록 다시 읽는다.
         if (_state.value.submitError == TripFormSubmitError.PERIOD_CONFLICT) loadOccupiedPeriods()
+    }
+
+    /**
+     * 고른 이미지를 올리거나 `기본으로`를 반영한다(#499). 바꿀 것이 없으면 저장한 여행을 그대로 돌려준다.
+     *
+     * 지우려는 이미지가 이미 없으면(`404 TRIP_IMAGE_NOT_FOUND`) 원하는 상태이므로 성공으로 본다.
+     */
+    private suspend fun saveImage(current: TripFormUiState, saved: TripDto): AuthResult<TripDto> {
+        val picked = current.pickedImage
+        return when {
+            picked != null -> repository.uploadTripImage(saved.tripId, picked.bytes, picked.mimeType)
+            current.removeImage && saved.imageUrl != null -> {
+                val deleted = repository.deleteTripImage(saved.tripId)
+                val missing = (deleted as? AuthResult.Failure)?.error.let { it is AuthError.Server && it.code == TripErrorCodes.TRIP_IMAGE_NOT_FOUND }
+                if (missing) AuthResult.Success(saved.copy(imageUrl = null), 200) else deleted
+            }
+
+            else -> AuthResult.Success(saved, 200)
+        }
     }
 
     /**
@@ -615,6 +758,8 @@ internal fun AuthError.toSubmitError(): TripFormSubmitError = when (this) {
         TripErrorCodes.TRIP_LOCKED -> TripFormSubmitError.TRIP_LOCKED
         TripErrorCodes.CONFIRMATION_REQUIRED -> TripFormSubmitError.CONFIRMATION_REQUIRED
         TripErrorCodes.TRIP_PERIOD_CONFLICT -> TripFormSubmitError.PERIOD_CONFLICT
+        TripErrorCodes.IMAGE_TOO_LARGE -> TripFormSubmitError.IMAGE_TOO_LARGE
+        TripErrorCodes.UNSUPPORTED_IMAGE_TYPE -> TripFormSubmitError.IMAGE_UNSUPPORTED_TYPE
         in INPUT_ERROR_CODES -> TripFormSubmitError.INVALID_INPUT
         else -> TripFormSubmitError.UNEXPECTED
     }

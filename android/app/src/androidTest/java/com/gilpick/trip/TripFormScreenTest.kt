@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -105,7 +106,8 @@ class TripFormScreenTest {
     fun 전송_실패는_원인과_다음_행동을_함께_알린다() {
         setContent(TripFormUiState(submitError = TripFormSubmitError.NETWORK))
 
-        composeRule.onNodeWithText(string(R.string.trip_form_error_network)).assertIsDisplayed()
+        // #499 커버 카드가 위에 생겨 오류 문구가 첫 화면 아래에 있을 수 있다.
+        composeRule.onNodeWithText(string(R.string.trip_form_error_network)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -178,7 +180,46 @@ class TripFormScreenTest {
     fun 기간_충돌은_겹친_여행_이름과_함께_안내한다() {
         setContent(TripFormUiState(submitError = TripFormSubmitError.PERIOD_CONFLICT, conflictTripName = "제주 여행"))
 
-        composeRule.onNodeWithText(context.getString(R.string.trip_form_error_period_conflict, "제주 여행")).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.trip_form_error_period_conflict, "제주 여행")).performScrollTo().assertIsDisplayed()
+    }
+
+    // --- #499 대표 이미지 ---
+
+    @Test
+    fun 이미지가_없으면_기본_이미지와_48dp_사진_업로드_버튼만_보인다() {
+        setContent(TripFormUiState())
+
+        composeRule.onNodeWithText(string(R.string.trip_form_cover_default)).assertIsDisplayed()
+        composeRule.onNode(hasText(string(R.string.trip_form_cover_upload)) and hasClickAction()).assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText(string(R.string.trip_form_cover_reset)).assertDoesNotExist()
+    }
+
+    @Test
+    fun 고른_사진이_있으면_사진_변경과_기본으로를_보이고_기본으로를_알린다() {
+        var removed = 0
+        composeRule.setContent {
+            GilpickTheme {
+                TripFormScreen(
+                    state = TripFormUiState(pickedImage = PickedTripImage(byteArrayOf(1), "image/png")),
+                    onNameChange = {},
+                    onPeriodChange = { _, _ -> },
+                    onSubmit = {},
+                    onRemoveImage = { removed++ },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(string(R.string.trip_form_cover_change)).assertIsDisplayed()
+        composeRule.onNode(hasText(string(R.string.trip_form_cover_reset)) and hasClickAction()).assertHeightIsAtLeast(48.dp).performClick()
+
+        assertEquals(1, removed)
+    }
+
+    @Test
+    fun 쓸_수_없는_사진은_원인을_안내한다() {
+        setContent(TripFormUiState(imageError = TripImageError.TOO_LARGE))
+
+        composeRule.onNodeWithText(string(R.string.trip_form_image_too_large)).assertIsDisplayed()
     }
 
     @Test

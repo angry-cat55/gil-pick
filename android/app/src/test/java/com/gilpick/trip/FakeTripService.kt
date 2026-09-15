@@ -3,6 +3,8 @@ package com.gilpick.trip
 import com.gilpick.auth.ResponseMeta
 import com.gilpick.auth.SuccessEnvelope
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Response
 
@@ -95,6 +97,46 @@ class FakeTripService : TripService {
         bearer: String,
         tripId: String,
     ): Response<Unit> = error("이 test는 삭제 endpoint를 호출하지 않는다")
+
+    /** 이미지 업로드 요청의 `tripId`와 part. 호출 순서대로 쌓인다(#499). */
+    val uploadCalls = mutableListOf<Pair<String, MultipartBody.Part>>()
+
+    /** 이미지 업로드 응답. 기본값은 계약에 없는 호출을 막는 실패다. */
+    var onUpload: (String) -> Response<SuccessEnvelope<TripDto>> =
+        { error("이 test는 이미지 업로드 endpoint를 호출하지 않는다") }
+
+    override suspend fun uploadTripImage(
+        bearer: String,
+        tripId: String,
+        image: MultipartBody.Part,
+    ): Response<SuccessEnvelope<TripDto>> {
+        uploadCalls += tripId to image
+        return onUpload(tripId)
+    }
+
+    /** 이미지 삭제 요청의 `tripId`. */
+    val deleteImageCalls = mutableListOf<String>()
+
+    /** 이미지 삭제 응답. 기본값은 계약에 없는 호출을 막는 실패다. */
+    var onDeleteImage: (String) -> Response<SuccessEnvelope<TripDto>> =
+        { error("이 test는 이미지 삭제 endpoint를 호출하지 않는다") }
+
+    override suspend fun deleteTripImage(
+        bearer: String,
+        tripId: String,
+    ): Response<SuccessEnvelope<TripDto>> {
+        deleteImageCalls += tripId
+        return onDeleteImage(tripId)
+    }
+
+    /** 이미지 원본 응답. 기본값은 계약에 없는 호출을 막는 실패다. */
+    var onImageContent: (String) -> Response<ResponseBody> =
+        { error("이 test는 이미지 조회 endpoint를 호출하지 않는다") }
+
+    override suspend fun getTripImageContent(
+        bearer: String,
+        tripId: String,
+    ): Response<ResponseBody> = onImageContent(tripId)
 }
 
 /** 여행 목록 한 페이지 응답을 만든다. */
@@ -123,6 +165,8 @@ fun trip(
     startDate: String = "2026-09-01",
     endDate: String = "2026-09-03",
     status: TripStatus = TripStatus.UPCOMING,
+    version: Int = 1,
+    imageUrl: String? = null,
 ): TripDto = TripDto(
     tripId = id,
     name = name,
@@ -130,7 +174,8 @@ fun trip(
     endDate = endDate,
     status = status,
     dayCount = 3,
-    version = 1,
+    version = version,
+    imageUrl = imageUrl,
 )
 
 /** 여행 상세 성공 응답을 만든다. */
