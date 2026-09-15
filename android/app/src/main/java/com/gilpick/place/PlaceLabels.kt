@@ -1,6 +1,8 @@
 package com.gilpick.place
 
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import com.gilpick.R
 
 /**
@@ -39,6 +41,21 @@ fun businessStatusLabelRes(status: String?): Int? = when (status) {
 val PlaceDto.hasGoogleData: Boolean
     get() = rating != null || userRatingCount != null || businessStatus != null ||
         !regularOpeningHours.isNullOrEmpty() || !currentOpeningHours.isNullOrEmpty()
+
+/**
+ * Google 데이터가 보이는 영역의 출처 문구(FR-021). 상세는 장소 하나, 검색은 보이는 결과 전체를 넘긴다.
+ * 응답 attribution이 비면 기본 `Google`을 쓰고, Google 데이터가 하나도 없으면 `null`이다.
+ */
+@Composable
+internal fun List<PlaceDto>.googleAttributionText(): String? {
+    val google = filter { it.hasGoogleData }
+    if (google.isEmpty()) return null
+    val names = google.flatMap { it.googleAttributions.orEmpty() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .ifEmpty { listOf(stringResource(R.string.place_google_attribution_default)) }
+    return stringResource(R.string.place_google_attribution, names.joinToString(", "))
+}
 
 /** 평점을 소수 첫째 자리까지 쓴다. `4.0`도 `4`가 아니라 `4.0`이다. */
 internal fun Double.toRatingText(): String = String.format(java.util.Locale.KOREA, "%.1f", this)

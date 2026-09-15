@@ -426,14 +426,9 @@ private fun InfoRows(place: PlaceDto) {
         InfoRow(R.drawable.ic_lucide_map_pin, stringResource(R.string.place_detail_address_label), place.address ?: missing)
         HorizontalDivider(color = MaterialTheme.colorScheme.background)
         InfoRow(R.drawable.ic_lucide_clock, stringResource(R.string.place_detail_hours_label), hours)
-        if (place.hasGoogleData) {
-            val attribution = place.googleAttributions
-                ?.filter { it.isNotBlank() }
-                ?.takeIf { it.isNotEmpty() }
-                ?.joinToString(", ")
-                ?: stringResource(R.string.place_google_attribution_default)
+        listOf(place).googleAttributionText()?.let { attribution ->
             Text(
-                text = stringResource(R.string.place_google_attribution, attribution),
+                text = attribution,
                 fontSize = 11.sp,
                 color = LocalGilpickColors.current.muted,
                 modifier = Modifier.padding(horizontal = LocalGilpickSpacing.current.space5, vertical = LocalGilpickSpacing.current.space3),

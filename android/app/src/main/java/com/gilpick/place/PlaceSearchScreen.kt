@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -401,82 +402,100 @@ private fun Results(
             }
     }
 
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        item(key = "summary") {
-            Row(
-                // `거리순` 터치 영역 48dp가 행 높이를 정한다. 세로 여백을 더하면 Figma 요약 행보다 크게 두꺼워진다.
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = spacing.space5),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.place_search_summary, results.size),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onSurface,
-                    // 결과가 바뀌면 판독기가 요약을 읽는다(UI-006).
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-                DistanceSortToggle(
-                    on = state.distanceOrigin != null,
-                    enabled = !state.distanceSortUnavailable,
-                    onToggle = onToggleDistanceSort,
-                )
-            }
-        }
-        itemsIndexed(results, key = { _, place -> place.placeId }) { index, place ->
-            Column(modifier = Modifier.background(colors.surface)) {
-                PlaceRow(place = place, onClick = { onPlaceClick(place.placeId) }) { AddButton(place = place, onAdd = { onAdd(place) }) }
-                if (index < results.lastIndex) {
-                    HorizontalDivider(color = colors.background, modifier = Modifier.padding(horizontal = spacing.space5))
-                }
-            }
-        }
-        if (state.loadingMore) {
-            item(key = "loading_more") {
-                Box(
+    // 출처는 결과 목록 단위로 한 줄만 둔다: 행마다 붙이면 장소별 출처 배지가 된다(FR-021·UI-012).
+    // 스크롤과 무관하게 보이도록 목록 밖 하단에 고정한다(#516).
+    val attribution = results.googleAttributionText()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+            item(key = "summary") {
+                Row(
+                    // `거리순` 터치 영역 48dp가 행 높이를 정한다. 세로 여백을 더하면 Figma 요약 행보다 크게 두꺼워진다.
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(spacing.space4)
-                        .semantics { contentDescription = loadingMoreLabel },
-                    contentAlignment = Alignment.Center,
+                        .padding(horizontal = spacing.space5),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(spacing.space6))
+                    Text(
+                        text = stringResource(R.string.place_search_summary, results.size),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurface,
+                        // 결과가 바뀌면 판독기가 요약을 읽는다(UI-006).
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                    DistanceSortToggle(
+                        on = state.distanceOrigin != null,
+                        enabled = !state.distanceSortUnavailable,
+                        onToggle = onToggleDistanceSort,
+                    )
                 }
             }
-        }
-        val loadMoreError = state.loadMoreError
-        if (loadMoreError != null) {
-            item(key = "load_more_failed") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(spacing.space4)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(spacing.space2),
-                ) {
-                    Text(
-                        text = stringResource(R.string.place_search_load_more_failed),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.error,
-                    )
-                    Text(
-                        text = stringResource(loadMoreError.searchMessageRes),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                    // 추가 조회는 호출 한도라도 사용자가 다시 시도할 수 있게 둔다(FR-012). 로그인 만료만 재인증으로 보낸다.
-                    if (loadMoreError.kind == PlaceErrorKind.SESSION_EXPIRED) {
-                        OutlineButton(label = stringResource(R.string.place_reauthenticate), onClick = onReauthenticate)
-                    } else {
-                        OutlineButton(label = stringResource(R.string.place_search_load_more_retry), onClick = onRetryLoadMore)
+            itemsIndexed(results, key = { _, place -> place.placeId }) { index, place ->
+                Column(modifier = Modifier.background(colors.surface)) {
+                    PlaceRow(place = place, onClick = { onPlaceClick(place.placeId) }) { AddButton(place = place, onAdd = { onAdd(place) }) }
+                    if (index < results.lastIndex) {
+                        HorizontalDivider(color = colors.background, modifier = Modifier.padding(horizontal = spacing.space5))
                     }
                 }
             }
+            if (state.loadingMore) {
+                item(key = "loading_more") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(spacing.space4)
+                            .semantics { contentDescription = loadingMoreLabel },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(spacing.space6))
+                    }
+                }
+            }
+            val loadMoreError = state.loadMoreError
+            if (loadMoreError != null) {
+                item(key = "load_more_failed") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(spacing.space4)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(spacing.space2),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.place_search_load_more_failed),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.error,
+                        )
+                        Text(
+                            text = stringResource(loadMoreError.searchMessageRes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                        // 추가 조회는 호출 한도라도 사용자가 다시 시도할 수 있게 둔다(FR-012). 로그인 만료만 재인증으로 보낸다.
+                        if (loadMoreError.kind == PlaceErrorKind.SESSION_EXPIRED) {
+                            OutlineButton(label = stringResource(R.string.place_reauthenticate), onClick = onReauthenticate)
+                        } else {
+                            OutlineButton(label = stringResource(R.string.place_search_load_more_retry), onClick = onRetryLoadMore)
+                        }
+                    }
+                }
+            }
+        }
+        if (attribution != null) {
+            Text(
+                text = attribution,
+                fontSize = 11.sp,
+                color = LocalGilpickColors.current.muted,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.surface)
+                    .navigationBarsPadding()
+                    .padding(horizontal = spacing.space5, vertical = spacing.space3),
+            )
         }
     }
 }
