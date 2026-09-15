@@ -315,6 +315,8 @@
     <string name="itinerary_edit_transport_change_description">%1$s 다음 이동 수단 변경</string>
     <string name="itinerary_edit_transport_title">이동 수단 변경</string>
     <string name="itinerary_edit_transport_subtitle">%1$s까지 어떻게 이동하시겠어요?</string>
+    <string name="itinerary_edit_transport_estimate">약 %1$s · %2$s</string>
+    <string name="itinerary_edit_transport_estimate_none">--</string>
     <string name="itinerary_edit_move_up">위로 이동</string>
     <string name="itinerary_edit_move_down">아래로 이동</string>
     <string name="itinerary_edit_remove">%1$s 삭제</string>
