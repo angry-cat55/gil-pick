@@ -122,3 +122,11 @@ def test_display_score_rounds_but_ranking_uses_raw_score_and_tie_breakers() -> N
     result = candidate_score(distance_meters=195, search_radius_meters=1000)
     assert result.score == pytest.approx(80.5)
     assert result.display_score == 80
+
+
+def test_ranking_key_always_places_unknown_operating_status_last() -> None:
+    """운영시간 미확인 후보는 점수가 훨씬 높아도 확인된 후보 뒤로 밀린다(#587)."""
+    known_low_score = ranking_key(10.0, 900, None, None, operating_known=True)
+    unknown_high_score = ranking_key(99.0, 10, 5.0, 1000, operating_known=False)
+
+    assert known_low_score < unknown_high_score

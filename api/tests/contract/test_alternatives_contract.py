@@ -136,7 +136,8 @@ async def test_alternative_service_only_reads_schedule_rows(
             return self.results.pop(0)
 
     detection = SimpleNamespace(
-        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW
+        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW,
+        primary_type="OPERATING_HOURS",
     )
     monkeypatch.setattr(
         "app.services.alternatives.owned_detection",
@@ -197,7 +198,8 @@ async def test_list_candidates_surfaces_tour_failure_instead_of_empty_list(
             return self.results.pop(0)
 
     detection = SimpleNamespace(
-        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW
+        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW,
+        primary_type="OPERATING_HOURS",
     )
     monkeypatch.setattr(
         "app.services.alternatives.owned_detection",
@@ -404,7 +406,8 @@ async def test_alternative_service_search_annotates_places(
             return self.results.pop(0)
 
     detection = SimpleNamespace(
-        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW
+        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW,
+        primary_type="OPERATING_HOURS",
     )
     monkeypatch.setattr(
         "app.services.alternatives.owned_detection",
@@ -530,7 +533,8 @@ async def test_alternative_service_search_stops_after_provider_page_limit(
             return self.results.pop(0)
 
     detection = SimpleNamespace(
-        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW
+        status="ACTIVE", item_id=uuid.uuid4(), trip_day_id=uuid.uuid4(), eta=NOW,
+        primary_type="OPERATING_HOURS",
     )
     monkeypatch.setattr(
         "app.services.alternatives.owned_detection",

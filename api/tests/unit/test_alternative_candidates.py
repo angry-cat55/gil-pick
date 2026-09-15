@@ -21,9 +21,10 @@ from app.schemas.place import PlaceCategory, PlaceSource, PlaceSummary, TourApiC
 from app.services.alternatives.candidate_token import verify_candidate_token
 from app.services.alternatives.candidates import build_candidates
 from app.services.alternatives import _within_direct_search_radius
+from app.services.detection.congestion_areas import CongestionArea
 from app.services.detection.operating_hours_source import OperatingHoursSource
 
-ETA = datetime(2026, 9, 9, 12, tzinfo=UTC)
+ETA = datetime(2026, 9, 9, 3, tzinfo=UTC)  # KST 정오, 심야(21시 이후) 경계 회피(#587)
 DETECTION_ID = uuid.UUID("00000000-0000-0000-0000-000000000009")
 SECRET = "candidate-test-secret-at-least-32-bytes"
 
@@ -190,13 +191,15 @@ async def run_pipeline(
     origin_place: PlaceSummary | None = None,
     scheduled_place_ids: set[str] | None = None,
     states: dict[str, str] | None = None,
+    eta: datetime = ETA,
+    congestion_is_primary_cause: bool = False,
 ) -> tuple[Any, list[str]]:
     tour, google, calls = clients(items, states)
     result = await build_candidates(
         session=object(),
         detection_id=DETECTION_ID,
         origin=origin_place or origin(),
-        eta=ETA,
+        eta=eta,
         scheduled_place_ids=scheduled_place_ids or set(),
         tour_client=tour,
         google_client=google,
@@ -204,7 +207,8 @@ async def run_pipeline(
         kma_client=object(),
         seoul_client=object(),
         candidate_secret=SECRET,
-        evaluated_at=ETA,
+        evaluated_at=eta,
+        congestion_is_primary_cause=congestion_is_primary_cause,
     )
     return result, calls
 
@@ -319,6 +323,95 @@ async def test_closed_places_are_skipped_unknown_is_kept_and_ten_are_filled(
     assert unknown.operating_status == "UNKNOWN"
     assert unknown.closes_at is None
     assert len(calls) == 12
+
+
+@pytest.mark.asyncio
+async def test_same_congestion_spot_forces_congestion_score_to_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """혼잡이 주 원인이면 기존 장소와 같은 혼잡 지점(500m) 후보는 혼잡 점수만 0점(#587)."""
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+
+    async def area_by_longitude(
+        session: object, *, latitude: float, longitude: float
+    ) -> CongestionArea:
+        code = "SAME" if longitude < 126.985 else "OTHER"
+        return CongestionArea(name="혼잡 지점", areaCode=code, latitude=latitude, longitude=longitude)
+
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.find_nearest_congestion_area",
+        area_by_longitude,
+    )
+    items = [tour_item(1, 200), tour_item(2, 200)]
+    items[0]["mapx"] = "126.978100"  # 기존 장소(126.9780)와 같은 혼잡 지점
+    items[1]["mapx"] = "127.010000"  # 다른 혼잡 지점
+
+    result, _ = await run_pipeline(items, congestion_is_primary_cause=True)
+
+    by_id = {item.place.place_id: item for item in result.items}
+    assert by_id["tourapi:1"].score_breakdown.congestion == 0.0
+    assert by_id["tourapi:2"].score_breakdown.congestion > 0.0
+    assert result.items[0].place.place_id == "tourapi:2"
+
+
+@pytest.mark.asyncio
+async def test_congestion_not_primary_cause_keeps_normal_congestion_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """혼잡이 주 원인이 아니면 같은 혼잡 지점이어도 강제로 0점 처리하지 않는다(#587)."""
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+    called = False
+
+    async def area_should_not_be_called(*args: Any, **kwargs: Any) -> CongestionArea:
+        nonlocal called
+        called = True
+        raise AssertionError("congestion_is_primary_cause=False면 조회하지 않는다")
+
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.find_nearest_congestion_area",
+        area_should_not_be_called,
+    )
+    items = [tour_item(1, 200)]
+    items[0]["mapx"] = "126.978100"
+
+    result, _ = await run_pipeline(items, congestion_is_primary_cause=False)
+
+    assert called is False
+    assert result.items[0].score_breakdown.congestion > 0.0
+
+
+@pytest.mark.asyncio
+async def test_unknown_operating_status_ranks_behind_known_and_excluded_late_at_night(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """운영시간 미확인 후보는 항상 확인된 후보 뒤이고, 심야(21시 이후)엔 아예 제외된다(#587)."""
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_weather", _clear_weather
+    )
+    monkeypatch.setattr(
+        "app.services.alternatives.candidates.evaluate_congestion", _clear_congestion
+    )
+    items = [tour_item(1, 450), tour_item(2, 100)]
+    states = {"후보 1": "OPEN", "후보 2": "UNKNOWN"}
+
+    daytime_eta = datetime(2026, 9, 9, 3, tzinfo=UTC)  # KST 정오
+    daytime, _ = await run_pipeline(items, states=states, eta=daytime_eta)
+    # tourapi:2가 더 가깝지만(100m) 운영시간 미확인이라 확인된 tourapi:1(450m) 뒤로 밀린다.
+    assert [item.place.place_id for item in daytime.items] == ["tourapi:1", "tourapi:2"]
+
+    late_night_eta = datetime(2026, 9, 9, 13, tzinfo=UTC)  # KST 22시
+    late_night, _ = await run_pipeline(items, states=states, eta=late_night_eta)
+    assert [item.place.place_id for item in late_night.items] == ["tourapi:1"]
 
 
 @pytest.mark.asyncio

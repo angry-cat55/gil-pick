@@ -6,7 +6,7 @@
 
 ## Summary
 
-F008 `ACTIVE` 감지 결과 하나를 기준으로, 기존 장소 좌표에서 TourAPI 위치 기반 목록을 **2km 한 번** 받아 0.5km→1km→2km 사다리와 소→중→대분류 비교를 메모리에서 적용하고, 거리·혼잡·날씨로 예비 점수를 매긴 뒤 상위부터 Google Text Search 1회씩으로 평점 병합과 운영 상태 확인을 하여 운영 중 후보 10개(확인 상한 20)를 채운다. 최종 점수(거리 35·베이지안 평점 30·혼잡 20·날씨 15, 결손 가중치 재분배)로 정렬해 서명된 `candidateId`와 함께 반환한다(ALT-001). 직접 검색(ALT-002)은 F003 키워드 검색을 유지하면서 기존 장소 기준 2km 밖과 좌표 없는 결과를 서버에서 제외하고 거리·운영 상태·방문 가능·일정 포함 여부를 덧붙인다. `기존 일정 그대로 진행`은 새 계약 **DETECT-004 감지 거절**로 `ACTIVE → DISMISSED`를 멱등하게 처리한다. 후보는 저장하지 않고 새 테이블·migration이 없다.
+F008 `ACTIVE` 감지 결과 하나를 기준으로, 기존 장소 좌표에서 TourAPI 위치 기반 목록을 **2km 한 번** 받아 0.5km→1km→2km 사다리와 소→중→대분류 비교를 메모리에서 적용하고, 거리·혼잡·날씨로 예비 점수를 매긴 뒤 상위부터 Google Text Search 1회씩으로 평점 병합과 운영 상태 확인을 하여 운영 중 후보 10개(확인 상한 20)를 채운다. 최종 점수(거리 35·베이지안 평점 30·혼잡 20·날씨 15, 결손 가중치 재분배)로 정렬해 서명된 `candidateId`와 함께 반환한다(ALT-001). 감지 주 원인이 혼잡이면 기존 장소와 같은 혼잡 지원 지점(500m) 안 후보는 혼잡 점수를 0으로 보고(FR-010a), 운영시간 확인된 후보는 점수와 무관하게 확인 불가 후보보다 항상 앞서며 도착 예정이 심야(KST 21시 이후)면 확인 불가 후보는 아예 제외한다(2026-09-16 #587, FR-004·FR-012). 직접 검색(ALT-002)은 F003 키워드 검색을 유지하면서 기존 장소 기준 2km 밖과 좌표 없는 결과를 서버에서 제외하고 거리·운영 상태·방문 가능·일정 포함 여부를 덧붙인다. `기존 일정 그대로 진행`은 새 계약 **DETECT-004 감지 거절**로 `ACTIVE → DISMISSED`를 멱등하게 처리한다. 후보는 저장하지 않고 새 테이블·migration이 없다.
 
 Android는 새 패키지 `com.gilpick.alternative`에 대체 장소 화면(Figma `AlternativePlacesScreen`/`alternativesEmpty`)·직접 검색 화면·지도를 만들고, 진행 화면(`ActiveTravelScreen`)에 변수 경고 배너 진입점을 더한다. 후보·직접 검색 선택은 `onSelectPlace(SelectedAlternative)` 콜백으로 F010에 넘기며 일정을 바꾸지 않는다. 결정 근거는 [research.md](research.md), 계약은 [contracts/alternatives.openapi.yaml](contracts/alternatives.openapi.yaml), 상태 모델은 [data-model.md](data-model.md), 검증 절차는 [quickstart.md](quickstart.md)다.
 

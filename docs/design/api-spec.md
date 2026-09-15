@@ -1604,13 +1604,14 @@ Response `200`:
 - 화면 표시 점수는 정수 반올림
 - 내부 정렬은 반올림 전 소수점 점수 사용
 - 반환 후보 최대 10개
-- 동점: 거리 짧음 → Bayesian 평점 높음 → 리뷰 수 많음
+- 운영 상태가 확인된 후보(`OPEN`·`CLOSING_SOON`)는 점수와 무관하게 `UNKNOWN` 후보보다 항상 앞선다(2026-09-16 #587). `UNKNOWN` 후보만 있을 때만 순위·1위(TOP)로 노출된다.
+- 그다음 동점: 거리 짧음 → Bayesian 평점 높음 → 리뷰 수 많음
 
 후보 탐색 순서:
 1. 기존 장소 좌표에서 TourAPI 위치 기반 목록을 2km 한 번 받고, 0.5km→1km→2km 반경 사다리와 소분류→중분류→대분류 비교 단계를 메모리에서 적용한다. 응답 `categoryMatchLevel`은 실제로 후보를 찾은 단계(`SMALL | MIDDLE | LARGE`)이고, 2km·대분류에도 없으면 `NONE`·`items: []`·`searchRadiusMeters: 2000`이다.
 2. 기존 장소와 같은 날짜 일정의 다른 장소는 후보에서 제외한다.
-3. 거리·혼잡·날씨만으로 예비 점수를 매겨 상위부터 Google Text Search를 후보당 1회씩 호출해 평점을 병합하고 운영 상태를 확인한다. 운영 종료(폐점 이후·임시휴업·영업 종료) 후보는 제외하며, 운영 중 후보 10개를 채우거나 확인 횟수가 `OPERATING_CHECK_LIMIT`(20)에 이르면 중단한다. 반경은 이때 넓히지 않는다.
-4. 확인된 후보만으로 Bayesian 보정과 최종 점수를 계산해 정렬한다.
+3. 거리·혼잡·날씨만으로 예비 점수를 매겨 상위부터 Google Text Search를 후보당 1회씩 호출해 평점을 병합하고 운영 상태를 확인한다. 운영 종료(폐점 이후·임시휴업·영업 종료) 후보는 제외하며, 도착 예정 시각이 심야(KST 21시 이후)면 운영시간을 확인할 수 없는(`UNKNOWN`) 후보도 제외한다(2026-09-16 #587). 운영 중 후보 10개를 채우거나 확인 횟수가 `OPERATING_CHECK_LIMIT`(20)에 이르면 중단한다. 반경은 이때 넓히지 않는다.
+4. 확인된 후보만으로 Bayesian 보정과 최종 점수를 계산해 정렬한다. 감지 주 원인이 혼잡(`primaryType=CONGESTION`)이면, 기존 장소와 같은 혼잡 지원 지점(500m) 안에 있는 후보는 혼잡 점수를 0으로 본다(2026-09-16 #587) — 그 지점 안에서는 혼잡을 피할 수 없기 때문이며, 다른 변수 점수는 그대로 반영한다.
 
 선택적 외부 데이터(Google 평점·서울시 혼잡·기상청 날씨·운영시간)의 실패는 해당 변수에만 격리하고 `scoreBreakdown`에서 그 key를 생략한다. 실내 카테고리 후보는 예보가 있어도 `weather`를 제외한다. TourAPI 조회가 재시도 후에도 실패하면 후보 없음이 아니라 `502`·`504`로 응답한다(빈 목록 위장 금지).
 
@@ -1681,7 +1682,7 @@ Response `200`:
 - `place`: PLACE-001 장소 DTO 전체를 그대로 중첩한다.
 - `categoryMatchLevel`: 후보를 찾은 분류 비교 단계 `SMALL | MIDDLE | LARGE`. 후보 없음이면 `NONE`이고 `items: []`, `searchRadiusMeters: 2000`.
 - `scoreBreakdown`: 점수에 실제로 쓰인 0~1 정규화 변수만. 데이터 결손·실내 등으로 제외된 변수는 key 자체를 생략한다.
-- `operatingStatus`: `OPEN | CLOSING_SOON | UNKNOWN`. `CLOSED`는 후보에서 제외되어 나타나지 않는다.
+- `operatingStatus`: `OPEN | CLOSING_SOON | UNKNOWN`. `CLOSED`는 후보에서 제외되어 나타나지 않는다. 도착 예정 시각이 심야(KST 21시 이후)면 `UNKNOWN`도 후보에서 제외된다(2026-09-16 #587).
 - `closesAt`: 폐점 시각(있을 때만). 없으면 `null`.
 - `reasons`: `INDOOR | NOT_CROWDED | NO_RAIN_RISK | CLOSER | OPEN_AT_ETA` 중 해당 항목.
 - `candidateId`: `detectionId`·`placeId`·`evaluatedAt`을 담은 15분 유효 서명 토큰. F010 미리보기 생성에서 검증한다.
