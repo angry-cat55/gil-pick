@@ -1,5 +1,22 @@
 # Data Model: F005 경로 계산
 
+## RouteEstimate
+
+| 필드 | 형식 | 규칙 |
+|---|---|---|
+| `estimate_id` | UUID | PK |
+| `trip_day_id` | UUID | `trip_days` FK, cascade delete |
+| `schedule_version` | integer | 1 이상 |
+| `sequence` | integer | 1~9, 출발 일정 항목 순서 |
+| `transport_mode` | enum | `WALK`, `TRANSIT`, `CAR` |
+| `status` | enum | `READY`, `FAILED` |
+| `estimate_payload` | JSONB | 공개 응답용 수단별 추정 또는 실패 |
+| `calculated_at` | timestamptz | TTL 기준 시각 |
+
+- `(trip_day_id, schedule_version, sequence, transport_mode)`는 unique다.
+- `READY`는 300초, `FAILED`는 60초 동안만 cache hit로 취급한다.
+- 다른 `schedule_version` row는 응답에 사용하지 않고 새 version 요청 시 제거한다.
+
 ## Route
 
 | 필드 | 형식 | 규칙 |

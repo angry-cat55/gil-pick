@@ -6,11 +6,11 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from time import monotonic
 
 from geoalchemy2 import Geometry
-from sqlalchemy import cast, func, null, select, update
+from sqlalchemy import cast, delete, func, null, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -26,7 +26,7 @@ from app.clients.route_provider import (
 from app.core.logging import request_id_context
 from app.db import transaction_session
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.route import Route as RouteModel
+from app.models.route import Route as RouteModel, RouteEstimate as RouteEstimateModel
 from app.services.eta import recalculate_day_eta
 from app.schemas.route import (
     FailedRouteData,
@@ -37,7 +37,9 @@ from app.schemas.route import (
     RouteFailureCode,
     RouteGeometry,
     RouteMarker,
+    RouteModeEstimate,
     RouteSegment,
+    RouteSegmentEstimatesData,
     RouteStep,
     RouteStatus,
     RouteData,
@@ -240,6 +242,62 @@ class RouteCalculationService:
                 raise error
 
         raise RuntimeError("단일 구간 재시도 상태가 올바르지 않습니다.")
+
+    async def calculate_estimates(
+        self,
+        snapshot: RouteSnapshot,
+        *,
+        sequence: int,
+        modes: list[ClientTransportMode] | None = None,
+    ) -> list[RouteModeEstimate]:
+        """한 구간의 수단별 추정을 독립적으로 계산한다."""
+        items = tuple(sorted(snapshot.items, key=lambda item: item.sequence))
+        if sequence < 1 or sequence >= len(items):
+            raise AppError(404, "ROUTE_SEGMENT_NOT_FOUND", "경로 구간을 찾을 수 없습니다.")
+        origin, destination = items[sequence - 1 : sequence + 1]
+        requested = modes or list(ClientTransportMode)
+        semaphore = asyncio.Semaphore(self.concurrency)
+
+        async def calculate(mode: ClientTransportMode) -> RouteModeEstimate:
+            async with semaphore:
+                for attempt in (1, 2):
+                    try:
+                        result = await self.providers[mode].calculate(
+                            origin.coordinate,
+                            destination.coordinate,
+                            mode,
+                            deadline=monotonic() + self.deadline_seconds,
+                        )
+                        if result.transport_mode is not mode:
+                            raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+                        return RouteModeEstimate(
+                            transport_mode=mode.value,
+                            status=RouteStatus.READY,
+                            duration_seconds=result.duration_seconds,
+                            distance_meters=result.distance_meters,
+                            provider=result.provider.value,
+                            provider_attribution=result.attribution,
+                        )
+                    except RouteProviderError as error:
+                        if not error.retryable or attempt == 2:
+                            return _failed_estimate(mode, error.code, error.retryable)
+                    except Exception:
+                        return _failed_estimate(mode, "ROUTE_INVALID_RESULT", False)
+                raise RuntimeError("구간 추정 재시도 상태가 올바르지 않습니다.")
+
+        tasks = [asyncio.create_task(calculate(mode)) for mode in requested]
+        try:
+            done, pending = await asyncio.wait(tasks, timeout=self.deadline_seconds)
+        finally:
+            pending = {task for task in tasks if not task.done()}
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+        return [
+            task.result() if task in done else _failed_estimate(mode, "ROUTE_PROVIDER_TIMEOUT", True)
+            for mode, task in zip(requested, tasks)
+        ]
 
     async def _calculate_segment(
         self,
@@ -456,6 +514,92 @@ class RouteService:
                 _failed("ROUTE_PROVIDER_TIMEOUT", retryable=True),
             )
 
+    async def estimate_segment(
+        self,
+        *,
+        trip_id: uuid.UUID,
+        visit_date: date,
+        sequence: int,
+        schedule_version: int,
+    ) -> RouteSegmentEstimatesData:
+        """현재 일정의 한 구간을 세 이동 수단으로 추정하고 짧게 캐시한다."""
+        snapshot = await self._load_snapshot(trip_id=trip_id, visit_date=visit_date)
+        if snapshot is None or snapshot.schedule_version != schedule_version:
+            raise _retry_version_conflict()
+        items = tuple(sorted(snapshot.items, key=lambda item: item.sequence))
+        if sequence < 1 or sequence >= len(items):
+            raise AppError(404, "ROUTE_SEGMENT_NOT_FOUND", "경로 구간을 찾을 수 없습니다.")
+
+        now = datetime.now(UTC)
+        async with transaction_session(self.session_factory) as session:
+            await session.execute(
+                delete(RouteEstimateModel).where(
+                    RouteEstimateModel.trip_day_id == snapshot.trip_day_id,
+                    RouteEstimateModel.schedule_version != schedule_version,
+                )
+            )
+            cached = list(
+                await session.scalars(
+                    select(RouteEstimateModel).where(
+                        RouteEstimateModel.trip_day_id == snapshot.trip_day_id,
+                        RouteEstimateModel.schedule_version == schedule_version,
+                        RouteEstimateModel.sequence == sequence,
+                    )
+                )
+            )
+        fresh = {
+            ClientTransportMode(value.transport_mode): RouteModeEstimate.model_validate(
+                value.estimate_payload
+            )
+            for value in cached
+            if value.calculated_at
+            >= now - timedelta(seconds=300 if value.status == "READY" else 60)
+        }
+        modes = [mode for mode in ClientTransportMode if mode not in fresh]
+        calculated = await self.calculator.calculate_estimates(
+            snapshot, sequence=sequence, modes=modes
+        ) if modes else []
+
+        if calculated:
+            async with transaction_session(self.session_factory) as session:
+                current_version = await session.scalar(
+                    select(TripDay.schedule_version)
+                    .where(TripDay.trip_day_id == snapshot.trip_day_id)
+                    .with_for_update()
+                )
+                if current_version != schedule_version:
+                    raise _retry_version_conflict()
+                for value in calculated:
+                    values = {
+                        "estimate_id": uuid.uuid4(),
+                        "trip_day_id": snapshot.trip_day_id,
+                        "schedule_version": schedule_version,
+                        "sequence": sequence,
+                        "transport_mode": value.transport_mode.value,
+                        "status": value.status.value,
+                        "estimate_payload": value.model_dump(mode="json", by_alias=True),
+                        "calculated_at": datetime.now(UTC),
+                    }
+                    statement = pg_insert(RouteEstimateModel).values(**values)
+                    await session.execute(
+                        statement.on_conflict_do_update(
+                            constraint="uq_route_estimates_input",
+                            set_={key: item for key, item in values.items() if key != "estimate_id"},
+                        )
+                    )
+                    fresh[ClientTransportMode(value.transport_mode.value)] = value
+
+        origin, destination = items[sequence - 1 : sequence + 1]
+        return RouteSegmentEstimatesData(
+            trip_id=trip_id,
+            date=visit_date,
+            schedule_version=schedule_version,
+            sequence=sequence,
+            from_item_id=origin.item_id,
+            to_item_id=destination.item_id,
+            estimates=[fresh[mode] for mode in ClientTransportMode],
+        )
+
 
     async def _load_snapshot(
         self,
@@ -665,6 +809,18 @@ def _failed(code: str, *, retryable: bool) -> RouteCalculationResult:
         RouteStatus.FAILED,
         None,
         RouteFailure(code=failure_code, message=messages[code], retryable=retryable),
+    )
+
+
+def _failed_estimate(
+    mode: ClientTransportMode, code: str, retryable: bool
+) -> RouteModeEstimate:
+    failure = _failed(code, retryable=retryable).failure
+    assert failure is not None
+    return RouteModeEstimate(
+        transport_mode=mode.value,
+        status=RouteStatus.FAILED,
+        failure=failure,
     )
 
 

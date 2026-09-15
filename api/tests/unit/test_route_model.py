@@ -1,7 +1,7 @@
 """Route ORM metadata가 F005 저장 계약과 일치하는지 확인한다."""
 
 from app.models.itinerary import TripDay
-from app.models.route import Route
+from app.models.route import Route, RouteEstimate
 
 
 def test_route_model_exposes_columns_and_day_relationship() -> None:
@@ -25,3 +25,13 @@ def test_route_model_declares_database_invariants() -> None:
     } <= constraints
     assert "uq_routes_active_day" in indexes
     assert next(index for index in Route.__table__.indexes if index.name == "uq_routes_active_day").unique
+
+
+def test_route_estimate_model_declares_cache_key_and_state() -> None:
+    assert set(RouteEstimate.__table__.columns.keys()) >= {
+        "estimate_id", "trip_day_id", "schedule_version", "sequence",
+        "transport_mode", "status", "estimate_payload", "calculated_at",
+    }
+    assert "uq_route_estimates_input" in {
+        constraint.name for constraint in RouteEstimate.__table__.constraints
+    }
