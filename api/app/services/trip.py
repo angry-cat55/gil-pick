@@ -268,31 +268,40 @@ class TripService:
 
         period_shrinks = start_date > trip.start_date or end_date < trip.end_date
         deleted_day_count = 0
-        deleted_item_count = 0
+        deleted_days: list[tuple[date, int]] = []
         if period_shrinks:
             out_of_range = or_(
                 TripDay.visit_date < start_date,
                 TripDay.visit_date > end_date,
             )
-            counts = (
+            day_counts = (
                 await self.session.execute(
-                    select(
-                        func.count(func.distinct(TripDay.trip_day_id)),
-                        func.count(ItineraryItem.item_id),
-                    )
+                    select(TripDay.visit_date, func.count(ItineraryItem.item_id))
                     .select_from(TripDay)
                     .outerjoin(ItineraryItem)
                     .where(TripDay.trip_id == trip_id, out_of_range)
+                    .group_by(TripDay.visit_date)
+                    .order_by(TripDay.visit_date)
                 )
-            ).one()
-            deleted_day_count, deleted_item_count = counts
+            ).all()
+            deleted_day_count = len(day_counts)
+            deleted_days = [
+                (visit_date, count) for visit_date, count in day_counts if count
+            ]
+        deleted_item_count = sum(count for _, count in deleted_days)
 
         if deleted_item_count and not payload.confirm_delete_out_of_range_items:
             raise AppError(
                 409,
                 CONFIRMATION_REQUIRED,
                 "기간 축소로 제외되는 일정을 확인해 주세요.",
-                details={"deletedItemCount": deleted_item_count},
+                details={
+                    "deletedItemCount": deleted_item_count,
+                    "deletedDays": [
+                        {"date": visit_date.isoformat(), "itemCount": count}
+                        for visit_date, count in deleted_days
+                    ],
+                },
             )
 
         values: dict[str, object] = {}

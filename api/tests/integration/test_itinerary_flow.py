@@ -120,7 +120,10 @@ async def test_trip_period_shrink_counts_and_deletes_only_out_of_range_itinerary
                 payload=payload,
             )
     assert confirmation.value.code == "CONFIRMATION_REQUIRED"
-    assert confirmation.value.details == {"deletedItemCount": 1}
+    assert confirmation.value.details == {
+        "deletedItemCount": 1,
+        "deletedDays": [{"date": (start_date + timedelta(days=2)).isoformat(), "itemCount": 1}],
+    }
 
     async with session_factory() as session:
         assert await session.scalar(
@@ -160,6 +163,79 @@ async def test_trip_period_shrink_counts_and_deletes_only_out_of_range_itinerary
     assert remaining_items == 1
     assert "deleted_day_count=1" in caplog.text
     assert "deleted_item_count=1" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_trip_period_start_delay_reports_deleted_days_per_date(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """시작일을 늦추면 앞쪽 날짜별 삭제 일정 수가 날짜 오름차순으로 온다(#588, TRIP-04)."""
+    start_date = date.today() + timedelta(days=20)
+    trip_id, start_date = await _seed(
+        session_factory,
+        start_date=start_date,
+        end_date=start_date + timedelta(days=4),
+    )
+    async with transaction_session(session_factory) as session:
+        await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=start_date,
+            start_date=start_date,
+            payload=_create_payload(),
+            idempotency_key=uuid.uuid4(),
+        )
+    async with transaction_session(session_factory) as session:
+        await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=start_date + timedelta(days=1),
+            start_date=start_date,
+            payload=SaveDayItineraryRequest(
+                version=0, items=[_place_item(1, "WALK"), _place_item(2, None)]
+            ),
+            idempotency_key=uuid.uuid4(),
+        )
+
+    async with session_factory() as session:
+        trip = await session.get(Trip, trip_id)
+        assert trip is not None
+        user_id = trip.user_id
+
+    payload = UpdateTripRequest(startDate=start_date + timedelta(days=2), version=1)
+    with pytest.raises(AppError) as confirmation:
+        async with transaction_session(session_factory) as session:
+            await TripService(session, cursor_secret="test-secret").update_trip(
+                user_id=user_id,
+                trip_id=trip_id,
+                payload=payload,
+            )
+    assert confirmation.value.code == "CONFIRMATION_REQUIRED"
+    assert confirmation.value.details == {
+        "deletedItemCount": 3,
+        "deletedDays": [
+            {"date": start_date.isoformat(), "itemCount": 1},
+            {"date": (start_date + timedelta(days=1)).isoformat(), "itemCount": 2},
+        ],
+    }
+
+    confirmed = UpdateTripRequest(
+        startDate=start_date + timedelta(days=2),
+        version=1,
+        confirmDeleteOutOfRangeItems=True,
+    )
+    async with transaction_session(session_factory) as session:
+        updated = await TripService(session, cursor_secret="test-secret").update_trip(
+            user_id=user_id,
+            trip_id=trip_id,
+            payload=confirmed,
+        )
+
+    assert updated.start_date == start_date + timedelta(days=2)
+    assert updated.version == 2
+    async with session_factory() as session:
+        remaining_days = await session.scalar(
+            select(func.count()).select_from(TripDay).where(TripDay.trip_id == trip_id)
+        )
+    assert remaining_days == 0
 
 
 @pytest.mark.asyncio

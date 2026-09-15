@@ -428,6 +428,14 @@
   - 선행: T056
   - 검증: runtime OpenAPI와 문서의 endpoint·오류·nullable 필드 일치
 
+## Phase 11: 기간 축소 확인 날짜별 안내
+
+- [x] T059 [FR-012] 기간 축소 확인 오류에 날짜별 삭제 일정 수(`deletedDays`) 추가 in `api/app/services/trip.py`, `specs/002-trip-management/contracts/trips.openapi.yaml`, `docs/design/api-spec.md`
+  - 영역: BE
+  - 담당: ts
+  - 선행: 없음, GitHub Issue #588
+  - 검증: 시작일 지연·종료일 단축 모두 날짜별 개수 반환, 일정 없는 날짜만 빠지면 확인 없이 저장, `deletedItemCount`와 `deletedDays` 합계 일치 contract·integration test 통과
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

@@ -69,8 +69,8 @@ curl -X PATCH "$BASE_URL/api/v1/trips/<tripId>" \
 - 완료 상태 여행에 `name`만 요청 → `200`
 - 자기 기간을 유지하는 수정 → 기간 충돌 없이 `200`
 - 같은 사용자의 다른 삭제되지 않은 여행과 겹치도록 기간 수정 → `409 TRIP_PERIOD_CONFLICT`, 기존 기간·일정·`version` 유지
-- 기간 축소로 범위 밖 일정이 있는 여행에 `confirmDeleteOutOfRangeItems` 없이 요청 → `409 CONFIRMATION_REQUIRED`, `details.deletedItemCount` 확인 후 `confirmDeleteOutOfRangeItems: true`로 재요청 → `200`
-  - F002 시점에는 `trip_days`/`itinerary_items`가 없어 `deletedItemCount`는 항상 0이다([data-model.md](data-model.md) "범위 밖" 참고). F004 이후 재검증한다.
+- 기간 축소로 범위 밖 일정이 있는 여행에 `confirmDeleteOutOfRangeItems` 없이 요청 → `409 CONFIRMATION_REQUIRED`, `details.deletedItemCount`·`details.deletedDays`(날짜별 개수, 일정 있는 날짜만) 확인 후 `confirmDeleteOutOfRangeItems: true`로 재요청 → `200`(#588)
+  - F002 시점에는 `trip_days`/`itinerary_items`가 없어 `deletedItemCount`가 항상 0이었다([data-model.md](data-model.md) "범위 밖" 참고). F004 이후 실제 `trip_days`/`itinerary_items`로 검증한다.
 
 ### 5. 삭제 — 상태 무관 soft delete와 멱등성 (FR-014, FR-015, FR-016)
 
