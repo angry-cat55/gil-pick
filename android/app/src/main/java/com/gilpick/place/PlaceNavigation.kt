@@ -1,5 +1,8 @@
 package com.gilpick.place
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -10,6 +13,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.gilpick.progress.DeviceLocationProvider
 import kotlinx.serialization.Serializable
 
 /**
@@ -64,8 +68,13 @@ fun NavGraphBuilder.placeGraph(
     onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
 ) {
     composable<PlaceSearchRoute> {
-        val viewModel: PlaceSearchViewModel = viewModel(factory = PlaceSearchViewModel.factory(LocalContext.current))
+        val context = LocalContext.current
+        val viewModel: PlaceSearchViewModel = viewModel(factory = PlaceSearchViewModel.factory(context))
         val state by viewModel.state.collectAsStateWithLifecycle()
+        // `거리순`을 처음 켤 때 위치 권한이 없으면 시스템 창을 띄운다. 거부하면 위치를 못 얻어 비활성이 된다.
+        val locationPermission = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { viewModel.toggleDistanceSort() }
 
         PlaceSearchScreen(
             state = state,
@@ -81,6 +90,13 @@ fun NavGraphBuilder.placeGraph(
             onSearchByCategory = viewModel::onSearchByCategory,
             onPlaceClick = { placeId -> navController.navigate(PlaceDetailRoute(placeId)) },
             onAddToSchedule = onAddToSchedule,
+            onToggleDistanceSort = {
+                if (state.distanceOrigin != null || DeviceLocationProvider.hasLocationPermission(context)) {
+                    viewModel.toggleDistanceSort()
+                } else {
+                    locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                }
+            },
         )
     }
     composable<PlaceDetailRoute> { entry ->

@@ -9,6 +9,8 @@ import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
 import com.gilpick.auth.ProgrammableAuthService
 import com.gilpick.auth.errorResponse
+import com.gilpick.progress.CurrentLocationDto
+import com.gilpick.progress.CurrentLocationProvider
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
@@ -181,6 +183,52 @@ class PlaceSearchViewModelTest {
         assertEquals(PlaceSearchPhase.Idle, state.phase)
         assertTrue(state.results.isEmpty())
         assertEquals(1, service.searchCalls.size)
+    }
+
+    // --- 거리순: #505 ---
+
+    @Test
+    fun `거리순은 현재 위치에서 가까운 순으로 보이고 끄면 서버 순서로 돌아간다`() = runTest {
+        service.onSearch = {
+            placePage(
+                listOf(
+                    place("tourapi:far").copy(latitude = 37.60, longitude = 127.10),
+                    place("tourapi:none").copy(latitude = null, longitude = null),
+                    place("tourapi:near").copy(latitude = 37.5701, longitude = 126.9801),
+                ),
+            )
+        }
+        val viewModel = newViewModel(location = { CurrentLocationDto(37.57, 126.98, 10.0, "2026-09-15T00:00:00Z") })
+        viewModel.onCategoryChange(PlaceCategory.CAFE)
+        advanceUntilIdle()
+
+        viewModel.toggleDistanceSort()
+        advanceUntilIdle()
+        assertEquals(listOf("tourapi:near", "tourapi:far", "tourapi:none"), viewModel.state.value.displayedResults.map { it.placeId })
+
+        viewModel.toggleDistanceSort()
+        assertEquals(listOf("tourapi:far", "tourapi:none", "tourapi:near"), viewModel.state.value.displayedResults.map { it.placeId })
+    }
+
+    @Test
+    fun `현재 위치를 얻지 못하면 거리순을 쓸 수 없다`() = runTest {
+        service.onSearch = { placePage(listOf(place("tourapi:1"))) }
+        val viewModel = newViewModel(location = { null })
+        viewModel.onCategoryChange(PlaceCategory.CAFE)
+        advanceUntilIdle()
+
+        viewModel.toggleDistanceSort()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.distanceSortUnavailable)
+        assertNull(state.distanceOrigin)
+    }
+
+    @Test
+    fun `haversine 거리는 서울역에서 경복궁까지 약 2_8km다`() {
+        val meters = distanceMeters(37.5547, 126.9707, 37.5796, 126.9770)
+        assertTrue(meters in 2_700.0..2_900.0)
     }
 
     // --- 빈 결과: Scenario 6 ---
@@ -407,7 +455,8 @@ class PlaceSearchViewModelTest {
         assertEquals(PlaceErrorKind.SESSION_EXPIRED, state.loadMoreError?.kind)
     }
 
-    private suspend fun newViewModel(): PlaceSearchViewModel = PlaceSearchViewModel(repository())
+    private suspend fun newViewModel(location: CurrentLocationProvider = CurrentLocationProvider { null }): PlaceSearchViewModel =
+        PlaceSearchViewModel(repository(), location)
 
     /** 로그인된 session을 가진 repository를 만든다. `PlaceDetailViewModelTest`와 같다. */
     private suspend fun repository(authService: AuthService = FakeAuthService): PlaceRepository {
