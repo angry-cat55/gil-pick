@@ -68,7 +68,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 /**
  * 장소 검색 화면. 모양은 Figma `AddPlaceScreen`을 그대로 따른다(UI-001·UI-010).
  *
- * 검색은 키보드의 검색 동작으로만 실행한다(FR-003a). 칩은 조건만 바꾼다. Figma의 `거리순 ▾`는
+ * 검색은 키보드의 검색 동작과 칩 선택으로 실행한다(FR-003a). Figma의 `거리순 ▾`는
  * 정렬 API가 없어 표시만 하고, 행의 `HH:MM 마감`은 마감 시각을 계산하지 않으므로(FR-007) Google
  * 영업 상태 문구만 쓴다.
  *
@@ -76,7 +76,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * @param onBack 이전 화면으로 돌아간다.
  * @param onQueryChange 입력창 값이 바뀌었다. 검색하지 않는다.
  * @param onClearQuery 입력창의 지우기 버튼.
- * @param onCategoryChange 칩을 골랐다. `null`은 `전체`.
+ * @param onCategoryChange 칩을 골랐다. `null`은 `전체`. 현재 검색어로 다시 검색한다.
  * @param onSearch 키보드의 검색 동작.
  * @param onRetry 첫 페이지 조회 실패 뒤 다시 시도.
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.

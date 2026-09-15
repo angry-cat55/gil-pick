@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 /**
  * 검색 화면의 표시 단계.
  *
- * 검색을 아직 실행하지 않은 [Idle]이 따로 있다. 검색어 입력이나 칩 선택만으로는 검색하지 않으므로
+ * 검색을 아직 실행하지 않은 [Idle]이 따로 있다. 검색어 입력만으로는 검색하지 않으므로
  * (`spec.md` FR-003a) "아직 안 찾았다"와 "찾았는데 없다"([Empty])는 다른 화면이다.
  */
 sealed interface PlaceSearchPhase {
@@ -78,7 +78,7 @@ data class PlaceSearchUiState(
 /**
  * 검색 화면의 상태 보유자.
  *
- * 검색은 [search]로만 시작한다. 입력·칩 변경은 draft만 바꾼다(FR-003a). 다음 페이지는 cursor로
+ * 검색은 [search]와 칩 선택으로 시작한다. 입력 변경은 draft만 바꾼다(FR-003a). 다음 페이지는 cursor로
  * 이어 받고 `placeId`가 겹치는 항목은 버린다(FR-005). destination-scoped라 상세에서 돌아와도
  * 조건·결과가 남는다(UI-009).
  *
@@ -107,9 +107,16 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
         onQueryChange("")
     }
 
-    /** 칩 선택을 반영한다. 검색하지 않는다. */
+    /**
+     * 칩 선택을 반영하고 곧바로 현재 검색어와 함께 다시 검색한다(FR-003a).
+     *
+     * 이미 고른 칩을 다시 누르면 아무것도 하지 않는다. 검색어 없이 `전체`를 고르면 조건이 없으므로
+     * 안내 문구 대신 검색 전 화면으로 돌아간다.
+     */
     fun onCategoryChange(category: PlaceCategory?) {
+        if (category == _state.value.category) return
         _state.update { it.copy(category = category) }
+        if (category == null && _state.value.query.isBlank()) onSearchByCategory() else search()
     }
 
     /**
@@ -124,7 +131,7 @@ class PlaceSearchViewModel(private val repository: PlaceRepository) : ViewModel(
     }
 
     /**
-     * 현재 draft 조건으로 검색을 실행한다. 키보드의 검색 동작이 부른다.
+     * 현재 draft 조건으로 검색을 실행한다. 키보드의 검색 동작과 칩 선택이 부른다.
      *
      * 조건이 계약에 맞지 않으면 요청하지 않고 [PlaceSearchPhase.Invalid]로 안내한다(FR-003·FR-003b).
      * 앞선 결과는 새 결과로 교체된다(UI-003).
