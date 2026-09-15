@@ -196,13 +196,17 @@ fun NotificationPreferenceSection(
                 trailing = { LoadingTrack() },
             )
 
-            is PreferencePhase.Content -> PreferenceRow(
-                checked = phase.value,
-                enabled = !phase.isSaving,
-                onToggle = onToggle,
-                // 저장 중임을 색이 아니라 문구로 알린다(UI-005).
-                badge = if (phase.isSaving) stringResource(R.string.settings_saving) else null,
-            )
+            is PreferencePhase.Content -> {
+                // 보통 저장은 아주 짧아 배지가 깜빡이기만 한다(#514). 1초를 넘길 때만 잠그고 문구로 알린다(UI-004·UI-005).
+                // 그 전에 다시 눌러도 view model이 진행 중 요청 뒤에 마지막 값만 이어 보내므로 중복 요청은 생기지 않는다.
+                val slowSaving = rememberSlowSaving(phase.isSaving)
+                PreferenceRow(
+                    checked = phase.value,
+                    enabled = !slowSaving,
+                    onToggle = onToggle,
+                    badge = if (slowSaving) stringResource(R.string.settings_saving) else null,
+                )
+            }
 
             is PreferencePhase.Error -> {
                 PreferenceRow(
@@ -219,6 +223,22 @@ fun NotificationPreferenceSection(
             }
         }
     }
+}
+
+/**
+ * 저장이 [SAVING_FEEDBACK_DELAY_MILLIS]보다 오래 걸리는 동안에만 `true`다(#514). 짧은 저장에는 아무것도 바꾸지 않는다.
+ */
+@Composable
+private fun rememberSlowSaving(isSaving: Boolean): Boolean {
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(isSaving) {
+        slow = false
+        if (isSaving) {
+            delay(SAVING_FEEDBACK_DELAY_MILLIS)
+            slow = true
+        }
+    }
+    return isSaving && slow
 }
 
 /**
@@ -691,6 +711,9 @@ internal const val TAG_POLICY_RETRY = "settings_policy_retry"
 internal const val TAG_POLICY_DISMISS = "settings_policy_dismiss"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
+
+/** `저장 중` 배지·토글 잠금을 보이기 전 기다리는 시간(#514). 조회 대기 표시와 같은 1초다. */
+private const val SAVING_FEEDBACK_DELAY_MILLIS = 1_000L
 private val MIN_TOUCH: Dp = 48.dp
 private val ROW_MIN_HEIGHT: Dp = 72.dp
 private val SPINNER_SIZE: Dp = 14.dp
