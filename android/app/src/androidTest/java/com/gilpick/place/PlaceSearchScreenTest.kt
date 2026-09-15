@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -141,6 +143,36 @@ class PlaceSearchScreenTest {
         composeRule.onNodeWithText("정보 적은 장소").assertIsDisplayed().performClick()
         composeRule.runOnIdle { assertEquals("tourapi:1", opened) }
         composeRule.onAllNodes(hasText("★")).assertCountEquals(0)
+    }
+
+    @Test
+    fun Google_데이터가_있으면_목록_하단에_출처를_한_번만_보여주고_스크롤해도_유지한다() {
+        val places = (1..20).map { testPlace("google:$it", name = "장소 $it", rating = 4.0) } +
+            testPlace("google:21", name = "출처 있는 장소", businessStatus = PlaceBusinessStatus.OPERATIONAL, googleAttributions = listOf("Google 제공", " ")) +
+            testPlace("tourapi:22", name = "TourAPI 장소")
+        setScreen(content(*places.toTypedArray()))
+
+        composeRule.onNodeWithText("평점·영업정보 제공: Google 제공").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("평점·영업정보 제공", substring = true)).assertCountEquals(1)
+
+        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(places.size)
+        composeRule.onNodeWithText("TourAPI 장소").assertIsDisplayed()
+        composeRule.onNodeWithText("평점·영업정보 제공: Google 제공").assertIsDisplayed()
+    }
+
+    @Test
+    fun 응답_출처가_비면_기본_Google_출처를_쓴다() {
+        setScreen(content(testPlace("google:1", name = "구글 카페", rating = 4.2, googleAttributions = emptyList())))
+
+        composeRule.onNodeWithText("평점·영업정보 제공: Google").assertIsDisplayed()
+    }
+
+    @Test
+    fun Google_데이터가_없으면_출처를_표시하지_않는다() {
+        setScreen(content(testPlace("tourapi:1", name = "경복궁"), testPlace("tourapi:2", name = "창덕궁")))
+
+        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("평점·영업정보 제공", substring = true)).assertCountEquals(0)
     }
 
     @Test
