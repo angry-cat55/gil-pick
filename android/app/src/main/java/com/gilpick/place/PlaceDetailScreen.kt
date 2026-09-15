@@ -89,7 +89,6 @@ import kotlinx.coroutines.delay
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param onAddToSchedule 시트에서 이동 수단·체류 시간을 확정했을 때. 저장은 F004가 맡는다(FR-014).
  * @param onOpenMap 하단 지도 버튼. 지도 기능에서 연결한다.
- * @param onFavorite hero의 찜 버튼. 찜 기능은 아직 없다.
  */
 @Composable
 fun PlaceDetailScreen(
@@ -100,7 +99,6 @@ fun PlaceDetailScreen(
     modifier: Modifier = Modifier,
     onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     onOpenMap: () -> Unit = {},
-    onFavorite: () -> Unit = {},
 ) {
     when (val phase = state.phase) {
         is PlaceDetailPhase.Content -> Content(
@@ -108,7 +106,6 @@ fun PlaceDetailScreen(
             onBack = onBack,
             onAddToSchedule = onAddToSchedule,
             onOpenMap = onOpenMap,
-            onFavorite = onFavorite,
             modifier = modifier,
         )
 
@@ -254,7 +251,6 @@ private fun Content(
     onBack: () -> Unit,
     onAddToSchedule: (AddToScheduleRequest) -> Unit,
     onOpenMap: () -> Unit,
-    onFavorite: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showSheet by remember { mutableStateOf(false) }
@@ -278,7 +274,7 @@ private fun Content(
             .statusBarsPadding()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Hero(place = place, onBack = onBack, onFavorite = onFavorite)
+        Hero(place = place, onBack = onBack)
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -292,9 +288,12 @@ private fun Content(
     }
 }
 
-/** Figma `Hero`: 240dp 사진, 위 30%·아래 50% 검정 gradient, 원형 뒤로 가기·찜, 상태 칩, 이름, 주소. */
+/**
+ * Figma `Hero`: 240dp 사진, 위 30%·아래 50% 검정 gradient, 원형 뒤로 가기, 상태 칩, 이름, 주소.
+ * Figma의 찜 버튼은 찜 기능이 MVP에 없어 누를 수 없는 버튼이 되므로 그리지 않는다(#518).
+ */
 @Composable
-private fun Hero(place: PlaceDto, onBack: () -> Unit, onFavorite: () -> Unit) {
+private fun Hero(place: PlaceDto, onBack: () -> Unit) {
     val noImage = stringResource(R.string.place_detail_no_image)
     val statusRes = businessStatusLabelRes(place.businessStatus)
 
@@ -333,14 +332,6 @@ private fun Hero(place: PlaceDto, onBack: () -> Unit, onFavorite: () -> Unit) {
                 .testTag(TAG_HEADER_BACK)
                 .align(Alignment.TopStart)
                 .padding(top = LocalGilpickSpacing.current.space4 - CIRCLE_INSET, start = LocalGilpickSpacing.current.space5 - CIRCLE_INSET),
-        )
-        CircleIconButton(
-            icon = R.drawable.ic_lucide_heart,
-            contentDescription = stringResource(R.string.place_detail_favorite),
-            onClick = onFavorite,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = LocalGilpickSpacing.current.space4 - CIRCLE_INSET, end = LocalGilpickSpacing.current.space5 - CIRCLE_INSET),
         )
         Column(
             modifier = Modifier

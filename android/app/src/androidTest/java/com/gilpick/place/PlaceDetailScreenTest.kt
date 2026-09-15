@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -242,6 +243,14 @@ class PlaceDetailScreenTest {
         composeRule.onNodeWithContentDescription("뒤로 가기").assertHeightIsAtLeast(48.dp).performClick()
 
         assertEquals(1, backs)
+    }
+
+    @Test
+    fun 찜_기능이_없으므로_찜_버튼을_노출하지_않는다() {
+        setScreen(content(testPlace("tourapi:1", name = "경복궁")))
+
+        composeRule.onNodeWithText("경복궁").assertIsDisplayed()
+        composeRule.onAllNodes(hasContentDescription("찜")).assertCountEquals(0)
     }
 
     private fun content(place: PlaceDto) = PlaceDetailUiState(PlaceDetailPhase.Content(place))
