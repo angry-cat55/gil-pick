@@ -30,6 +30,12 @@ class Provider(StrEnum):
     KAKAO = "KAKAO"
 
 
+class RouteStepType(StrEnum):
+    WALK = "WALK"
+    BUS = "BUS"
+    SUBWAY = "SUBWAY"
+
+
 class RouteFailureCode(StrEnum):
     ROUTE_PROVIDER_TIMEOUT = "ROUTE_PROVIDER_TIMEOUT"
     ROUTE_PROVIDER_RATE_LIMITED = "ROUTE_PROVIDER_RATE_LIMITED"
@@ -54,6 +60,16 @@ class RouteMarker(ApiModel):
     longitude: float = Field(ge=-180, le=180)
 
 
+class RouteStep(ApiModel):
+    type: RouteStepType
+    duration_seconds: int = Field(ge=0)
+    distance_meters: int = Field(ge=0)
+    boarding_name: str | None
+    alighting_name: str | None
+    line_name: str | None
+    stop_count: int | None = Field(ge=0)
+
+
 class RouteSegment(ApiModel):
     sequence: int = Field(ge=1, le=9)
     from_item_id: uuid.UUID
@@ -64,6 +80,7 @@ class RouteSegment(ApiModel):
     distance_meters: int = Field(ge=0)
     geometry: RouteGeometry
     provider_attribution: str = Field(min_length=1)
+    steps: list[RouteStep] = Field(default_factory=list)
 
 
 class Route(ApiModel):
@@ -142,4 +159,4 @@ class RetryRouteRequest(ApiModel):
     schedule_version: int = Field(ge=1)
 
 
-__all__ = ["FailedRouteData", "NotCalculatedRouteData", "Provider", "ReadyRouteData", "RetryRouteRequest", "Route", "RouteData", "RouteEnvelope", "RouteFailure", "RouteFailureCode", "RouteGeometry", "RouteMarker", "RouteSegment", "RouteStatus", "TransportMode"]
+__all__ = ["FailedRouteData", "NotCalculatedRouteData", "Provider", "ReadyRouteData", "RetryRouteRequest", "Route", "RouteData", "RouteEnvelope", "RouteFailure", "RouteFailureCode", "RouteGeometry", "RouteMarker", "RouteSegment", "RouteStatus", "RouteStep", "RouteStepType", "TransportMode"]

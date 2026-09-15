@@ -20,12 +20,31 @@ class TransportMode(StrEnum):
     CAR = "CAR"
 
 
+class TransitStepType(StrEnum):
+    WALK = "WALK"
+    BUS = "BUS"
+    SUBWAY = "SUBWAY"
+
+
 class Coordinate(BaseModel):
     """WGS84 경도·위도 좌표."""
 
     model_config = ConfigDict(frozen=True)
     longitude: float = Field(ge=-180, le=180)
     latitude: float = Field(ge=-90, le=90)
+
+
+class NormalizedTransitStep(BaseModel):
+    """Provider별 상세 구간을 공용 대중교통 단계로 정규화한 값."""
+
+    model_config = ConfigDict(frozen=True)
+    type: TransitStepType
+    duration_seconds: int = Field(ge=0, strict=True)
+    distance_meters: int = Field(ge=0, strict=True)
+    boarding_name: str | None = None
+    alighting_name: str | None = None
+    line_name: str | None = None
+    stop_count: int | None = Field(default=None, ge=0, strict=True)
 
 
 class NormalizedRoute(BaseModel):
@@ -38,6 +57,7 @@ class NormalizedRoute(BaseModel):
     distance_meters: int = Field(ge=0)
     coordinates: list[Coordinate] = Field(min_length=2)
     attribution: str = Field(min_length=1)
+    steps: list[NormalizedTransitStep] = Field(default_factory=list)
 
 
 class RouteProvider(Protocol):
@@ -55,4 +75,4 @@ class RouteProviderError(RuntimeError):
         self.retryable = retryable
 
 
-__all__ = ["Coordinate", "NormalizedRoute", "Provider", "RouteProvider", "RouteProviderError", "TransportMode"]
+__all__ = ["Coordinate", "NormalizedRoute", "NormalizedTransitStep", "Provider", "RouteProvider", "RouteProviderError", "TransitStepType", "TransportMode"]
