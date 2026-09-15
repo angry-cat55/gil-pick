@@ -447,5 +447,5 @@ Task: "Android ALT·DETECT DTO와 Retrofit service in android/app/src/main/java/
 - [X] T048 대체 장소 후보 목록·직접 검색 결과 시트 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/alternative/AlternativePlacesScreen.kt, android/app/src/main/java/com/gilpick/alternative/AlternativeSearchScreen.kt per UI-011, plan: Attribution (missing)
   - 영역: FE
   - 담당: hs
-  - 선행: F003 T037(`tourApiAttributionText()`)
+  - 선행: F003 T038(`tourApiAttributionText()`)
   - 검증: TourAPI 결과가 있으면 후보 목록 하단·결과 시트 하단에 한 줄 표시, TourAPI 결과가 없으면 미표시, 후보·결과별 배지·로고 이미지 없음; UI test와 360dp·최대 글자 배율 screenshot

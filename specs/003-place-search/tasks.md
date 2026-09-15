@@ -276,7 +276,7 @@ description: "F003 장소 검색 구현 task 목록"
 
 **Purpose**: 2026-09-16 공모전 규정(한국관광공사 출처 표기 필수)에 따라 UI-012에 추가된 공공데이터 출처 표기를 구현·검증한다.
 
-- [X] T037 검색 결과 목록·상세 정보 영역 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/place/PlaceLabels.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt per UI-012 (missing)
+- [X] T038 검색 결과 목록·상세 정보 영역 `출처: ⓒ한국관광공사` 표기 in android/app/src/main/java/com/gilpick/place/PlaceLabels.kt, android/app/src/main/java/com/gilpick/place/PlaceSearchScreen.kt, android/app/src/main/java/com/gilpick/place/PlaceDetailScreen.kt per UI-012 (missing)
   - 영역: FE
   - 담당: hs
   - 선행: 없음
