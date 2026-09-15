@@ -28,10 +28,10 @@ paths:
             $ref: '#/components/schemas/PlaceCategory'
         - name: areaCode
           in: query
-          description: TourAPI areaCode2 기준 17개 광역 지역 code
+          description: 하위 호환용 서울 고정 지역 code. 생략해도 서버가 서울 제한을 적용한다.
           schema:
             type: string
-            enum: ['1', '2', '3', '4', '5', '6', '7', '8', '31', '32', '33', '34', '35', '36', '37', '38', '39']
+            enum: ['1']
         - name: cursor
           in: query
           description: 이전 응답에서 받은 불투명 커서

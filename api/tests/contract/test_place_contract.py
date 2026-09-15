@@ -161,6 +161,18 @@ def test_search_contract_returns_nullable_fields_and_pagination(
     assert response.json()["meta"]["requestId"] == response.headers["X-Request-ID"]
 
 
+def test_search_contract_defaults_area_code_to_seoul(
+    place_client: tuple[TestClient, StubPlaceSearchService],
+) -> None:
+    """지역 코드를 생략한 검색도 service에는 서울 코드로 전달한다."""
+    client, service = place_client
+
+    response = client.get("/api/v1/places/search", params={"query": "경복궁"})
+
+    assert response.status_code == 200
+    assert service.calls[-1]["area_code"] == "1"
+
+
 @pytest.mark.parametrize(
     "params",
     [
@@ -217,6 +229,8 @@ def test_search_openapi_declares_parameters_and_responses() -> None:
         "default": 20,
         "title": "Limit",
     }
+    assert parameters["areaCode"]["schema"]["const"] == "1"
+    assert parameters["areaCode"]["schema"]["default"] == "1"
     assert set(operation["responses"]) == {"200", "400", "401", "429", "502", "504"}
 
 

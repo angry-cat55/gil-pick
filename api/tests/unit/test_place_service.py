@@ -253,6 +253,46 @@ async def test_search_routes_keyword_and_category_only_to_tourapi() -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_always_restricts_tourapi_to_seoul() -> None:
+    """클라이언트가 지역 코드를 생략해도 TourAPI 검색은 서울로 제한한다."""
+    tour = StubTourClient(
+        [tour_response([tour_item("1")]), tour_response([tour_item("2")])]
+    )
+    place_service = service(tour)
+
+    await place_service.search_places(
+        query="궁궐", category=None, area_code=None, cursor=None, limit=10,
+    )
+    await place_service.search_places(
+        query=None, category=PlaceCategory.NATURE,
+        area_code=None, cursor=None, limit=10,
+    )
+
+    assert [call[1]["areaCode"] for call in tour.calls] == ["1", "1"]
+
+
+@pytest.mark.asyncio
+async def test_search_excludes_non_seoul_tourapi_results() -> None:
+    """TourAPI가 잘못 분류한 결과를 반환해도 서울 주소만 포함한다."""
+    tour = StubTourClient(
+        [
+            tour_response(
+                [
+                    tour_item("seoul", address="서울특별시 성북구 삼선교로 1"),
+                    tour_item("busan", address="부산광역시 해운대구 해운대로 1"),
+                ]
+            )
+        ]
+    )
+
+    items, _, _ = await service(tour).search_places(
+        query="명소", category=None, area_code=None, cursor=None, limit=10,
+    )
+
+    assert [item.place_id for item in items] == ["tourapi:seoul"]
+
+
+@pytest.mark.asyncio
 async def test_google_is_called_only_for_commercial_category_shortage() -> None:
     """상업 category의 TourAPI 결과가 limit 미만일 때만 부족분을 요청한다."""
     google = StubGoogleClient(
@@ -277,6 +317,12 @@ async def test_google_is_called_only_for_commercial_category_shortage() -> None:
     assert len(items) == 2
     assert len(google.calls) == 1
     assert google.calls[0][1]["pageSize"] == 1
+    assert google.calls[0][1]["locationRestriction"] == {
+        "rectangle": {
+            "low": {"latitude": 37.413294, "longitude": 126.734086},
+            "high": {"latitude": 37.715133, "longitude": 127.269311},
+        }
+    }
 
     google.calls.clear()
     nature_tour = StubTourClient([tour_response([tour_item("2")])])
@@ -286,6 +332,34 @@ async def test_google_is_called_only_for_commercial_category_shortage() -> None:
     )
 
     assert google.calls == []
+
+
+@pytest.mark.asyncio
+async def test_google_supplement_excludes_non_seoul_addresses() -> None:
+    """Google이 경계 밖 결과를 섞어도 서울 주소만 검색 결과에 포함한다."""
+    google = StubGoogleClient(
+        {
+            "places": [
+                google_place(
+                    "seoul", name="서울 카페", address="서울특별시 성북구 삼선교로 1",
+                    latitude=37.588, longitude=127.006,
+                ),
+                google_place(
+                    "busan", name="부산 카페", address="부산광역시 해운대구 해운대로 1",
+                    latitude=35.163, longitude=129.163,
+                ),
+            ]
+        }
+    )
+
+    items, _, _ = await service(
+        StubTourClient([tour_response([])]), google
+    ).search_places(
+        query="카페", category=PlaceCategory.CAFE,
+        area_code=None, cursor=None, limit=2,
+    )
+
+    assert [item.place_id for item in items] == ["google:seoul"]
 
 
 @pytest.mark.asyncio

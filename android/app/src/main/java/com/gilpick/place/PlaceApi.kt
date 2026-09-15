@@ -201,7 +201,7 @@ interface PlaceService {
      * [query]와 [category]는 각각 단독으로도 쓸 수 있고 함께 쓸 수도 있다. 둘 다 없으면
      * server가 `400 INVALID_REQUEST`로 거절한다.
      *
-     * @param areaCode 계약이 허용한 TourAPI 지역코드(`1`~`8`, `31`~`39`)만 보낸다.
+     * @param areaCode 하위 호환용 서울 지역코드 `1`. 생략해도 server가 서울 제한을 적용한다(#606).
      * @param cursor 이전 응답의 `meta.pagination.nextCursor`를 그대로 전달한다.
      */
     @GET("places/search")
