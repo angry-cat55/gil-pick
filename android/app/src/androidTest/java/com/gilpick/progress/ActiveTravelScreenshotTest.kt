@@ -129,6 +129,10 @@ class ActiveTravelScreenshotTest {
     @Test
     fun 진행_대중교통_단계_360dp_최대_글자배율() = capture("progress_transit_steps_360dp_fontscale2") { Narrow { Screen(content(days = transitStepsDays())) } }
 
+    /** #595: 일정 목록의 지난 대중교통 구간(흐리게). 카드는 도착 카드라 단계가 목록에만 보인다. */
+    @Test
+    fun 진행_일정_목록_대중교통_단계_지난_구간() = capture("progress_list_transit_steps_past") { Screen(content(progress = arrivedProgress(), days = transitStepsDays())) }
+
     @Test
     fun 진행_지연_360dp_최대_글자배율() = capture("progress_overdue_360dp_fontscale2") { Narrow { Screen(content(now = NOW_AFTER_ETA)) } }
 

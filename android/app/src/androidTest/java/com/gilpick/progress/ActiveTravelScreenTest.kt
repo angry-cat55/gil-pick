@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -502,6 +503,33 @@ class ActiveTravelScreenTest {
 
         composeRule.onNodeWithText("경복궁에서 대중교통 20분 · 3.4km").assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_TRANSIT_STEPS).assertDoesNotExist()
+        // #595: 일정 목록에도 단계가 없다.
+        composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").assertDoesNotExist()
+    }
+
+    /** #595: 일정 목록의 대중교통 구간 행에도 카드와 같은 문구·순서로 단계를 보인다. */
+    @Test
+    fun 일정_목록의_대중교통_구간도_승차_환승_하차_단계를_보인다() {
+        setScreen(content(days = transitStepsDays()))
+
+        val steps = composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").performScrollTo().assertIsDisplayed()
+        listOf(
+            "도보 4분",
+            "경복궁역에서 지하철 3호선 승차 · 5분",
+            "종로3가역에서 지하철 1호선 환승 · 4분",
+            "종각역 하차",
+            "도보 6분",
+        ).forEach { steps.assert(hasText(it)) }
+        // 단계가 없는 구간은 합계만 보인다.
+        composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}2").assertDoesNotExist()
+    }
+
+    /** #595: 이미 도착한 장소로 가는 지난 구간도 숨기지 않고(흐리게) 보인다. */
+    @Test
+    fun 지난_대중교통_구간도_일정_목록에서_단계를_볼_수_있다() {
+        setScreen(content(progress = arrivedProgress(), days = transitStepsDays()))
+
+        composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").performScrollTo().assertIsDisplayed().assert(hasText("종각역 하차"))
     }
 
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
