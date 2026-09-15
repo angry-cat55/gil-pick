@@ -40,7 +40,7 @@
 
 **Accessibility & Adaptive Layout**: 검색 입력에는 항상 보이는 label과 IME Search action을 제공하고, 결과 요약·오류는 적절한 live region으로 알린다. 결과 행 전체는 button semantics와 최소 48×48dp hit area를 가지며 이미지가 정보성이 있으면 장소명을 설명으로 사용하고 중복이면 decorative 처리한다. 읽기 순서는 검색 조건 → 결과 요약 → 결과 목록이며 색만으로 상태를 전달하지 않는다. 360dp와 최대 font scale에서 text wrapping을 우선하고 가로 scroll·잘림을 허용하지 않는다. 태블릿은 동일 단일 열의 읽기 가능한 최대 폭을 사용하며 F003에서 별도 list-detail pane을 추가하지 않는다.
 
-**Visual Validation**: 실제 기기 또는 AVD에서 검색·상세 각각 loading/empty/error/content를 screenshot으로 확인한다. 추가로 Google 보완·병합·부분 실패, 장소별 provider 배지 미표시, Google 데이터 영역의 필수 attribution, 긴 장소명·주소, 360dp, 최대 font scale, TalkBack 순서와 상세 복귀 상태를 검증한다. 다크 theme는 저장소에서 미확정이므로 제외한다.
+**Visual Validation**: 실제 기기 또는 AVD에서 검색·상세 각각 loading/empty/error/content를 screenshot으로 확인한다. 추가로 Google 보완·병합·부분 실패, 장소별 provider 배지 미표시, Google 데이터 영역의 필수 attribution, TourAPI 결과가 있는 검색 목록·상세 정보 영역의 `출처: ⓒ한국관광공사` 한 줄(Google 결과만 있으면 미표시, UI-012 2026-09-16), 긴 장소명·주소, 360dp, 최대 font scale, TalkBack 순서와 상세 복귀 상태를 검증한다. 다크 theme는 저장소에서 미확정이므로 제외한다.
 
 ## Constitution Check
 

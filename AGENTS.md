@@ -116,7 +116,7 @@
 - UI가 포함된 Feature의 `plan.md`에는 승인된 `spec.md`의 UI 요구사항을 구현할 theme token·재사용 component·상태 모델과 접근성·실제 기기 또는 screenshot 검증 방법을 기록한다.
 - 관련 Frontend task의 검증 기준에는 `spec.md`와 `plan.md`의 UI 완료 조건을 추적 가능하게 반영한다. 적용하지 않는 공통 상태나 검증 항목이 있으면 그 이유를 기록한다.
 - **Figma Make `Design UI from Reference`(https://www.figma.com/make/H7SpIPF8iNYyxb5jPlo7xM)가 화면 모양의 정본이다(2026-09-04 팀 결정).** 화면 구성·배치·어떤 요소를 넣고 뺄지·색·글자·간격이 `spec.md`나 구현과 다르면 Figma에 맞추고, `spec.md`도 Figma 기준으로 고친다. `docs/design/gilpick-design-reference.pen`은 참고용이다.
-- Figma보다 위에 있는 것은 `ui-guidelines.md` 9절 화면 상태, 10절 접근성 최저선(48dp 터치, 색 단독 의미 전달 금지), 정책상 필수 표시(Google attribution)뿐이다. 이는 모양을 바꾸지 않는 방식으로 지킨다. API에 없는 값은 지어내지 않고 `정보 없음`으로 두며 Backend 계약 추가를 요청한다. 상세 기준과 경계 판단은 `ui-guidelines.md` 12절을 따른다.
+- Figma보다 위에 있는 것은 `ui-guidelines.md` 9절 화면 상태, 10절 접근성 최저선(48dp 터치, 색 단독 의미 전달 금지), 정책상 필수 표시(Google attribution, 공공데이터 출처 표기(필수))뿐이다. 이는 모양을 바꾸지 않는 방식으로 지킨다. API에 없는 값은 지어내지 않고 `정보 없음`으로 두며 Backend 계약 추가를 요청한다. 상세 기준과 경계 판단은 `ui-guidelines.md` 12절을 따른다.
 - skill의 제안은 참고 자료다. 저장소 기준으로 검증한 뒤 쓰고, 검증 결과를 PR에 기록한다.
 - Figma에도 명세에도 없는 화면이나 기능을 임의로 범위에 추가하지 않는다.
 
