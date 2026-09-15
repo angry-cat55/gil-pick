@@ -28,6 +28,7 @@ def place_payload(**overrides: object) -> dict[str, object]:
         "rating": 4.7,
         "userRatingCount": 1200,
         "businessStatus": "OPERATIONAL",
+        "openNow": None,
         "regularOpeningHours": ["월요일: 09:00~18:00"],
         "currentOpeningHours": None,
         "googleAttributions": ["Google Maps"],
@@ -94,7 +95,7 @@ def test_place_summary_rejects_values_outside_contract(
         PlaceSummary.model_validate(place_payload(**{field: value}))
 
 
-@pytest.mark.parametrize("field", ["tourApiCategory", "address", "rating"])
+@pytest.mark.parametrize("field", ["tourApiCategory", "address", "rating", "openNow"])
 def test_required_nullable_field_cannot_be_omitted(field: str) -> None:
     """nullable 응답 필드도 OpenAPI required 목록에 있으면 생략할 수 없다."""
     payload = place_payload()

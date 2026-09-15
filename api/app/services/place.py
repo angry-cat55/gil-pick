@@ -96,6 +96,7 @@ def tour_place(raw: dict[str, Any]) -> PlaceSummary | None:
         image_url=PlaceService._https_url(raw.get("firstimage")),
         recommended_stay_minutes=_STAY_MINUTES[category], rating=None,
         user_rating_count=None, business_status=None,
+        open_now=None,
         regular_opening_hours=None, current_opening_hours=None,
         google_attributions=None,
     )
@@ -120,6 +121,7 @@ def google_place(raw: dict[str, Any], category: PlaceCategory) -> PlaceSummary |
         recommended_stay_minutes=_STAY_MINUTES[category], rating=raw.get("rating"),
         user_rating_count=raw.get("userRatingCount"),
         business_status=BusinessStatus(status) if status in BusinessStatus else None,
+        open_now=raw.get("currentOpeningHours", {}).get("openNow"),
         regular_opening_hours=raw.get("regularOpeningHours", {}).get("weekdayDescriptions"),
         current_opening_hours=raw.get("currentOpeningHours", {}).get("weekdayDescriptions"),
         google_attributions=PlaceService._attributions(raw.get("attributions")),
@@ -158,7 +160,7 @@ def find_match(
 def merge_google(target: PlaceSummary, source: PlaceSummary) -> None:
     """허용된 Google Places 보완 필드만 TourAPI 장소에 병합한다."""
     for field in (
-        "rating", "user_rating_count", "business_status",
+        "rating", "user_rating_count", "business_status", "open_now",
         "regular_opening_hours", "current_opening_hours", "google_attributions",
     ):
         setattr(target, field, getattr(source, field))

@@ -83,7 +83,10 @@ def google_place(
         "userRatingCount": 321,
         "businessStatus": "OPERATIONAL",
         "regularOpeningHours": {"weekdayDescriptions": ["월요일: 10:00~20:00"]},
-        "currentOpeningHours": {"weekdayDescriptions": ["월요일: 10:00~20:00"]},
+        "currentOpeningHours": {
+            "weekdayDescriptions": ["월요일: 10:00~20:00"],
+            "openNow": True,
+        },
         "attributions": ["Google Maps"],
     }
 
@@ -151,7 +154,31 @@ def test_public_place_helpers_preserve_mapping_and_matching() -> None:
     merge_google(tour, google)
 
     assert tour.rating == google.rating
+    assert tour.open_now is True
     assert tour.google_attributions == google.google_attributions
+
+
+@pytest.mark.parametrize(
+    ("current_opening_hours", "expected"),
+    [({"openNow": True}, True), ({"openNow": False}, False), ({}, None)],
+)
+def test_google_place_maps_nullable_open_now(
+    current_opening_hours: dict[str, bool], expected: bool | None
+) -> None:
+    """Google이 제공한 현재 영업 여부만 그대로 매핑한다."""
+    raw = google_place(
+        "g1",
+        name="테스트 카페",
+        address="서울특별시 중구 세종대로 110",
+        latitude=37.5667,
+        longitude=126.9784,
+    )
+    raw["currentOpeningHours"] = current_opening_hours
+
+    place = map_google_place(raw, PlaceCategory.CAFE)
+
+    assert place is not None
+    assert place.open_now is expected
 
 
 @pytest.mark.asyncio

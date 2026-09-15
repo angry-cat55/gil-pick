@@ -63,6 +63,7 @@ class PlaceSummary(ApiModel):
     rating: float | None = Field(ge=0, le=5)
     user_rating_count: int | None = Field(ge=0)
     business_status: BusinessStatus | None
+    open_now: bool | None
     regular_opening_hours: list[str] | None
     current_opening_hours: list[str] | None
     google_attributions: list[str] | None

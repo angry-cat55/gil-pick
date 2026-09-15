@@ -250,6 +250,7 @@ def _summary(
         rating=None,
         user_rating_count=None,
         business_status=business_status,
+        open_now=None,
         regular_opening_hours=None,
         current_opening_hours=None,
         google_attributions=None,

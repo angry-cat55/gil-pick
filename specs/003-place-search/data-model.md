@@ -53,6 +53,7 @@ TourAPI 신분류 대·중·소 code는 server의 versioned mapping으로 위 en
 | `rating` | decimal | 예 | 확정 매칭 또는 Google 전용 결과의 Google 평점 |
 | `user_rating_count` | integer | 예 | Google 평점 수 |
 | `business_status` | `OPERATIONAL \| CLOSED_TEMPORARILY \| CLOSED_PERMANENTLY` | 예 | Google 원문 enum을 그대로 전달하고 Android가 표시 문구를 현지화 |
+| `open_now` | boolean | 예 | Google `currentOpeningHours.openNow` 원문 값. 미제공·보완 실패·TourAPI 단독이면 null |
 | `regular_opening_hours` | string list | 예 | Google 정규 영업시간 표시 문자열 |
 | `current_opening_hours` | string list | 예 | Google 현재 기간 영업시간 표시 문자열 |
 | `google_attributions` | string list | 예 | Google·제3자 필수 attribution 렌더링 정보 |

@@ -207,6 +207,7 @@ def test_google_detail_endpoint_returns_allowed_fields() -> None:
         "formattedAddress": "서울특별시 중구", "types": ["cafe"],
         "location": {"latitude": 37.5, "longitude": 127.0},
         "rating": 4.5, "userRatingCount": 10, "attributions": [],
+        "currentOpeningHours": {"openNow": False},
     }
     service = PlaceService(TourStub([[]]), GoogleStub(detail), cursor_secret="test-secret")
     app.dependency_overrides[_place_service] = lambda: service
@@ -216,3 +217,4 @@ def test_google_detail_endpoint_returns_allowed_fields() -> None:
     assert response.status_code == 200
     assert response.json()["data"]["placeId"] == "google:g1"
     assert response.json()["data"]["description"] is None
+    assert response.json()["data"]["openNow"] is False

@@ -237,7 +237,7 @@ components:
         read: { type: boolean }
     Place:
       type: object
-      description: F003 PLACE-001 item과 동일(placeId, source, name, category, tourApiCategory, address, latitude, longitude, imageUrl, recommendedStayMinutes, rating, userRatingCount, businessStatus, regularOpeningHours, currentOpeningHours, googleAttributions)
+      description: F003 PLACE-001 item과 동일(placeId, source, name, category, tourApiCategory, address, latitude, longitude, imageUrl, recommendedStayMinutes, rating, userRatingCount, businessStatus, openNow, regularOpeningHours, currentOpeningHours, googleAttributions)
       required: [placeId, source, sourcePlaceId, name, category, latitude, longitude, recommendedStayMinutes]
       additionalProperties: true
       properties:
