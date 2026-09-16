@@ -167,6 +167,41 @@ class SettingsViewModel(
         openPolicy(document, launch)
     }
 
+    /**
+     * 계정을 탈퇴한다(#667). 확인 다이얼로그에서 `탈퇴하기`를 눌렀을 때만 호출한다.
+     *
+     * 이미 요청을 보냈으면 아무것도 하지 않는다. 응답을 기다리는 사이 버튼이 두 번 눌리면
+     * 같은 탈퇴가 두 번 나가고, 두 번째 요청은 이미 사라진 계정이라 실패로 돌아와 성공한
+     * 탈퇴가 실패처럼 보인다.
+     *
+     * 성공 상태를 남기지 않고 [onDeleted]로 알린다. 탈퇴가 끝나면 최상위가 로그인 화면으로
+     * 바뀌어 이 ViewModel과 화면이 함께 사라지므로, 읽힐 일 없는 상태를 만들지 않는다.
+     * 실패하면 계정과 로그인 상태가 그대로이므로 원인만 담아 같은 자리에서 다시 시도한다.
+     *
+     * @param onDeleted 서버가 탈퇴를 확정했다. 호출자가 local session을 지우고 로그인 화면으로
+     *   보낸다. `Context`와 앱 전체 인증 상태를 ViewModel이 들고 있지 않도록 인자로 받는다.
+     */
+    fun deleteAccount(onDeleted: () -> Unit) {
+        if (_state.value.accountDeletion is AccountDeletePhase.Deleting) return
+        _state.update { it.copy(accountDeletion = AccountDeletePhase.Deleting) }
+
+        viewModelScope.launch {
+            when (val result = repository.deleteAccount()) {
+                is AuthResult.Success -> onDeleted()
+                is AuthResult.Failure -> _state.update {
+                    it.copy(accountDeletion = AccountDeletePhase.Failed(result.error.toSettingsError()))
+                }
+            }
+        }
+    }
+
+    /** 탈퇴 실패 안내를 지운다. 사용자가 다이얼로그를 닫으면 화면이 호출한다. */
+    fun clearAccountDeleteError() {
+        if (_state.value.accountDeletion is AccountDeletePhase.Failed) {
+            _state.update { it.copy(accountDeletion = AccountDeletePhase.Idle) }
+        }
+    }
+
     /** 정책 열기 실패 안내를 닫는다. 설정 상태는 건드리지 않는다. */
     fun dismissPolicyError() {
         _state.update { it.copy(policyOpenError = null) }

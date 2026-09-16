@@ -183,6 +183,31 @@ class AuthApiTest {
         assertEquals(AuthErrorCodes.DEVICE_MISMATCH, error.code)
     }
 
+    @Test
+    fun `탈퇴는 Access Token으로 DELETE auth me를 부르고 204를 성공으로 읽는다`() = withServer { server, service ->
+        // 경로·method·Authorization header가 #666 계약과 어긋나면 여기서 드러난다.
+        server.enqueue(MockResponse(code = 204))
+
+        val result = service.deleteAccount("Bearer $ACCESS_TOKEN").toEmptyAuthResult()
+
+        val request = server.takeRequest()
+        assertEquals("DELETE", request.method)
+        assertEquals("/api/v1/auth/me", request.url.encodedPath)
+        assertEquals("Bearer $ACCESS_TOKEN", request.headers["Authorization"])
+        assertEquals(204, (result as AuthResult.Success).httpStatus)
+    }
+
+    @Test
+    fun `탈퇴 실패 응답의 code를 보존한다`() = withServer { server, service ->
+        server.enqueue(MockResponse(code = 401, body = errorJson(AuthErrorCodes.TOKEN_EXPIRED, false)))
+
+        val result = service.deleteAccount("Bearer $ACCESS_TOKEN").toEmptyAuthResult()
+
+        val error = (result as AuthResult.Failure).error as AuthError.Server
+        assertEquals(AuthErrorCodes.TOKEN_EXPIRED, error.code)
+        assertEquals(401, error.httpStatus)
+    }
+
     /** MockWebServer와 실제 Retrofit 구현으로 한 왕복을 검증한다. */
     private fun withServer(block: suspend (MockWebServer, AuthService) -> Unit) = runTest {
         val server = MockWebServer()
@@ -213,5 +238,6 @@ class AuthApiTest {
         const val DEVICE_ID = "22222222-3333-4444-8555-666666666666"
         const val SECRET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"
         const val REFRESH_TOKEN = "session-1.$SECRET"
+        const val ACCESS_TOKEN = "access-token-1"
     }
 }

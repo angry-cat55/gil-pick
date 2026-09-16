@@ -778,6 +778,20 @@
     <string name="settings_policy_error_unavailable">문서를 열 브라우저를 찾지 못했어요.</string>
     <string name="settings_policy_dismiss">닫기</string>
 
+    <!--
+      #667 계정 탈퇴(F012). 되돌릴 수 없는 행동이라 삭제되는 범위와 복구 불가를 먼저 말한다.
+      문구와 버튼 배치는 F002 `trip_delete_*` 다이얼로그 규칙을 그대로 따른다.
+    -->
+    <string name="settings_account_delete">계정 탈퇴</string>
+    <string name="settings_account_delete_title">계정을 탈퇴할까요?</string>
+    <string name="settings_account_delete_body">여행·일정·방문 기록·알림이 모두 사라집니다. 탈퇴한 계정은 복구할 수 없습니다.</string>
+    <string name="settings_account_delete_confirm">탈퇴하기</string>
+    <string name="settings_account_delete_cancel">취소</string>
+    <string name="settings_account_delete_progress">탈퇴하는 중</string>
+    <string name="settings_account_delete_error_network">연결을 확인한 뒤 다시 시도해 주세요. 계정은 그대로 있습니다.</string>
+    <string name="settings_account_delete_error_session">로그인 상태가 만료됐어요. 다시 로그인한 뒤 탈퇴해 주세요.</string>
+    <string name="settings_account_delete_error_unexpected">지금은 탈퇴할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
+
     <!-- #440 위치 권한 안내 화면(Figma LocationPermissionScreen) -->
     <string name="location_permission_title">위치 권한이 필요해요</string>
     <string name="location_permission_body">길픽이 제대로 작동하려면\n기기 위치 접근 권한을 허용해주세요</string>

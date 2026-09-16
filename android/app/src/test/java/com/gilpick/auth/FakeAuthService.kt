@@ -24,6 +24,9 @@ object FakeAuthService : AuthService {
 
     override suspend fun logout(body: RefreshTokenRequest): Response<Unit> =
         error("이 test는 인증 endpoint를 호출하지 않는다")
+
+    override suspend fun deleteAccount(bearer: String): Response<Unit> =
+        error("이 test는 인증 endpoint를 호출하지 않는다")
 }
 
 /**
@@ -64,6 +67,21 @@ class ProgrammableAuthService : AuthService {
         error("이 test는 logout endpoint를 호출하지 않는다")
     }
 
+    /** 탈퇴 endpoint 호출 횟수. 진입 시점에 증가한다(#667). */
+    @Volatile
+    var deleteAccountCount: Int = 0
+        private set
+
+    /** 마지막 탈퇴 요청이 실은 `Authorization` header. 어떤 Access Token으로 보냈는지 확인한다. */
+    @Volatile
+    var lastDeleteAccountBearer: String? = null
+        private set
+
+    /** 호출 순번(0부터)을 받아 탈퇴 응답을 만든다. */
+    var onDeleteAccount: suspend (Int) -> Response<Unit> = {
+        error("이 test는 탈퇴 endpoint를 호출하지 않는다")
+    }
+
     override suspend fun createLoginTransaction(
         body: CreateLoginTransactionRequest,
     ): Response<SuccessEnvelope<LoginTransactionData>> = error("이 test는 login endpoint를 호출하지 않는다")
@@ -82,5 +100,10 @@ class ProgrammableAuthService : AuthService {
     override suspend fun logout(body: RefreshTokenRequest): Response<Unit> {
         lastLogoutRequest = body
         return onLogout(synchronized(this) { logoutCount++ })
+    }
+
+    override suspend fun deleteAccount(bearer: String): Response<Unit> {
+        lastDeleteAccountBearer = bearer
+        return onDeleteAccount(synchronized(this) { deleteAccountCount++ })
     }
 }

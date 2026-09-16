@@ -9,6 +9,8 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.Header
 import retrofit2.http.POST
 
 /**
@@ -404,5 +406,19 @@ interface AuthService {
     @POST("auth/logout")
     suspend fun logout(
         @Body body: RefreshTokenRequest,
+    ): Response<Unit>
+
+    /**
+     * 현재 사용자의 계정을 삭제한다(#666).
+     *
+     * 로그아웃과 달리 Access Token으로 주체를 정한다. 경로에 사용자 식별자가 없어 다른
+     * 사용자의 계정을 지울 수 없다. 성공은 logout과 같은 body 없는 `204`다.
+     *
+     * 계정이 사라지면 서버가 모든 기기의 session을 함께 폐기하므로, 앱은 이 요청 하나만
+     * 보내고 따로 logout을 호출하지 않는다.
+     */
+    @DELETE("auth/me")
+    suspend fun deleteAccount(
+        @Header("Authorization") bearer: String,
     ): Response<Unit>
 }

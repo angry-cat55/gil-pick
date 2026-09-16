@@ -49,6 +49,14 @@ class SettingsRepository(
         )
     }
 
+    /**
+     * 이 계정을 삭제한다(#667).
+     *
+     * 계정 삭제는 인증 계약(`DELETE /auth/me`)이라 [AuthRepository]가 소유한다. 설정 화면이
+     * 유일한 진입점이므로 여기서 그대로 이어 주기만 한다.
+     */
+    suspend fun deleteAccount(): AuthResult<Unit> = auth.deleteAccount()
+
     /** 두 endpoint가 같은 인증·통신 실패 규칙을 쓰도록 한곳에 모은다. */
     private suspend fun <T> call(
         request: suspend (bearer: String) -> Response<SuccessEnvelope<T>>,

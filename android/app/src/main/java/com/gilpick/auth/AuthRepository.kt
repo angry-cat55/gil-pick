@@ -302,6 +302,24 @@ class AuthRepository(
         return AuthUiState.SignedOut
     }
 
+    /**
+     * 이 계정을 삭제한다(#667).
+     *
+     * local session은 여기서 지우지 않는다. 서버가 삭제를 확정한 뒤에야 로그인 상태를
+     * 내려야 하고, 그 전환은 앱 전체 인증 상태를 가진 instance가 [onSignedOut]으로
+     * 수행한다. 화면별 repository가 자기 상태만 바꾸면 최상위 화면이 그대로 남는다.
+     *
+     * 실패하면 아무것도 바꾸지 않는다. 계정과 session이 그대로라 같은 자리에서 다시
+     * 시도할 수 있다.
+     */
+    suspend fun deleteAccount(): AuthResult<Unit> = withAuthorizedCall { accessToken ->
+        try {
+            api.deleteAccount("Bearer $accessToken").toEmptyAuthResult()
+        } catch (e: IOException) {
+            AuthResult.Failure(AuthError.Offline(e))
+        }
+    }
+
     /** ticket을 교환하고 성공한 경우에만 session을 저장한다. */
     private suspend fun exchange(loginTicket: String): AuthUiState {
         val deviceId = store.deviceId()
