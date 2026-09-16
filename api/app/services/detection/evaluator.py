@@ -107,9 +107,7 @@ async def _load_eligible_rows(
             ItineraryItem.estimated_arrival_at.is_not(None),
         )
     )
-    if trip_day_id is None:
-        statement = statement.where(TripDay.visit_date == datetime.now(KST).date())
-    else:
+    if trip_day_id is not None:
         statement = statement.where(TripDay.trip_day_id == trip_day_id)
     return list((await session.execute(statement)).all())
 

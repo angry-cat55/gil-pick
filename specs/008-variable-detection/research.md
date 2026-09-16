@@ -20,9 +20,9 @@
 
 ## 2. 평가 대상 선별
 
-**Decision**: 대상 = `trip_days.detection_active = true` AND `trip_days.status = 'IN_PROGRESS'` AND `visit_date = 오늘(Asia/Seoul)` 인 날짜의 `itinerary_items` 중 `status IN ('PLANNED','EN_ROUTE')` 이고 `estimated_arrival_at IS NOT NULL` 인 항목.
+**Decision**: 대상 = `trip_days.detection_active = true` AND `trip_days.status = 'IN_PROGRESS'`인 날짜의 `itinerary_items` 중 `status IN ('PLANNED','EN_ROUTE')` 이고 `estimated_arrival_at IS NOT NULL` 인 항목. `visit_date`는 전역 주기 평가의 필터로 사용하지 않는다.
 
-**Rationale**: `detection_active`는 F006이 시작 시 `true`, 당일 완료 시 `false`, 상태 수정 복귀 시 `true`로 관리한다(`er-schema.md` §5.2, F006 research 결정 3). 여기에 오늘 날짜 조건을 더해 "진행이 시작되어 아직 완료되지 않은 당일"을 만족한다. ETA(`estimated_arrival_at`)가 없으면 "도착 예정 시각 기준" 판정이 불가능하므로 제외한다(spec Edge Case).
+**Rationale**: `detection_active`는 F006이 시작 시 `true`, 당일 완료 시 `false`, 상태 수정 복귀 시 `true`로 관리한다(`er-schema.md` §5.2, F006 research 결정 3). 따라서 이 값과 `IN_PROGRESS` 상태가 실제 진행 구간의 정본이다. `visit_date = 오늘` 조건을 함께 사용하면 23:50에 시작해 익일 00:10에도 진행 중인 여행이 정기 평가에서 누락되므로 적용하지 않는다. ETA(`estimated_arrival_at`)가 없으면 "도착 예정 시각 기준" 판정이 불가능하므로 제외한다(spec Edge Case).
 
 **해결됨(2026-09-08 plan 반영)**: spec FR-001·FR-014·Key Entities "평가 대상"을 "방문 상태가 `예정`·`이동 중`인 남은 장소"로 조정했다. `도착(ARRIVED)` 장소는 사용자가 이미 그 자리에 있어 "계획대로 방문 가능한지"를 물을 이유가 없고, `도착` 전환 시 pending 감지 결과를 종료한다. 이 조정은 정책 변경이 아니라 "남은 장소" 용어 정합이며 문서 PR review에서 팀이 확인한다.
 
