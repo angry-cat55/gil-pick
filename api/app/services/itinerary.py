@@ -27,8 +27,8 @@ from app.schemas.itinerary import (
     SaveItem,
 )
 from app.schemas.route import RouteStatus
-from app.services.route import route_data_from_model
 from app.services.eta import recalculate_day_eta
+from app.services.route import route_data_from_model
 
 logger = logging.getLogger("gilpick.itinerary")
 
@@ -269,13 +269,22 @@ class ItineraryService:
                 "image_url": str(snapshot.image_url) if snapshot.image_url else None,
             }
             column = Place.tour_content_id if provider == "tourapi" else Place.google_place_id
+            linked_google_id = (
+                snapshot.google_place_id if provider == "tourapi" else provider_id
+            )
+            identity_values = {column.key: provider_id}
+            if linked_google_id is not None:
+                identity_values[Place.google_place_id.key] = linked_google_id
+            update_values = dict(values)
+            if provider == "tourapi" and linked_google_id is not None:
+                update_values[Place.google_place_id.key] = linked_google_id
             statement = (
                 pg_insert(Place)
-                .values(**values, **{column.key: provider_id})
+                .values(**values, **identity_values)
                 .on_conflict_do_update(
                     index_elements=[column],
                     index_where=column.is_not(None),
-                    set_=values,
+                    set_=update_values,
                 )
                 .returning(Place.place_id)
             )

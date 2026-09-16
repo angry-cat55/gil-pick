@@ -158,6 +158,7 @@ components:
         - regularOpeningHours
         - currentOpeningHours
         - googleAttributions
+        - googlePlaceId
       properties:
         placeId:
           type: string
@@ -219,6 +220,10 @@ components:
           description: Google 데이터 표시 시 필요한 Google Maps·제3자 attribution 정보
           items:
             type: string
+        googlePlaceId:
+          type: [string, 'null']
+          maxLength: 255
+          description: Google 전용 장소의 기본 ID 또는 TourAPI 장소와 확정 매칭된 보조 Google Place ID
     PlaceDetail:
       allOf:
         - $ref: '#/components/schemas/PlaceSummary'

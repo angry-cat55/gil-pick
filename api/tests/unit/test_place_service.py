@@ -15,8 +15,12 @@ from app.services.place import (
     category_of,
     distance_meters,
     find_match,
-    google_place as map_google_place,
     merge_google,
+)
+from app.services.place import (
+    google_place as map_google_place,
+)
+from app.services.place import (
     tour_place as map_tour_place,
 )
 
@@ -154,12 +158,14 @@ def test_public_place_helpers_preserve_mapping_and_matching() -> None:
     assert category_of("FD", "FD05") is PlaceCategory.CAFE
     assert distance_meters(tour, google) <= 50
     assert find_match([tour], google) == (tour, False)
+    assert tour.google_place_id is None
 
     merge_google(tour, google)
 
     assert tour.rating == google.rating
     assert tour.open_now is True
     assert tour.google_attributions == google.google_attributions
+    assert tour.google_place_id == "g1"
 
 
 @pytest.mark.parametrize(
@@ -629,6 +635,7 @@ async def test_confirmed_google_match_merges_only_allowed_fields() -> None:
     assert items[0].name == "테스트-카페"
     assert items[0].rating == 4.6
     assert items[0].google_attributions == ["Google Maps"]
+    assert items[0].google_place_id == "g1"
 
 
 @pytest.mark.asyncio
@@ -856,6 +863,7 @@ async def test_tour_commercial_detail_merges_confirmed_google_fields() -> None:
     assert detail.place_id == "tourapi:1"
     assert detail.rating == 4.6
     assert detail.google_attributions == ["Google Maps"]
+    assert detail.google_place_id == "g1"
 
 
 @pytest.mark.asyncio

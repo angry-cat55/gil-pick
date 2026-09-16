@@ -78,6 +78,7 @@ class StubPlaceSearchService:
                     regular_opening_hours=None,
                     current_opening_hours=None,
                     google_attributions=None,
+                    google_place_id="ChIJ_tour_match",
                 )
             ],
             "next-page",
@@ -99,6 +100,7 @@ class StubPlaceSearchService:
             recommended_stay_minutes=90, rating=None, user_rating_count=None,
             business_status=None, open_now=None, regular_opening_hours=None,
             current_opening_hours=None, google_attributions=None,
+            google_place_id=None,
             description=None, phone=None, operating_guide=None,
         )
 
@@ -164,6 +166,7 @@ def test_search_contract_returns_nullable_fields_and_pagination(
     assert response.status_code == 200
     assert response.json()["data"]["items"][0]["imageUrl"] is None
     assert response.json()["data"]["items"][0]["openNow"] is True
+    assert response.json()["data"]["items"][0]["googlePlaceId"] == "ChIJ_tour_match"
     assert response.json()["meta"]["pagination"] == {
         "nextCursor": "next-page",
         "hasNext": True,
@@ -291,6 +294,8 @@ def test_search_openapi_declares_parameters_and_responses() -> None:
     assert parameters["areaCode"]["schema"]["const"] == "1"
     assert parameters["areaCode"]["schema"]["default"] == "1"
     assert set(operation["responses"]) == {"200", "400", "401", "429", "502", "504"}
+    place_schema = app.openapi()["components"]["schemas"]["PlaceSummary"]
+    assert "googlePlaceId" in place_schema["required"]
 
 
 def test_detail_contract_returns_nullable_fields(

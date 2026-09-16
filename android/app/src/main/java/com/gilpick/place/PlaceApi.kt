@@ -125,6 +125,8 @@ data class PlaceDto(
     val description: String? = null,
     val phone: String? = null,
     val operatingGuide: String? = null,
+    /** TourAPI 결과와 확정 매칭된 경우에도 보존하는 Google Places 식별자. */
+    val googlePlaceId: String? = null,
 )
 
 /**

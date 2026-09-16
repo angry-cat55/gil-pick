@@ -67,6 +67,7 @@ class PlaceSummary(ApiModel):
     regular_opening_hours: list[str] | None
     current_opening_hours: list[str] | None
     google_attributions: list[str] | None
+    google_place_id: str | None = Field(min_length=1, max_length=255)
 
     @field_validator("image_url")
     @classmethod

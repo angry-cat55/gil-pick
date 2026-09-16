@@ -258,6 +258,7 @@ def _summary(
         regular_opening_hours=None,
         current_opening_hours=None,
         google_attributions=None,
+        google_place_id=None,
     )
 
 

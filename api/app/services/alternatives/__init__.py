@@ -244,6 +244,7 @@ class AlternativeService:
             regular_opening_hours=None,
             current_opening_hours=None,
             google_attributions=None,
+            google_place_id=place.google_place_id,
         )
 
 

@@ -100,6 +100,7 @@ class ItineraryApiTest {
             assertEquals("null", created["transportModeToNext"].toString())
             val snapshot = created["place"]!!.jsonObject
             assertEquals("\"CAFE\"", snapshot["category"].toString())
+            assertEquals("\"ChIJ_abc-123\"", snapshot["googlePlaceId"].toString())
             assertEquals("null", snapshot["tourApiCategory"].toString())
             assertEquals("null", snapshot["imageUrl"].toString())
         }
@@ -213,6 +214,7 @@ internal fun saveRequest() = SaveDayItineraryRequest(
                 latitude = 37.5,
                 longitude = 127.0,
                 imageUrl = null,
+                googlePlaceId = "ChIJ_abc-123",
             ),
             sequence = 2,
             plannedStayMinutes = 60,

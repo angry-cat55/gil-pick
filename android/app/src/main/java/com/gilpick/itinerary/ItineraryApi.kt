@@ -71,6 +71,7 @@ data class PlaceSnapshotDto(
     val latitude: Double,
     val longitude: Double,
     val imageUrl: String?,
+    val googlePlaceId: String? = null,
 )
 
 /** 응답 항목의 표시용 장소 요약. */

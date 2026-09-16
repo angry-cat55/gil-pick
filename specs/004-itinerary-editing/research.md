@@ -13,9 +13,9 @@
 
 ## 2. 장소 참조 저장 방식
 
-**Decision**: 일정 저장 요청의 각 항목은 provider 형식 `placeId`(`tourapi:{id}` 또는 `google:{id}`)를 쓴다. 신규 항목(`itemId == null`)은 서버의 기존 저장 여부와 무관하게 `place` 스냅샷(장소명, 내부 카테고리, nullable 원본 관광 분류·주소·대표 이미지, 위도·경도)을 항상 함께 보낸다. 서버는 `placeId`의 provider 식별자로 `places`를 upsert하고 내부 `place_id`를 항목에 연결한다. `google_place_id`는 `google:{id}`에서만 추출하며 F003 계약에 없는 TourAPI 장소의 Google 매칭 ID를 클라이언트에 요구하지 않는다. 응답 항목은 provider `placeId`와 표시용 `place` 요약(장소명, 카테고리, 주소, 대표 이미지)을 돌려준다.
+**Decision**: 일정 저장 요청의 각 항목은 provider 형식 `placeId`(`tourapi:{id}` 또는 `google:{id}`)를 쓴다. 신규 항목(`itemId == null`)은 서버의 기존 저장 여부와 무관하게 `place` 스냅샷(장소명, 내부 카테고리, nullable 원본 관광 분류·주소·대표 이미지, 위도·경도)을 항상 함께 보낸다. 서버는 `placeId`의 provider 식별자로 `places`를 upsert하고 내부 `place_id`를 항목에 연결한다. F003이 TourAPI 장소를 Google Places와 확정 매칭했다면 optional `googlePlaceId`도 스냅샷으로 전달해 같은 `places` 행의 `google_place_id`에 저장한다. `placeId`는 상세 조회와 공개 식별을 위한 TourAPI 기본 ID이고 `googlePlaceId`는 F008 운영시간 조회를 위한 보조 ID다. 구버전 client가 필드를 생략하거나 매칭에 실패한 경우 `null`을 유지한다. 응답 항목은 provider `placeId`와 표시용 `place` 요약(장소명, 카테고리, 주소, 대표 이미지)을 돌려준다.
 
-**Rationale**: F003은 검색 결과를 저장하지 않으므로(F003 FR-014) 저장 시점에 서버가 장소 정보를 알 방법은 재조회 또는 클라이언트 스냅샷뿐이다. 재조회는 저장을 TourAPI·Google 가용성에 묶어 constitution IV(핵심 결과 보존)와 충돌한다. 스냅샷은 F003 `PlaceDto`에 이미 있는 값이라 Android 추가 호출이 없다. `places`의 partial unique(`tour_content_id`, `google_place_id`)가 중복 생성을 막는다.
+**Rationale**: F003은 검색 결과를 저장하지 않으므로(F003 FR-014) 저장 시점에 서버가 장소 정보를 알 방법은 재조회 또는 클라이언트 스냅샷뿐이다. 재조회는 저장을 TourAPI·Google 가용성에 묶어 constitution IV(핵심 결과 보존)와 충돌한다. 스냅샷은 F003 `PlaceDto`에 이미 있는 값이라 Android 추가 호출이 없다. `places`의 partial unique(`tour_content_id`, `google_place_id`)가 중복 생성을 막는다. 2026-09-16 #629부터 기존 TourAPI 행은 사용자가 해당 장소를 다시 추가해 확정 매칭 ID가 전달될 때 lazy 보강하며, 근거 없이 외부 ID를 추정하는 일괄 backfill은 하지 않는다.
 
 **Alternatives considered**:
 

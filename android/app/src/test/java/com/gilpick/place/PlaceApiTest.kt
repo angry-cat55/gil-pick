@@ -43,6 +43,7 @@ class PlaceApiTest {
         assertEquals(PlaceBusinessStatus.OPERATIONAL, tour.businessStatus)
         // 실시간 영업 여부는 businessStatus와 별개 field다(#576).
         assertEquals(true, tour.openNow)
+        assertEquals("ChIJ_tour-match", tour.googlePlaceId)
     }
 
     @Test
@@ -239,6 +240,7 @@ class PlaceApiTest {
                     "placeId": "tourapi:126508",
                     "source": "TOUR_API",
                     "sourcePlaceId": "126508",
+                    "googlePlaceId": "ChIJ_tour-match",
                     "name": "불국사",
                     "category": "NATURE",
                     "tourApiCategory": {"large": "A01", "middle": "A0101", "small": null},

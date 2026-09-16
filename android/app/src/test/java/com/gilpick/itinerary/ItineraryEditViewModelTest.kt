@@ -189,7 +189,10 @@ class ItineraryEditViewModelTest {
         val viewModel = newViewModel()
         advanceUntilIdle()
 
-        viewModel.addFromSearch(placeWithLocation("tourapi:1"), request(transport = PlaceTransport.WALK))
+        viewModel.addFromSearch(
+            placeWithLocation("tourapi:1").copy(googlePlaceId = "ChIJ_tour-match"),
+            request(transport = PlaceTransport.WALK),
+        )
         viewModel.addFromSearch(placeWithLocation("tourapi:2"), request(transport = PlaceTransport.CAR))
 
         val draft = viewModel.state.value.draft
@@ -199,6 +202,7 @@ class ItineraryEditViewModelTest {
         assertNull(draft[1].transportToNext)
         assertEquals(ItemStatus.PLANNED, draft[1].status)
         assertNull(draft[1].itemId)
+        assertEquals("ChIJ_tour-match", draft[0].place.googlePlaceId)
         assertTrue(viewModel.state.value.dirty)
     }
 

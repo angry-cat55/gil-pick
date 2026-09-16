@@ -60,6 +60,7 @@ TourAPI 신분류 대·중·소 code는 server의 versioned mapping으로 위 en
 | `regular_opening_hours` | string list | 예 | Google 정규 영업시간 표시 문자열 |
 | `current_opening_hours` | string list | 예 | Google 현재 기간 영업시간 표시 문자열 |
 | `google_attributions` | string list | 예 | Google·제3자 필수 attribution 렌더링 정보 |
+| `google_place_id` | string | 예 | Google 전용 결과의 기본 ID 또는 TourAPI 장소와 확정 매칭된 보조 ID. 매칭 실패 시 null |
 
 동일 검색 흐름에서 `place_id`가 같은 item은 Android 누적 목록에 한 번만 존재한다.
 
@@ -73,7 +74,7 @@ TourAPI 신분류 대·중·소 code는 server의 versioned mapping으로 위 en
 | `phone` | string | provider 표시용 연락처. 전화 가능 여부를 단정하지 않음 |
 | `operating_guide` | string | 콘텐츠 유형별 TourAPI 운영 안내를 원문 의미가 유지되게 정규화 |
 
-TourAPI 기준 상세에는 Google 평점·영업정보만 선택적으로 추가한다. Google 전용 상세는 Google이 허용한 기본정보·평점·영업정보만 사용한다. Google 사진·리뷰는 모델에 없다.
+TourAPI 기준 상세에는 확정 매칭된 `google_place_id`와 Google 평점·영업정보만 선택적으로 추가한다. 공개 기본 식별자는 계속 `tourapi:{contentId}`이고 보조 Google ID는 F004 저장을 거쳐 F008 운영시간 조회에 사용한다. Google 전용 상세는 Google이 허용한 기본정보·평점·영업정보만 사용한다. Google 사진·리뷰는 모델에 없다.
 
 ## 6. `PlaceMatch`
 
