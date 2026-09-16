@@ -85,7 +85,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T002
-  - 검증: 기존 `google_places` 설정을 재사용해 `places.get`을 `regularOpeningHours.periods`·`businessStatus`·`utcOffsetMinutes` field mask로 호출. `CLOSED_TEMPORARILY`·`CLOSED_PERMANENTLY` 식별, `periods`에서 특정 요일 `close` 시각 추출, `periods` 없음/24시간 → "미상". 타임아웃 5초·1회 재시도, 최종 실패·키 없음 → "미상". `api/tests/unit/test_operating_hours_source.py`에서 fixture로 확인
+  - 검증: 기존 `google_places` 설정을 재사용해 `places.get`을 `currentOpeningHours.periods`·`regularOpeningHours.periods`·`businessStatus`·`utcOffsetMinutes` field mask로 호출. 당일은 `currentOpeningHours`를 우선하고 미제공 시 정규 시간으로 대체한다. `CLOSED_TEMPORARILY`·`CLOSED_PERMANENTLY`, 휴무, 24시간, 자정 넘김을 식별한다. 타임아웃 5초·1회 재시도, 최종 실패·키 없음 → "미상". `api/tests/unit/test_operating_hours_source.py`에서 fixture로 확인
 
 **Checkpoint**: `detections`를 저장·조회할 수 있고, 세 외부 데이터 원천을 격리된 방식으로 호출할 수 있다.
 

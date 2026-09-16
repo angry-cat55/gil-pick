@@ -2,7 +2,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.services.detection.operating_hours_source import BusinessStatus, OperatingHoursSource
+from app.services.detection.operating_hours import evaluate_operating_hours
+from app.services.detection.operating_hours_source import (
+    BusinessStatus,
+    OperatingHoursSource,
+)
 from tests.unit.test_kma_client import _settings
 
 
@@ -68,3 +72,138 @@ async def test_operating_hours_before_open_is_not_in_business_period() -> None:
     result = await OperatingHoursSource(_settings(), places).get("place", eta)
     assert result.known is True
     assert result.is_open is False
+
+
+def _current_period(
+    open_hour: int,
+    close_hour: int | None,
+    *,
+    open_day: int = 8,
+    close_day: int = 8,
+) -> dict:
+    period = {
+        "open": {
+            "date": {"year": 2026, "month": 9, "day": open_day},
+            "day": 2 if open_day == 8 else 3,
+            "hour": open_hour,
+        }
+    }
+    if close_hour is not None:
+        period["close"] = {
+            "date": {"year": 2026, "month": 9, "day": close_day},
+            "day": 2 if close_day == 8 else 3,
+            "hour": close_hour,
+        }
+    return period
+
+
+def _special_hours_payload(periods: list[dict]) -> dict:
+    return {
+        "businessStatus": "OPERATIONAL",
+        "utcOffsetMinutes": 540,
+        "currentOpeningHours": {"periods": periods},
+        "regularOpeningHours": {
+            "periods": [
+                {
+                    "open": {"day": 2, "hour": 9},
+                    "close": {"day": 2, "hour": 18},
+                }
+            ]
+        },
+    }
+
+
+def test_current_hours_override_regular_hours_for_early_close() -> None:
+    eta = datetime(2026, 9, 8, 16, tzinfo=timezone(timedelta(hours=9)))
+
+    result = OperatingHoursSource(_settings(), StubPlaces()).parse(
+        _special_hours_payload([_current_period(9, 15)]), eta
+    )
+
+    assert result.closes_at == datetime(
+        2026, 9, 8, 15, tzinfo=timezone(timedelta(hours=9))
+    )
+    assert result.is_open is False
+
+
+def test_current_hours_override_regular_hours_for_extended_opening() -> None:
+    eta = datetime(2026, 9, 8, 19, tzinfo=timezone(timedelta(hours=9)))
+
+    result = OperatingHoursSource(_settings(), StubPlaces()).parse(
+        _special_hours_payload([_current_period(9, 21)]), eta
+    )
+
+    assert result.closes_at == datetime(
+        2026, 9, 8, 21, tzinfo=timezone(timedelta(hours=9))
+    )
+    assert result.is_open is True
+
+
+def test_empty_current_periods_mean_closed() -> None:
+    eta = datetime(2026, 9, 8, 12, tzinfo=timezone(timedelta(hours=9)))
+
+    result = OperatingHoursSource(_settings(), StubPlaces()).parse(
+        _special_hours_payload([]), eta
+    )
+
+    assert result.known is True
+    assert result.is_open is False
+    assert result.closes_at is None
+
+
+@pytest.mark.asyncio
+async def test_temporary_closure_is_blocked() -> None:
+    eta = datetime(2026, 9, 8, 12, tzinfo=timezone(timedelta(hours=9)))
+    payload = _special_hours_payload([])
+    payload["businessStatus"] = "CLOSED_TEMPORARILY"
+    source = OperatingHoursSource(_settings(), StubPlaces(payload))
+
+    verdict = await evaluate_operating_hours(source, place_id="place", eta=eta)
+
+    assert verdict.available is True
+    assert verdict.visit_blocked is True
+    assert verdict.temp_closed is True
+
+
+def test_current_hours_without_close_mean_open_24_hours() -> None:
+    eta = datetime(2026, 9, 8, 12, tzinfo=timezone(timedelta(hours=9)))
+
+    result = OperatingHoursSource(_settings(), StubPlaces()).parse(
+        _special_hours_payload([_current_period(0, None)]), eta
+    )
+
+    assert result.known is True
+    assert result.is_open is True
+    assert result.closes_at is None
+
+
+def test_current_hours_preserve_cross_midnight_close_date() -> None:
+    eta = datetime(2026, 9, 9, 1, tzinfo=timezone(timedelta(hours=9)))
+
+    result = OperatingHoursSource(_settings(), StubPlaces()).parse(
+        _special_hours_payload(
+            [_current_period(18, 2, open_day=8, close_day=9)]
+        ),
+        eta,
+    )
+
+    assert result.is_open is True
+    assert result.closes_at == datetime(
+        2026, 9, 9, 2, tzinfo=timezone(timedelta(hours=9))
+    )
+
+
+@pytest.mark.asyncio
+async def test_special_hours_flow_from_google_adapter_to_evaluator() -> None:
+    eta = datetime(2026, 9, 8, 16, tzinfo=timezone(timedelta(hours=9)))
+    source = OperatingHoursSource(
+        _settings(), StubPlaces(_special_hours_payload([_current_period(9, 15)]))
+    )
+
+    verdict = await evaluate_operating_hours(source, place_id="place", eta=eta)
+
+    assert verdict.available is True
+    assert verdict.closes_at == datetime(
+        2026, 9, 8, 15, tzinfo=timezone(timedelta(hours=9))
+    )
+    assert verdict.visit_blocked is True
