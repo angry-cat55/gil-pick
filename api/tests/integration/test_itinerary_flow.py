@@ -313,24 +313,27 @@ async def test_tourapi_snapshot_preserves_matched_google_place_id(
 ) -> None:
     """기존 TourAPI 행을 재저장하면 확정 매칭 Google ID를 lazy 보강한다."""
     trip_id, visit_date = await _seed(session_factory)
+    content_id = uuid.uuid4().hex
+    google_place_id = f"ChIJ_{uuid.uuid4().hex}"
+    item = _place_item(1, None)
+    item["placeId"] = f"tourapi:{content_id}"
     async with transaction_session(session_factory) as session:
         await ItineraryService(session).save_day(
             trip_id=trip_id,
             visit_date=visit_date,
             start_date=visit_date,
-            payload=_create_payload(),
+            payload=SaveDayItineraryRequest(version=0, items=[item]),
             idempotency_key=uuid.uuid4(),
         )
     async with session_factory() as session:
         before = await session.scalar(
-            select(Place).where(Place.tour_content_id == "126508")
+            select(Place).where(Place.tour_content_id == content_id)
         )
         assert before is not None and before.google_place_id is None
 
-    item = _place_item(1, None)
     place = item["place"]
     assert isinstance(place, dict)
-    place["googlePlaceId"] = "ChIJ_tour_match"
+    place["googlePlaceId"] = google_place_id
     payload = SaveDayItineraryRequest(version=0, items=[item])
     second_date = visit_date + timedelta(days=1)
 
@@ -343,11 +346,13 @@ async def test_tourapi_snapshot_preserves_matched_google_place_id(
             idempotency_key=uuid.uuid4(),
         )
 
-    assert saved.items[0].place.place_id == "tourapi:126508"
+    assert saved.items[0].place.place_id == f"tourapi:{content_id}"
     async with session_factory() as session:
-        stored = await session.scalar(select(Place).where(Place.tour_content_id == "126508"))
+        stored = await session.scalar(
+            select(Place).where(Place.tour_content_id == content_id)
+        )
         assert stored is not None
-        assert stored.google_place_id == "ChIJ_tour_match"
+        assert stored.google_place_id == google_place_id
 
 
 @pytest.mark.asyncio
