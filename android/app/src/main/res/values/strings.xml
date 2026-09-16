@@ -2,13 +2,8 @@
 <resources>
     <string name="app_name">길픽</string>
 
-    <string name="login_tagline">실시간 혼잡·날씨·운영시간을 감지해\n최적의 경로를 다시 안내합니다</string>
-    <string name="login_feature_congestion">혼잡도 감지</string>
-    <string name="login_feature_weather">날씨 예보</string>
-    <string name="login_feature_reroute">자동 재경로</string>
-    <string name="login_illustration_congestion">혼잡 감지</string>
-    <string name="login_illustration_reroute">경로 변경</string>
-    <string name="login_card_title">SNS 계정으로 간편하게 시작하기</string>
+    <string name="login_headline">여행 중 바뀌는 상황까지 챙겨요</string>
+    <string name="login_tagline">실시간 혼잡·날씨·운영시간을 감지해 최적의 경로를 다시 안내합니다</string>
     <string name="login_kakao">카카오로 시작하기</string>
     <string name="login_terms">시작하면 이용약관 및 개인정보처리방침에 동의한 것으로 간주됩니다</string>
     <string name="login_in_progress">카카오 인증을 진행하고 있습니다</string>
