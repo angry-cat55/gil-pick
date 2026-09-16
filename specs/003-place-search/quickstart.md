@@ -50,10 +50,10 @@ android\gradlew.bat -p android connectedDebugAndroidTest
 
 | 항목 | 명령·방법 | 결과 |
 |---|---|---|
-| 칩 layout | 가로 스크롤 `Row`를 `FlowRow(maxItemsInEachRow = 3)`로 바꿔 3+3 두 줄로 둔다 | 적용 |
-| UI test | `ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.gilpick.place.PlaceSearchScreenTest` | 통과 28건. 신규 `카테고리_칩_여섯_개는_360dp에서_가로_스크롤_없이_모두_보인다`(6개 모두 표시·48dp·좌우 360dp 안), `카테고리_칩은_최대_글자_배율_360dp에서도_모두_보이고_선택된다`(글자 2.0배에서도 모두 보이고 `쇼핑` 선택이 전달됨) |
-| screenshot | `search_content_360dp`: 이전에는 `쇼핑`이 화면 밖으로 밀렸고, 지금은 3+3 두 줄로 모두 보인다 | 통과 (사람 확인) |
-| Figma 차이 | Figma `AddPlaceScreen`은 `overflow-x-auto` 한 줄이다. 360dp에서 여섯 번째 칩을 볼 수 없어 `spec.md` UI-016으로 예외를 기록했다 | 기록 완료 |
+| 칩 layout | Figma대로 한 줄(`Row`)을 유지하고 칩 좌우 여백 14→10dp, 칩 사이 간격 8→4dp로 줄인다. 글자 크기 13sp는 그대로다 | 적용 |
+| UI test | `ANDROID_SERIAL=emulator-5554 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.gilpick.place.PlaceSearchScreenTest` | 통과 28건. 신규 `카테고리_칩_여섯_개는_360dp에서_가로_스크롤_없이_모두_보인다`(6개 모두 표시·48dp·좌우 360dp 안), `카테고리_칩은_최대_글자_배율_360dp에서도_스크롤로_모두_닿는다`(글자 2.0배에서는 한 줄에 다 들어가지 않아 가로 스크롤로 `쇼핑`까지 닿고 선택이 전달됨) |
+| screenshot | `search_content_360dp`: 이전에는 `쇼핑`이 화면 밖으로 밀렸고, 지금은 한 줄에 여섯 칩이 모두 들어간다 | 통과 (사람 확인) |
+| Figma 차이 | 없다. Figma `AddPlaceScreen`의 한 줄 구성과 `overflow-x-auto`를 그대로 두고 여백만 줄였다 | — |
 
 ### 실시간 영업 상태 표시 검증 (#576, 2026-09-16, jy)
 
