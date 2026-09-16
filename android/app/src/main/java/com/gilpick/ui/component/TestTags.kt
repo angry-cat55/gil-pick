@@ -7,3 +7,10 @@ package com.gilpick.ui.component
  * 탭 루트(내 여행·설정)와 로그인에는 뒤로 가기가 없다.
  */
 const val TAG_HEADER_BACK = "header_back"
+
+/**
+ * 여행 카드 3종의 대표 이미지 테스트 태그(#617).
+ *
+ * 이미지는 장식이라 접근성 tree에 이름이 없다. test가 "이미지가 그려졌는지"를 확인할 다른 표식이 없어 태그를 둔다.
+ */
+const val TAG_TRIP_CARD_IMAGE = "trip_card_image"

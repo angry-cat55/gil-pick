@@ -41,6 +41,10 @@ class TripListScreenshotTest {
         }
     }
 
+    /** #617: 세 카드 유형에 대표 이미지가 들어간 모습과 이미지 없는 카드의 대체 배경을 함께 기록한다. */
+    @Test
+    fun 세_그룹_대표이미지() = capture("trips_content_covers") { Screen(contentWithCovers()) }
+
     @Test
     fun 여행_없음() = capture("trips_empty") { Screen(TripListUiState(phase = TripListPhase.Empty)) }
 
@@ -65,6 +69,27 @@ class TripListScreenshotTest {
                 trip("t4", "한강 나들이", today.minusYears(1), 7, TripStatus.COMPLETED),
             ),
         )
+    }
+
+    /** `t1`~`t3`은 대표 이미지가 있고 `t4`는 없다. */
+    private fun contentWithCovers(): TripListUiState {
+        val state = content()
+        val covers = state.trips.take(3).associate { coverKey(it) to sampleImage() }
+        return state.copy(trips = state.trips.map { it.copy(imageUrl = "http://api.example/image") }, covers = covers)
+    }
+
+    /** 기록용 대표 이미지. 카드가 이미지를 어떻게 자르는지 보이도록 가로로 긴 그라데이션을 쓴다. */
+    private fun sampleImage(): ByteArray {
+        val bitmap = Bitmap.createBitmap(400, 200, Bitmap.Config.ARGB_8888)
+        for (x in 0 until 400) {
+            for (y in 0 until 200) {
+                bitmap.setPixel(x, y, android.graphics.Color.rgb(40 + x / 3, 90 + y / 4, 180))
+            }
+        }
+        return java.io.ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.toByteArray()
+        }
     }
 
     @Composable

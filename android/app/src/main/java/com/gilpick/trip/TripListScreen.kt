@@ -129,6 +129,7 @@ fun TripListScreen(
 
                     TripListPhase.Content -> TripList(
                         trips = state.trips,
+                        covers = state.covers,
                         loadingMore = state.loadingMore,
                         hasNext = state.hasNext,
                         onLoadMore = onLoadMore,
@@ -481,6 +482,7 @@ private fun ErrorState(error: TripListError, onRetry: () -> Unit) {
 @Composable
 private fun TripList(
     trips: List<TripDto>,
+    covers: Map<String, ByteArray>,
     loadingMore: Boolean,
     hasNext: Boolean,
     onLoadMore: () -> Unit,
@@ -529,7 +531,12 @@ private fun TripList(
                 key = { it.tripId },
                 contentType = { it.status },
             ) { trip ->
-                TripItem(trip = trip, today = today, onClick = { onTripClick(trip.tripId) })
+                TripItem(
+                    trip = trip,
+                    today = today,
+                    onClick = { onTripClick(trip.tripId) },
+                    image = covers[coverKey(trip)],
+                )
             }
         }
         if (loadingMore) {
@@ -553,11 +560,12 @@ private fun TripList(
 /**
  * 상태별 카드(Figma 3종).
  *
- * `TripDto`에 커버 이미지·지역명·장소 수·건너뜀 수가 없다. 지어내지 않고 이미지는 대체 배경, 지역은 `정보 없음`, 장소·건너뜀
- * 수는 자리를 비운다(12절, Backend 계약 추가 요청 필요). 기간·일수·D-day는 받은 날짜로 계산한다.
+ * 대표 이미지는 ViewModel이 받아 둔 원본을 [image]로 받는다(#617). 아직 못 받았거나 없으면 대체 배경이 보인다.
+ * `TripDto`에 지역명·장소 수·건너뜀 수가 없다. 지어내지 않고 지역은 `정보 없음`, 장소·건너뜀 수는 자리를 비운다
+ * (12절, Backend 계약 추가 요청 필요). 기간·일수·D-day는 받은 날짜로 계산한다.
  */
 @Composable
-private fun TripItem(trip: TripDto, today: LocalDate, onClick: () -> Unit) {
+private fun TripItem(trip: TripDto, today: LocalDate, onClick: () -> Unit, image: ByteArray? = null) {
     val period = periodLabel(trip.startDate, trip.endDate, today)
     val length = lengthLabel(trip.dayCount)
     val badge = stringResource(trip.status.labelRes)
@@ -570,6 +578,7 @@ private fun TripItem(trip: TripDto, today: LocalDate, onClick: () -> Unit) {
             length = length,
             badgeLabel = badge,
             onClick = onClick,
+            image = image,
         )
 
         TripStatus.UPCOMING -> UpcomingTripCard(
@@ -578,6 +587,7 @@ private fun TripItem(trip: TripDto, today: LocalDate, onClick: () -> Unit) {
             period = period,
             meta = length,
             onClick = onClick,
+            image = image,
         )
 
         TripStatus.COMPLETED -> CompletedTripCard(
@@ -585,6 +595,7 @@ private fun TripItem(trip: TripDto, today: LocalDate, onClick: () -> Unit) {
             period = period,
             badgeLabel = badge,
             onClick = onClick,
+            image = image,
         )
     }
 }
