@@ -40,6 +40,13 @@ Issue #536은 `POST /trips/{tripId}/days/{date}/route/segments/{sequence}/estima
 
 **Visual Validation**: 360dp phone, 일반 phone, 최대 font scale에서 loading/empty/error/content, 1개 장소, 혼합 이동수단을 screenshot으로 Figma와 비교한다. 실제 지도에서 이동·확대·축소, marker 순서, polyline, attribution, 목록 순서 일치를 확인한다.
 
+**장소 카드 선택·균등 높이 (#618, 2026-09-16)**: Figma `DayRouteScreen`에는 장소 카드의 상호작용이 없다. 카드가 지도 마커와 같은 번호를 쓰는데 눌러도 아무 일이 없어 탐색이 끊긴다는 QA 지적을 받아, 카드 전체를 `지도에서 보기` 버튼(`Role.Button`, `onClickLabel`, 최소 48dp)으로 두고 누르면 `RouteMap`이 그 좌표로 카메라를 옮기게 한다. 모양은 바꾸지 않으므로 Figma 정본과 어긋나지 않는다.
+
+- 상태는 `RouteFocus(itemId, tick)` 하나다. 같은 카드를 다시 눌러도 사용자가 직접 옮긴 지도를 되돌릴 수 있도록 `tick`으로 선택을 구분한다.
+- 이동은 overlay를 다시 그리지 않고 `CameraUpdate.scrollTo(...).animate(CameraAnimation.Easing)`만 쓴다. 다시 그리면 `fitBounds`가 전체 경로로 되돌아간다. 연속 선택은 새 이동이 앞선 animation을 대신해 마지막 선택에서 멈춘다.
+- sheet 높이만큼 잡아 둔 지도 content padding 덕분에 `scrollTo`가 sheet 위 보이는 영역의 중앙으로 옮긴다. 별도 offset 계산을 두지 않는다.
+- 카드 높이는 고정 값 대신 `Row(Modifier.height(IntrinsicSize.Min))` + 카드 `fillMaxHeight()`로 맞춘다. 가장 높은 카드의 실제 필요 높이를 행 높이로 삼으므로 긴 장소명을 말줄임하지 않고도 하단이 정렬되며 글자 배율도 그대로 반영된다.
+
 ## Constitution Check
 
 *GATE: Phase 0 전 및 Phase 1 후 재검토 완료.*
