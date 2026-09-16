@@ -113,6 +113,66 @@ object TripFormValidator {
     }
 }
 
+/** 달력이 바꿀 날짜. 수정 화면은 사용자가 누른 칸이고, 만들기 화면은 `null`이라 규칙이 정한다. */
+enum class TripPeriodEndpoint { START, END }
+
+/** 누른 날짜를 반영할 수 없는 이유. */
+enum class TripPeriodPickError {
+    /** 시작일보다 앞선 종료일이거나 종료일보다 늦은 시작일이다. */
+    ORDER,
+
+    /** 새 기간이 다른 여행이 차지한 날짜를 가로지른다(FR-002a, #501). */
+    OCCUPIED,
+}
+
+/** 달력 탭의 결과. */
+sealed interface TripPeriodPick {
+    data class Applied(val startDate: LocalDate?, val endDate: LocalDate?) : TripPeriodPick
+    data class Rejected(val reason: TripPeriodPickError) : TripPeriodPick
+}
+
+/**
+ * 달력에서 누른 날짜를 기간에 반영하는 규칙(#594).
+ *
+ * 수정 화면은 누른 칸([TripPeriodEndpoint])만 바꾸고 반대쪽은 그대로 둔다. 종료일을 고치려다 시작일이 바뀌어
+ * 일정이 삭제되는 사고를 막는다. 만들기 화면은 칸이 없으므로 누른 날짜의 위치로 정한다.
+ *
+ * 7일 초과는 여기서 막지 않는다. 반영한 뒤 [TripFormValidator]가 카드 아래에 이유를 적고 저장을 막는다.
+ * 고른 기간을 화면에 그대로 보여 주는 편이 무엇이 잘못됐는지 알기 쉽다.
+ */
+object TripPeriodPicker {
+
+    /**
+     * @param picked 사용자가 누른 날짜. 다른 여행이 차지한 날짜는 칸 자체가 비활성이라 들어오지 않는다.
+     * @param endpoint 수정 화면에서 누른 칸. 만들기 화면은 `null`이다.
+     */
+    fun pick(
+        startDate: LocalDate?,
+        endDate: LocalDate?,
+        picked: LocalDate,
+        occupiedDates: Set<LocalDate>,
+        endpoint: TripPeriodEndpoint?,
+    ): TripPeriodPick {
+        val (start, end) = when (endpoint) {
+            TripPeriodEndpoint.START -> picked to endDate
+            TripPeriodEndpoint.END -> startDate to picked
+            // 만들기 화면: 기간을 다 고른 뒤에도 처음부터 다시 시작하지 않는다. 고른 날짜를 다시 누르면 푼다.
+            null -> when {
+                startDate == null -> picked to null
+                picked == startDate -> null to null
+                picked == endDate -> startDate to null
+                picked < startDate -> picked to endDate
+                else -> startDate to picked
+            }
+        }
+        if (start != null && end != null) {
+            if (end < start) return TripPeriodPick.Rejected(TripPeriodPickError.ORDER)
+            if (occupiedDates.any { it >= start && it <= end }) return TripPeriodPick.Rejected(TripPeriodPickError.OCCUPIED)
+        }
+        return TripPeriodPick.Applied(start, end)
+    }
+}
+
 /**
  * 생성 요청이 실패한 이유.
  *

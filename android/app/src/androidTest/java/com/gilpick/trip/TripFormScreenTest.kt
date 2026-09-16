@@ -129,12 +129,84 @@ class TripFormScreenTest {
     fun 달력에서_시작일과_종료일을_차례로_고른다() {
         val period = setCalendarContent(start = LocalDate.of(2026, 9, 1), end = LocalDate.of(2026, 9, 1))
 
-        // 종료일까지 고른 상태에서 누르면 새 시작일부터 다시 고른다.
+        // #594: 기간을 다 고른 뒤 뒤 날짜를 누르면 종료일만 늘어난다. 처음부터 다시 고르지 않는다.
         composeRule.onNodeWithContentDescription("9월 3일").performClick()
-        assertEquals(LocalDate.of(2026, 9, 3) to null, period())
+        assertEquals(LocalDate.of(2026, 9, 1) to LocalDate.of(2026, 9, 3), period())
 
         composeRule.onNodeWithContentDescription("9월 5일").performClick()
-        assertEquals(LocalDate.of(2026, 9, 3) to LocalDate.of(2026, 9, 5), period())
+        assertEquals(LocalDate.of(2026, 9, 1) to LocalDate.of(2026, 9, 5), period())
+    }
+
+    /** #594: 만들기 화면에서 고른 날짜를 다시 누르면 그 날짜만 푼다. */
+    @Test
+    fun 고른_종료일을_다시_누르면_종료일만_풀린다() {
+        val period = setCalendarContent(start = LocalDate.of(2026, 9, 1), end = LocalDate.of(2026, 9, 3))
+
+        composeRule.onNodeWithContentDescription("9월 3일").performClick()
+
+        assertEquals(LocalDate.of(2026, 9, 1) to null, period())
+    }
+
+    /** #594: 수정 화면은 누른 칸만 바꾼다. 종료일을 당겨도 시작일은 그대로다. */
+    @Test
+    fun 수정_화면_종료일_칸은_종료일만_바꾼다() {
+        val period = setCalendarContent(
+            start = LocalDate.of(2026, 9, 1),
+            end = LocalDate.of(2026, 9, 3),
+            base = editState(TripStatus.UPCOMING),
+        )
+
+        composeRule.onNodeWithText("2026. 9. 3").performClick()
+        composeRule.onNodeWithContentDescription("9월 2일").performClick()
+
+        assertEquals(LocalDate.of(2026, 9, 1) to LocalDate.of(2026, 9, 2), period())
+    }
+
+    /** #594: 종료일을 늘려도 시작일은 그대로라 기존 일정이 기간 밖으로 밀리지 않는다. */
+    @Test
+    fun 수정_화면_종료일_칸은_늘릴_때도_시작일을_지킨다() {
+        val period = setCalendarContent(
+            start = LocalDate.of(2026, 9, 1),
+            end = LocalDate.of(2026, 9, 3),
+            base = editState(TripStatus.UPCOMING),
+        )
+
+        composeRule.onNodeWithText("2026. 9. 3").performClick()
+        composeRule.onNodeWithContentDescription("9월 5일").performClick()
+
+        assertEquals(LocalDate.of(2026, 9, 1) to LocalDate.of(2026, 9, 5), period())
+        composeRule.onNodeWithText(string(R.string.trip_form_shrink_warning_start)).assertDoesNotExist()
+    }
+
+    /** #594: 시작일 칸은 시작일만 바꾼다. */
+    @Test
+    fun 수정_화면_시작일_칸은_시작일만_바꾼다() {
+        val period = setCalendarContent(
+            start = LocalDate.of(2026, 9, 1),
+            end = LocalDate.of(2026, 9, 3),
+            base = editState(TripStatus.UPCOMING),
+        )
+
+        composeRule.onNodeWithText("2026. 9. 1").performClick()
+        composeRule.onNodeWithContentDescription("9월 2일").performClick()
+
+        assertEquals(LocalDate.of(2026, 9, 2) to LocalDate.of(2026, 9, 3), period())
+    }
+
+    /** #594: 반영할 수 없는 날짜는 기간을 그대로 두고 이유를 적는다. */
+    @Test
+    fun 종료일_칸에서_시작일보다_앞_날짜는_반영하지_않고_이유를_보인다() {
+        val period = setCalendarContent(
+            start = LocalDate.of(2026, 9, 5),
+            end = LocalDate.of(2026, 9, 7),
+            base = editState(TripStatus.UPCOMING),
+        )
+
+        composeRule.onNodeWithText("2026. 9. 7").performClick()
+        composeRule.onNodeWithContentDescription("9월 2일").performClick()
+
+        assertEquals(LocalDate.of(2026, 9, 5) to LocalDate.of(2026, 9, 7), period())
+        composeRule.onNodeWithText(string(R.string.trip_form_error_period_order)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -157,16 +229,17 @@ class TripFormScreenTest {
         composeRule.onNode(hasText(string(R.string.trip_form_submit)) and hasClickAction()).assertIsNotEnabled()
     }
 
-    /** #501: 다른 여행이 차지한 날짜는 누를 수 없고, 사이에 끼는 종료일은 새 시작일이 된다. */
+    /** #501·#594: 다른 여행이 차지한 날짜는 누를 수 없고, 그 날짜를 가로지르는 기간은 반영하지 않고 이유를 적는다. */
     @Test
-    fun 다른_여행_날짜는_누를_수_없고_건너뛰는_종료일은_새_시작일이다() {
+    fun 다른_여행_날짜는_누를_수_없고_가로지르는_기간은_반영하지_않는다() {
         val occupied = listOf(OccupiedPeriod("t9", LocalDate.of(2026, 9, 4), LocalDate.of(2026, 9, 4)))
         val period = setCalendarContent(start = LocalDate.of(2026, 9, 2), end = null, occupied = occupied)
 
         composeRule.onNodeWithContentDescription("9월 4일").assertIsNotEnabled()
 
         composeRule.onNodeWithContentDescription("9월 6일").performClick()
-        assertEquals(LocalDate.of(2026, 9, 6) to null, period())
+        assertEquals(LocalDate.of(2026, 9, 2) to null, period())
+        composeRule.onNodeWithText(string(R.string.trip_form_calendar_occupied_span)).performScrollTo().assertIsDisplayed()
     }
 
     /** #501: 수정 중인 자기 여행 기간은 다시 고를 수 있다. */
@@ -359,11 +432,12 @@ class TripFormScreenTest {
         start: LocalDate?,
         end: LocalDate?,
         occupied: List<OccupiedPeriod> = emptyList(),
+        base: TripFormUiState = TripFormUiState(name = "서울 여행"),
     ): () -> Pair<LocalDate?, LocalDate?> {
         var last: Pair<LocalDate?, LocalDate?> = start to end
         composeRule.setContent {
             var state by remember {
-                mutableStateOf(TripFormUiState(name = "서울 여행", startDate = start, endDate = end, occupiedPeriods = occupied))
+                mutableStateOf(base.copy(startDate = start, endDate = end, occupiedPeriods = occupied))
             }
             GilpickTheme {
                 TripFormScreen(
