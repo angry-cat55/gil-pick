@@ -2,6 +2,7 @@ package com.gilpick.notification
 
 import android.app.NotificationManager
 import android.content.Intent
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -28,7 +29,12 @@ class GilpickMessagingServiceTest {
 
     @Before
     fun grantNotificationPermission() {
-        instrumentation.uiAutomation.grantRuntimePermission(context.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            instrumentation.uiAutomation.grantRuntimePermission(
+                context.packageName,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            )
+        }
     }
 
     @Test
