@@ -3,7 +3,12 @@ from datetime import datetime, timedelta, timezone
 import httpx2
 import pytest
 
-from app.clients.kma import KmaClient, KmaProviderError, latest_base_slot, latitude_longitude_to_grid
+from app.clients.kma import (
+    KmaClient,
+    KmaProviderError,
+    latest_base_slot,
+    latitude_longitude_to_grid,
+)
 from app.core.config import Settings
 
 
@@ -31,11 +36,11 @@ async def test_kma_groups_forecast_categories_by_slot() -> None:
         assert request.url.params["serviceKey"] == "service"
         return httpx2.Response(200, json={"response":{"header":{"resultCode":"00"},"body":{"items":{"item":[
             {"category":"POP","fcstDate":"20260908","fcstTime":"1500","fcstValue":"80"},
-            {"category":"PCP","fcstDate":"20260908","fcstTime":"1500","fcstValue":"1.0mm"},
+            {"category":"PCP","fcstDate":"20260908","fcstTime":"1500","fcstValue":"1.0mm 미만"},
             {"category":"PTY","fcstDate":"20260908","fcstTime":"1500","fcstValue":"1"}]}}}})
     client = KmaClient(_settings(), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
     result = await client.get_forecast(37.5665, 126.9780)
-    assert result and result[0].pop == 80 and result[0].pcp == "1.0mm" and result[0].pty == 1
+    assert result and result[0].pop == 80 and result[0].pcp == "1.0mm 미만" and result[0].pty == 1
     assert result[0].forecast_at.utcoffset() == timedelta(hours=9)
 
 
