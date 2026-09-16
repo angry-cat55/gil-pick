@@ -852,10 +852,17 @@ private fun VariableWarningBanner(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
+            // 장소명과 사유를 한 문장으로 붙이면 좁은 배너 폭에서 사유 중간이 꺾인다.
+            // 변수 감지 카드와 같이 줄을 나눠 경계를 눈에 보이게 둔다.
             Text(
-                text = stringResource(R.string.progress_banner_title, detection.placeName, detection.reason),
+                text = detection.placeName,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
+                color = colors.onWarningContainer,
+            )
+            Text(
+                text = detection.reason,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.onWarningContainer,
             )
             Text(
