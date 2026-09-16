@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
@@ -26,6 +27,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.route.RouteFocus
+import com.gilpick.route.TAG_MY_LOCATION
+import com.gilpick.route.TAG_MY_LOCATION_NOTICE
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -233,8 +237,45 @@ class AlternativeSearchScreenTest {
         loadMoreError = loadMoreError,
     )
 
+    @Test
+    fun 내_위치로_이동은_확인한_좌표로_지도를_옮긴다() {
+        val focuses = mutableListOf<RouteFocus.MyLocation?>()
+        setScreen(content(), currentLocation = { listOf(126.9770, 37.5796) }, onFocus = { focuses += it })
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_NOTICE).assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(listOf(126.9770, 37.5796), focuses.last()?.position) }
+    }
+
+    @Test
+    fun 위치_권한이_없으면_요청하고_거부되면_이유를_알린다() {
+        val focuses = mutableListOf<RouteFocus.MyLocation?>()
+        setScreen(content(), hasLocationPermission = false, currentLocation = { listOf(126.9770, 37.5796) }, onFocus = { focuses += it })
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.waitForIdle()
+
+        // 권한 요청 결과가 오기 전이라 지도는 그대로다. 결과 처리는 system dialog라 계측에서 눌러 줄 수 없다.
+        composeRule.runOnIdle { assertEquals(listOf<RouteFocus.MyLocation?>(null), focuses.distinct()) }
+    }
+
+    @Test
+    fun 위치를_확인하지_못하면_지도를_옮기는_대신_이유를_알린다() {
+        setScreen(content(), currentLocation = { null })
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_NOTICE).assertTextEquals("현재 위치를 확인할 수 없어요. 위치 서비스를 켜고 다시 시도해 주세요")
+    }
+
     private fun setScreen(
         state: AlternativeSearchUiState,
+        hasLocationPermission: Boolean = true,
+        currentLocation: suspend () -> List<Double>? = { null },
+        onFocus: (RouteFocus.MyLocation?) -> Unit = {},
         onQueryChange: (String) -> Unit = {},
         onSearch: () -> Unit = {},
         onRetry: () -> Unit = {},
@@ -259,8 +300,13 @@ class AlternativeSearchScreenTest {
                     onSelect = onSelect,
                     onToggleSelect = onToggleSelect,
                     onSelectCategory = onSelectCategory,
-                    // 지도는 Naver SDK 인증 key가 필요해 계측 환경에서 그릴 수 없다.
-                    map = { _, _, _, modifier -> Box(modifier.fillMaxSize()) },
+                    hasLocationPermission = { hasLocationPermission },
+                    currentLocation = { currentLocation() },
+                    // 지도는 Naver SDK 인증 key가 필요해 계측 환경에서 그릴 수 없다. 카메라 이동 대상만 확인한다.
+                    map = { _, _, _, focus, modifier ->
+                        onFocus(focus)
+                        Box(modifier.fillMaxSize())
+                    },
                 )
             }
         }

@@ -274,7 +274,7 @@ class NotificationNavigationTest {
                         onSelectPlace = {},
                         onDismissed = { navController.popBackStack() },
                         repository = { alternativeRepository },
-                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
+                        map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                 }
             }

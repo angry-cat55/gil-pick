@@ -77,7 +77,7 @@ class AlternativeScreenshotTest {
             onKeep = {},
             onRetryKeep = {},
             onReauthenticate = {},
-            map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
+            map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
         )
     }
 

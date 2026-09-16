@@ -391,6 +391,17 @@ interface AlternativeService {
     ): Response<SuccessEnvelope<AlternativeListDto>>
 
     /**
+     * 장소 하나의 상세를 조회한다(F003 PLACE-002와 같은 endpoint).
+     *
+     * 기존 장소 좌표가 감지·후보 응답에 없어 지도에 원래 장소를 그리려면 이 조회가 필요하다(#660).
+     */
+    @GET("places/{placeId}")
+    suspend fun getPlace(
+        @Header("Authorization") bearer: String,
+        @Path("placeId") placeId: String,
+    ): Response<SuccessEnvelope<PlaceDto>>
+
+    /**
      * 대체 장소를 직접 검색한다(ALT-002).
      *
      * @param query trim 후 2글자 이상. 미만이면 `400 INVALID_REQUEST`다.

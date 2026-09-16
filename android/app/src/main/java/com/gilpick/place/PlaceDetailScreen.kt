@@ -90,6 +90,8 @@ import kotlinx.coroutines.delay
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param onAddToSchedule 시트에서 이동 수단·체류 시간을 확정했을 때. 저장은 F004가 맡는다(FR-014).
  * @param onOpenMap 하단 지도 버튼. 지도 기능에서 연결한다.
+ * @param onReplace `null`이 아니면 대체 장소 문맥이다. 하단 CTA가 `일정에 추가` 대신 `장소 변경`이 되고
+ *   시트 없이 바로 변경 흐름으로 간다(#660).
  */
 @Composable
 fun PlaceDetailScreen(
@@ -100,6 +102,7 @@ fun PlaceDetailScreen(
     modifier: Modifier = Modifier,
     onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     onOpenMap: () -> Unit = {},
+    onReplace: (() -> Unit)? = null,
     askTransport: Boolean = true,
 ) {
     when (val phase = state.phase) {
@@ -108,6 +111,7 @@ fun PlaceDetailScreen(
             onBack = onBack,
             onAddToSchedule = onAddToSchedule,
             onOpenMap = onOpenMap,
+            onReplace = onReplace,
             askTransport = askTransport,
             modifier = modifier,
         )
@@ -255,6 +259,7 @@ private fun Content(
     onBack: () -> Unit,
     onAddToSchedule: (AddToScheduleRequest) -> Unit,
     onOpenMap: () -> Unit,
+    onReplace: (() -> Unit)?,
     askTransport: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -290,7 +295,11 @@ private fun Content(
             MapPreview(place = place)
             Spacer(modifier = Modifier.height(96.dp))
         }
-        ActionBar(onOpenMap = onOpenMap, onAddToSchedule = { showSheet = true })
+        ActionBar(
+            onOpenMap = onOpenMap,
+            label = stringResource(if (onReplace != null) R.string.place_detail_replace else R.string.place_detail_add_to_schedule),
+            onPrimary = onReplace ?: { showSheet = true },
+        )
     }
 }
 
@@ -519,9 +528,13 @@ private fun MapPreview(place: PlaceDto) {
     )
 }
 
-/** Figma `CTA`: 지도 버튼(48×52, #F4F6FB)과 gradient `일정에 추가`(52dp). 위에 1dp 선. */
+/**
+ * Figma `CTA`: 지도 버튼(48×52, #F4F6FB)과 gradient 주 버튼(52dp). 위에 1dp 선.
+ *
+ * 주 버튼 문구는 문맥이 정한다: F004는 `일정에 추가`, 대체 장소 문맥은 `장소 변경`이다(#660).
+ */
 @Composable
-private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
+private fun ActionBar(onOpenMap: () -> Unit, label: String, onPrimary: () -> Unit) {
     val shape = RoundedCornerShape(LocalGilpickRadius.current.md)
     val openMap = stringResource(R.string.place_detail_open_map)
 
@@ -558,11 +571,12 @@ private fun ActionBar(onOpenMap: () -> Unit, onAddToSchedule: () -> Unit) {
                     .height(52.dp)
                     .clip(shape)
                     .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
-                    .clickable(onClick = onAddToSchedule, role = Role.Button),
+                    .clickable(onClick = onPrimary, role = Role.Button)
+                    .testTag(PLACE_DETAIL_PRIMARY_TAG),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = stringResource(R.string.place_detail_add_to_schedule),
+                    text = label,
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
                 )
@@ -830,6 +844,9 @@ private const val STAY_STEP = 30
 
 /** UI test가 시트의 확정 버튼을 하단 CTA와 구분하는 tag. */
 internal const val ADD_TO_SCHEDULE_CONFIRM_TAG = "place_detail_add_to_schedule_confirm"
+
+/** 하단 주 버튼(`일정에 추가` 또는 `장소 변경`). */
+internal const val PLACE_DETAIL_PRIMARY_TAG = "place_detail_primary"
 
 /** 48dp 터치 영역 안에 36dp 원을 가운데 두면 원 밖 여백은 6dp다. Figma 위치(16/20)에서 이만큼 뺀다. */
 private val CIRCLE_INSET = 6.dp

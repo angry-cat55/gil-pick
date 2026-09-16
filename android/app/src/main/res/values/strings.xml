@@ -232,6 +232,8 @@
     <string name="place_map_description">%1$s 위치 지도</string>
     <string name="place_map_no_coordinates">위치 정보가 없어 지도를 표시할 수 없어요</string>
     <string name="place_detail_add_to_schedule">일정에 추가</string>
+    <!-- 대체 장소 문맥에서 열린 장소 상세의 하단 CTA(#660) -->
+    <string name="place_detail_replace">장소 변경</string>
     <string name="place_detail_sheet_title">이동 수단 선택</string>
     <string name="place_detail_sheet_subtitle">%1$s까지 어떻게 이동하시겠어요?</string>
     <!-- #654 첫 장소는 앞 구간이 없어 이동 수단을 묻지 않는다. 체류 시간만 고르는 시트의 제목·설명이다. -->
@@ -578,7 +580,6 @@
     <string name="alternative_reason_open_at_eta">도착 시각에 운영 중</string>
     <!-- 후보 행 접근성 설명: 순위, 이름, 카테고리, 거리, 운영 상태(UI-008). -->
     <string name="alternative_candidate_description">%1$d위 %2$s, %3$s, %4$s, %5$s</string>
-    <string name="alternative_compare_top">경로 비교</string>
     <string name="alternative_compare">비교</string>
     <string name="alternative_keep">기존 일정 그대로 진행</string>
     <string name="alternative_keep_pending">보내는 중</string>
@@ -653,6 +654,9 @@
     <string name="replacement_recalculating_body">변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요</string>
     <string name="replacement_recalculating_kept">계산에 실패해도 기존 일정은 그대로 유지됩니다</string>
     <string name="replacement_map_description">기존 경로와 변경 경로를 함께 보여 주는 지도</string>
+    <!-- 경로 비교의 전체 경로 보기(#660) -->
+    <string name="replacement_full_map">전체 경로 보기</string>
+    <string name="replacement_full_map_close">전체 경로 보기 닫기</string>
     <string name="replacement_legend_original">기존</string>
     <string name="replacement_legend_changed">변경</string>
     <string name="replacement_change_badge">경로 변경</string>

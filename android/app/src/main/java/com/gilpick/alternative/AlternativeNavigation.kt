@@ -52,7 +52,9 @@ data class AlternativeSearchRoute(
  *
  * @param navController 뒤로 가기·`돌아가기`·`진행 화면으로`에 쓴다.
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
- * @param onSelectPlace 후보의 `경로 비교`·`비교`와 직접 검색 행 선택. F010 변경 경로 미리보기로 넘길 값이다.
+ * @param onSelectPlace 후보의 `비교`와 직접 검색 행 선택. F010 변경 경로 미리보기로 넘길 값이다.
+ * @param onOpenPlace 후보 행 탭. 대체 장소 문맥의 장소 상세로 간다. 상세의 `장소 변경`이 같은 후보로
+ *   [onSelectPlace]와 같은 미리보기 흐름을 잇는다(#660).
  * @param onDismissed `기존 일정 그대로 진행`이 성공했다. 호출자가 진행 화면으로 돌린다.
  * @param repository 감지·대체 장소 데이터 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param map 지도 영역. 기본값은 Naver [AlternativeMap]이며 UI test가 자리 표시로 바꿔 끼운다.
@@ -62,9 +64,10 @@ fun NavGraphBuilder.alternativeGraph(
     onSessionExpired: () -> Unit,
     onSelectPlace: (SelectedAlternative) -> Unit,
     onDismissed: () -> Unit,
+    onOpenPlace: (SelectedAlternative) -> Unit = {},
     repository: (Context) -> AlternativeRepository = AlternativeRepository::default,
-    map: @Composable (Position?, List<AlternativeCandidateDto>, Modifier) -> Unit = { origin, candidates, modifier ->
-        AlternativeMap(origin = origin, candidates = candidates, modifier = modifier)
+    map: @Composable (Position?, List<AlternativeCandidateDto>, Float, Modifier) -> Unit = { origin, candidates, sheetFraction, modifier ->
+        AlternativeMap(origin = origin, candidates = candidates, sheetFraction = sheetFraction, modifier = modifier)
     },
 ) {
     composable<AlternativePlacesRoute> { entry ->
@@ -89,6 +92,7 @@ fun NavGraphBuilder.alternativeGraph(
             onBack = { navController.popBackStack() },
             onRetry = viewModel::load,
             onSelect = { candidate -> onSelectPlace(viewModel.select(candidate)) },
+            onOpenDetail = { candidate -> onOpenPlace(viewModel.select(candidate)) },
             onSearch = { navController.navigate(AlternativeSearchRoute(detectionId = route.detectionId, tripId = route.tripId)) },
             onKeep = viewModel::dismiss,
             onDismissKeepError = viewModel::dismissError,

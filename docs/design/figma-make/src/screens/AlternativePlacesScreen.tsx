@@ -89,14 +89,15 @@ export default function AlternativePlacesScreen({ onBack, onKeepSchedule, onSear
               <div className="space-y-0">
                 {candidates.map((c, i) => (
                   <div key={c.id}>
-                    <div className={`py-4 ${c.isTop ? "-mx-5 px-5 bg-[#F0F6FF] rounded-xl mb-1" : ""}`}>
+                    {/* #660: 1위의 강조 배경·전용 버튼은 이미 고른 후보로 읽혀 없앴다. 구분은 TOP 배지만 남긴다. */}
+                    <div className="py-4">
                       <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${c.isTop ? "bg-[#3B7BF8]" : "bg-[#F4F6FB]"}`}>
-                          <span className={`text-[12px] font-black ${c.isTop ? "text-white" : "text-[#94A3B8]"}`}>{i + 1}</span>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#F4F6FB]">
+                          <span className="text-[12px] font-black text-[#94A3B8]">{i + 1}</span>
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-1.5 mb-0.5">
-                            <p className={`font-black text-[16px] ${c.isTop ? "text-[#3B7BF8]" : "text-[#111827]"}`} style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>{c.name}</p>
+                            <p className="font-black text-[16px] text-[#111827]" style={{ fontFamily: "Outfit, 'Noto Sans KR', sans-serif" }}>{c.name}</p>
                             {c.isTop && <span className="px-2 py-0.5 rounded-md bg-[#3B7BF8] text-white text-[10px] font-black">TOP</span>}
                           </div>
                           <p className="text-[12px] text-[#94A3B8] mb-1">{c.category} · {c.distance} · ★{c.rating}</p>
@@ -104,10 +105,8 @@ export default function AlternativePlacesScreen({ onBack, onKeepSchedule, onSear
                         </div>
                         <div className="flex flex-col items-end gap-2 flex-shrink-0">
                           <span className={`text-[12px] font-semibold ${c.closingWarning ? "text-[#F97316]" : "text-[#94A3B8]"}`}>{c.closing}</span>
-                          <button onClick={onRouteCompare}
-                            className={`px-4 py-2 rounded-xl text-[13px] font-black ${c.isTop ? "bg-[#3B7BF8] text-white" : "text-[#3B7BF8]"}`}
-                            style={c.isTop ? { boxShadow: "0 2px 8px rgba(59,123,248,0.3)" } : {}}>
-                            {c.isTop ? "경로 비교" : "비교"}
+                          <button onClick={onRouteCompare} className="px-4 py-2 rounded-xl text-[13px] font-black text-[#3B7BF8]">
+                            비교
                           </button>
                         </div>
                       </div>

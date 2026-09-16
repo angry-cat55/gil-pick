@@ -457,7 +457,8 @@ private fun markerView(context: Context, label: String, color: Int, density: Flo
     }
 
 /** [FusedLocationSource]가 스스로 권한을 물을 때 쓰는 code. 화면이 먼저 요청하므로 실제로는 쓰이지 않는다. */
-private const val LOCATION_PERMISSION_REQUEST = 1_614
+/** 위치 권한 요청 code. `FusedLocationSource`가 Activity 결과를 되돌려받는 데 쓴다. */
+internal const val LOCATION_PERMISSION_REQUEST = 1_614
 
 internal const val MARKER_SIZE_DP = 28
 private const val START_MARKER_WIDTH_DP = 52

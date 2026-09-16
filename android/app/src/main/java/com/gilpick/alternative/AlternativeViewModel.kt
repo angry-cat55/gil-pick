@@ -70,10 +70,13 @@ class AlternativeViewModel(
                     next is AlternativeUiState.Content -> next.copy(
                         dismissPending = kept.dismissPending,
                         dismissError = kept.dismissError,
+                        // 이미 확인한 기존 장소 좌표는 다시 조회하지 않는다.
+                        origin = kept.origin,
                     )
                     else -> next
                 }
             }
+            fillOrigin()
         }
     }
 
@@ -119,6 +122,18 @@ class AlternativeViewModel(
         distanceMeters = candidate.distanceMeters,
         displayScore = candidate.displayScore,
     )
+
+    /**
+     * 후보 응답의 `originPlaceId`로 기존 장소 좌표를 뒤따라 채운다(#660, UI-004).
+     *
+     * 지도에 원래 장소를 함께 그리기 위한 보조 조회라 후보 표시를 막지 않고, 실패하면 후보만 그린다.
+     */
+    private suspend fun fillOrigin() {
+        val content = _state.value as? AlternativeUiState.Content ?: return
+        if (content.origin != null) return
+        val position = repository.originPosition(content.candidates.originPlaceId) ?: return
+        _state.update { (it as? AlternativeUiState.Content)?.copy(origin = position) ?: it }
+    }
 
     private suspend fun fetch(): AlternativeUiState = coroutineScope {
         val detail = async { repository.getDetection(detectionId) }
