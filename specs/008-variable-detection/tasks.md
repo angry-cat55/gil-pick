@@ -141,7 +141,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T006, T014, T015, T016, T017
-  - 검증: 대상 = `detection_active=true` AND `trip_days.status='IN_PROGRESS'` AND `visit_date=오늘(KST)` 날짜의 `itinerary_items.status IN ('PLANNED','EN_ROUTE')` AND `estimated_arrival_at IS NOT NULL`. 세 변수 평가 후 위험 ≥ 1이면 `INSERT ... ON CONFLICT (fingerprint) WHERE status='ACTIVE' DO UPDATE`로 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 저장. 위험 0이면 생성 안 함. 세 변수 모두 `available=false`면 생성 안 함(오류 아님). `evaluation_snapshot`에 변수별 원값·가용성·가중치·판정·`unavailable_reason`과 사용 ETA 기록, 좌표·이동 경로 미기록. `evaluate_all_active(session)` 공개. quickstart BE 1·2로 검증
+  - 검증: 대상 = `detection_active=true` AND `trip_days.status='IN_PROGRESS'` 날짜의 `itinerary_items.status IN ('PLANNED','EN_ROUTE')` AND `estimated_arrival_at IS NOT NULL`. 자정을 넘긴 활성 여행을 포함하기 위해 전역 주기 평가에서 `visit_date=오늘(KST)` 조건은 사용하지 않는다. 세 변수 평가 후 위험 ≥ 1이면 `INSERT ... ON CONFLICT (fingerprint) WHERE status='ACTIVE' DO UPDATE`로 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 저장. 위험 0이면 생성 안 함. 세 변수 모두 `available=false`면 생성 안 함(오류 아님). `evaluation_snapshot`에 변수별 원값·가용성·가중치·판정·`unavailable_reason`과 사용 ETA 기록, 좌표·이동 경로 미기록. `evaluate_all_active(session)` 공개. quickstart BE 1·2로 검증
 - [x] T019 [US1] 10분 주기 작업 in api/app/jobs/variable_detection.py
   - 영역: BE
   - 담당: jh
