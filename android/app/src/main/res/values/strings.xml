@@ -287,6 +287,7 @@
     <!-- 기간 축소 삭제 확인 대화상자. 문구는 Figma `EditTripScreen`을 따른다. -->
     <!-- %1$d는 새 기간 밖으로 밀려나 삭제될 장소 수. 서버가 알려 준 값이다. -->
     <string name="trip_form_shrink_title">일정 %1$d곳이 삭제됩니다</string>
+    <string name="trip_form_shrink_day">%1$d월 %2$d일 · %3$d곳</string>
     <string name="trip_form_shrink_body">여행 기간을 줄이면 삭제된 일정은 복구할 수 없어요.</string>
     <string name="trip_form_shrink_question">계속 진행할까요?</string>
     <string name="trip_form_shrink_confirm">저장하기</string>

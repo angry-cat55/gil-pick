@@ -207,12 +207,22 @@ fun errorResponse(
  * 계약대로 `details.deletedItemCount`에 삭제될 장소 수를 함께 싣는다. 이 값이 있어야
  * 화면이 `일정 N곳이 삭제됩니다`라고 물을 수 있다(`spec.md` FR-013).
  */
-fun confirmationRequired(deletedItemCount: Int): Response<SuccessEnvelope<TripDto>> =
-    Response.error(
+fun confirmationRequired(
+    deletedItemCount: Int,
+    deletedDays: List<Pair<String, Int>> = emptyList(),
+): Response<SuccessEnvelope<TripDto>> {
+    val days = deletedDays
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString(prefix = ",\"deletedDays\":[", postfix = "]") { (date, count) ->
+            """{"date":"$date","itemCount":$count}"""
+        }
+        .orEmpty()
+    return Response.error(
         409,
-        """{"success":false,"error":{"code":"${TripErrorCodes.CONFIRMATION_REQUIRED}","message":"진단용 설명","retryable":false,"details":{"deletedItemCount":$deletedItemCount}},"meta":{"requestId":"$REQUEST_ID"}}"""
+        """{"success":false,"error":{"code":"${TripErrorCodes.CONFIRMATION_REQUIRED}","message":"진단용 설명","retryable":false,"details":{"deletedItemCount":$deletedItemCount$days}},"meta":{"requestId":"$REQUEST_ID"}}"""
             .toResponseBody("application/json".toMediaType()),
     )
+}
 
 /**
  * 기간이 겹치는 여행이 있어 거절한 `409 TRIP_PERIOD_CONFLICT` 응답(F002 FR-002a).

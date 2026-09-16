@@ -61,6 +61,7 @@ data class ErrorBody(
  * @property violations `INVALID_ITINERARY`. 규칙을 어긴 항목과 이유.
  * @property itemId `ITINERARY_ITEM_LOCKED`. 변경이 거부된 처리된 항목.
  * @property deletedItemCount `CONFIRMATION_REQUIRED`. 기간 축소로 삭제될 일정 항목 수.
+ * @property deletedDays `CONFIRMATION_REQUIRED`. 일정이 삭제되는 날짜별 개수(날짜 오름차순). 합은 [deletedItemCount]와 같다.
  * @property status `DETECTION_NOT_ACTIVE`. 감지의 현재 상태(F009 `DetectionStatus` 이름).
  * @property name `TRIP_PERIOD_CONFLICT`. 기간이 겹치는 기존 여행의 이름(F002 FR-002b).
  */
@@ -69,8 +70,21 @@ data class ErrorDetails(
     val violations: List<Violation>? = null,
     val itemId: String? = null,
     val deletedItemCount: Int? = null,
+    val deletedDays: List<DeletedDay>? = null,
     val status: String? = null,
     val name: String? = null,
+)
+
+/**
+ * 기간 축소로 일정이 삭제되는 날짜 하나(F002 TRIP-04).
+ *
+ * @property date 계약이 정한 `yyyy-MM-dd` 문자열.
+ * @property itemCount 그 날짜에서 삭제될 일정 수. 1 이상이다.
+ */
+@Serializable
+data class DeletedDay(
+    val date: String,
+    val itemCount: Int,
 )
 
 /**

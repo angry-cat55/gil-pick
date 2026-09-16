@@ -271,10 +271,55 @@ class TripFormValidationTest {
         advanceUntilIdle()
 
         val state = viewModel.state.value
-        assertEquals(2, state.deleteConfirmation)
+        assertEquals(2, state.deleteConfirmation?.itemCount)
         // 대화상자가 뜨므로 같은 뜻의 오류 문구를 겹쳐 보여 주지 않는다.
         assertNull(state.submitError)
         assertFalse(state.submitting)
+    }
+
+    @Test
+    fun `삭제될 날짜와 날짜별 개수를 함께 받으면 상태에 담는다`() = runTest {
+        // TRIP-04: 확인창은 개수만이 아니라 어느 날짜가 사라지는지도 알려야 한다(#589, BE #588).
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = {
+            confirmationRequired(
+                deletedItemCount = 3,
+                deletedDays = listOf("2026-09-22" to 1, "2026-09-23" to 2),
+            )
+        }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        val confirmation = viewModel.state.value.deleteConfirmation
+        assertEquals(3, confirmation?.itemCount)
+        assertEquals(
+            listOf(
+                TripShrinkDay(LocalDate.of(2026, 9, 22), 1),
+                TripShrinkDay(LocalDate.of(2026, 9, 23), 2),
+            ),
+            confirmation?.days,
+        )
+    }
+
+    @Test
+    fun `날짜 없이 개수만 온 응답도 확인 대화상자를 연다`() = runTest {
+        // 옛 서버 응답 호환. 날짜를 지어내지 않고 개수만 안내한다(가이드라인 12절).
+        service.onGet = { detail(trip(TRIP_ID)) }
+        service.onUpdate = { confirmationRequired(deletedItemCount = 1) }
+        val viewModel = newFormViewModel()
+        loadEdit(viewModel)
+
+        viewModel.onPeriodChange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2))
+        viewModel.submit()
+        advanceUntilIdle()
+
+        val confirmation = viewModel.state.value.deleteConfirmation
+        assertEquals(1, confirmation?.itemCount)
+        assertEquals(emptyList<TripShrinkDay>(), confirmation?.days)
     }
 
     @Test

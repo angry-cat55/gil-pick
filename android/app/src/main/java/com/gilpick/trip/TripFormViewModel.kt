@@ -13,6 +13,7 @@ import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthResult
 import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
+import com.gilpick.auth.ErrorDetails
 import com.gilpick.auth.SessionRevocationWorker
 import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.notification.FcmTokenClearWorker
@@ -317,6 +318,24 @@ data class OccupiedPeriod(val tripId: String, val startDate: LocalDate, val endD
  * @property removeImage 저장된 이미지를 지우기로 했는지(`기본으로`). 저장할 때 삭제한다.
  * @property imageError 방금 고른 이미지를 쓸 수 없는 이유.
  */
+/**
+ * 기간 축소 확인 대화상자에 필요한 정보(TRIP-04, `409 CONFIRMATION_REQUIRED`).
+ *
+ * @property itemCount 삭제될 일정 총 개수. 서버의 `deletedItemCount`다.
+ * @property days 일정이 삭제되는 날짜와 그 날짜의 개수. 서버가 주지 않았거나 날짜 형식이 계약과 다르면 비어 있고,
+ *   그때는 화면이 총 개수만 안내한다(지어내지 않는다, 가이드라인 12절).
+ */
+data class TripShrinkConfirmation(
+    val itemCount: Int,
+    val days: List<TripShrinkDay> = emptyList(),
+)
+
+/** 기간 축소로 일정이 삭제되는 날짜 하나. */
+data class TripShrinkDay(
+    val date: LocalDate,
+    val itemCount: Int,
+)
+
 data class TripFormUiState(
     val name: String = "",
     val startDate: LocalDate? = null,
@@ -328,7 +347,7 @@ data class TripFormUiState(
     val savedTripId: String? = null,
     val mode: FormMode = FormMode.Create,
     val loading: Boolean = false,
-    val deleteConfirmation: Int? = null,
+    val deleteConfirmation: TripShrinkConfirmation? = null,
     val originalStartDate: LocalDate? = null,
     val originalEndDate: LocalDate? = null,
     val deletion: TripDeletePhase = TripDeletePhase.Idle,
@@ -716,15 +735,15 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
      */
     private fun TripFormUiState.afterFailure(error: AuthError): TripFormUiState {
         val server = error as? AuthError.Server
-        val deletedItemCount =
+        val confirmation =
             if (server?.code == TripErrorCodes.CONFIRMATION_REQUIRED) {
-                server.details?.deletedItemCount
+                server.details?.toShrinkConfirmation()
             } else {
                 null
             }
 
-        return if (deletedItemCount != null) {
-            copy(submitting = false, deleteConfirmation = deletedItemCount)
+        return if (confirmation != null) {
+            copy(submitting = false, deleteConfirmation = confirmation)
         } else {
             copy(
                 submitting = false,
@@ -732,6 +751,20 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
                 conflictTripName = server?.details?.name.takeIf { server?.code == TripErrorCodes.TRIP_PERIOD_CONFLICT },
             )
         }
+    }
+
+    /**
+     * `CONFIRMATION_REQUIRED` 부가 정보를 확인 대화상자가 쓸 값으로 옮긴다(TRIP-04).
+     *
+     * 총 개수가 없으면 무엇에 동의하는지 말할 수 없으므로 대화상자를 열지 않는다(`null`). 날짜 목록은 있으면 함께
+     * 보여 주고, 없거나 계약과 다른 날짜 형식이면 그 항목만 버린다. 총 개수는 서버 값을 그대로 쓴다.
+     */
+    private fun ErrorDetails.toShrinkConfirmation(): TripShrinkConfirmation? {
+        val itemCount = deletedItemCount ?: return null
+        val days = deletedDays.orEmpty().mapNotNull { day ->
+            runCatching { LocalDate.parse(day.date) }.getOrNull()?.let { TripShrinkDay(it, day.itemCount) }
+        }
+        return TripShrinkConfirmation(itemCount = itemCount, days = days)
     }
 
     /**
