@@ -1050,7 +1050,14 @@ private fun MovingCard(content: ProgressUiState.Content, row: ProgressRow, pendi
             modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space4),
         )
         inboundSteps(content, row).takeIf { it.isNotEmpty() }?.let { steps ->
-            TransitSteps(steps = steps, modifier = Modifier.padding(bottom = spacing.space4))
+            val fromName = row.progress.inboundTravel?.fromItemId
+                ?.let { id -> content.rows.firstOrNull { it.item.itemId == id }?.item?.place?.name }
+            TransitSteps(
+                steps = steps,
+                fromName = fromName,
+                toName = row.item.place.name,
+                modifier = Modifier.padding(bottom = spacing.space4),
+            )
         }
         val enabled = pending == null
         Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2)) {
@@ -1130,43 +1137,75 @@ private fun inboundSteps(content: ProgressUiState.Content, row: ProgressRow): Li
 }
 
 /**
- * `도보 4분 → 경복궁역에서 지하철 3호선 승차 · 5분 → 종로3가역에서 지하철 1호선 환승 · 4분 → 시청역 하차 → 도보 6분`을
- * 한 줄씩 보인다. 노선은 색이 아니라 `지하철`·`버스`와 노선 이름으로 구분한다(가이드라인 10절).
+ * 구간의 이동을 한 줄에 하나씩 보인다(#653).
+ *
+ * `지하철 3호선: 경복궁역 → 종로3가역 · 5분` / `도보: 종로3가역 → 시청역 · 12분`처럼 한 줄 = 한 단계다.
+ * 수단(노선), 출발 → 도착, 소요시간이 같은 줄에 있어 어디서 타고 내리는지 바로 읽힌다.
+ *
+ * 승·하차 이름이 없는 도보 단계는 앞 단계의 하차지, 뒤 단계의 승차지, 구간 양 끝 장소명으로 채우고,
+ * 그래도 모르면 `도보 · 12분`처럼 시간만 보인다. 이름이 없다고 줄을 빼지 않는다.
+ *
+ * 수단은 색이 아니라 `지하철`·`버스`·`도보` 문구로 구분한다(가이드라인 10절). 화살표를 TalkBack이 기호로 읽지
+ * 않도록 줄마다 `A에서 B까지 지하철 3호선 5분`으로 읽히는 설명을 따로 준다.
  * 다음 장소 카드와 일정 목록(#595)이 같이 써서 문구·순서가 같다.
  *
+ * @param fromName 구간의 출발 장소명. 첫 단계의 출발지를 채운다. 모르면 `null`.
+ * @param toName 구간의 도착 장소명. 마지막 단계의 도착지를 채운다. 모르면 `null`.
  * @param dimmed 이미 지나간 구간(일정 목록). 글자와 아이콘을 흐린 색으로 그린다.
  * @param tag 카드는 [TAG_TRANSIT_STEPS], 일정 목록은 행마다 다른 태그를 쓴다.
  */
 @Composable
-private fun TransitSteps(steps: List<RouteStepDto>, modifier: Modifier = Modifier, dimmed: Boolean = false, tag: String = TAG_TRANSIT_STEPS) {
+private fun TransitSteps(
+    steps: List<RouteStepDto>,
+    modifier: Modifier = Modifier,
+    fromName: String? = null,
+    toName: String? = null,
+    dimmed: Boolean = false,
+    tag: String = TAG_TRANSIT_STEPS,
+) {
     val spacing = LocalGilpickSpacing.current
-    val lastRide = steps.indexOfLast { it.type != RouteStepType.WALK }
-    val firstRide = steps.indexOfFirst { it.type != RouteStepType.WALK }
 
     Column(verticalArrangement = Arrangement.spacedBy(spacing.space1), modifier = modifier.testTag(tag)) {
         steps.forEachIndexed { index, step ->
+            val walk = step.type == RouteStepType.WALK
+            val mode = when (step.type) {
+                RouteStepType.WALK -> stringResource(R.string.progress_step_walk)
+                RouteStepType.BUS -> stringResource(R.string.progress_step_bus)
+                RouteStepType.SUBWAY -> stringResource(R.string.progress_step_subway)
+            }
+            val label = step.lineName?.let { stringResource(R.string.progress_step_line, mode, it) } ?: mode
             val duration = durationLabel(step.durationSeconds)
-            if (step.type == RouteStepType.WALK) {
-                TransitStepLine(R.drawable.ic_lucide_walk, stringResource(R.string.progress_step_walk, duration), dimmed)
-                return@forEachIndexed
-            }
-            val mode = stringResource(if (step.type == RouteStepType.BUS) R.string.progress_step_bus else R.string.progress_step_subway)
-            val line = step.lineName?.let { "$mode $it" } ?: mode
-            val action = stringResource(if (index == firstRide) R.string.progress_step_board else R.string.progress_step_transfer)
-            val text = step.boardingName?.let { stringResource(R.string.progress_step_ride_at, it, line, action, duration) }
-                ?: stringResource(R.string.progress_step_ride, line, action, duration)
-            TransitStepLine(R.drawable.ic_lucide_transit, text, dimmed)
-            if (index == lastRide) {
-                step.alightingName?.let { TransitStepLine(R.drawable.ic_lucide_transit, stringResource(R.string.progress_step_alight, it), dimmed) }
-            }
+            // 도보 단계는 서버가 정류장 이름을 채우지 않는다. 앞뒤 단계와 구간 양 끝 장소로 메운다.
+            val from = step.boardingName ?: steps.getOrNull(index - 1)?.alightingName ?: fromName.takeIf { index == 0 }
+            val to = step.alightingName ?: steps.getOrNull(index + 1)?.boardingName ?: toName.takeIf { index == steps.lastIndex }
+            val known = from != null && to != null
+            TransitStepLine(
+                icon = if (walk) R.drawable.ic_lucide_walk else R.drawable.ic_lucide_transit,
+                text = if (known) {
+                    stringResource(R.string.progress_step_route, label, from!!, to!!, duration)
+                } else {
+                    stringResource(R.string.progress_step_route_unknown, label, duration)
+                },
+                description = if (known) {
+                    stringResource(R.string.progress_step_route_description, label, from!!, to!!, duration)
+                } else {
+                    stringResource(R.string.progress_step_route_unknown_description, label, duration)
+                },
+                dimmed = dimmed,
+            )
         }
     }
 }
 
 @Composable
-private fun TransitStepLine(@DrawableRes icon: Int, text: String, dimmed: Boolean) {
+private fun TransitStepLine(@DrawableRes icon: Int, text: String, description: String, dimmed: Boolean) {
     val colors = LocalGilpickColors.current
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space2)) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space2),
+        // 화살표를 기호 그대로 읽지 않도록 줄 전체를 문장 하나로 읽힌다(#653).
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
         Icon(painter = painterResource(icon), contentDescription = null, tint = if (dimmed) colors.faint else colors.muted, modifier = Modifier.size(STEP_ICON))
         Text(text = text, style = MaterialTheme.typography.bodySmall, color = if (dimmed) colors.faint else MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -1428,6 +1467,8 @@ private fun ItemRow(row: ProgressRow, next: ProgressRow?, steps: List<RouteStepD
             if (next != null && steps.isNotEmpty()) {
                 TransitSteps(
                     steps = steps,
+                    fromName = row.item.place.name,
+                    toName = next.item.place.name,
                     dimmed = next.progress.status == ItemStatus.ARRIVED || next.progress.status == ItemStatus.COMPLETED,
                     tag = "$TAG_ROW_TRANSIT_STEPS_PREFIX${row.item.sequence}",
                     // 행은 설명 문구 하나로 합쳐 읽힌다. 단계는 따로 묶어 TalkBack이 읽을 수 있게 한다.
