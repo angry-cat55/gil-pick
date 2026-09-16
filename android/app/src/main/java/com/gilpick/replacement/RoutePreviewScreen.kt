@@ -100,6 +100,7 @@ fun RoutePreviewScreen(
     state: PreviewUiState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onRecreate: () -> Unit,
     onApprove: () -> Unit,
     onOtherCandidates: () -> Unit,
     onReauthenticate: () -> Unit,
@@ -127,7 +128,7 @@ fun RoutePreviewScreen(
             is PreviewUiState.Content -> ContentState(
                 content = state,
                 onApprove = onApprove,
-                onRecreate = onRetry,
+                onRecreate = onRecreate,
                 onOtherCandidates = onOtherCandidates,
                 map = map,
             )

@@ -79,6 +79,9 @@ class PreviewViewModel(
     /** 진행 중인 조회. `다시 시도` 연타로 요청이 겹치지 않게 한다. */
     private var job: Job? = null
 
+    /** 미리보기 생성 시도 번호(#625). `다시 만들기`에서만 올라가 새 `Idempotency-Key`가 나간다. */
+    private var attempt = 0
+
     /** 진행 중인 승인. 승인 연타로 요청이 겹치지 않게 한다. */
     private var approveJob: Job? = null
 
@@ -126,6 +129,19 @@ class PreviewViewModel(
         }
     }
 
+    /**
+     * 사용자가 만료·일정 변경 안내에서 `다시 만들기`를 고른 경우다(#625).
+     *
+     * 같은 생성 시도의 통신 재시도([load])와 달리 **새 미리보기를 원하는 새 시도**다. 시도 번호를 올려
+     * 다른 `Idempotency-Key`가 나가게 한다. 그러지 않으면 서버가 저장해 둔 만료된 응답을 다시 줘서
+     * 아무리 눌러도 승인할 수 없다. 번호는 ViewModel이 들고 있으므로 재구성으로는 바뀌지 않는다.
+     */
+    fun regenerate() {
+        if (job?.isActive == true) return
+        attempt += 1
+        load()
+    }
+
     private suspend fun build(): PreviewUiState {
         val detection = when (val result = detections.getDetection(detectionId)) {
             is AuthResult.Success -> result.value
@@ -148,6 +164,7 @@ class PreviewViewModel(
                 placeId = placeId,
                 candidateId = candidateId,
                 scheduleVersion = dayRoute.scheduleVersion,
+                attempt = attempt,
             )
         ) {
             is AuthResult.Success -> result.value

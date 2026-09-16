@@ -44,16 +44,21 @@ class ReplacementRepository(
      * @param candidateId F009 추천 후보에서 왔으면 그 식별자, 직접 검색에서 왔으면 `null`.
      *   같은 장소라도 이 값이 다르면 다른 요청이므로 `Idempotency-Key`도 달라진다.
      * @param scheduleVersion 앱이 보고 있는 그 날짜의 일정 version.
+     * @param attempt 생성 시도 번호(#625). 통신 재시도는 같은 값을 그대로 보내 서버가 첫 결과를 돌려주고,
+     *   사용자가 만료 안내에서 `다시 만들기`를 고르면 호출자가 값을 올려 새 `Idempotency-Key`가 나간다.
+     *   서버는 같은 key와 fingerprint면 만료 여부를 보기 전에 저장된 응답을 그대로 주므로, 이 값을 올리지
+     *   않으면 만료된 미리보기가 반복해서 돌아온다. 요청 body에는 싣지 않는다.
      */
     suspend fun createPreview(
         detectionId: String,
         placeId: String,
         candidateId: String?,
         scheduleVersion: Int,
+        attempt: Int = 0,
     ): AuthResult<RoutePreviewDto> = call { token ->
         api.createPreview(
             bearer = token,
-            idempotencyKey = idempotencyKey("preview", detectionId, placeId, candidateId, scheduleVersion),
+            idempotencyKey = idempotencyKey("preview", detectionId, placeId, candidateId, scheduleVersion, attempt),
             detectionId = detectionId,
             body = CreatePreviewRequest(
                 placeId = placeId,
