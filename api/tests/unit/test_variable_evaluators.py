@@ -36,7 +36,7 @@ class _AreaSession:
     async def execute(self, statement, params):
         class Result:
             def mappings(self): return self
-            def first(self): return {"area_code": "FIXTURE-001", "distance_meters": 100.0}
+            def first(self): return {"area_code": "광화문·덕수궁", "distance_meters": 100.0}
         return Result()
 
 
