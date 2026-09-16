@@ -19,7 +19,7 @@
 
 ### BE 1. 운영시간 방문 불가 감지 생성·조회 (US1, FR-008·FR-012, SC-002)
 
-1. 남은 장소 하나의 `estimated_arrival_at`을 그 장소 폐점 시각 이후로 둔다(Google `regularOpeningHours.periods` fixture 사용).
+1. 남은 장소 하나의 `estimated_arrival_at`을 당일 특별 폐점 시각 이후로 둔다(Google `currentOpeningHours.periods` fixture 사용). 특별 영업시간 필드가 없는 경우에는 `regularOpeningHours.periods` fixture로 정규 시간 fallback도 확인한다.
 2. `evaluate_all_active`를 1회 실행한다.
 3. `GET /api/v1/trips/{tripId}/detections`(DETECT-001)에 그 장소의 항목이 `status=ACTIVE`, `primaryType=OPERATING_HOURS`, `totalRiskScore>0`으로 나오는지 확인한다.
 4. `GET /api/v1/detections/{detectionId}`(DETECT-002)에서 `variables.operatingHours.visitBlocked=true`, `variables.operatingHours.available=true`인지 확인한다.
@@ -70,4 +70,4 @@
 
 - 기상청 격자 변환·`base_time` 선택·`PCP` 문자열 파싱의 실데이터 정확도
 - 서울시 지원 지점 최종 목록·좌표와 `citydata_ppltn` 실제 응답 스키마
-- Google Places `places.get`의 `regularOpeningHours.periods` 과금·쿼터 영향
+- Google Places `places.get`의 `currentOpeningHours.periods`·`regularOpeningHours.periods` 과금·쿼터 영향

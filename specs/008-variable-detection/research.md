@@ -70,18 +70,20 @@
 
 ## 5. 운영시간 변수 — 폐점 시각과 임시휴업
 
-**Decision**: `operating_hours.py`가 대상 장소의 Google Places `places.get`을 `regularOpeningHours.periods`·`businessStatus`·`utcOffsetMinutes` field mask로 직접 호출한다(F003이 이미 쓰는 Google Places v1 계약).
+**Decision**: `operating_hours.py`가 대상 장소의 Google Places `places.get`을 `currentOpeningHours.periods`·`regularOpeningHours.periods`·`businessStatus`·`utcOffsetMinutes` field mask로 직접 호출한다(F003이 이미 쓰는 Google Places v1 계약).
 - `businessStatus = CLOSED_TEMPORARILY` → 방문 불가(`visitBlocked=true`, `tempClosed=true`) (FR-008 "확인 가능한 임시휴업").
 - `businessStatus = CLOSED_PERMANENTLY` → 방문 불가(`visitBlocked=true`).
-- `regularOpeningHours.periods`에서 `estimated_arrival_at`의 요일에 해당하는 `close` 시각을 구한다.
+- 당일 판정은 날짜별 특별 영업시간을 반영한 `currentOpeningHours.periods`를 우선하고, 이 필드가 없을 때만 `regularOpeningHours.periods`에서 `estimated_arrival_at`의 요일에 해당하는 `close` 시각을 구한다.
   - ETA ≥ 폐점 시각 → 방문 불가(`visitBlocked=true`).
   - 폐점 30분 전 이내 → `closingSoon=true`.
-  - `periods`가 없거나(24시간 영업 포함) 요일 매칭 실패 → "운영 중 가정", 운영시간 변수 제외(`available=false`, `unavailableReason=HOURS_UNKNOWN`) (FR-008 "운영시간을 확인할 수 없으면 운영 중으로 가정").
+  - `currentOpeningHours.periods=[]`는 Google 계약상 영업하지 않는 상태이므로 방문 불가로 처리한다.
+  - `close`가 없는 단일 연속 영업 구간은 24시간 영업으로 처리한다.
+  - `currentOpeningHours`가 없고 정규 `periods`도 없거나 요일 매칭에 실패하면 "운영 중 가정", 운영시간 변수 제외(`available=false`, `unavailableReason=HOURS_UNKNOWN`)로 처리한다(FR-008).
 - Google 호출 실패·키 없음·타임아웃(5초·1회 재시도) → 운영시간 변수 제외(FR-009).
 
-**Rationale**: `places` 테이블은 운영시간을 저장하지 않고(`er-schema.md` §5.3), F003은 "현재 영업 여부나 정확한 마감 시각을 계산하지 않는다"를 명시(F003 spec Q&A, FR-007). 따라서 F003이 노출하는 표시용 문자열(`regular_opening_hours` 등)을 파싱하는 것은 취약하고 계약 취지에 어긋난다. Google Places v1의 `regularOpeningHours.periods`는 요일·시·분 구조화 필드로 표준이며 F003이 이미 같은 provider를 쓴다.
+**Rationale**: `places` 테이블은 운영시간을 저장하지 않고(`er-schema.md` §5.3), F003은 "현재 영업 여부나 정확한 마감 시각을 계산하지 않는다"를 명시(F003 spec Q&A, FR-007). 따라서 F003이 노출하는 표시용 문자열(`regular_opening_hours` 등)을 파싱하는 것은 취약하고 계약 취지에 어긋난다. Google Places v1에서 `currentOpeningHours`는 오늘을 포함한 7일간 특별 영업시간을 반영하고 각 변경점의 장소 현지 `date`를 제공하므로, 정규 요일표보다 ETA 날짜 판정에 적합하다.
 
-**계약 추가 요청(문서화)**: 중복 Google 호출을 없애려면 F003 장소 상세 계약이 `regularOpeningHours.periods` 구조화 필드와 `businessStatus`를 그대로 노출하도록 확장하는 것이 바람직하다. MVP에서는 F008이 직접 호출하되, 이 요청을 `docs/design/api-spec.md` F003 절과 팀 공유사항에 남긴다.
+**계약 추가 요청(문서화)**: 중복 Google 호출을 없애려면 F003 장소 상세 계약이 `currentOpeningHours.periods`·`regularOpeningHours.periods` 구조화 필드와 `businessStatus`를 그대로 노출하도록 확장하는 것이 바람직하다. MVP에서는 F008이 직접 호출하되, 이 요청을 `docs/design/api-spec.md` F003 절과 팀 공유사항에 남긴다.
 
 **Alternatives considered**: F003 표시 문자열 파싱 — 로케일·형식 불안정, 계약 위반 소지. TourAPI 운영 안내 문자열 — 자유 서식이라 폐점 시각 추출 불가.
 

@@ -137,7 +137,7 @@
 | `itinerary_items` (F004/F006) | `status`, `estimated_arrival_at`, `sequence`, `place_id` | 남은 장소 선별, ETA 기준 시점, 종료 트리거 |
 | `places` (F003) | `location`(geography Point), `category` | 500m 지원 지점 매핑, 카테고리 민감도, 실내외 파생 |
 | `trips` (F002) | `user_id` | DETECT 소유권 검증 |
-| Google Places v1 `places.get` | `regularOpeningHours.periods`, `businessStatus`, `utcOffsetMinutes` | 폐점 시각·임시휴업(research §5) |
+| Google Places v1 `places.get` | `currentOpeningHours.periods`, `regularOpeningHours.periods`, `businessStatus`, `utcOffsetMinutes` | 특별·정규 폐점 시각과 임시휴업(research §5) |
 | 기상청 단기예보 | `POP`, `PCP`, `PTY` (ETA 슬롯) | 날씨 판정(research §3) |
 | 서울시 `citydata_ppltn` | `AREA_CONGEST_LVL`, `FCST_PPLTN[].{FCST_TIME,FCST_CONGEST_LVL}` | 혼잡 판정(research §4) |
 
