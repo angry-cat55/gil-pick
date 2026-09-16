@@ -19,6 +19,7 @@ from app.core.config import Settings
 from app.core.logging import log_auth_event
 from app.core.security import create_access_token, create_opaque_token, parse_opaque_token
 from app.models.auth import AuthLoginTransaction, DeviceSession, User
+from app.models.trip import Trip
 from app.schemas.auth import AuthTokenData, RefreshTokenData, UserSummary
 
 logger = logging.getLogger("gilpick.auth")
@@ -254,9 +255,10 @@ async def exchange_login_ticket(session: AsyncSession, login_ticket: str, device
             if user is None:
                 raise AuthServiceError("KAKAO_AUTH_FAILED")
             is_new_user = False
-    if user.deleted_at is not None:
-        raise AuthServiceError("KAKAO_AUTH_FAILED")
     if not is_new_user:
+        if user.deleted_at is not None:
+            # 탈퇴 후 재가입: F012 계정 탈퇴 정책에 따라 이전 데이터 없이 같은 user_id를 재사용한다.
+            user.deleted_at = None
         if user.user_id is None:
             user.user_id = uuid.uuid4()
         if transaction.nickname is not None:
@@ -401,6 +403,39 @@ async def logout_device_session(
         result="SUCCEEDED",
         session_id=str(session_id),
     )
+
+
+async def delete_account(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """인증된 사용자의 계정을 논리 삭제하고 소유 데이터를 숨긴다.
+
+    ``users.deleted_at``을 기록해 재로그인 시 재활성화 대상으로 표시하고,
+    소유한 모든 활성 여행을 ``Trip.deleted_at``으로 논리 삭제해 F011 알림
+    정리(FR-030)가 연결된 알림을 치우게 한다. 모든 기기의 device session은
+    폐기하고 FCM 토큰을 비워 재가입 전까지 알림이 가지 않게 한다. 이미
+    탈퇴한 계정에 다시 요청해도 추가 변경 없이 성공 처리한다(멱등).
+    """
+    clock = now or datetime.now(UTC)
+    await session.execute(
+        update(User)
+        .where(User.user_id == user_id, User.deleted_at.is_(None))
+        .values(deleted_at=clock)
+    )
+    await session.execute(
+        update(Trip)
+        .where(Trip.user_id == user_id, Trip.deleted_at.is_(None))
+        .values(deleted_at=clock)
+    )
+    await session.execute(
+        update(DeviceSession)
+        .where(DeviceSession.user_id == user_id, DeviceSession.revoked_at.is_(None))
+        .values(revoked_at=clock, fcm_token=None, last_seen_at=clock)
+    )
+    log_auth_event(logger, operation="ACCOUNT_DELETE", result="SUCCEEDED")
 
 
 async def _raise_refresh_rejection(

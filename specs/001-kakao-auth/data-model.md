@@ -71,14 +71,14 @@ VERIFIED --ticket_expires_at 경과--> EXPIRED
 | `replacement_suggestion_enabled` | boolean | Y | 기본 `true`; F012에서 사용 |
 | `created_at` | timestamptz | Y | 서버 시각 |
 | `updated_at` | timestamptz | Y | 서버 시각 |
-| `deleted_at` | timestamptz | N | 계정 탈퇴는 F001 범위 밖 |
+| `deleted_at` | timestamptz | N | F012 계정 탈퇴가 기록. 탈퇴 실행 자체는 F001 범위 밖 |
 
 ### Identity and update rules
 
 - unique `(social_provider, social_subject)`가 동일 Kakao 계정의 중복 생성을 막는다.
 - ticket 교환에서 insert 충돌 시 기존 user를 재사용한다.
 - Kakao가 제공한 nickname/profile image가 non-null일 때만 기존 값을 갱신한다.
-- `deleted_at IS NOT NULL`인 user의 재로그인은 계정 탈퇴 정책 Feature가 정의될 때까지 `KAKAO_AUTH_FAILED`로 거절한다.
+- `deleted_at IS NOT NULL`인 user가 같은 Kakao 계정으로 재로그인하면 F012 계정 탈퇴 정책에 따라 로그인을 거절하지 않고 `deleted_at`을 지워 같은 `user_id`를 재활성화한다. 탈퇴 시 숨긴 여행 등 소유 데이터는 각자의 논리 삭제 표시로 계속 숨겨진 채 유지되며 복구되지 않는다.
 
 ## 3. DeviceSession
 

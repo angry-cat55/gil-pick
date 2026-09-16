@@ -22,6 +22,10 @@ SESSION_RESPONSES = {
     "/api/v1/auth/logout": {"204", "401", "403", "500"},
 }
 
+ACCOUNT_RESPONSES = {
+    "/api/v1/auth/me": {"204", "401"},
+}
+
 
 @pytest.fixture(scope="module")
 def openapi() -> dict:
@@ -149,6 +153,51 @@ def test_logout_contract_requires_no_bearer_security(openapi: dict) -> None:
 
     assert operation.get("security", []) == []
     assert "requestBody" in operation
+
+
+@pytest.mark.parametrize(("path", "statuses"), ACCOUNT_RESPONSES.items())
+def test_account_endpoints_declare_expected_statuses(
+    openapi: dict, path: str, statuses: set[str]
+) -> None:
+    assert set(_operation(openapi, path, "delete")["responses"]) == statuses
+
+
+def test_delete_account_contract_requires_bearer_security(openapi: dict) -> None:
+    operation = _operation(openapi, "/api/v1/auth/me", "delete")
+
+    assert operation["security"] == [{"HTTPBearer": []}]
+
+
+def test_delete_account_endpoint_rejects_missing_or_invalid_bearer() -> None:
+    client = TestClient(app)
+
+    for headers in ({}, {"Authorization": "Bearer not-a-real-token"}):
+        response = client.delete("/api/v1/auth/me", headers=headers)
+        assert response.status_code == 401
+
+
+def test_delete_account_endpoint_calls_service_and_returns_204(monkeypatch) -> None:
+    import uuid
+
+    from app.api.dependencies import get_current_principal
+    from app.core.security import AuthPrincipal
+
+    calls: list[uuid.UUID] = []
+
+    async def remove(_session: object, user_id: uuid.UUID) -> None:
+        calls.append(user_id)
+
+    monkeypatch.setattr("app.api.v1.auth.delete_account", remove)
+    principal = AuthPrincipal(user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4())
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    try:
+        response = TestClient(app).delete("/api/v1/auth/me")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 204
+    assert not response.content
+    assert calls == [principal.user_id]
 
 
 def test_refresh_endpoint_returns_rotated_pair_and_request_id(monkeypatch) -> None:
