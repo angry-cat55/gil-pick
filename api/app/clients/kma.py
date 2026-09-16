@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote
 
 import httpx2
 
@@ -74,7 +75,7 @@ class KmaClient:
         try: nx, ny = latitude_longitude_to_grid(latitude, longitude)
         except (ValueError, OverflowError): return None
         base_date, base_time = latest_base_slot()
-        params = {"serviceKey": self.settings.kma_service_key.get_secret_value(), "pageNo":1, "numOfRows":1000, "dataType":"JSON", "base_date":base_date, "base_time":base_time, "nx":nx, "ny":ny}
+        params = {"serviceKey": unquote(self.settings.kma_service_key.get_secret_value()), "pageNo":1, "numOfRows":1000, "dataType":"JSON", "base_date":base_date, "base_time":base_time, "nx":nx, "ny":ny}
         for attempt in range(2):
             try:
                 response = await self.client.get(f"{self.settings.kma_base_url}/getVilageFcst", params=params)

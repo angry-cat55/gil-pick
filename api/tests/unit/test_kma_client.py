@@ -12,12 +12,12 @@ from app.clients.kma import (
 from app.core.config import Settings
 
 
-def _settings() -> Settings:
+def _settings(*, service_key: str = "service") -> Settings:
     return Settings(_env_file=None, database_url="postgresql+asyncpg://u:p@localhost/db",
         jwt_signing_secret="x" * 32, jwt_issuer="https://issuer", jwt_audience="app",
         kakao_rest_api_key="k", kakao_client_secret="k", kakao_redirect_uri="https://callback",
         android_app_link_base_url="https://app", android_app_link_host="app",
-        tour_api_service_key="k", google_places_api_key="k", kma_service_key="service")
+        tour_api_service_key="k", google_places_api_key="k", kma_service_key=service_key)
 
 
 def test_seoul_city_hall_grid_known_value() -> None:
@@ -42,6 +42,28 @@ async def test_kma_groups_forecast_categories_by_slot() -> None:
     result = await client.get_forecast(37.5665, 126.9780)
     assert result and result[0].pop == 80 and result[0].pcp == "1.0mm 미만" and result[0].pty == 1
     assert result[0].forecast_at.utcoffset() == timedelta(hours=9)
+
+
+@pytest.mark.asyncio
+async def test_kma_decodes_public_data_portal_service_key_once() -> None:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.params["serviceKey"] == "encoded+service="
+        return httpx2.Response(
+            200,
+            json={
+                "response": {
+                    "header": {"resultCode": "00"},
+                    "body": {"items": {"item": []}},
+                }
+            },
+        )
+
+    client = KmaClient(
+        _settings(service_key="encoded%2Bservice%3D"),
+        httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+
+    assert await client.get_forecast(37.5665, 126.9780) == []
 
 
 @pytest.mark.asyncio

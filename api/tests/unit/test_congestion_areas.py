@@ -47,6 +47,7 @@ def test_load_congestion_areas_validates_and_returns_typed_entries() -> None:
     assert len({area.area_code for area in areas}) == len(areas)
     assert all(-90 <= area.latitude <= 90 for area in areas)
     assert all(-180 <= area.longitude <= 180 for area in areas)
+    assert {area.area_code for area in areas} == {"광화문·덕수궁", "홍대 관광특구"}
 
 
 def test_load_congestion_areas_rejects_invalid_schema(tmp_path: Path) -> None:
