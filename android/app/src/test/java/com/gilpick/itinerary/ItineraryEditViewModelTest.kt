@@ -127,6 +127,19 @@ class ItineraryEditViewModelTest {
     }
 
     @Test
+    fun `첫 장소는 이동 수단 없이 담기고 두 번째부터 직전 구간을 채운다`() = runTest {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        // 첫 장소 시트는 이동 수단을 묻지 않아 null이 온다(#654).
+        viewModel.addFromSearch(placeWithLocation("tourapi:1", name = "경복궁"), request(transport = null))
+        assertEquals(listOf(null), viewModel.state.value.draft.map { it.transportToNext })
+
+        viewModel.addFromSearch(placeWithLocation("tourapi:2", name = "북촌"), request(transport = PlaceTransport.CAR))
+        assertEquals(listOf(TransportMode.CAR, null), viewModel.state.value.draft.map { it.transportToNext })
+    }
+
+    @Test
     fun `여러 날짜를 편집하고 저장하면 바뀐 날짜를 모두 저장하고 화면을 닫는다`() = runTest {
         service.onSave = { call -> ok(savedFrom(call, version = 1)) }
         val viewModel = newViewModel()
@@ -461,38 +474,44 @@ class ItineraryEditViewModelTest {
     // --- US2 편집 조작(T020): FR-003·004·005·006·007·017 ---
 
     @Test
-    fun `위아래 이동은 항목만 옮기고 구간의 이동 수단은 제자리에 둔다`() = runTest {
-        val viewModel = loadedWith(savedItem("a", 1, transportToNext = TransportMode.WALK), savedItem("b", 2, transportToNext = TransportMode.CAR), savedItem("c", 3))
+    fun `가운데 장소는 새 구간의 이동 수단을 고른 뒤에 빠진다`() = runTest {
+        val viewModel = loadedWith(
+            savedItem("a", 1, transportToNext = TransportMode.WALK),
+            savedItem("b", 2, transportToNext = TransportMode.CAR),
+            savedItem("c", 3),
+        )
 
-        viewModel.moveItem(0, 1)
-        assertEquals(listOf("b", "a", "c"), viewModel.state.value.draft.map { it.itemId })
-        assertEquals(listOf(TransportMode.WALK, TransportMode.CAR, null), viewModel.state.value.draft.map { it.transportToNext })
-        assertTrue(viewModel.state.value.dirty)
-
-        // 마지막으로 옮겨도 마지막 항목의 이동 수단은 계속 null이다(Scenario 4).
-        viewModel.moveItem(1, 2)
-        assertEquals(listOf("b", "c", "a"), viewModel.state.value.draft.map { it.itemId })
-        assertEquals(listOf(1, 2, 3), viewModel.state.value.draft.toSaveItems().map { it.sequence })
-        assertNull(viewModel.state.value.draft.last().transportToNext)
-
-        // 끌기로 여러 칸을 한 번에 옮긴 결과는 버튼을 두 번 누른 결과와 같다.
-        viewModel.moveItem(2, 0)
+        // 고르기 전에는 초안이 그대로다(#654).
+        viewModel.removeItem(1)
+        assertEquals(EditDialog.RemoveTransport(1), viewModel.state.value.dialog)
         assertEquals(listOf("a", "b", "c"), viewModel.state.value.draft.map { it.itemId })
-        assertEquals(listOf(TransportMode.WALK, TransportMode.CAR, null), viewModel.state.value.draft.map { it.transportToNext })
         assertFalse(viewModel.state.value.dirty)
 
-        // 범위 밖과 제자리는 무시한다.
-        viewModel.moveItem(0, -1)
-        viewModel.moveItem(2, 3)
-        viewModel.moveItem(1, 1)
+        // 취소하면 삭제도 함께 취소된다.
+        viewModel.dismissDialog()
+        assertNull(viewModel.state.value.dialog)
         assertEquals(listOf("a", "b", "c"), viewModel.state.value.draft.map { it.itemId })
+        assertFalse(viewModel.state.value.dirty)
+
+        viewModel.removeItem(1)
+        viewModel.applyRemoveTransport(TransportMode.TRANSIT)
+        assertNull(viewModel.state.value.dialog)
+        assertEquals(listOf("a", "c"), viewModel.state.value.draft.map { it.itemId })
+        // 새로 생긴 a → c 구간은 고른 수단이고, 마지막 항목은 계속 null이다(FR-006).
+        assertEquals(listOf(TransportMode.TRANSIT, null), viewModel.state.value.draft.map { it.transportToNext })
+        assertTrue(viewModel.state.value.dirty)
+
+        // 시트를 열지 않고 부르면 아무 일도 없다.
+        viewModel.applyRemoveTransport(TransportMode.WALK)
+        assertEquals(listOf("a", "c"), viewModel.state.value.draft.map { it.itemId })
     }
 
     @Test
-    fun `삭제하면 순서가 다시 매겨지고 새 마지막 항목의 이동 수단은 null이 된다`() = runTest {
+    fun `첫 장소와 마지막 장소는 묻지 않고 빠지고 순서가 다시 매겨진다`() = runTest {
         val viewModel = loadedWith(savedItem("a", 1, transportToNext = TransportMode.WALK), savedItem("b", 2, transportToNext = TransportMode.CAR), savedItem("c", 3))
 
         viewModel.removeItem(2)
+        assertNull(viewModel.state.value.dialog)
         val items = viewModel.state.value.draft.toSaveItems()
         assertEquals(listOf("a", "b"), items.map { it.itemId })
         assertEquals(listOf(1, 2), items.map { it.sequence })
@@ -588,7 +607,8 @@ class ItineraryEditViewModelTest {
 
         // a-c 구간은 저장된 경로에 없으므로 값이 없다.
         viewModel.dismissDialog()
-        viewModel.moveItem(1, 2)
+        viewModel.removeItem(1)
+        viewModel.applyRemoveTransport(TransportMode.WALK)
         viewModel.changeTransport(0)
         assertNull((viewModel.state.value.dialog as EditDialog.Transport).segment)
     }
@@ -609,7 +629,7 @@ class ItineraryEditViewModelTest {
     }
 
     @Test
-    fun `처리된 항목은 순서 이동과 삭제와 이동 수단 변경을 거부하고 체류 시간만 바꾼다`() = runTest {
+    fun `처리된 항목은 삭제와 이동 수단 변경을 거부하고 체류 시간만 바꾼다`() = runTest {
         val viewModel = loadedWith(
             savedItem("done", 1, transportToNext = TransportMode.WALK, status = ItemStatus.COMPLETED),
             savedItem("skip", 2, transportToNext = TransportMode.CAR, status = ItemStatus.SKIPPED),
@@ -618,18 +638,11 @@ class ItineraryEditViewModelTest {
         )
         val before = viewModel.state.value.draft
 
-        viewModel.moveItem(1, 2)
-        viewModel.moveItem(2, 1)
-        // 예정 항목끼리라도 처리된 항목을 지나가면 그 순서가 바뀌므로 거부한다.
-        viewModel.moveItem(3, 0)
         viewModel.removeItem(0)
         viewModel.changeTransport(0)
         assertNull(viewModel.state.value.dialog)
         assertEquals(before, viewModel.state.value.draft)
         assertFalse(viewModel.state.value.dirty)
-
-        viewModel.moveItem(2, 3)
-        assertEquals(listOf("done", "skip", "b", "a"), viewModel.state.value.draft.map { it.itemId })
 
         viewModel.editStay(0)
         viewModel.applyStay(120)
@@ -688,6 +701,6 @@ class ItineraryEditViewModelTest {
     private fun placeWithLocation(id: String, name: String = "장소 $id"): PlaceDto =
         place(id, name = name).copy(latitude = 37.5796, longitude = 126.977)
 
-    private fun request(transport: PlaceTransport = PlaceTransport.TRANSIT, stayMinutes: Int = 90) =
+    private fun request(transport: PlaceTransport? = PlaceTransport.TRANSIT, stayMinutes: Int = 90) =
         AddToScheduleRequest(transport, stayMinutes)
 }

@@ -205,33 +205,51 @@ class ItineraryEditScreenTest {
     // --- US2 편집 조작(T020·T022·T023): UI-002·003·004·008·009 ---
 
     @Test
-    fun 행은_손잡이_삭제_변경을_제공하고_이동은_손잡이의_접근성_액션으로_첫_행_위와_마지막_행_아래는_없다() {
+    fun 행은_삭제와_변경만_제공하고_순서_변경_수단은_없다() {
         val calls = mutableListOf<String>()
         setScreen(
             state(draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을"))),
             onEditStay = { calls += "stay:$it" },
             onChangeTransport = { calls += "transport:$it" },
             onRemove = { calls += "remove:$it" },
-            onMove = { from, to -> calls += "move:$from>$to" },
         )
 
-        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").assertIsDisplayed()
-        // 위·아래 버튼은 없다(#507).
+        // MVP에서 순서 변경을 제공하지 않는다(#654). 손잡이도 위·아래 이동도 없다.
+        composeRule.onNodeWithContentDescription("순서 변경 손잡이", substring = true).assertDoesNotExist()
         composeRule.onNodeWithContentDescription("위로 이동", substring = true).assertDoesNotExist()
         composeRule.onNodeWithContentDescription("아래로 이동", substring = true).assertDoesNotExist()
-        assertEquals(listOf("아래로 이동"), moveActionLabels("경복궁"))
-        assertEquals(listOf("위로 이동"), moveActionLabels("북촌한옥마을"))
+        assertTrue(moveActionLabels("경복궁").isEmpty())
         // 마지막 항목에는 다음 구간이 없으므로 `변경`도 없다(FR-006).
         composeRule.onNodeWithContentDescription("북촌한옥마을 다음 이동 수단 변경").assertDoesNotExist()
 
-        performMoveAction("경복궁", "아래로 이동")
-        performMoveAction("북촌한옥마을", "위로 이동")
         composeRule.onNodeWithContentDescription("경복궁 삭제").performClick()
         composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").performClick()
         composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").performClick()
         composeRule.runOnIdle {
-            assertEquals(listOf("move:0>1", "move:1>0", "remove:0", "stay:0", "transport:0"), calls)
+            assertEquals(listOf("remove:0", "stay:0", "transport:0"), calls)
         }
+    }
+
+    @Test
+    fun 가운데_장소를_뺄_때는_새_구간의_이동_수단을_고른다() {
+        var applied: TransportMode? = null
+        setScreen(
+            state(
+                draft = listOf(
+                    draft("경복궁", transportToNext = TransportMode.WALK),
+                    draft("북촌한옥마을", transportToNext = TransportMode.CAR),
+                    draft("창덕궁"),
+                ),
+                dialog = EditDialog.RemoveTransport(1),
+            ),
+            onApplyRemoveTransport = { applied = it },
+        )
+
+        composeRule.onNodeWithText("경복궁에서 창덕궁까지 어떻게 이동하시겠어요?").assertIsDisplayed()
+        composeRule.onNodeWithText("대중교통").performClick()
+        composeRule.onNodeWithText("빼기").performClick()
+
+        composeRule.runOnIdle { assertEquals(TransportMode.TRANSIT, applied) }
     }
 
     @Test
@@ -321,47 +339,10 @@ class ItineraryEditScreenTest {
     }
 
     @Test
-    fun 손잡이를_끌면_버튼_이동과_같은_순서가_된다() {
-        var items by mutableStateOf(listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을", transportToNext = TransportMode.CAR), draft("창덕궁")))
-        composeRule.setContent {
-            GilpickTheme {
-                ItineraryEditScreen(
-                    state = state(draft = items),
-                    onClose = {}, onSelectDate = {}, onAddPlace = {}, onSave = {}, onRetry = {}, onReauthenticate = {},
-                    onDismissDialog = {}, onConfirmDiscard = {}, onNoticeShown = {}, onEditStay = {}, onApplyStay = {},
-                    onChangeTransport = {}, onApplyTransport = {}, onRemove = {},
-                    onMove = { from, to -> items = items.toMutableList().apply { add(to, removeAt(from)) } },
-                )
-            }
-        }
-        val first = composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").getBoundsInRoot()
-        val second = composeRule.onNodeWithContentDescription("북촌한옥마을 순서 변경 손잡이").getBoundsInRoot()
-        val rowHeightPx = with(composeRule.density) { (second.top - first.top).toPx() }
-
-        // 두 행 높이만큼 아래로 끌면 두 칸 내려간다. 이웃 행 높이의 절반을 넘을 때마다 한 칸씩 옮긴다.
-        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").performTouchInput {
-            down(center)
-            repeat(10) { moveBy(Offset(0f, rowHeightPx * 2 / 10)) }
-            up()
-        }
-        composeRule.runOnIdle { assertEquals(listOf("북촌한옥마을", "창덕궁", "경복궁"), items.map { it.place.name }) }
-
-        // 위로 한 행만큼 끌면 한 칸 올라간다.
-        composeRule.onNodeWithContentDescription("경복궁 순서 변경 손잡이").performTouchInput {
-            down(center)
-            repeat(10) { moveBy(Offset(0f, -rowHeightPx / 10)) }
-            up()
-        }
-        composeRule.runOnIdle { assertEquals(listOf("북촌한옥마을", "경복궁", "창덕궁"), items.map { it.place.name }) }
-    }
-
-    @Test
     fun 편집_조작의_터치_영역은_48dp_이상이다() {
         setScreen(state(draft = listOf(draft("경복궁", transportToNext = TransportMode.WALK), draft("북촌한옥마을")), dialog = EditDialog.StayTime(0)))
 
-        listOf("경복궁 순서 변경 손잡이", "경복궁 삭제").forEach {
-            composeRule.onNodeWithContentDescription(it).assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
-        }
+        composeRule.onNodeWithContentDescription("경복궁 삭제").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("경복궁 체류 시간 변경").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("경복궁 다음 이동 수단 변경").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("체류 시간 30분 줄이기").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
@@ -370,18 +351,11 @@ class ItineraryEditScreenTest {
         composeRule.onNodeWithText("적용").assertHeightIsAtLeast(48.dp)
     }
 
-    /** [name] 행 손잡이의 이동 커스텀 액션 이름들. */
+    /** [name] 행의 이동 커스텀 액션 이름들. 순서 변경을 없앤 뒤로는 항상 비어 있어야 한다(#654). */
     private fun moveActionLabels(name: String): List<String> =
-        composeRule.onNodeWithContentDescription("$name 순서 변경 손잡이").fetchSemanticsNode()
+        composeRule.onNodeWithText(name).fetchSemanticsNode()
             .config.getOrElse(SemanticsActions.CustomActions) { emptyList() }
             .map { it.label }
-
-    /** TalkBack이 하듯 [name] 행 손잡이의 [label] 커스텀 액션을 실행한다. */
-    private fun performMoveAction(name: String, label: String) {
-        val action = composeRule.onNodeWithContentDescription("$name 순서 변경 손잡이").fetchSemanticsNode()
-            .config[SemanticsActions.CustomActions].single { it.label == label }
-        composeRule.runOnIdle { action.action() }
-    }
 
     private fun setScreen(
         state: ItineraryEditUiState,
@@ -398,8 +372,8 @@ class ItineraryEditScreenTest {
         onApplyStay: (Int) -> Unit = {},
         onChangeTransport: (Int) -> Unit = {},
         onApplyTransport: (TransportMode) -> Unit = {},
+        onApplyRemoveTransport: (TransportMode) -> Unit = {},
         onRemove: (Int) -> Unit = {},
-        onMove: (Int, Int) -> Unit = { _, _ -> },
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -419,7 +393,7 @@ class ItineraryEditScreenTest {
                     onChangeTransport = onChangeTransport,
                     onApplyTransport = onApplyTransport,
                     onRemove = onRemove,
-                    onMove = onMove,
+                    onApplyRemoveTransport = onApplyRemoveTransport,
                 )
             }
         }

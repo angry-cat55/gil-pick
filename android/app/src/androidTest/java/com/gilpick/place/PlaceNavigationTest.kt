@@ -117,7 +117,7 @@ class PlaceNavigationTest {
     private fun PlaceNavHostUnderTest() {
         navController = rememberNavController()
         GilpickTheme {
-            NavHost(navController = navController, startDestination = PlaceSearchRoute) {
+            NavHost(navController = navController, startDestination = PlaceSearchRoute()) {
                 placeGraph(navController, onSessionExpired = {}, loadNearbyOnEntry = false)
             }
         }

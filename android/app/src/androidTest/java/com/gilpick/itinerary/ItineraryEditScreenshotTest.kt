@@ -164,7 +164,7 @@ class ItineraryEditScreenshotTest {
             onChangeTransport = {},
             onApplyTransport = {},
             onRemove = {},
-            onMove = { _, _ -> },
+            onApplyRemoveTransport = {},
         )
     }
 

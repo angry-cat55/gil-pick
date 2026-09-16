@@ -163,11 +163,27 @@ data class CurrentLocationDto(
     val occurredAt: String,
 )
 
-/** `POST .../progress/start` 요청. [currentLocation]이 없으면 `null`을 key째 보낸다. */
+/**
+ * 시작 방식(PROG-002, #650·#654).
+ *
+ * [MOVE_TO_FIRST]는 현재 위치에서 첫 장소로 이동을 시작하고 고른 이동수단으로 시작 구간을 계산한다.
+ * [AT_FIRST_PLACE]는 이미 첫 장소에 있는 상태로 시작해 첫 장소를 바로 `도착`으로 둔다.
+ */
+@Serializable
+enum class StartMode { MOVE_TO_FIRST, AT_FIRST_PLACE }
+
+/**
+ * `POST .../progress/start` 요청. [currentLocation]이 없으면 `null`을 key째 보낸다.
+ *
+ * @property transportMode [StartMode.MOVE_TO_FIRST]일 때 시작 구간에 쓸 이동수단. [StartMode.AT_FIRST_PLACE]는
+ *   시작 구간이 없어 `null`이어야 한다(서버가 조건부로 검증한다).
+ */
 @Serializable
 data class StartProgressRequest(
     val progressVersion: Int,
     val currentLocation: CurrentLocationDto?,
+    val startMode: StartMode = StartMode.MOVE_TO_FIRST,
+    val transportMode: TransportMode? = TransportMode.WALK,
 )
 
 /**

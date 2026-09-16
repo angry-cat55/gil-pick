@@ -19,11 +19,13 @@ import kotlinx.serialization.Serializable
 /**
  * 장소 검색 화면 route.
  *
- * 인자가 없으므로 `object`다. 검색 조건은 destination-scoped ViewModel이 들고 있어
- * 상세에서 돌아올 때 그대로 복원된다.
+ * 검색 조건은 destination-scoped ViewModel이 들고 있어 상세에서 돌아올 때 그대로 복원된다.
+ *
+ * @property firstPlace 담을 자리가 그 날짜의 첫 장소인지(#654). `true`면 앞 구간이 없어 `일정에 추가`
+ *   시트가 이동 수단을 묻지 않는다. 편집 화면이 초안을 보고 정한다.
  */
 @Serializable
-object PlaceSearchRoute
+data class PlaceSearchRoute(val firstPlace: Boolean = false)
 
 /**
  * 장소 상세 화면 route.
@@ -32,7 +34,7 @@ object PlaceSearchRoute
  *   값을 가공하지 않고 그대로 넘긴다. server가 이 prefix로 조회 provider를 정한다.
  */
 @Serializable
-data class PlaceDetailRoute(val placeId: String)
+data class PlaceDetailRoute(val placeId: String, val firstPlace: Boolean = false)
 
 /**
  * 장소 지도 전체 화면 route(#479). 상세가 이미 가진 값만 넘기므로 다시 조회하지 않는다.
@@ -68,7 +70,8 @@ fun NavGraphBuilder.placeGraph(
     onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
     loadNearbyOnEntry: Boolean = true,
 ) {
-    composable<PlaceSearchRoute> {
+    composable<PlaceSearchRoute> { entry ->
+        val firstPlace = entry.toRoute<PlaceSearchRoute>().firstPlace
         val context = LocalContext.current
         val viewModel: PlaceSearchViewModel = viewModel(factory = PlaceSearchViewModel.factory(context))
         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -111,8 +114,9 @@ fun NavGraphBuilder.placeGraph(
             onLoadMore = viewModel::loadMore,
             onRetryLoadMore = viewModel::retryLoadMore,
             onSearchByCategory = viewModel::onSearchByCategory,
-            onPlaceClick = { placeId -> navController.navigate(PlaceDetailRoute(placeId)) },
+            onPlaceClick = { placeId -> navController.navigate(PlaceDetailRoute(placeId, firstPlace)) },
             onAddToSchedule = onAddToSchedule,
+            askTransport = !firstPlace,
             onToggleDistanceSort = {
                 if (state.distanceOrigin != null || DeviceLocationProvider.hasLocationPermission(context)) {
                     viewModel.toggleDistanceSort()
@@ -123,7 +127,8 @@ fun NavGraphBuilder.placeGraph(
         )
     }
     composable<PlaceDetailRoute> { entry ->
-        val placeId = entry.toRoute<PlaceDetailRoute>().placeId
+        val route = entry.toRoute<PlaceDetailRoute>()
+        val placeId = route.placeId
         val viewModel: PlaceDetailViewModel = viewModel(
             factory = PlaceDetailViewModel.factory(LocalContext.current, placeId),
         )
@@ -145,6 +150,7 @@ fun NavGraphBuilder.placeGraph(
                     navController.navigate(PlaceMapRoute(place.name, place.latitude, place.longitude))
                 }
             },
+            askTransport = !route.firstPlace,
         )
     }
     composable<PlaceMapRoute> { entry ->

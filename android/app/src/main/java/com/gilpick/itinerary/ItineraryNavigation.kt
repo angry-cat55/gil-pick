@@ -43,7 +43,7 @@ data class ItineraryEditRoute(
 @Serializable
 private data class AddToScheduleResult(
     val place: PlaceDto,
-    val transport: PlaceTransport,
+    val transport: PlaceTransport?,
     val stayMinutes: Int,
 )
 
@@ -97,8 +97,10 @@ fun NavGraphBuilder.itineraryGraph(
             .getStateFlow<String?>(KEY_ADD_RESULT, null)
             .collectAsStateWithLifecycle()
 
-        LaunchedEffect(Unit) {
-            if (viewModel.takeOpenSearch()) navController.navigate(PlaceSearchRoute)
+        // 초안을 받은 뒤에 열어야 첫 장소인지 알 수 있다. 조회 전에는 초안이 비어 있어 판단할 수 없다.
+        LaunchedEffect(state.phase) {
+            if (state.phase !is ItineraryEditPhase.Content) return@LaunchedEffect
+            if (viewModel.takeOpenSearch()) navController.navigate(PlaceSearchRoute(firstPlace = state.draft.isEmpty()))
         }
         LaunchedEffect(pendingResult) {
             val json = pendingResult ?: return@LaunchedEffect
@@ -117,7 +119,7 @@ fun NavGraphBuilder.itineraryGraph(
             state = state,
             onClose = viewModel::requestClose,
             onSelectDate = viewModel::selectDate,
-            onAddPlace = { navController.navigate(PlaceSearchRoute) },
+            onAddPlace = { navController.navigate(PlaceSearchRoute(firstPlace = state.draft.isEmpty())) },
             onSave = viewModel::save,
             onRetry = viewModel::retry,
             onReauthenticate = onSessionExpired,
@@ -129,7 +131,7 @@ fun NavGraphBuilder.itineraryGraph(
             onChangeTransport = viewModel::changeTransport,
             onApplyTransport = viewModel::applyTransport,
             onRemove = viewModel::removeItem,
-            onMove = viewModel::moveItem,
+            onApplyRemoveTransport = viewModel::applyRemoveTransport,
         )
     }
 }

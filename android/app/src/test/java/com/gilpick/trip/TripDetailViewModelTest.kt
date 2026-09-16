@@ -25,6 +25,7 @@ import com.gilpick.progress.CurrentLocationDto
 import com.gilpick.progress.CurrentLocationProvider
 import com.gilpick.progress.FakeProgressService
 import com.gilpick.progress.ProgressError
+import com.gilpick.progress.StartMode
 import com.gilpick.progress.ProgressErrorCodes
 import com.gilpick.progress.ProgressRepository
 import com.gilpick.progress.inProgress
@@ -729,6 +730,50 @@ class TripDetailViewModelTest {
 
         viewModel.consumeLaunched()
         assertEquals(TripStartPhase.Started("2026-09-02"), viewModel.state.value.start)
+    }
+
+    @Test
+    fun `현장 시작은 위치도 이동수단도 보내지 않는다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        location = CurrentLocationDto(37.57, 126.97, 12.0, "2026-09-02T00:59:30Z")
+        progressService.onStart = { progressOk(inProgress(progressVersion = 1).copy(date = "2026-09-02")) }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.startToday(StartMode.AT_FIRST_PLACE, null)
+        advanceUntilIdle()
+
+        val body = progressService.startCalls.single().second
+        assertEquals(StartMode.AT_FIRST_PLACE, body.startMode)
+        assertNull(body.transportMode)
+        // 시작 구간이 없으므로 현재 위치도 싣지 않는다(#650 계약, #654).
+        assertNull(body.currentLocation)
+        assertEquals(TripStartPhase.Launched("2026-09-02"), viewModel.state.value.start)
+    }
+
+    @Test
+    fun `이동 시작은 고른 이동수단을 싣고 다시 시도도 같은 선택을 쓴다`() = runTest {
+        service.onGet = { detail(trip(TRIP_ID)) }
+        var attempts = 0
+        progressService.onStart = {
+            if (attempts++ == 0) throw java.io.IOException("offline") else progressOk(inProgress(1).copy(date = "2026-09-02"))
+        }
+        val viewModel = newViewModel()
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.CAR)
+        advanceUntilIdle()
+        val failed = viewModel.state.value.start as TripStartPhase.Failed
+        assertEquals(StartMode.MOVE_TO_FIRST, failed.startMode)
+        assertEquals(TransportMode.CAR, failed.transportMode)
+
+        viewModel.retryStart()
+        advanceUntilIdle()
+
+        assertEquals(listOf(TransportMode.CAR, TransportMode.CAR), progressService.startCalls.map { it.second.transportMode })
+        assertEquals(TripStartPhase.Launched("2026-09-02"), viewModel.state.value.start)
     }
 
     @Test

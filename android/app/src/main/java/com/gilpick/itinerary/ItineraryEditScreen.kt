@@ -3,7 +3,6 @@ package com.gilpick.itinerary
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,9 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -60,25 +57,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
 import com.gilpick.ui.component.ErrorState as CommonErrorState
@@ -89,7 +80,6 @@ import com.gilpick.place.TransportOption
 import com.gilpick.route.RouteSegmentDto
 import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
-import kotlin.math.abs
 import com.gilpick.ui.component.GradientButtonDefaults
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
@@ -119,8 +109,8 @@ import java.time.LocalDate
  * @param onApplyStay 체류 시간 대화상자의 `적용`.
  * @param onChangeTransport 행의 `변경`(UI-004).
  * @param onApplyTransport 이동 수단 시트의 `적용`.
- * @param onRemove 행의 삭제.
- * @param onMove 위·아래 버튼 또는 손잡이 끌기로 항목을 `from`에서 `to`로 옮긴다(UI-008).
+ * @param onRemove 행의 삭제. 가운데 행이면 새 구간의 이동 수단을 먼저 묻는다(#654).
+ * @param onApplyRemoveTransport 가운데 행을 뺄 때 고른 `앞 장소 → 뒤 장소` 이동 수단(#654).
  */
 @Composable
 fun ItineraryEditScreen(
@@ -139,7 +129,7 @@ fun ItineraryEditScreen(
     onChangeTransport: (Int) -> Unit,
     onApplyTransport: (TransportMode) -> Unit,
     onRemove: (Int) -> Unit,
-    onMove: (from: Int, to: Int) -> Unit,
+    onApplyRemoveTransport: (TransportMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -187,7 +177,6 @@ fun ItineraryEditScreen(
                         onEditStay = onEditStay,
                         onChangeTransport = onChangeTransport,
                         onRemove = onRemove,
-                        onMove = onMove,
                     )
                 }
                 // 목록 영역 바닥에 띄워 하단 `저장` 버튼을 가리지 않는다(#506 저장 완료 안내).
@@ -223,6 +212,24 @@ fun ItineraryEditScreen(
                 onCancel = onDismissDialog,
                 onApply = onApplyTransport,
             )
+        }
+
+        // 가운데 장소를 빼면 앞뒤 장소가 새 구간으로 이어진다. 그 구간의 이동 수단을 고르면 함께 적용한다(#654).
+        is EditDialog.RemoveTransport -> state.draft.getOrNull(dialog.index)?.let { _ ->
+            val previous = state.draft.getOrNull(dialog.index - 1)
+            val next = state.draft.getOrNull(dialog.index + 1)
+            if (previous != null && next != null) {
+                TransportSheet(
+                    nextPlaceName = next.place.name,
+                    current = previous.transportToNext,
+                    segment = null,
+                    onCancel = onDismissDialog,
+                    onApply = onApplyRemoveTransport,
+                    title = stringResource(R.string.itinerary_edit_remove_transport_title),
+                    subtitle = stringResource(R.string.itinerary_edit_remove_transport_subtitle, previous.place.name, next.place.name),
+                    applyLabel = stringResource(R.string.itinerary_edit_remove_apply),
+                )
+            }
         }
 
         null -> Unit
@@ -350,9 +357,7 @@ private fun FailedState(error: ItineraryError, onRetry: () -> Unit, onReauthenti
 /**
  * 선택한 날짜의 제목·요약, 방문 장소 카드, 점선 `장소 추가` 버튼.
  *
- * 손잡이 끌기(UI-008)는 foundation gesture로만 만든다. 끌리는 행은 손가락을 따라 `translationY`로
- * 움직이고, 이웃 행 높이의 절반을 넘으면 [onMove]로 한 칸 옮긴 뒤 그만큼 오프셋을 되돌려 화면이
- * 튀지 않게 한다. 하루 최대 10곳이라 `LazyColumn` 없이 `Column`으로 충분하다.
+ * MVP에서는 순서 변경을 제공하지 않는다(#654). 하루 최대 10곳이라 `LazyColumn` 없이 `Column`으로 충분하다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -362,15 +367,10 @@ private fun Content(
     onEditStay: (Int) -> Unit,
     onChangeTransport: (Int) -> Unit,
     onRemove: (Int) -> Unit,
-    onMove: (Int, Int) -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val date = state.selectedDate ?: return
     val day = state.selectedDay ?: return
-    // ponytail: 끌기 중 자동 스크롤은 없다. 화면 밖 위치로는 나눠 끌거나 TalkBack 커스텀 액션을 쓴다. 필요해지면 verticalScroll 상태로 보강한다.
-    var dragging by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
-    val rowHeights = remember { mutableStateMapOf<Int, Int>() }
 
     Column(
         modifier = Modifier
@@ -411,9 +411,6 @@ private fun Content(
             ) {
                 Column {
                     val draft = state.draft
-                    val canMove: (Int, Int) -> Boolean = { from, to ->
-                        from in draft.indices && to in draft.indices && draft[from].editable && draft[to].editable
-                    }
                     draft.forEachIndexed { index, item ->
                         PlaceRow(
                             index = index,
@@ -422,29 +419,6 @@ private fun Content(
                             onEditStay = { onEditStay(index) },
                             onChangeTransport = { onChangeTransport(index) },
                             onRemove = { onRemove(index) },
-                            onMoveUp = if (canMove(index, index - 1)) ({ onMove(index, index - 1) }) else null,
-                            onMoveDown = if (canMove(index, index + 1)) ({ onMove(index, index + 1) }) else null,
-                            onDragStart = { dragging = index; dragOffset = 0f },
-                            onDragEnd = { dragging = null; dragOffset = 0f },
-                            onDrag = { dy ->
-                                dragOffset += dy
-                                val from = dragging ?: return@PlaceRow
-                                val to = if (dragOffset > 0) from + 1 else from - 1
-                                val neighbor = rowHeights[to] ?: return@PlaceRow
-                                if (abs(dragOffset) > neighbor / 2f && canMove(from, to)) {
-                                    onMove(from, to)
-                                    dragging = to
-                                    dragOffset += if (to > from) -neighbor.toFloat() else neighbor.toFloat()
-                                }
-                            },
-                            modifier = Modifier
-                                .onSizeChanged { rowHeights[index] = it.height }
-                                .then(
-                                    if (dragging == index) Modifier
-                                        .zIndex(1f)
-                                        .graphicsLayer { translationY = dragOffset }
-                                    else Modifier,
-                                ),
                         )
                         if (index < draft.lastIndex) {
                             HorizontalDivider(
@@ -512,14 +486,12 @@ private fun EmptyCard() {
 }
 
 /**
- * 방문 장소 행(UI-002): 손잡이, 순서 번호 또는 상태 원, 장소명, 체류 시간, 다음 구간 이동 수단과
+ * 방문 장소 행(UI-002): 순서 번호 또는 상태 원, 장소명, 체류 시간, 다음 구간 이동 수단과
  * `변경`, 삭제 버튼.
  *
- * 순서 변경은 손잡이 끌기만 보인다(#507). 끌기가 어려운 사용자를 위해 손잡이에 TalkBack 커스텀 액션
- * `위로 이동`·`아래로 이동`을 붙인다. [onMoveUp]·[onMoveDown]이 `null`이면 그 방향으로 옮길 수 없어
- * 액션을 두지 않는다.
+ * MVP에서는 순서 변경을 제공하지 않아 손잡이와 위·아래 이동이 없다(#654). 순서는 추가한 차례로 정해진다.
  *
- * 도착 시각은 경로가 계산되기 전이라 표시하지 않는다(FR-018). 처리된 항목은 손잡이·삭제·`변경`을
+ * 도착 시각은 경로가 계산되기 전이라 표시하지 않는다(FR-018). 처리된 항목은 삭제·`변경`을
  * 숨기고 체류 시간만 바꿀 수 있으며 상태를 색·아이콘·문구로 함께 보인다(FR-017, UI-009).
  * Figma의 32dp 삭제 버튼은 48dp 터치 영역 안에 둔다.
  */
@@ -532,63 +504,21 @@ private fun PlaceRow(
     onEditStay: () -> Unit,
     onChangeTransport: () -> Unit,
     onRemove: () -> Unit,
-    onMoveUp: (() -> Unit)?,
-    onMoveDown: (() -> Unit)?,
-    onDragStart: () -> Unit,
-    onDragEnd: () -> Unit,
-    onDrag: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val name = item.place.name
     val sequence = stringResource(R.string.itinerary_edit_sequence, index + 1)
-    val handleDescription = stringResource(R.string.itinerary_edit_drag_handle, name)
-    val moveUpLabel = stringResource(R.string.itinerary_edit_move_up)
-    val moveDownLabel = stringResource(R.string.itinerary_edit_move_down)
     val editable = item.editable
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(start = spacing.space1, end = spacing.space4, top = spacing.space2, bottom = spacing.space2),
+            .padding(start = spacing.space4, end = spacing.space4, top = spacing.space2, bottom = spacing.space2),
         horizontalArrangement = Arrangement.spacedBy(spacing.space2),
     ) {
-        // 손잡이: Figma 14px 6점 아이콘, 터치 영역 48dp. 예정 항목에만 둔다(UI-008).
-        Box(
-            modifier = Modifier
-                .size(MIN_TOUCH)
-                .then(
-                    if (editable) Modifier
-                        .semantics {
-                            contentDescription = handleDescription
-                            customActions = listOfNotNull(
-                                onMoveUp?.let { move -> CustomAccessibilityAction(moveUpLabel) { move(); true } },
-                                onMoveDown?.let { move -> CustomAccessibilityAction(moveDownLabel) { move(); true } },
-                            )
-                        }
-                        .pointerInput(index) {
-                            detectDragGestures(
-                                onDragStart = { onDragStart() },
-                                onDragEnd = onDragEnd,
-                                onDragCancel = onDragEnd,
-                                onDrag = { change, delta -> change.consume(); onDrag(delta.y) },
-                            )
-                        }
-                    else Modifier,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (editable) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_lucide_grip_vertical),
-                    contentDescription = null,
-                    tint = colors.faint,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-        }
         StatusCircle(index = index, status = item.status, description = sequence)
         Column(
             modifier = Modifier
@@ -1035,6 +965,9 @@ private fun TransportSheet(
     segment: RouteSegmentDto?,
     onCancel: () -> Unit,
     onApply: (TransportMode) -> Unit,
+    title: String = stringResource(R.string.itinerary_edit_transport_title),
+    subtitle: String = stringResource(R.string.itinerary_edit_transport_subtitle, nextPlaceName),
+    applyLabel: String = stringResource(R.string.itinerary_edit_apply),
 ) {
     ModalBottomSheet(
         onDismissRequest = onCancel,
@@ -1044,7 +977,16 @@ private fun TransportSheet(
         dragHandle = null,
         scrimColor = Color.Black.copy(alpha = 0.5f),
     ) {
-        TransportSheetContent(nextPlaceName = nextPlaceName, current = current, segment = segment, onCancel = onCancel, onApply = onApply)
+        TransportSheetContent(
+            nextPlaceName = nextPlaceName,
+            current = current,
+            segment = segment,
+            onCancel = onCancel,
+            onApply = onApply,
+            title = title,
+            subtitle = subtitle,
+            applyLabel = applyLabel,
+        )
     }
 }
 
@@ -1056,10 +998,12 @@ internal fun TransportSheetContent(
     onCancel: () -> Unit,
     onApply: (TransportMode) -> Unit,
     segment: RouteSegmentDto? = null,
+    title: String = stringResource(R.string.itinerary_edit_transport_title),
+    subtitle: String = stringResource(R.string.itinerary_edit_transport_subtitle, nextPlaceName),
+    applyLabel: String = stringResource(R.string.itinerary_edit_apply),
 ) {
     val spacing = LocalGilpickSpacing.current
     var selected by rememberSaveable(current) { mutableStateOf(current ?: TransportMode.WALK) }
-    val title = stringResource(R.string.itinerary_edit_transport_title)
 
     Column(
         modifier = Modifier
@@ -1082,7 +1026,7 @@ internal fun TransportSheetContent(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = stringResource(R.string.itinerary_edit_transport_subtitle, nextPlaceName),
+            text = subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = LocalGilpickColors.current.muted,
             modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space5),
@@ -1104,7 +1048,7 @@ internal fun TransportSheetContent(
                 },
             )
         }
-        CancelApplyRow(onCancel = onCancel, onApply = { onApply(selected) }, modifier = Modifier.padding(top = spacing.space4))
+        CancelApplyRow(onCancel = onCancel, onApply = { onApply(selected) }, applyLabel = applyLabel, modifier = Modifier.padding(top = spacing.space4))
     }
 }
 
@@ -1114,7 +1058,12 @@ internal fun TransportSheetContent(
  * 한 줄을 가로로 나눈 버튼이라 곡률은 12dp다(가이드라인 6절 R3, D4). 체류 시간 dialog와 이동 수단 시트가 함께 쓴다.
  */
 @Composable
-private fun CancelApplyRow(onCancel: () -> Unit, onApply: () -> Unit, modifier: Modifier = Modifier) {
+private fun CancelApplyRow(
+    onCancel: () -> Unit,
+    onApply: () -> Unit,
+    modifier: Modifier = Modifier,
+    applyLabel: String = stringResource(R.string.itinerary_edit_apply),
+) {
     val spacing = LocalGilpickSpacing.current
     val shape = RoundedCornerShape(LocalGilpickRadius.current.md)
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(spacing.space3)) {
@@ -1143,7 +1092,7 @@ private fun CancelApplyRow(onCancel: () -> Unit, onApply: () -> Unit, modifier: 
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = stringResource(R.string.itinerary_edit_apply),
+                text = applyLabel,
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.White,
             )

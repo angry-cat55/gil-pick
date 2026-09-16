@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +35,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
@@ -65,6 +69,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -80,9 +85,12 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
 import com.gilpick.itinerary.TransportMode
+import com.gilpick.itinerary.toPlaceTransport
+import com.gilpick.place.TransportOption
 import com.gilpick.progress.DeviceLocationProvider
 import com.gilpick.progress.LocationPermissionScreen
 import com.gilpick.progress.ProgressError
+import com.gilpick.progress.StartMode
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteSegmentDto
 import com.gilpick.route.distanceLabel
@@ -133,7 +141,8 @@ import kotlinx.coroutines.delay
  * @param routes 날짜(`yyyy-MM-dd`)별 경로 영역 상태(F005). 없는 날짜는 경로 정보 없음으로 그린다.
  * @param onOpenRoute 그 날짜의 경로 화면(F005)으로 이동한다. 인자는 날짜와 일차다.
  * @param onRetryRoute 실패한 날짜의 경로 계산을 같은 입력으로 다시 시도한다(F005 FR-010). 인자는 날짜다.
- * @param onStartToday `오늘 여행 시작`을 눌렀다(F006). 위치 권한 요청은 화면이 먼저 끝낸다.
+ * @param onStartToday 시작 방식 시트에서 고른 값으로 오늘 여행을 시작한다(F006, #654). `MOVE_TO_FIRST`는 고른
+ *   이동수단을, `AT_FIRST_PLACE`는 `null`을 함께 넘긴다. 위치 권한 요청은 화면이 먼저 끝낸다.
  * @param onRetryStart 시작 영역의 실패를 다시 시도한다.
  * @param onOpenProgress 진행 화면(F006)으로 이동한다. 방금 시작됐거나 이미 시작된 날짜에서 호출된다. 인자는 날짜다.
  * @param onLaunchConsumed 방금 시작됨 신호를 소비했음을 알린다. [onOpenProgress] 직후 호출된다.
@@ -155,7 +164,7 @@ fun TripDetailScreen(
     routes: Map<String, DayRoutePhase> = emptyMap(),
     onOpenRoute: (date: String, dayNumber: Int) -> Unit = { _, _ -> },
     onRetryRoute: (date: String) -> Unit = {},
-    onStartToday: () -> Unit = {},
+    onStartToday: (StartMode, TransportMode?) -> Unit = { _, _ -> },
     onRetryStart: () -> Unit = {},
     onOpenProgress: (date: String) -> Unit = {},
     onLaunchConsumed: () -> Unit = {},
@@ -641,7 +650,7 @@ private fun DetailContent(
     onEdit: () -> Unit,
     onRequestDelete: () -> Unit,
     start: TripStartPhase,
-    onStartToday: () -> Unit,
+    onStartToday: (StartMode, TransportMode?) -> Unit,
     onRetryStart: () -> Unit,
     onOpenProgress: (date: String) -> Unit,
     itinerary: ItineraryOverviewPhase,
@@ -669,6 +678,7 @@ private fun DetailContent(
                 TripStats(trip = trip, itinerary = itinerary, routes = routes)
                 ItineraryActions(
                     start = start,
+                    firstPlaceName = itinerary.firstPlaceName((start as? TripStartPhase.Ready)?.date),
                     onStartToday = onStartToday,
                     onRetryStart = onRetryStart,
                     onOpenProgress = onOpenProgress,
@@ -775,7 +785,8 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
 @Composable
 private fun ItineraryActions(
     start: TripStartPhase,
-    onStartToday: () -> Unit,
+    firstPlaceName: String?,
+    onStartToday: (StartMode, TransportMode?) -> Unit,
     onRetryStart: () -> Unit,
     onOpenProgress: (date: String) -> Unit,
     onAddPlace: (date: String) -> Unit,
@@ -783,17 +794,36 @@ private fun ItineraryActions(
 ) {
     val spacing = LocalGilpickSpacing.current
     val context = LocalContext.current
+    // 시작 방식 시트에서 고른 이동수단. 위치 권한 흐름을 거쳐 돌아와도 그 선택으로 시작한다(#654).
+    var pendingTransport by rememberSaveable { mutableStateOf(TransportMode.WALK) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { onStartToday() }
+    ) { onStartToday(StartMode.MOVE_TO_FIRST, pendingTransport) }
     // 권한이 없으면 시스템 창 전에 위치 권한 안내 화면을 먼저 보인다(#440). 허용·거부·나중에 하기 모두 시작한다(FR-020).
     var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
-    val requestThenStart = {
+    var startSheetOpen by rememberSaveable { mutableStateOf(false) }
+    // 현재 위치에서 첫 장소로 이동하는 시작만 위치가 필요하다. 현장 시작은 권한을 묻지 않는다.
+    val moveToFirst = { transport: TransportMode ->
+        pendingTransport = transport
         if (DeviceLocationProvider.hasLocationPermission(context)) {
-            onStartToday()
+            onStartToday(StartMode.MOVE_TO_FIRST, transport)
         } else {
             permissionGuideOpen = true
         }
+    }
+    if (startSheetOpen) {
+        StartModeSheet(
+            firstPlaceName = firstPlaceName,
+            onDismiss = { startSheetOpen = false },
+            onMoveToFirst = { transport ->
+                startSheetOpen = false
+                moveToFirst(transport)
+            },
+            onAtFirstPlace = {
+                startSheetOpen = false
+                onStartToday(StartMode.AT_FIRST_PLACE, null)
+            },
+        )
     }
     if (permissionGuideOpen) {
         // 헤더 없는 전체 화면 안내라 창 폭 제한을 끈 Dialog로 덮는다. 뒤로 가기는 시작하지 않고 닫는다.
@@ -810,7 +840,7 @@ private fun ItineraryActions(
                 },
                 onLater = {
                     permissionGuideOpen = false
-                    onStartToday()
+                    onStartToday(StartMode.MOVE_TO_FIRST, pendingTransport)
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -854,9 +884,10 @@ private fun ItineraryActions(
                 onClick = { onOpenProgress(start.date) },
             )
 
+            // 다시 시도는 사용자가 방식을 다시 고르지 않고 실패한 선택 그대로 보낸다(#654).
             is TripStartPhase.Failed -> StartButton(
                 label = stringResource(R.string.trip_detail_start_retry),
-                onClick = if (start.ready != null) requestThenStart else onRetryStart,
+                onClick = onRetryStart,
             )
 
             is TripStartPhase.Starting -> StartButton(
@@ -868,7 +899,7 @@ private fun ItineraryActions(
 
             is TripStartPhase.Ready -> StartButton(
                 label = stringResource(R.string.trip_detail_start_travel),
-                onClick = requestThenStart,
+                onClick = { startSheetOpen = true },
             )
 
             TripStartPhase.Loading, TripStartPhase.NotTravelDay -> StartButton(
@@ -930,6 +961,178 @@ private fun StartButton(
         enabled = enabled,
     )
 }
+
+/**
+ * 시작 방식 선택 시트(#654, #650 PROG-002). Figma에 없는 새 시트라 F004 이동 수단 시트의 모양을 따른다.
+ *
+ * `첫 장소로 이동하기`는 시작 구간 이동수단까지 골라 `MOVE_TO_FIRST`로, `첫 장소에서 시작하기`는
+ * 위치도 이동수단도 없이 `AT_FIRST_PLACE`로 시작한다. 두 선택은 색이 아니라 라벨·설명·체크로 구분한다.
+ *
+ * @param firstPlaceName 오늘의 첫 장소명. 일정 개요를 아직 못 받았으면 `null`이고 안내 문구만 바뀐다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StartModeSheet(
+    firstPlaceName: String?,
+    onDismiss: () -> Unit,
+    onMoveToFirst: (TransportMode) -> Unit,
+    onAtFirstPlace: () -> Unit,
+) {
+    val spacing = LocalGilpickSpacing.current
+    var mode by rememberSaveable { mutableStateOf(StartMode.MOVE_TO_FIRST) }
+    var transport by rememberSaveable { mutableStateOf(TransportMode.WALK) }
+    val title = stringResource(R.string.trip_detail_start_sheet_title)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = LocalGilpickRadius.current.sheet, topEnd = LocalGilpickRadius.current.sheet),
+        dragHandle = null,
+        scrimColor = Color.Black.copy(alpha = 0.5f),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(start = spacing.space6, end = spacing.space6, top = spacing.space5, bottom = spacing.space8)
+                .navigationBarsPadding()
+                .testTag(TAG_START_MODE_SHEET),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = spacing.space5)
+                    .size(width = 40.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontFamily = title.displayFont(),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = firstPlaceName
+                    ?.let { stringResource(R.string.trip_detail_start_sheet_subtitle, it) }
+                    ?: stringResource(R.string.trip_detail_start_sheet_subtitle_unknown),
+                style = MaterialTheme.typography.bodyMedium,
+                color = LocalGilpickColors.current.muted,
+                modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space5),
+            )
+            StartModeOption(
+                label = stringResource(R.string.trip_detail_start_move_label),
+                description = stringResource(R.string.trip_detail_start_move_description),
+                selected = mode == StartMode.MOVE_TO_FIRST,
+                onClick = { mode = StartMode.MOVE_TO_FIRST },
+                modifier = Modifier.padding(bottom = spacing.space2),
+            )
+            StartModeOption(
+                label = stringResource(R.string.trip_detail_start_at_place_label),
+                description = stringResource(R.string.trip_detail_start_at_place_description),
+                selected = mode == StartMode.AT_FIRST_PLACE,
+                onClick = { mode = StartMode.AT_FIRST_PLACE },
+            )
+            // 현장 시작은 시작 구간이 없어 이동수단을 묻지 않는다(#650 계약).
+            if (mode == StartMode.MOVE_TO_FIRST) {
+                Text(
+                    text = stringResource(R.string.trip_detail_start_transport_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = spacing.space5, bottom = spacing.space3),
+                )
+                TransportMode.entries.forEach { option ->
+                    TransportOption(
+                        option = option.toPlaceTransport(),
+                        selected = transport == option,
+                        onClick = { transport = option },
+                        modifier = Modifier.padding(bottom = spacing.space2),
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.padding(top = spacing.space4),
+                horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(SHEET_BUTTON_HEIGHT)
+                        .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
+                        .background(MaterialTheme.colorScheme.background)
+                        .clickable(onClick = onDismiss, role = Role.Button),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.place_detail_cancel),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                GradientButton(
+                    label = stringResource(R.string.trip_detail_start_sheet_confirm),
+                    onClick = { if (mode == StartMode.MOVE_TO_FIRST) onMoveToFirst(transport) else onAtFirstPlace() },
+                    modifier = Modifier.weight(2f),
+                    height = SHEET_BUTTON_HEIGHT,
+                )
+            }
+        }
+    }
+}
+
+/** 시작 방식 카드. 라벨과 한 줄 설명을 함께 두어 선택지를 색·체크만으로 구분하지 않는다(가이드라인 10절). */
+@Composable
+private fun StartModeOption(
+    label: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+            .border(2.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
+            .clickable(onClick = onClick, role = Role.RadioButton)
+            .semantics(mergeDescendants = true) { this.selected = selected }
+            .padding(horizontal = LocalGilpickSpacing.current.space4, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = LocalGilpickColors.current.muted,
+            )
+        }
+        if (selected) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_check),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/** 오늘 날짜의 첫 장소명. 일정 개요를 아직 못 받았거나 그 날짜에 장소가 없으면 `null`이다(#654). */
+private fun ItineraryOverviewPhase.firstPlaceName(date: String?): String? {
+    if (date == null) return null
+    val days = (this as? ItineraryOverviewPhase.Content)?.days ?: return null
+    return days.firstOrNull { it.date == date }?.items?.firstOrNull()?.place?.name
+}
+
+/** 시작 방식 선택 시트. UI test가 시트가 열렸는지 확인한다(#654). */
+internal const val TAG_START_MODE_SHEET = "trip_detail_start_mode_sheet"
 
 /** 여행 날짜가 아닐 때 시작 버튼 위 이유 배너(Figma: 시계 아이콘 + `background` 배경, `radiusMd`). 카운트다운은 데모 연출이라 두지 않는다. */
 @Composable
@@ -1600,6 +1803,9 @@ private val DIALOG_ICON = 22.dp
 
 /** Figma `오늘 여행 시작` 높이(`h-[52px]`). */
 private val START_BUTTON_HEIGHT = 52.dp
+
+/** 시트 하단 `취소`·`시작하기` 버튼 높이. F004 이동 수단 시트와 같다. */
+private val SHEET_BUTTON_HEIGHT = 50.dp
 
 /** Figma hero(`h-[180px]`)와 가이드라인 3절 hero gradient(위 30% → 가운데 투명 → 아래 50%). */
 private val HERO_HEIGHT = 180.dp

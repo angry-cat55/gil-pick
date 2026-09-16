@@ -109,6 +109,7 @@ fun PlaceSearchScreen(
     modifier: Modifier = Modifier,
     onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
     onToggleDistanceSort: () -> Unit = {},
+    askTransport: Boolean = true,
 ) {
     var sheetPlace by remember { mutableStateOf<PlaceDto?>(null) }
 
@@ -121,6 +122,7 @@ fun PlaceSearchScreen(
                 sheetPlace = null
                 onAddToSchedule(place, request)
             },
+            askTransport = askTransport,
         )
     }
     Column(

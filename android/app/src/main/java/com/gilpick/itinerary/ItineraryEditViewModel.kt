@@ -84,6 +84,15 @@ sealed interface EditDialog {
      * @property segment 저장된 경로에서 같은 두 항목 사이의 구간. 없거나 경로가 계산되지 않았으면 `null`이다(#508).
      */
     data class Transport(val index: Int, val segment: RouteSegmentDto? = null) : EditDialog
+
+    /**
+     * 가운데 장소를 뺄 때 새로 생기는 `앞 장소 → 뒤 장소` 구간의 이동 수단을 고르는 시트(#654).
+     *
+     * 고르기 전에는 초안을 바꾸지 않는다. 취소하면 삭제도 함께 취소된다.
+     *
+     * @property index 뺄 항목. 첫·마지막 항목은 새 구간이 생기지 않아 이 시트를 열지 않는다.
+     */
+    data class RemoveTransport(val index: Int) : EditDialog
 }
 
 /** 짧게 띄우는 안내. 화면이 스낵바로 보이고 사용자가 닫는다. */
@@ -306,29 +315,37 @@ class ItineraryEditViewModel(
         _state.update { it.copy(dialog = null) }
     }
 
-    /** 행의 삭제. 남은 항목의 순서는 목록 위치가 정하고 새 마지막 항목의 이동 수단은 비운다(FR-007). */
+    /**
+     * 행의 삭제(FR-007, #654). 남은 항목의 순서는 목록 위치가 정한다.
+     *
+     * 첫 항목은 다음 항목이 새 첫 항목이 되고, 마지막 항목은 새 마지막 항목의 이동 수단을 비워
+     * 곧바로 뺀다. 가운데 항목은 `앞 장소 → 뒤 장소`라는 없던 구간이 생기므로 바로 빼지 않고
+     * [EditDialog.RemoveTransport]로 그 구간의 이동 수단을 먼저 묻는다.
+     */
     fun removeItem(index: Int) {
-        val draft = _state.value.draft.toMutableList()
+        val draft = _state.value.draft
         if (index !in draft.indices || !draft[index].editable) return
-        draft.removeAt(index)
-        updateDraft(draft.withLastTransportCleared())
+        if (index in 1 until draft.lastIndex) {
+            _state.update { it.copy(dialog = EditDialog.RemoveTransport(index)) }
+            return
+        }
+        updateDraft(draft.toMutableList().apply { removeAt(index) }.withLastTransportCleared())
     }
 
     /**
-     * 항목을 [from]에서 [to]로 옮긴다. 위·아래 버튼은 이웃으로, 손잡이 끌기는 여러 칸을 한 번에 옮긴다.
+     * [EditDialog.RemoveTransport]의 `적용`. 앞 장소의 다음 구간을 고른 수단으로 바꾸고 가운데 항목을 뺀다(#654).
      *
-     * 이동 수단은 항목이 아니라 구간(위치)에 붙어 있다. 항목만 옮기고 구간의 이동 수단은 제자리에
-     * 두어 마지막 항목은 계속 `null`, 그 앞은 계속 값이 있게 한다(FR-006). 지나가는 항목 중
-     * 처리된 항목이 있으면 그 순서가 바뀌므로 거부한다(FR-017).
+     * 앞 항목이 처리된 항목이면 이미 있던 이동 수단을 바꿀 수 없으므로(FR-017) 저장된 값을 그대로 둔다.
      */
-    fun moveItem(from: Int, to: Int) {
-        val draft = _state.value.draft
-        if (from == to || from !in draft.indices || to !in draft.indices) return
-        val range = minOf(from, to)..maxOf(from, to)
-        if (range.any { !draft[it].editable }) return
-        val transports = draft.map { it.transportToNext }
-        val items = draft.toMutableList().apply { add(to, removeAt(from)) }
-        updateDraft(items.mapIndexed { i, item -> item.copy(transportToNext = transports[i]) })
+    fun applyRemoveTransport(mode: TransportMode) {
+        val index = (_state.value.dialog as? EditDialog.RemoveTransport)?.index ?: return
+        val draft = _state.value.draft.toMutableList()
+        if (index !in draft.indices) return
+        val previous = draft[index - 1]
+        if (previous.editable) draft[index - 1] = previous.copy(transportToNext = mode)
+        draft.removeAt(index)
+        updateDraft(draft.withLastTransportCleared())
+        _state.update { it.copy(dialog = null) }
     }
 
     /** 안내를 닫는다. */
@@ -340,7 +357,8 @@ class ItineraryEditViewModel(
      * F003 `일정에 추가` 시트가 확정한 장소를 초안 끝에 붙인다(FR-002, FR-006).
      *
      * 좌표 없는 장소와 10곳을 넘는 추가는 거부하고 이유를 안내한다. 시트에서 고른 이동
-     * 수단은 직전 항목의 다음 구간에 넣고, 첫 항목이면 버린다. 체류 시간이 F003 추천값과
+     * 수단은 직전 항목의 다음 구간에 넣는다. 첫 항목이면 시트가 이동 수단을 묻지 않아
+     * [AddToScheduleRequest.transport]가 `null`이다(#654). 체류 시간이 F003 추천값과
      * 같으면 추천으로, 다르면 사용자 조절값으로 표시한다(FR-003).
      */
     fun addFromSearch(place: PlaceDto, request: AddToScheduleRequest) {
@@ -375,9 +393,11 @@ class ItineraryEditViewModel(
             status = ItemStatus.PLANNED,
         )
         val draft = current.draft.toMutableList()
-        if (draft.isNotEmpty()) {
+        // 첫 장소는 앞 구간이 없어 시트가 이동 수단을 묻지 않는다(#654). 뒤에 붙는 장소만 직전 구간을 채운다.
+        val transport = request.transport
+        if (draft.isNotEmpty() && transport != null) {
             val last = draft.lastIndex
-            draft[last] = draft[last].copy(transportToNext = request.transport.toTransportMode())
+            draft[last] = draft[last].copy(transportToNext = transport.toTransportMode())
         }
         draft += newItem
         updateDraft(draft)
