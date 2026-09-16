@@ -24,22 +24,36 @@ val PlaceCategory.labelRes: Int
     }
 
 /**
- * Google 영업 상태의 표시명. 알려지지 않은 값은 표시하지 않는다.
+ * 화면에 보일 영업 상태 한 가지.
  *
- * `OPERATIONAL`은 "지금 문을 열었다"가 아니라 "운영되는 곳이다"라는 뜻이다. 현재 영업
- * 여부를 추론해 쓰지 않는다(`spec.md` FR-007).
+ * @property textRes 표시 문구. 색이 아니라 이 문구가 뜻을 전달한다(가이드라인 10절).
+ * @property closed 닫혀 있거나 이용할 수 없는 상태다. 화면은 성공색 대신 경고색을 쓴다.
  */
-@StringRes
-fun businessStatusLabelRes(status: String?): Int? = when (status) {
-    PlaceBusinessStatus.OPERATIONAL -> R.string.place_business_operational
-    PlaceBusinessStatus.CLOSED_TEMPORARILY -> R.string.place_business_closed_temporarily
-    PlaceBusinessStatus.CLOSED_PERMANENTLY -> R.string.place_business_closed_permanently
+data class PlaceStatusLabel(@StringRes val textRes: Int, val closed: Boolean)
+
+/**
+ * 검색 결과와 상세가 함께 쓰는 영업 상태 규칙(#576).
+ *
+ * 우선순위는 폐업 > 임시 휴업 > 실시간 [PlaceDto.openNow] > `운영 중`이다. 폐업·임시 휴업은 그 장소를
+ * 아예 갈 수 없다는 뜻이라 실시간 상태보다 앞선다. `openNow`가 `null`이면 Google이 현재 영업 여부를 주지
+ * 않은 것이므로 추론하지 않고(`spec.md` FR-007) `운영 중`(= 운영되는 곳이다)만 남긴다. 둘 다 없으면
+ * `null`이라 아무 문구도 두지 않는다.
+ */
+fun PlaceDto.statusLabel(): PlaceStatusLabel? = when {
+    businessStatus == PlaceBusinessStatus.CLOSED_PERMANENTLY ->
+        PlaceStatusLabel(R.string.place_business_closed_permanently, closed = true)
+    businessStatus == PlaceBusinessStatus.CLOSED_TEMPORARILY ->
+        PlaceStatusLabel(R.string.place_business_closed_temporarily, closed = true)
+    openNow == true -> PlaceStatusLabel(R.string.place_open_now, closed = false)
+    openNow == false -> PlaceStatusLabel(R.string.place_closed_now, closed = true)
+    businessStatus == PlaceBusinessStatus.OPERATIONAL ->
+        PlaceStatusLabel(R.string.place_business_operational, closed = false)
     else -> null
 }
 
 /** Google 평점·영업정보 중 하나라도 있는지. attribution 표시 여부를 정한다. */
 val PlaceDto.hasGoogleData: Boolean
-    get() = rating != null || userRatingCount != null || businessStatus != null ||
+    get() = rating != null || userRatingCount != null || businessStatus != null || openNow != null ||
         !regularOpeningHours.isNullOrEmpty() || !currentOpeningHours.isNullOrEmpty()
 
 /**

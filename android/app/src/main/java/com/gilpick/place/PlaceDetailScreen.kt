@@ -296,7 +296,7 @@ private fun Content(
  */
 @Composable
 private fun Hero(place: PlaceDto, onBack: () -> Unit) {
-    val statusRes = businessStatusLabelRes(place.businessStatus)
+    val status = place.statusLabel()
     // #515 사진은 URL이 있어도 받는 중이거나 받지 못할 수 있다. 실제로 그려졌을 때만 사진 설명을 준다.
     var imageState by remember(place.imageUrl) { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
     val imageShown = imageState is AsyncImagePainter.State.Success
@@ -361,14 +361,19 @@ private fun Hero(place: PlaceDto, onBack: () -> Unit) {
                 .align(Alignment.BottomStart)
                 .padding(start = LocalGilpickSpacing.current.space5, end = LocalGilpickSpacing.current.space5, bottom = LocalGilpickSpacing.current.space4),
         ) {
-            if (statusRes != null) {
+            if (status != null) {
+                val colors = LocalGilpickColors.current
                 Text(
-                    text = stringResource(statusRes),
+                    text = stringResource(status.textRes),
                     style = MaterialTheme.typography.labelSmall,
-                    color = LocalGilpickColors.current.success,
+                    // 닫힌 상태를 성공색으로 두면 색과 문구가 어긋난다(#576).
+                    color = if (status.closed) colors.onWarningContainer else colors.success,
                     modifier = Modifier
                         .padding(bottom = LocalGilpickSpacing.current.space2)
-                        .background(LocalGilpickColors.current.successContainer, RoundedCornerShape(LocalGilpickRadius.current.sm))
+                        .background(
+                            if (status.closed) colors.warningContainer else colors.successContainer,
+                            RoundedCornerShape(LocalGilpickRadius.current.sm),
+                        )
                         .padding(horizontal = 10.dp, vertical = LocalGilpickSpacing.current.space1),
                 )
             }

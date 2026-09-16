@@ -175,6 +175,7 @@ class ItineraryNavigationTest {
         rating = null,
         userRatingCount = null,
         businessStatus = null,
+        openNow = null,
         regularOpeningHours = null,
         currentOpeningHours = null,
         googleAttributions = null,

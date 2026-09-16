@@ -106,6 +106,31 @@ class PlaceDetailScreenTest {
         composeRule.onAllNodes(hasText("GOOGLE_PLACES")).assertCountEquals(0)
     }
 
+    /** #576: 상세 상태 칩은 실시간 `openNow`를 쓰고, 폐업·임시 휴업이 그보다 우선한다. */
+    @Test
+    fun 상세는_openNow로_현재_영업_상태를_구분한다() {
+        setScreen(content(testPlace("google:1", name = "카페", businessStatus = PlaceBusinessStatus.OPERATIONAL, openNow = true)))
+
+        composeRule.onNodeWithText("영업 중").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("운영 중")).assertCountEquals(0)
+    }
+
+    @Test
+    fun 상세는_openNow가_false면_영업_종료를_보인다() {
+        setScreen(content(testPlace("google:1", name = "카페", businessStatus = PlaceBusinessStatus.OPERATIONAL, openNow = false)))
+
+        composeRule.onNodeWithText("영업 종료").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("운영 중")).assertCountEquals(0)
+    }
+
+    @Test
+    fun 상세는_임시_휴업을_실시간_상태보다_우선해_보인다() {
+        setScreen(content(testPlace("google:2", name = "휴업 카페", businessStatus = PlaceBusinessStatus.CLOSED_TEMPORARILY, openNow = true)))
+
+        composeRule.onNodeWithText("임시 휴업").assertIsDisplayed()
+        composeRule.onAllNodes(hasText("영업 중")).assertCountEquals(0)
+    }
+
     /** #578 F003 UI-012: `tourapi:` 장소면 정보 영역 하단에 공공데이터 출처를 한 줄 둔다. */
     @Test
     fun tourapi_장소면_정보_영역_하단에_공공데이터_출처를_보여준다() {
@@ -299,6 +324,7 @@ internal fun testPlace(
     rating: Double? = null,
     userRatingCount: Int? = null,
     businessStatus: String? = null,
+    openNow: Boolean? = null,
     regularOpeningHours: List<String>? = null,
     currentOpeningHours: List<String>? = null,
     googleAttributions: List<String>? = null,
@@ -322,6 +348,7 @@ internal fun testPlace(
     rating = rating,
     userRatingCount = userRatingCount,
     businessStatus = businessStatus,
+    openNow = openNow,
     regularOpeningHours = regularOpeningHours,
     currentOpeningHours = currentOpeningHours,
     googleAttributions = googleAttributions,

@@ -562,7 +562,7 @@ internal fun PlaceRow(
     val radius = LocalGilpickRadius.current
     val colors = MaterialTheme.colorScheme
     val extra = LocalGilpickColors.current
-    val statusRes = businessStatusLabelRes(place.businessStatus)
+    val status = place.statusLabel()
     val ratingText = place.rating?.toRatingText()
 
     Row(
@@ -611,12 +611,12 @@ internal fun PlaceRow(
                                 },
                             )
                         }
-                        if (statusRes != null) {
+                        if (status != null) {
                             Text(
-                                text = stringResource(statusRes),
+                                text = stringResource(status.textRes),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (place.businessStatus == PlaceBusinessStatus.OPERATIONAL) extra.success else extra.warning,
+                                color = if (status.closed) extra.warning else extra.success,
                             )
                         }
                     }

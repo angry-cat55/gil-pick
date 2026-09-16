@@ -46,6 +46,18 @@ android\gradlew.bat -p android connectedDebugAndroidTest
 6. 360dp 폭, 최대 font scale, TalkBack focus 순서, live region, 48dp touch target을 확인한다.
 7. 장소별 provider 배지는 표시하지 않는다. Google 정보가 있는 영역에는 필수 attribution이, TourAPI 결과가 있는 검색 결과 목록·상세 정보 영역에는 `출처: ⓒ한국관광공사` 한 줄이 표시된다. Google 결과만 있으면 공공데이터 출처는 표시되지 않는다(UI-012, 2026-09-16).
 
+### 실시간 영업 상태 표시 검증 (#576, 2026-09-16, jy)
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| unit test | `android\gradlew.bat --offline -q :app:testDebugUnitTest` | 통과. 신규 `PlaceStatusLabelTest` 4건이 `openNow` true·false·null과 폐업·임시 휴업 우선순위, `openNow`만 있어도 Google attribution 대상인지를 확인한다. |
+| DTO 계약 | `PlaceApiTest`에 `openNow` true·false·null parsing assertion 추가. 계약이 `required`이므로 기본값을 두지 않아 누락은 parsing 오류가 된다 | 통과 |
+| 검색·상세 UI test | `ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.place` | 통과 78건. `검색_결과는_openNow를_현재_영업_상태로_구분하고_폐업을_우선한다`, `상세는_openNow로_현재_영업_상태를_구분한다` 등 신규 4건 포함 |
+| F009 회귀 | `...package=com.gilpick.alternative` (같은 `PlaceDto`·`PlaceRow` 사용) | 통과 45건 |
+| 실제 서버·기기 확인 | 미실행 | 실제 Google 보완 결과로 `openNow`가 채워진 장소를 기기에서 보는 확인은 하지 못했다. 사람 확인이 필요하다. |
+
+기존 실패: `ItineraryNavigationTest` 3건은 `origin/main`에서도 `No compose hierarchies found in the app`으로 실패한다(AVD `gilpick_api36` ATD 환경 문제, 이 변경과 무관).
+
 ## 실제 외부 API 수동 검증
 
 공유 환경이 준비된 경우에만 TourAPI 정상·empty·상세·pagination과 Google 조건부 보완·매칭·부분 실패·attribution을 확인한다. quota와 비용을 소모하므로 CI에서는 반복 호출하지 않는다.
