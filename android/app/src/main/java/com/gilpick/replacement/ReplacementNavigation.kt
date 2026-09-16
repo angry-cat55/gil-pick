@@ -121,6 +121,7 @@ fun NavGraphBuilder.replacementGraph(
             placeName = route.placeName,
             onBack = leave,
             onRetry = viewModel::load,
+            onRecreate = viewModel::regenerate,
             onApprove = viewModel::approve,
             onOtherCandidates = leave,
             onReauthenticate = onSessionExpired,

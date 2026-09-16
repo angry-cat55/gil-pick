@@ -70,8 +70,9 @@ class RoutePreviewApproveTest {
 
     @Test
     fun 일정이_바뀌면_다시_만들기를_안내한다() {
+        // #625: `다시 만들기`는 통신 재시도가 아니라 새 미리보기를 만드는 새 시도다.
         var recreates = 0
-        setScreen(content(failure = ReplacementError.ScheduleChanged), onRetry = { recreates++ })
+        setScreen(content(failure = ReplacementError.ScheduleChanged), onRecreate = { recreates++ })
 
         assertFailure("이 날짜 일정이 바뀌어서 비교를 다시 만들어야 해요", "다시 만들기")
         composeRule.onNodeWithTag(TAG_APPROVE).performClick()
@@ -81,7 +82,7 @@ class RoutePreviewApproveTest {
     @Test
     fun 미리보기가_만료되면_다시_만들기를_안내한다() {
         var recreates = 0
-        setScreen(content(failure = ReplacementError.PreviewExpired), onRetry = { recreates++ })
+        setScreen(content(failure = ReplacementError.PreviewExpired), onRecreate = { recreates++ })
 
         assertFailure("비교한 지 오래돼서 다시 만들어야 해요", "다시 만들기")
         composeRule.onNodeWithTag(TAG_APPROVE).performClick()
@@ -136,6 +137,7 @@ class RoutePreviewApproveTest {
                     state = content(failure = failure.value),
                     onBack = {},
                     onRetry = {},
+                    onRecreate = {},
                     onApprove = {},
                     onOtherCandidates = {},
                     onReauthenticate = {},
@@ -200,6 +202,7 @@ class RoutePreviewApproveTest {
         state: PreviewUiState,
         onBack: () -> Unit = {},
         onRetry: () -> Unit = {},
+        onRecreate: () -> Unit = {},
         onApprove: () -> Unit = {},
         onOtherCandidates: () -> Unit = {},
         onReauthenticate: () -> Unit = {},
@@ -210,6 +213,7 @@ class RoutePreviewApproveTest {
                     state = state,
                     onBack = onBack,
                     onRetry = onRetry,
+                    onRecreate = onRecreate,
                     onApprove = onApprove,
                     onOtherCandidates = onOtherCandidates,
                     onReauthenticate = onReauthenticate,

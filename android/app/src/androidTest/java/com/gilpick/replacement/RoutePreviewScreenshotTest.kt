@@ -116,6 +116,7 @@ class RoutePreviewScreenshotTest {
             placeName = placeName,
             onBack = {},
             onRetry = {},
+            onRecreate = {},
             onApprove = {},
             onOtherCandidates = {},
             onReauthenticate = {},
