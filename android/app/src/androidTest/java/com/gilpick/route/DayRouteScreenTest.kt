@@ -41,7 +41,9 @@ import com.gilpick.itinerary.TransportMode
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.ui.theme.GilpickTheme
 import java.time.LocalDate
+import com.gilpick.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -410,6 +412,7 @@ class DayRouteScreenTest {
                     onReauthenticate = {},
                     // 실제 권한을 바꾸면 instrumentation process가 죽으므로 권한 판단만 바꿔 끼운다.
                     hasLocationPermission = { true },
+                    currentLocation = { listOf(127.0, 37.5) },
                     map = { _, _, _, selected, modifier ->
                         focus = selected
                         Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
@@ -423,11 +426,14 @@ class DayRouteScreenTest {
             .assertWidthIsAtLeast(48.dp)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("내 위치로 이동")))
-        // 안내 문구는 권한을 거부당했을 때만 나온다.
-        composeRule.onNodeWithTag(TAG_MY_LOCATION_DENIED).assertDoesNotExist()
+        // 안내 문구는 옮기지 못했을 때만 나온다.
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_NOTICE).assertDoesNotExist()
 
         composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
-        composeRule.runOnIdle { assertTrue("focus=$focus", focus is RouteFocus.MyLocation) }
+        composeRule.runOnIdle {
+            val target = focus as? RouteFocus.MyLocation
+            assertEquals(listOf(127.0, 37.5), target?.position)
+        }
 
         // 지도를 직접 움직인 뒤 다시 눌러도 새 이동 요청이 간다.
         val before = focus
@@ -436,10 +442,40 @@ class DayRouteScreenTest {
     }
 
     @Test
-    fun 내_위치_버튼_권한_거부_안내는_다음_행동을_알린다() {
-        composeRule.setContent { GilpickTheme { MyLocationButton(denied = true, onClick = {}) } }
+    fun 위치를_얻지_못하면_지도를_옮기지_않고_이유를_알린다() {
+        var focus: RouteFocus? = null
+        composeRule.setContent {
+            GilpickTheme {
+                DayRouteScreen(
+                    state = RouteUiState.Content(readyRoute()),
+                    dayNumber = 2,
+                    date = LocalDate.of(2026, 5, 21),
+                    onBack = {},
+                    onRetry = {},
+                    onAddPlace = {},
+                    onReauthenticate = {},
+                    hasLocationPermission = { true },
+                    // 위치 서비스가 꺼져 있거나 신호가 없는 기기.
+                    currentLocation = { null },
+                    map = { _, _, _, selected, modifier ->
+                        focus = selected
+                        Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
+                    },
+                )
+            }
+        }
 
-        composeRule.onNodeWithTag(TAG_MY_LOCATION_DENIED).assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.runOnIdle { assertNull("focus=$focus", focus) }
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_NOTICE).assertIsDisplayed()
+        composeRule.onNodeWithText("현재 위치를 확인할 수 없어요. 위치 서비스를 켜고 다시 시도해 주세요").assertIsDisplayed()
+    }
+
+    @Test
+    fun 내_위치_버튼_권한_거부_안내는_다음_행동을_알린다() {
+        composeRule.setContent { GilpickTheme { MyLocationButton(notice = R.string.route_my_location_denied, onClick = {}) } }
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_NOTICE).assertIsDisplayed()
         composeRule.onNodeWithText("위치 권한을 허용하면 현재 위치를 볼 수 있어요").assertIsDisplayed()
     }
 

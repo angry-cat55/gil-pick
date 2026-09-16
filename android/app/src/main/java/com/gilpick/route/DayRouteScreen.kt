@@ -1,5 +1,6 @@
 package com.gilpick.route
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,6 +77,7 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
 import com.gilpick.ui.theme.displayFont
 import java.time.LocalDate
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.animation.core.Spring
@@ -113,6 +117,8 @@ import androidx.compose.ui.semantics.stateDescription
  * @param onAddPlace `empty`의 `장소 추가`. 그 날짜의 일정 편집(장소 검색)으로 간다.
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param hasLocationPermission 위치 권한이 있는지. 기본은 실제 기기 권한이며, UI test는 권한 상태를 바꿔 끼운다.
+ * @param currentLocation `내 위치로 이동`이 누를 때마다 확인하는 현재 위치(`[경도, 위도]`). 못 얻으면 `null`이고
+ *   화면은 지도를 옮기는 대신 안내를 띄운다(#651). 기본은 실제 기기 위치이며, UI test가 바꿔 끼운다.
  * @param map 지도 영역. 세 번째 인자는 sheet가 덮는 높이 비율, 네 번째는 장소 카드로 고른 지도 이동 대상이다.
  *   기본은 Naver [RouteMap]이며, UI test·screenshot은 SDK 인증 없이 그릴 수 있는 자리 표시로 바꿔 끼운다.
  */
@@ -127,6 +133,9 @@ fun DayRouteScreen(
     onReauthenticate: () -> Unit,
     modifier: Modifier = Modifier,
     hasLocationPermission: (Context) -> Boolean = { DeviceLocationProvider.hasLocationPermission(it) },
+    currentLocation: suspend (Context) -> Position? = { context ->
+        DeviceLocationProvider.forMap(context)?.let { listOf(it.longitude, it.latitude) }
+    },
     map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit = { route, marks, sheetFraction, focus, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = sheetFraction, focus = focus, myLocation = true)
     },
@@ -160,7 +169,13 @@ fun DayRouteScreen(
                 RouteUiState.Empty -> EmptyState(onAddPlace = onAddPlace, onBack = onBack)
                 is RouteUiState.Error -> Unit
 
-                is RouteUiState.Content -> Content(route = state.route, marks = state.marks, hasLocationPermission = hasLocationPermission, map = map)
+                is RouteUiState.Content -> Content(
+                    route = state.route,
+                    marks = state.marks,
+                    hasLocationPermission = hasLocationPermission,
+                    currentLocation = currentLocation,
+                    map = map,
+                )
             }
         }
     }
@@ -313,6 +328,7 @@ private fun Content(
     route: RouteDto,
     marks: RouteMarks,
     hasLocationPermission: (Context) -> Boolean,
+    currentLocation: suspend (Context) -> Position?,
     map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -329,12 +345,26 @@ private fun Content(
         var mapFraction by remember { mutableFloatStateOf(SHEET_DEFAULT_FRACTION) }
         // 카드 선택·내 위치는 지도 카메라만 옮긴다. 같은 대상을 다시 눌러도 옮기도록 누를 때마다 tick을 올린다(#618, #614).
         var focus by remember { mutableStateOf<RouteFocus?>(null) }
-        var permissionDenied by remember { mutableStateOf(false) }
+        var notice by remember { mutableStateOf<Int?>(null) }
+        var locating by remember { mutableStateOf(false) }
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         fun moveTo(next: (Int) -> RouteFocus) { focus = next((focus?.tick ?: 0) + 1) }
-        // 권한을 받은 뒤에야 지도가 현재 위치를 알 수 있으므로, 허용된 뒤에 이동을 넘긴다(F003 PlaceNavigation과 같은 방식).
+        // 누를 때마다 위치를 새로 확인한다. 화면에 들어온 시점에 위치 서비스가 꺼져 있었더라도 이 누름에서
+        // 다시 시도하고, 끝내 못 얻으면 아무 일도 없는 대신 이유를 알린다(#651).
+        fun locate() {
+            if (locating) return
+            locating = true
+            notice = null
+            scope.launch {
+                val position = currentLocation(context)
+                locating = false
+                if (position == null) notice = R.string.route_my_location_unavailable else moveTo { tick -> RouteFocus.MyLocation(position, tick) }
+            }
+        }
+        // 권한을 받은 뒤에야 현재 위치를 알 수 있으므로, 허용된 뒤에 확인한다(F003 PlaceNavigation과 같은 방식).
         val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-            if (granted.values.any { it }) moveTo(RouteFocus::MyLocation) else permissionDenied = true
+            if (granted.values.any { it }) locate() else notice = R.string.route_my_location_denied
         }
 
         fun anchorPx(value: SheetAnchor) = when (value) {
@@ -361,11 +391,11 @@ private fun Content(
 
         map(route, marks, mapFraction, focus, Modifier.fillMaxSize())
         MyLocationButton(
-            denied = permissionDenied,
+            notice = notice,
             onClick = {
-                permissionDenied = false
+                notice = null
                 if (hasLocationPermission(context)) {
-                    moveTo(RouteFocus::MyLocation)
+                    locate()
                 } else {
                     locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                 }
@@ -525,10 +555,11 @@ private fun RouteSheet(
  * 지도 위 control과 겹치지 않는 자리다: Naver SDK는 로고를 왼쪽 아래, 축척을 오른쪽 아래, 확대/축소를
  * 오른쪽 가운데(content padding 기준)에 둔다. 경로 정보 sheet는 아래쪽에 있다.
  *
- * @param denied 위치 권한을 거부당했다. 버튼 아래에 다음 행동을 알리는 문구를 띄운다.
+ * @param notice 지도를 옮기지 못한 이유 문구의 resource. `null`이면 버튼만 보인다. 권한 거부와 위치 확인
+ *   실패를 같은 자리에서 알린다(#651).
  */
 @Composable
-internal fun MyLocationButton(denied: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MyLocationButton(@StringRes notice: Int?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val label = stringResource(R.string.route_my_location)
@@ -551,16 +582,18 @@ internal fun MyLocationButton(denied: Boolean, onClick: () -> Unit, modifier: Mo
                 modifier = Modifier.size(22.dp),
             )
         }
-        if (denied) {
+        if (notice != null) {
             Text(
-                text = stringResource(R.string.route_my_location_denied),
+                text = stringResource(notice),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White,
                 modifier = Modifier
+                    // 화면 폭을 다 쓰면 지도 위 marker를 가린다. 버튼 쪽에 붙여 두고 줄바꿈시킨다.
+                    .widthIn(max = NOTICE_MAX_WIDTH)
                     .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
                     .background(colors.darkMap.copy(alpha = 0.85f))
                     .padding(horizontal = spacing.space3, vertical = spacing.space2)
-                    .testTag(TAG_MY_LOCATION_DENIED),
+                    .testTag(TAG_MY_LOCATION_NOTICE),
             )
         }
     }
@@ -875,8 +908,10 @@ internal const val TAG_ATTRIBUTION = "route_attribution"
 internal const val TAG_SEGMENT_PREFIX = "route_segment_"
 internal const val TAG_MARKER_PREFIX = "route_marker_"
 internal const val TAG_MAP = "route_map"
+private val NOTICE_MAX_WIDTH: Dp = 240.dp
+
 internal const val TAG_MY_LOCATION = "route_my_location"
-internal const val TAG_MY_LOCATION_DENIED = "route_my_location_denied"
+internal const val TAG_MY_LOCATION_NOTICE = "route_my_location_notice"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 

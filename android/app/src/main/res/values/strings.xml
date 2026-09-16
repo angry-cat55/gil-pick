@@ -383,6 +383,8 @@
     <!-- #614 실시간 현재 위치. 시작 위치 marker(route_marker_start)와 구분되는 표현을 쓴다. -->
     <string name="route_my_location">내 위치로 이동</string>
     <string name="route_my_location_denied">위치 권한을 허용하면 현재 위치를 볼 수 있어요</string>
+    <!-- #651 권한은 있지만 위치를 못 얻었다(위치 서비스 꺼짐·신호 없음). 아무 반응이 없는 대신 다음 행동을 알린다. -->
+    <string name="route_my_location_unavailable">현재 위치를 확인할 수 없어요. 위치 서비스를 켜고 다시 시도해 주세요</string>
     <!-- 장소 카드를 누르면 지도를 그 장소로 옮긴다(#618). clickable의 onClickLabel로 TalkBack이 동작을 함께 읽는다. -->
     <string name="route_marker_focus">지도에서 보기</string>
     <!-- 일자 경로 sheet 범례(Figma DayRouteScreen). 상태 문구는 progress_status_*·itinerary_edit_status_*와 같다. -->
