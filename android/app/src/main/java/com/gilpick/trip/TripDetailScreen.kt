@@ -62,6 +62,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.gilpick.ui.component.DestructiveConfirmDialog
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.displayFont
@@ -252,22 +253,16 @@ fun TripDetailScreen(
 }
 
 /**
- * 삭제 확인 다이얼로그(Figma `TripDetailScreen` 삭제 확인).
+ * 여행 삭제 확인 다이얼로그(Figma `TripDetailScreen` 삭제 확인).
  *
- * `AlertDialog`가 아니라 [BasicAlertDialog]를 쓰는 이유는 `AlertDialog`가 제목·본문·버튼의 배치와
- * 간격을 스스로 정해서 Figma 배치를 그대로 만들 수 없기 때문이다. [BasicAlertDialog]는 창 동작(뒤로 가기,
- * scrim, `paneTitle` semantics)만 주고 내용은 호출자가 채운다.
- *
- * Figma대로 48dp `errorContainer` 아이콘 상자, 제목, 본문 아래에 파란 `취소`(폭을 채움)와 빨간 글자
- * `삭제하기`를 세로로 둔다. 되돌릴 수 없는 행동이라 강조는 `취소`에 준다. 본문은 여행명을 인용하는
- * 기존 문장을 유지한다(#442 결정). 여행 수정 화면의 `여행 삭제`(#443)도 같은 대화상자를 쓴다.
+ * 배치와 버튼 규칙은 공용 [DestructiveConfirmDialog]가 소유한다. 여기서는 여행명을 인용하는
+ * 문구와 삭제 단계만 넘긴다(#442 결정). 여행 수정 화면의 `여행 삭제`(#443)도 같은 대화상자를 쓴다.
  *
  * @param tripName 본문에 인용할 여행명.
  * @param deletion 삭제 요청의 진행 단계. 진행 중에는 버튼을 잠그고 실패하면 안내를 붙인다.
  * @param onConfirm 삭제를 확정한다.
  * @param onDismiss 다이얼로그를 닫는다. 진행 중에는 호출되지 않는다.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TripDeleteConfirmDialog(
     tripName: String,
@@ -275,103 +270,17 @@ internal fun TripDeleteConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val spacing = LocalGilpickSpacing.current
-    val radius = LocalGilpickRadius.current
-    val deleting = deletion is TripDeletePhase.Deleting
-
-    BasicAlertDialog(
-        // 요청을 보낸 사이에 닫히면 결과를 전달할 화면이 사라진다.
-        onDismissRequest = { if (!deleting) onDismiss() },
-        properties = DialogProperties(
-            dismissOnBackPress = !deleting,
-            dismissOnClickOutside = !deleting,
-            // pen이 정한 너비를 쓰려면 platform 기본 너비 제약을 꺼야 한다.
-            usePlatformDefaultWidth = false,
-        ),
-        // pen은 326dp 고정이지만 그보다 좁은 화면에서는 잘린다. 최대값으로 두어 좁은
-        // 화면에서만 줄어들게 한다(가이드라인 10절: 360dp에서 잘림 없음).
-        modifier = Modifier
-            .padding(horizontal = spacing.space5)
-            .widthIn(max = DIALOG_WIDTH),
-    ) {
-        val shape = RoundedCornerShape(radius.xl)
-        val shadowed = LocalGilpickShadows.current.dialog.fold(Modifier as Modifier) { acc, shadow -> acc.dropShadow(shape, shadow) }
-        Surface(
-            shape = shape,
-            color = MaterialTheme.colorScheme.surface,
-            modifier = shadowed,
-        ) {
-            Column(modifier = Modifier.padding(spacing.space6)) {
-                Box(
-                    modifier = Modifier
-                        .size(DIALOG_ICON_BOX)
-                        .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(radius.lg)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_lucide_trash),
-                        // 제목이 뜻을 전달한다(가이드라인 10절).
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(DIALOG_ICON),
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.trip_delete_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = spacing.space4, bottom = spacing.space2),
-                )
-                Text(
-                    text = stringResource(R.string.trip_delete_body, tripName),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                // 실패해도 다이얼로그를 닫지 않는다. 여행은 그대로 남아 있으므로 같은
-                // 자리에서 다시 시도하거나 취소할 수 있어야 한다.
-                if (deletion is TripDeletePhase.Failed) {
-                    Text(
-                        text = stringResource(deletion.error.messageRes),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = spacing.space2),
-                    )
-                }
-
-                GradientButton(
-                    label = stringResource(R.string.trip_delete_cancel),
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = spacing.space6),
-                    width = GradientButtonWidth.Standalone,
-                    height = DIALOG_BUTTON_HEIGHT,
-                    enabled = !deleting,
-                )
-                TextButton(
-                    onClick = onConfirm,
-                    enabled = !deleting,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = spacing.space2)
-                        .heightIn(min = MIN_TOUCH),
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                        disabledContentColor = MaterialTheme.colorScheme.error,
-                    ),
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (deleting) R.string.trip_delete_progress
-                            else R.string.trip_delete_confirm,
-                        ),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
-            }
-        }
-    }
+    DestructiveConfirmDialog(
+        title = stringResource(R.string.trip_delete_title),
+        body = stringResource(R.string.trip_delete_body, tripName),
+        confirmLabel = stringResource(R.string.trip_delete_confirm),
+        progressLabel = stringResource(R.string.trip_delete_progress),
+        cancelLabel = stringResource(R.string.trip_delete_cancel),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        busy = deletion is TripDeletePhase.Deleting,
+        errorMessage = (deletion as? TripDeletePhase.Failed)?.let { stringResource(it.error.messageRes) },
+    )
 }
 
 /** 삭제 실패 안내 문구. */
@@ -1790,16 +1699,6 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 /** 가이드라인 5절·10절: 주요 CTA 52~56dp, 터치 영역 48dp 이상. */
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val MIN_TOUCH = Dp(48f)
-
-/** 삭제 확인 다이얼로그의 너비. 좁은 화면에서는 이보다 줄어든다. */
-private val DIALOG_WIDTH = 326.dp
-
-/** Figma 삭제 확인 `취소` 버튼 높이(`h-[52px]`). */
-private val DIALOG_BUTTON_HEIGHT = 52.dp
-
-/** Figma 삭제 확인 아이콘 상자(`w-12 h-12`)와 휴지통 아이콘(22). */
-private val DIALOG_ICON_BOX = 48.dp
-private val DIALOG_ICON = 22.dp
 
 /** Figma `오늘 여행 시작` 높이(`h-[52px]`). */
 private val START_BUTTON_HEIGHT = 52.dp
