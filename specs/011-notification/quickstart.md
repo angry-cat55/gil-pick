@@ -70,15 +70,15 @@ gradlew.bat --offline :app:connectedDebugAndroidTest \
 ### BE 3. FCM 발송·재시도·무효 토큰 (FR-006~FR-009·FR-027, SC-004·SC-005)
 
 1. `FcmClient` mock이 성공을 주면 `NotificationDispatchService.send_one`이 사용자 활성 기기 토큰 전부에 data-only 메시지(payload에 재조회 식별자 + `title`·`body`만, 좌표·평점·토큰 없음)를 보내고 `sent_at`을 찍는지 확인한다.
-2. mock이 `UNAVAILABLE`을 2회 주고 3회차 성공이면 재시도 2회 후 성공, 3회 모두 실패면 `sent_at`을 찍고 `notification_delivery_failed`를 log(토큰·본문 없이)하는지 확인한다.
+2. mock이 `UNAVAILABLE`을 2회 주고 3회차 성공이면 한 dispatch 안에서 성공하는지 확인한다. 3회 모두 실패하면 `sent_at` 없이 `PENDING`과 `next_attempt_at`을 남겨 다음 tick에서 재시도하고, dispatch 3회째에도 실패하면 `FAILED`와 `notification_delivery_failed` log(토큰·본문 없이)를 남기는지 확인한다.
 3. mock이 `UNREGISTERED`를 주면 그 `device_sessions.fcm_token`만 `NULL`이 되고 다른 토큰 전송·행 커밋은 영향 없는지 확인한다.
-4. 활성 기기 토큰이 0개면 실패가 아니라 `sent_at`만 찍히고 목록 조회에는 남는지 확인한다(FR-007).
+4. 활성 기기 토큰이 0개면 `NO_DEVICE`로 끝나고 `sent_at`은 비어 있으며 목록 조회에는 남는지 확인한다(FR-007).
 5. `FCM_ENABLED=false`면 발송을 건너뛰고 `sent_at`을 찍으며 행은 정상인지 확인한다.
 6. FCM 호출 실패가 감지·전환 transaction을 롤백하지 않는지(발송은 커밋 후) 확인한다.
 
 ### BE 4. dispatch job (research R7)
 
-1. `notifications WHERE sent_at IS NULL`을 tick이 큐로 읽어 `send_one`을 부르고, 처리된 행은 다음 tick에 다시 잡히지 않는지 확인한다.
+1. `delivery_status='PENDING'`이고 `next_attempt_at`이 도래한 알림만 tick이 큐로 읽어 `send_one`을 부르고, `SENT`·`FAILED`·`NO_DEVICE`는 다시 잡히지 않는지 확인한다.
 2. tick이 `IN_PROGRESS` `trip_days`에 `finalize_due_candidates`를 호출해 만료 후보가 요청 없이도 자동 확정되고 그 자동 확정 알림이 생성·발송되는지 확인한다(idempotent 재호출 안전).
 3. 동기 즉시 발송(요청 경로 `BackgroundTasks`)이 성공하면 tick이 그 행을 재발송하지 않는지 확인한다.
 

@@ -51,7 +51,7 @@ async def _dispatch_place_change(
 
     발송은 감지 transaction 커밋 이후 별도 transaction에서 하고, FCM 실패는
     `send_one` 안에서 흡수되므로 감지 결과를 롤백하지 않는다. 실패·누락 건은
-    다음 dispatch tick이 `sent_at IS NULL` 큐에서 다시 집는다.
+    다음 dispatch tick이 `PENDING` 큐에서 다시 집는다.
     """
     if not detection_ids:
         return
@@ -62,7 +62,8 @@ async def _dispatch_place_change(
                     await session.scalars(
                         select(Notification).where(
                             Notification.detection_id.in_(detection_ids),
-                            Notification.sent_at.is_(None),
+                            Notification.delivery_status == "PENDING",
+                            Notification.delivery_attempts == 0,
                         )
                     )
                 ).all()

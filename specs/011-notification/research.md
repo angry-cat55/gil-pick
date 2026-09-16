@@ -42,6 +42,12 @@ spec의 Assumptions에서 plan으로 미룬 항목과 Technical Context의 미�
 ## R5. FCM 전송 클라이언트
 
 - **Decision**: `api/app/clients/fcm.py`에 `FcmClient(settings, client: httpx2.AsyncClient | None = None)`를 만들고 **FCM HTTP v1 API**(`POST https://fcm.googleapis.com/v1/projects/{project_id}/messages:send`)를 직접 호출한다. 서비스 계정 인증은 `pyjwt`(이미 의존성)로 RS256 JWT를 만들어 `https://oauth2.googleapis.com/token`에서 access token을 교환하고 ~55분 캐시한다. 메시지는 **data-only**(`message.token`, `message.data` 문자열 맵). 결과는 `FcmSendResult` = `OK` / `INVALID_TOKEN`(`UNREGISTERED`·`INVALID_ARGUMENT` 중 토큰 오류) / `RETRYABLE`(`UNAVAILABLE`·`INTERNAL`·429) / `FATAL`. 오류 타입 `FcmClientError(code, retryable, status_code)`는 `TourApiClientError` 패턴을 따른다.
+
+### R6 보완 — dispatch 간 재시도 상태 (#635, 2026-09-16)
+
+- **Decision**: 한 dispatch의 3회 호출이 모두 `RETRYABLE`이면 알림을 완료하지 않고 30초, 2분 뒤 다음 dispatch가 다시 처리한다. dispatch 시도는 최대 3회다. 상태는 `PENDING`·`SENT`·`FAILED`·`NO_DEVICE`로 저장하며 `sent_at`은 최소 한 기기 성공만 뜻한다.
+- **Rationale**: 기존 `sent_at=종단 시도 완료` 정책은 일시 장애도 재선택하지 못했다. 상태와 시도 횟수를 같은 알림 행에 두면 별도 delivery 테이블 없이 무한 재시도와 성공 기기 중복 발송을 모두 피할 수 있다.
+- **Migration**: 과거 `sent_at IS NOT NULL` 행은 당시 성공/실패를 구분할 자료가 없어 `SENT`로 이관한다. 이는 확인된 데이터 한계이며 과거 실패를 자동 복원하지 않는다.
 - **Rationale**: 기존 클라이언트가 전부 `httpx2` 얇은 래퍼이고 `firebase-admin`·`google-auth`는 `pyproject.toml`에 없다. HTTP v1 + `pyjwt`면 새 무거운 의존성 없이 같은 패턴으로 만든다. data-only여야 앱이 payload를 검사해 재조회 식별자만 담았음을 보장하고(FR-006, SC-004) 포그라운드에서 자동 표시를 막는다(FR-029).
 - **의존성 확인**: RS256 서명에는 `pyjwt`의 `[crypto]` extra(`cryptography`)가 필요하다. `core/security.py`가 HS256만 쓰면 미설치일 수 있으니 tasks 첫 BE 작업에서 확인하고, 없으면 `pyjwt[crypto]`(가벼운 표준 라이브러리)만 추가한다. 그래도 `firebase-admin`은 도입하지 않는다.
 - **설정**(`api/app/core/config.py` `Settings` + `.env.example`): `fcm_enabled: bool = False`, `fcm_project_id: str | None`, `fcm_service_account_json: SecretStr | None`(또는 경로), `fcm_request_timeout_seconds: float = 5.0`. `fcm_enabled=False`면 발송을 건너뛰고 `notification.sent_at`을 현재 시각으로 찍은 뒤 `fcm_skipped`를 log한다(로컬·CI에서 자격 없이 동작).
@@ -49,16 +55,16 @@ spec의 Assumptions에서 plan으로 미룬 항목과 Technical Context의 미�
 
 ## R6. 재시도와 무효 토큰 처리
 
-- **Decision**: 발송 단위는 `NotificationDispatchService.send_one(notification)`. (1) `notification.user_id`의 활성 기기 토큰(`device_sessions` where `revoked_at IS NULL AND fcm_token IS NOT NULL`)을 모은다. (2) 토큰이 0개면 `sent_at=now`로 찍고 종료(FR-007). (3) 각 토큰에 `FcmClient.send`. `RETRYABLE`이면 `0.5s → 1.5s` 백오프로 최대 2회 재시도(총 3회, FR-027). (4) `INVALID_TOKEN`이면 그 `device_sessions.fcm_token`만 `NULL`로(FR-008). (5) 모든 토큰 처리가 끝나면 `sent_at=now`로 찍는다(성공·최종 실패 공통 = "종단 발송 시도 완료"). 최종 실패는 `notification_delivery_failed`를 request-id·유형·대상 id·기기 수와 함께 log하되 토큰 원문·본문은 남기지 않는다(FR-024).
-- **Rationale**: spec Clarifications 2026-09-10, constitution IV. `notifications` 테이블에 발송 상태 컬럼이 없고 `notification_deliveries`가 제외됐으므로(`er-schema.md` 14절) `sent_at`을 "종단 시도 시각"으로 쓴다. 한 토큰의 실패가 다른 토큰·행 커밋을 막지 않게 토큰 루프를 격리한다(FR-008·FR-009).
-- **Alternatives**: `send_attempts` 컬럼 추가 — 스키마 확장 대비 이득이 작다(MVP는 이력화 안 함). 무제한 재시도 큐 — dispatch 주기가 이미 재시도 역할(다음 tick에 `sent_at IS NULL`을 다시 집음). 하지만 최종 실패를 영구 재시도하면 tick마다 낭비 → `sent_at`을 찍어 종료.
+- **Decision**: 발송 단위는 `NotificationDispatchService.send_one(notification)`. (1) 활성 기기 토큰을 모은다. (2) 토큰이 0개면 `NO_DEVICE`로 종료한다(FR-007). (3) 각 토큰에 `FcmClient.send`를 호출하고 `RETRYABLE`이면 `0.5s → 1.5s` 백오프로 한 dispatch에서 최대 2회 재시도한다. (4) `INVALID_TOKEN`이면 해당 `device_sessions.fcm_token`만 `NULL`로 만든다(FR-008). (5) 최소 한 기기 성공은 `SENT`와 `sent_at=now`, 영구 실패는 `FAILED`, 일시 실패는 다음 dispatch 대상으로 기록한다. 결과는 request-id·유형·대상 id·기기 수와 함께 log하되 토큰 원문·본문은 남기지 않는다(FR-024).
+- **Rationale**: 한 토큰의 실패가 다른 토큰·행 커밋을 막지 않게 토큰 루프를 격리한다(FR-008·FR-009). 알림 행 자체에 최소 전달 상태를 두어 별도 `notification_deliveries` 없이 실패를 성공과 구분한다.
+- **Alternatives**: 기기별 delivery 테이블은 부분 성공 기기만 선별 재시도할 수 있지만 MVP 범위를 키운다. 일부 성공은 `SENT`로 끝내 중복 알림을 방지한다.
 
 ## R7. 배경 실행 모델 — `notification_dispatch` job
 
 - **Decision**: `api/app/jobs/notification_dispatch.py`에 `run_notification_dispatch(session_factory, *, interval_seconds=30)` asyncio 루프를 새로 만들고 `main.py` `lifespan`에서 `asyncio.create_task`로 띄운다(기존 `run_auth_cleanup`·`run_variable_detection`과 같은 패턴). 매 tick:
   1. `IN_PROGRESS`인 `trip_days`에 대해 `DetectionService(session).finalize_due_candidates(day)`를 호출해 만료된 무응답 후보를 제때 자동 확정하고(→ R4 hook 2가 `ARRIVAL_AUTO_CONFIRMED` 행 생성), `next_prompt_at <= now`인 후보에 `ARRIVAL_CHECK prompt_seq=2` 행을 만든다.
-  2. `notifications WHERE sent_at IS NULL ORDER BY created_at LIMIT 200`을 읽어 각 행에 `send_one`(R6).
-  `notifications` 테이블 자체가 발송 큐다(`sent_at IS NULL` = 미발송).
+  2. 재시도 시각이 지난 `notifications WHERE delivery_status='PENDING' ORDER BY created_at LIMIT 200`을 읽어 각 행에 `send_one`(R6).
+  `notifications` 테이블 자체가 발송 큐다(`delivery_status='PENDING'` = 최초 발송 또는 재시도 대기).
 - **동기 경로와의 관계**: `register_event`(확인 알림)와 10분 감지 루프(장소 변경 제안)는 행을 만든 뒤 `BackgroundTasks`(요청 경로) 또는 루프 커밋 직후 한 번 즉시 `send_one`을 시도해 지연을 30초 밑으로 낮춘다. dispatch tick은 즉시 발송이 실패·누락됐을 때의 안전망이자 자동 확정·재질문의 적시 발송 담당이다.
 - **Rationale**: 자동 확정·재질문은 F006/F007이 **지연(요청 시)** 설계라, 앱이 백그라운드면 알림이 늦는다. 30초 tick이 `finalize_due_candidates`(idempotent)를 대신 호출해 적시성을 준다. 새 스케줄러 프레임워크 없이 기존 asyncio 루프 패턴을 재사용한다. 단일 worker 전제(`main.py` 주석)와 일치.
 - **F006/F007 협의 필요**: dispatch가 `finalize_due_candidates`를 호출하면 자동 확정이 "다음 요청" 대신 "마감 후 ~30초"에 기록된다(되돌리기 창은 `auto_finalize_at` 기준이라 불변, 사용자에게 유리). 이는 F006/F007 동작 시점 변경이므로 해당 담당 review로 확정한다(plan Constitution Check 교차 계약 review).

@@ -501,7 +501,10 @@ erDiagram
 | `title` | varchar(200) | N | 제목 |
 | `body` | text | N | 본문 |
 | `dedup_key` | varchar(255) | Y | `detection:{detection_id}`, `transition:{transition_id}:arrival_check:{prompt_seq}`, `transition:{transition_id}:departure_check`, `transition:{transition_id}:auto`; `(user_id, dedup_key)` partial unique |
-| `sent_at` | timestamptz | Y | 종단 FCM 발송 시도 완료 시각(성공·최종 실패 공통). `NULL`이면 dispatch 미처리 |
+| `delivery_status` | varchar(20) | N | `PENDING`, `SENT`, `FAILED`, `NO_DEVICE` |
+| `delivery_attempts` | integer | N | dispatch 시도 횟수. 기본 0, 최대 3 |
+| `next_attempt_at` | timestamptz | Y | 일시 실패 후 다음 dispatch 가능 시각 |
+| `sent_at` | timestamptz | Y | 최소 한 기기에 FCM 발송이 성공한 시각 |
 | `read_at` | timestamptz | Y | 앱 읽음 시각 |
 | `created_at` | timestamptz | N | 생성 시각 |
 
@@ -594,7 +597,7 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 | `detections` | active fingerprint partial unique, `(trip_day_id, status, detected_at)` |
 | `route_previews` | unique `(detection_id, idempotency_key)`, active pending unique `(detection_id)`, `(detection_id, created_at desc)` |
 | `place_replacements` | unique `(preview_id)`, `(trip_day_id, approved_at desc)` |
-| `notifications` | `(user_id, read_at, created_at desc)`, `(created_at)`, unique `(user_id, dedup_key)` where `dedup_key is not null`, `(created_at)` where `sent_at is null` |
+| `notifications` | `(user_id, read_at, created_at desc)`, `(created_at)`, unique `(user_id, dedup_key)` where `dedup_key is not null`, `(next_attempt_at, created_at)` where `delivery_status='PENDING'` |
 | `idempotency_records` | unique `(user_id, scope, idempotency_key)`, `(expires_at)` |
 
 ## 13. API와 테이블 매핑
