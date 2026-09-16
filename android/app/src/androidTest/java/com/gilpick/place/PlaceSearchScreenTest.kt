@@ -126,6 +126,8 @@ class PlaceSearchScreenTest {
         )
 
         composeRule.onNodeWithText("검색 결과 2곳").assertIsDisplayed()
+        // #679: MVP에서는 정렬 옵션을 두지 않는다.
+        composeRule.onAllNodes(hasText("거리순", substring = true)).assertCountEquals(0)
         // 칩 하나와 첫 행의 category 한 번.
         composeRule.onAllNodes(hasText("문화·역사")).assertCountEquals(2)
         composeRule.onNodeWithText("4.8").assertIsDisplayed()

@@ -127,13 +127,6 @@ fun NavGraphBuilder.placeGraph(
             onPlaceClick = { placeId -> navController.navigate(PlaceDetailRoute(placeId, firstPlace)) },
             onAddToSchedule = onAddToSchedule,
             askTransport = !firstPlace,
-            onToggleDistanceSort = {
-                if (state.distanceOrigin != null || DeviceLocationProvider.hasLocationPermission(context)) {
-                    viewModel.toggleDistanceSort()
-                } else {
-                    locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-                }
-            },
         )
     }
     composable<PlaceDetailRoute> { entry ->
