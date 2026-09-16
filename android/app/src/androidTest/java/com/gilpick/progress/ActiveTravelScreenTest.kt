@@ -15,6 +15,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
@@ -447,9 +448,12 @@ class ActiveTravelScreenTest {
         setScreen(content().copy(activeDetections = listOf(laterDetection(), insadongDetection())), onOpenAlternatives = { opened += it })
 
         composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertIsDisplayed().assertHeightIsAtLeast(48.dp)
-        composeRule.onNodeWithText("인사동거리 지금 매우 혼잡해요").assertIsDisplayed()
+        // 장소명과 사유는 각자의 줄이다. 붙여 쓰면 좁은 배너에서 사유 중간이 꺾인다(#676).
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertTextContains("인사동거리")
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).assertTextContains("지금 매우 혼잡해요")
+        composeRule.onNodeWithText("인사동거리 지금 매우 혼잡해요").assertDoesNotExist()
         composeRule.onNodeWithText("오후 4:00 도착 예정 · 5분 전 감지").assertIsDisplayed()
-        composeRule.onNodeWithText("남산타워 오후 강수 예보").assertDoesNotExist()
+        composeRule.onNodeWithText("오후 강수 예보").assertDoesNotExist()
         // 배너가 카드를 밀어내지 않는다.
         composeRule.onNodeWithTag(TAG_CARD_NEXT).assertIsDisplayed()
 
