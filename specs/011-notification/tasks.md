@@ -82,7 +82,7 @@ description: "Task list for F011 알림"
   - 영역: BE
   - 담당: ts
   - 선행: T007, T009
-  - 검증: `send_one(notification)` — 활성 기기 토큰 조회(`revoked_at IS NULL AND fcm_token IS NOT NULL`), 0개면 `sent_at`만 찍음, `RETRYABLE`이면 0.5s→1.5s 백오프 2회 재시도, `INVALID_TOKEN`이면 그 `fcm_token`만 `NULL`, 종료 시 `sent_at=now`·최종 실패는 `notification_delivery_failed` log(토큰·본문 없이). `tick(session)` — 미발송 큐 처리 + `IN_PROGRESS` 날짜에 `finalize_due_candidates` 호출 + 재질문 due 행 생성. `tests/unit/test_notification_dispatch.py`
+  - 검증: `send_one(notification)` — 활성 기기 토큰 조회(`revoked_at IS NULL AND fcm_token IS NOT NULL`), `RETRYABLE`이면 한 dispatch에서 0.5s→1.5s 백오프 2회 재시도, 모두 실패하면 다음 tick 대상으로 유지하되 dispatch 최대 3회, `INVALID_TOKEN`이면 그 `fcm_token`만 `NULL`. 최소 한 기기 성공은 `SENT`와 `sent_at=now`, 영구/최종 실패는 `FAILED`, 기기 0개는 `NO_DEVICE`로 기록한다. `tick(session)` — 재시도 시각이 지난 `PENDING` 큐 처리 + `IN_PROGRESS` 날짜에 `finalize_due_candidates` 호출 + 재질문 due 행 생성. `tests/unit/test_notification_dispatch.py` (#635)
 - [x] T011 NOTI/DEV DTO in api/app/schemas/notification.py, api/app/schemas/device.py
   - 영역: BE
   - 담당: ts

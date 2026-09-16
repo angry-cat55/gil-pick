@@ -21,7 +21,10 @@ F011은 **새 테이블 1개(`notifications`)와 migration 1개**를 추가한�
 | `title` | varchar(200) | N | 서버 생성(R14) |
 | `body` | text | N | 서버 생성(R14) |
 | `dedup_key` | varchar(255) | Y | R2 구성. 있으면 `(user_id, dedup_key)` 유일 |
-| `sent_at` | timestamptz | Y | 종단 FCM 발송 시도 완료 시각(성공·최종 실패 공통). `NULL` = dispatch 미처리 |
+| `delivery_status` | varchar(20) | N | `PENDING`, `SENT`, `FAILED`, `NO_DEVICE` |
+| `delivery_attempts` | integer | N | dispatch 시도 횟수. 기본 0, 최대 3 |
+| `next_attempt_at` | timestamptz | Y | `PENDING` 재시도 가능 시각 |
+| `sent_at` | timestamptz | Y | 최소 한 기기에 FCM 발송이 성공한 시각 |
 | `read_at` | timestamptz | Y | 앱 읽음 시각 |
 | `created_at` | timestamptz | N | 생성 시각. 보존·정렬 기준 |
 
@@ -32,7 +35,7 @@ F011은 **새 테이블 1개(`notifications`)와 migration 1개**를 추가한�
 | `ix_notifications_user_unread` | `(user_id, read_at, created_at DESC)` | NOTI-001 목록·`read` 필터 |
 | `ix_notifications_retention` | `(created_at)` | 90일 정리 job |
 | `uq_notifications_dedup` | unique `(user_id, dedup_key)` WHERE `dedup_key IS NOT NULL` | FR-002 중복 방지, `ON CONFLICT DO NOTHING` |
-| `ix_notifications_pending` | `(created_at)` WHERE `sent_at IS NULL` | dispatch 큐 스캔 |
+| `ix_notifications_pending` | `(next_attempt_at, created_at)` WHERE `delivery_status = 'PENDING'` | dispatch 큐 스캔 |
 
 ### 1.2 `device_sessions` (기존, 인덱스 1개 추가 + 쓰기 3종)
 
@@ -58,16 +61,19 @@ F011은 **새 테이블 1개(`notifications`)와 migration 1개**를 추가한�
 
 ## 2. 상태 전이
 
-### 2.1 `notifications.sent_at` (F011이 만드는 유일한 전이)
+### 2.1 `notifications.delivery_status`와 `sent_at`
 
 ```text
-(행 생성, sent_at=NULL)
+(행 생성, PENDING, attempts=0, sent_at=NULL)
    │  dispatch 또는 동기 즉시 발송
    ▼
-sent_at=now   (성공: 최소 1개 기기 전송 / 최종 실패: 재시도 2회 소진 / 대상 기기 0개)
+SENT      (최소 1개 기기 성공, sent_at=now)
+FAILED    (영구 실패 또는 dispatch 3회 소진)
+NO_DEVICE (활성 기기 없음)
 ```
 
-- 되돌아가지 않는다. `sent_at`이 찍히면 dispatch가 다시 집지 않는다.
+- `PENDING`만 dispatch 대상이다. 일시 실패는 `next_attempt_at` 이후 다시 시도하며 3회째 실패하면 `FAILED`로 끝낸다.
+- 일부 기기 성공은 `SENT`로 끝내 이미 받은 기기의 중복 수신을 막는다.
 - `read_at`은 사용자 행동(NOTI-002/003)으로만 바뀌며 `sent_at`과 독립.
 
 ### 2.2 F011이 소비만 하는 상태(바꾸지 않음)
@@ -152,7 +158,7 @@ Content(items: List<DetectionListItemUi>, sort: TIME | RISK)
   - 9절: NOTI-001 응답에 `type` 값 목록·선택 식별자 필드(`tripDayId`·`itemId`·`transitionId`)·"생성 후 90일만 조회" 문구, NOTI-003 신설, DEV-001에 "활성 세션 필요·`404 DEVICE_SESSION_NOT_FOUND`" 명시, PREF-001·PREF-002는 F012 범위로 표시 유지.
 - `docs/design/er-schema.md`:
   - 1절: "알림은 생성 후 90일 보관 후 삭제, 여행 논리 삭제 시 연결 알림도 정리" 문구 추가.
-  - 9.1: `type` CHECK 값 5개, `dedup_key` 구성 설명, `sent_at` = "종단 발송 시도 시각" 의미.
+  - 9.1: `type` CHECK 값 5개, `dedup_key` 구성, `delivery_status`·재시도 필드와 `sent_at` = "최소 한 기기 성공 시각" 의미.
   - 10절 enum 표: `notification_type` 행 추가.
   - 12절: `notifications` 인덱스에 `ix_notifications_pending` 추가, `device_sessions` partial unique `fcm_token` 실제 생성 반영.
 - `docs/planning/requirements.md` NOTI-01 / `docs/planning/functional-spec.md` 6절: 전달 목표 30초·재시도·포그라운드 미표시·90일 보존을 반영(spec Clarifications 2026-09-10와 일치).

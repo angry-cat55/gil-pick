@@ -6,11 +6,6 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from geoalchemy2 import WKTElement
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import selectinload
-
 from app.api.v1 import progress as progress_api
 from app.clients.fcm import FcmSendResult
 from app.db import transaction_session
@@ -21,6 +16,9 @@ from app.models.trip import Trip
 from app.schemas.progress import ProgressEventRequest
 from app.services.detection import DetectionService
 from app.services.notification.dispatch import NotificationDispatchService
+from geoalchemy2 import WKTElement
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 @pytest.fixture
@@ -44,6 +42,16 @@ class _StubFcm:
 
     async def aclose(self) -> None:
         return None
+
+
+class _SequenceFcm(_StubFcm):
+    def __init__(self, results: list[FcmSendResult]) -> None:
+        super().__init__()
+        self.results = iter(results)
+
+    async def send(self, token: str, data: dict[str, str]) -> FcmSendResult:
+        self.calls += 1
+        return next(self.results)
 
 
 async def _seed(
@@ -74,7 +82,12 @@ async def _seed(
                     fcm_token=f"token-{uuid.uuid4()}",
                 )
             )
-        trip = Trip(user_id=user.user_id, name="진행 알림", start_date=now.date(), end_date=now.date())
+        trip = Trip(
+            user_id=user.user_id,
+            name="진행 알림",
+            start_date=now.date(),
+            end_date=now.date(),
+        )
         place = Place(
             tour_content_id=f"notif-progress-{uuid.uuid4()}",
             name="경복궁",
@@ -135,7 +148,9 @@ async def _seed(
         }
 
 
-def _payload(item_id: uuid.UUID, now: datetime, *, event_type: str = "DWELL") -> ProgressEventRequest:
+def _payload(
+    item_id: uuid.UUID, now: datetime, *, event_type: str = "DWELL"
+) -> ProgressEventRequest:
     kind = "ARRIVAL" if event_type == "DWELL" else "DEPARTURE"
     return ProgressEventRequest.model_validate(
         {
@@ -149,30 +164,37 @@ def _payload(item_id: uuid.UUID, now: datetime, *, event_type: str = "DWELL") ->
     )
 
 
-async def _register(factory, seed, *, event_type: str = "DWELL", item_id: uuid.UUID | None = None):
+async def _register(
+    factory, seed, *, event_type: str = "DWELL", item_id: uuid.UUID | None = None
+):
     async with transaction_session(factory) as session:
         return await DetectionService(session).register_event(
             user_id=seed["user_id"],
             trip_id=seed["trip_id"],
             visit_date=seed["now"].date(),
-            payload=_payload(item_id or seed["item_id"], seed["now"], event_type=event_type),
+            payload=_payload(
+                item_id or seed["item_id"], seed["now"], event_type=event_type
+            ),
             received_at=seed["now"],
         )
 
 
-async def _notifications(factory, user_id, *, type_: str | None = None) -> list[Notification]:
+async def _notifications(
+    factory, user_id, *, type_: str | None = None
+) -> list[Notification]:
     async with factory() as session:
         stmt = select(Notification).where(Notification.user_id == user_id)
         if type_ is not None:
             stmt = stmt.where(Notification.type == type_)
-        return list((await session.scalars(stmt.order_by(Notification.created_at))).all())
+        return list(
+            (await session.scalars(stmt.order_by(Notification.created_at))).all()
+        )
 
 
 async def _run_tick(factory, *, now: datetime) -> _StubFcm:
     stub = _StubFcm()
-    async with factory() as session:
-        async with session.begin():
-            await NotificationDispatchService(session, client=stub, now=lambda: now).tick()
+    async with factory() as session, session.begin():
+        await NotificationDispatchService(session, client=stub, now=lambda: now).tick()
     return stub
 
 
@@ -237,7 +259,50 @@ async def test_immediate_dispatch_sends_notification_after_day_lookup(
 
 
 @pytest.mark.asyncio
-async def test_tick_auto_confirm_creates_and_sends_notification(session_factory) -> None:
+async def test_retryable_failure_is_selected_by_next_dispatch_tick(
+    session_factory,
+) -> None:
+    seed = await _seed(session_factory)
+    try:
+        await _register(session_factory, seed)
+        first_client = _SequenceFcm([FcmSendResult.RETRYABLE] * 3)
+        async with transaction_session(session_factory) as session:
+            notification = await session.scalar(
+                select(Notification).where(Notification.user_id == seed["user_id"])
+            )
+            assert notification is not None
+            await NotificationDispatchService(
+                session, client=first_client, now=lambda: seed["now"]
+            ).send_one(notification)
+
+        rows = await _notifications(session_factory, seed["user_id"])
+        assert rows[0].delivery_status == "PENDING"
+        assert rows[0].sent_at is None
+        assert rows[0].next_attempt_at == seed["now"] + timedelta(seconds=30)
+
+        second_client = _SequenceFcm([FcmSendResult.OK])
+        async with transaction_session(session_factory) as session:
+            processed = await NotificationDispatchService(
+                session,
+                client=second_client,
+                now=lambda: seed["now"] + timedelta(seconds=31),
+            ).tick()
+
+        rows = await _notifications(session_factory, seed["user_id"])
+        assert processed == 1
+        assert rows[0].delivery_status == "SENT"
+        assert rows[0].delivery_attempts == 2
+        assert rows[0].sent_at == seed["now"] + timedelta(seconds=31)
+        assert first_client.calls == 3
+        assert second_client.calls == 1
+    finally:
+        await _cleanup(session_factory, seed["user_id"])
+
+
+@pytest.mark.asyncio
+async def test_tick_auto_confirm_creates_and_sends_notification(
+    session_factory,
+) -> None:
     seed = await _seed(session_factory, extra_item_status="PLANNED")
     try:
         result = await _register(session_factory, seed)
@@ -276,10 +341,16 @@ async def test_not_arrived_reprompt_creates_prompt_seq_2_once(session_factory) -
         assert decision.next_prompt_at is not None
 
         # 재질문 시각 이후 tick 두 번 → prompt_seq=2 알림은 한 번만
-        await _run_tick(session_factory, now=decision.next_prompt_at + timedelta(seconds=1))
-        await _run_tick(session_factory, now=decision.next_prompt_at + timedelta(minutes=5))
+        await _run_tick(
+            session_factory, now=decision.next_prompt_at + timedelta(seconds=1)
+        )
+        await _run_tick(
+            session_factory, now=decision.next_prompt_at + timedelta(minutes=5)
+        )
 
-        checks = await _notifications(session_factory, seed["user_id"], type_="ARRIVAL_CHECK")
+        checks = await _notifications(
+            session_factory, seed["user_id"], type_="ARRIVAL_CHECK"
+        )
         keys = sorted(row.dedup_key for row in checks)
         assert keys == [
             f"transition:{first.candidate.transition_id}:arrival_check:1",
@@ -290,13 +361,17 @@ async def test_not_arrived_reprompt_creates_prompt_seq_2_once(session_factory) -
 
 
 @pytest.mark.asyncio
-async def test_progress_notifications_ignore_replacement_setting(session_factory) -> None:
+async def test_progress_notifications_ignore_replacement_setting(
+    session_factory,
+) -> None:
     seed = await _seed(session_factory, replacement_enabled=False)
     try:
         result = await _register(session_factory, seed)
         assert result.candidate is not None
 
-        rows = await _notifications(session_factory, seed["user_id"], type_="ARRIVAL_CHECK")
+        rows = await _notifications(
+            session_factory, seed["user_id"], type_="ARRIVAL_CHECK"
+        )
         assert len(rows) == 1  # 설정 off여도 진행 알림은 생성(SC-003)
     finally:
         await _cleanup(session_factory, seed["user_id"])
@@ -305,7 +380,9 @@ async def test_progress_notifications_ignore_replacement_setting(session_factory
 @pytest.mark.asyncio
 async def test_composite_auto_confirm_creates_one_notification(session_factory) -> None:
     # 이전 장소 ARRIVED + 다음 장소 EN_ROUTE → 다음 장소 도착 자동 확정이 COMPOSITE
-    seed = await _seed(session_factory, item_status="ARRIVED", extra_item_status="EN_ROUTE")
+    seed = await _seed(
+        session_factory, item_status="ARRIVED", extra_item_status="EN_ROUTE"
+    )
     try:
         result = await _register(session_factory, seed, item_id=seed["extra_item_id"])
         assert result.candidate is not None
@@ -313,7 +390,9 @@ async def test_composite_auto_confirm_creates_one_notification(session_factory) 
 
         await _run_tick(session_factory, now=finalize_at + timedelta(seconds=1))
 
-        auto = await _notifications(session_factory, seed["user_id"], type_="ARRIVAL_AUTO_CONFIRMED")
+        auto = await _notifications(
+            session_factory, seed["user_id"], type_="ARRIVAL_AUTO_CONFIRMED"
+        )
         assert len(auto) == 1
         assert auto[0].transition_id == result.candidate.transition_id
     finally:
@@ -321,7 +400,9 @@ async def test_composite_auto_confirm_creates_one_notification(session_factory) 
 
 
 @pytest.mark.asyncio
-async def test_still_here_creates_no_further_departure_notification(session_factory) -> None:
+async def test_still_here_creates_no_further_departure_notification(
+    session_factory,
+) -> None:
     seed = await _seed(session_factory, item_status="ARRIVED")
     try:
         first = await _register(session_factory, seed, event_type="EXIT")
@@ -338,7 +419,9 @@ async def test_still_here_creates_no_further_departure_notification(session_fact
         again = await _register(session_factory, seed, event_type="EXIT")
         assert again.candidate is None
 
-        rows = await _notifications(session_factory, seed["user_id"], type_="DEPARTURE_CHECK")
+        rows = await _notifications(
+            session_factory, seed["user_id"], type_="DEPARTURE_CHECK"
+        )
         assert len(rows) == 1  # 최초 1건뿐, 추가 없음
     finally:
         await _cleanup(session_factory, seed["user_id"])

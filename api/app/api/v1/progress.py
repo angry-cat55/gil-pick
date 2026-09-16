@@ -13,31 +13,31 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.errors import success_response
 from app.api.dependencies import get_current_principal
+from app.api.errors import success_response
 from app.api.v1.itinerary import _owned_trip_date
 from app.clients.fcm import FcmClient
+from app.core.config import Settings, get_settings
+from app.core.security import AuthPrincipal
 from app.db import create_session_factory, get_session
 from app.models.itinerary import TripDay
 from app.models.notification import Notification
-from app.core.config import Settings, get_settings
 from app.schemas.auth import ErrorEnvelope
 from app.schemas.progress import (
     DecisionRequest,
+    ProgressEnvelope,
     ProgressEventEnvelope,
     ProgressEventRequest,
-    ProgressEnvelope,
     StartDayProgressRequest,
     TransitionResultEnvelope,
     UndoResultEnvelope,
     UpdateItemProgressStatusRequest,
 )
 from app.schemas.trip import Trip
-from app.core.security import AuthPrincipal
-from app.services.progress import ProgressService
 from app.services.detection import DetectionService
 from app.services.detection.evaluator import reevaluate_day
 from app.services.notification.dispatch import NotificationDispatchService
+from app.services.progress import ProgressService
 from app.services.route import build_route_service
 
 _PROGRESS_NOTIFICATION_TYPES = (
@@ -85,32 +85,32 @@ async def _dispatch_progress_notifications(
     try:
         client = FcmClient(get_settings())
         try:
-            async with session_factory() as session:
-                async with session.begin():
-                    trip_day_id = await session.scalar(
-                        select(TripDay.trip_day_id).where(
-                            TripDay.trip_id == trip_id,
-                            TripDay.visit_date == visit_date,
-                        )
+            async with session_factory() as session, session.begin():
+                trip_day_id = await session.scalar(
+                    select(TripDay.trip_day_id).where(
+                        TripDay.trip_id == trip_id,
+                        TripDay.visit_date == visit_date,
                     )
-                    if trip_day_id is None:
-                        return
-                    notifications = list(
-                        (
-                            await session.scalars(
-                                select(Notification)
-                                .where(
-                                    Notification.trip_day_id == trip_day_id,
-                                    Notification.sent_at.is_(None),
-                                    Notification.type.in_(_PROGRESS_NOTIFICATION_TYPES),
-                                )
-                                .with_for_update(skip_locked=True)
+                )
+                if trip_day_id is None:
+                    return
+                notifications = list(
+                    (
+                        await session.scalars(
+                            select(Notification)
+                            .where(
+                                Notification.trip_day_id == trip_day_id,
+                                Notification.delivery_status == "PENDING",
+                                Notification.delivery_attempts == 0,
+                                Notification.type.in_(_PROGRESS_NOTIFICATION_TYPES),
                             )
-                        ).all()
-                    )
-                    dispatch = NotificationDispatchService(session, client=client)
-                    for notification in notifications:
-                        await dispatch.send_one(notification)
+                            .with_for_update(skip_locked=True)
+                        )
+                    ).all()
+                )
+                dispatch = NotificationDispatchService(session, client=client)
+                for notification in notifications:
+                    await dispatch.send_one(notification)
         finally:
             await client.aclose()
     except Exception:
@@ -177,8 +177,10 @@ async def start_day_progress(
     service: Annotated[ProgressService, Depends(_service)],
 ) -> JSONResponse:
     data = await service.start_day(
-        trip_id=trip.trip_id, visit_date=visit_date,
-        payload=payload, idempotency_key=idempotency_key,
+        trip_id=trip.trip_id,
+        visit_date=visit_date,
+        payload=payload,
+        idempotency_key=idempotency_key,
     )
     if (session_factory := getattr(service, "session_factory", None)) is not None:
         background_tasks.add_task(

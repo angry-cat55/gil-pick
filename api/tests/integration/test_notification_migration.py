@@ -33,6 +33,10 @@ async def _inspect_schema(database_url: str) -> dict[str, object]:
                 "SELECT indexname, indexdef FROM pg_indexes "
                 "WHERE tablename = 'notifications'"
             ))).all()) if table_exists else {}
+            columns = set((await connection.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'notifications'"
+            ))).scalars()) if table_exists else set()
             device_indexes = dict((await connection.execute(text(
                 "SELECT indexname, indexdef FROM pg_indexes "
                 "WHERE tablename = 'device_sessions'"
@@ -41,6 +45,7 @@ async def _inspect_schema(database_url: str) -> dict[str, object]:
             "table_exists": table_exists,
             "constraints": constraints,
             "indexes": indexes,
+            "columns": columns,
             "device_indexes": device_indexes,
         }
     finally:
@@ -50,6 +55,10 @@ async def _inspect_schema(database_url: str) -> dict[str, object]:
 def test_notification_migration_is_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(_config())
     assert len(script.get_heads()) == 1
+    assert (
+        script.get_revision("017_notification_delivery_state").down_revision
+        == "016_defer_itinerary_sequence"
+    )
     assert (
         script.get_revision("012_add_kakao_route_provider").down_revision
         == "011_create_notifications"
@@ -68,6 +77,10 @@ def test_notification_migration_round_trip() -> None:
 
     try:
         command.upgrade(config, "head")
+        head_schema = asyncio.run(_inspect_schema(database_url))
+        assert {"delivery_status", "delivery_attempts", "next_attempt_at"} <= head_schema["columns"]
+        assert "ck_notifications_delivery_status" in head_schema["constraints"]
+        assert "delivery_status" in head_schema["indexes"]["ix_notifications_pending"]
         command.downgrade(config, "010_replacement_approval")
         command.upgrade(config, "011_create_notifications")
         schema = asyncio.run(_inspect_schema(database_url))
