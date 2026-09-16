@@ -159,15 +159,15 @@ description: "Task list for F011 알림"
 
 ## Phase 4: User Story 2 - 장소 변경 제안 알림을 받고 대체 장소로 들어간다 (Priority: P1)
 
-**Goal**: `ACTIVE` 감지 최초 생성 시 장소 변경 제안 알림 생성·전달, 탭 시 대체 장소 화면.
+**Goal**: `ACTIVE` 감지가 알림 기준을 처음 충족할 때 장소 변경 제안 알림 생성·전달, 탭 시 대체 장소 화면.
 
 **Independent Test**: quickstart BE 1 + BE 3 + AND 3 — 감지 최초 INSERT → `notifications` 1행 → 등록 기기 전달(payload에 식별자만) → 탭 시 `AlternativePlacesRoute(detectionId, tripId)`, 재평가 갱신 시 재발송 없음.
 
-- [x] T022 [US2] 감지 최초 생성 hook in api/app/services/detection/evaluator.py
+- [x] T022 [US2] 감지 알림 기준 최초 충족 hook in api/app/services/detection/evaluator.py
   - 영역: BE
   - 담당: ts
   - 선행: T009
-  - 검증: `_store_detection`의 upsert에 `RETURNING (xmax = 0) AS inserted` 추가, 최초 INSERT일 때만 `NotificationService.create_place_change_suggestion(session, detection)` 호출(같은 transaction). `evaluate_all_active`가 새로 만든 `detection_id` 목록을 반환하도록 시그니처 확장. `reevaluate_day` 경로도 동일. 교차 계약 review: F008 담당. 감지 결과·DETECT API 응답 불변 — `tests/contract/test_detections_contract.py` 회귀
+  - 검증: `_store_detection`의 upsert에 `RETURNING (xmax = 0) AS inserted`를 사용하고, 신규·기존 `ACTIVE` 모두 `NotificationService.create_place_change_suggestion(session, detection)`을 같은 transaction에서 호출. 신규 감지 또는 이번 평가에서 알림이 생성된 `detection_id`를 즉시 발송 대상으로 반환한다. 기존 감지 반복 평가는 `detection:{detection_id}` dedup key로 알림과 반환 대상에서 제외한다. `reevaluate_day` 경로도 동일. 교차 계약 review: F008 담당. 감지 결과·DETECT API 응답 불변 — `tests/contract/test_detections_contract.py` 회귀
 - [x] T023 [US2] 감지 cycle 후 즉시 발송 in api/app/jobs/variable_detection.py
   - 영역: BE
   - 담당: ts

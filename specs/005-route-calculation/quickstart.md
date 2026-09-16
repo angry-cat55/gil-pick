@@ -37,6 +37,30 @@ cd ..\android
 
 Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log·fixture에 key나 불필요한 정밀 좌표를 남기지 않는다.
 
+### 현재 위치 표시·내 위치 버튼 검증 (#614, 2026-09-16, jy)
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| route UI test | `ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.route` | 통과 42건 |
+| 버튼 접근성·동작 | `내_위치_버튼은_48dp_설명을_갖고_권한이_있으면_지도를_현재_위치로_보낸다`: 48dp 이상, `Role.Button`, 설명 `내 위치로 이동`, 누르면 `RouteFocus.MyLocation` 전달, 다시 눌러도 새 요청 | 통과 |
+| 권한 거부 안내 | `내_위치_버튼_권한_거부_안내는_다음_행동을_알린다`: `위치 권한을 허용하면 현재 위치를 볼 수 있어요` 표시 | 통과 (버튼 composable 직접 검증) |
+| 다른 control 가림 | `내_위치_버튼은_경로_정보_sheet와_겹치지_않는다`: 버튼 아래끝이 sheet 위끝보다 위. SDK 로고(왼쪽 아래)·축척(오른쪽 아래)·확대/축소(오른쪽 가운데)와 다른 자리 | 통과 |
+| screenshot | `route_content_360dp` 등 기존 screenshot에 오른쪽 위 버튼이 함께 잡힌다. 사람이 위치·겹침 확인 | 통과 (사람 확인) |
+| 진행 화면 회귀 | `...package=com.gilpick.progress` | 142건 중 141건 통과(`GeofenceRegistrationLogTest`는 Play Services 없는 ATD 환경 실패로 이 변경과 무관) |
+| 실제 위치 overlay·카메라 이동 | 미실행 | Naver NCP key와 실제 위치가 필요한 확인(권한 허용 후 현재 위치 점, 버튼으로 복귀, 위치 서비스 꺼짐)은 하지 못했다. 사람 확인이 필요하다. |
+
+### 장소 카드 선택·균등 높이 검증 (#618, 2026-09-16, jy)
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| route UI·screenshot·navigation test | `ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.route` (AVD `gilpick_api36`, API 36 ATD) | 통과 39건 |
+| 카드 선택 callback | `장소_카드를_누르면_같은_장소를_지도_이동_대상으로_넘기고_다시_눌러도_다시_넘긴다`: 2번→3번 카드가 각각 `itemId`를 넘기고, 같은 3번을 다시 눌러도 `RouteFocus`가 달라져 지도가 다시 이동한다 | 통과 |
+| 균등 높이·48dp·Button | `장소_카드는_긴_이름이_줄바꿈돼도_같은_행에서_높이가_같고_48dp_버튼이다`: 세 카드 높이·하단 일치, 48dp 이상, `Role.Button`, 동작 설명 `지도에서 보기` | 통과 |
+| 최대 글자 배율 균등 높이 | `화면_360dp_최대_글자_배율에서도_핵심_문구가_가로_스크롤_없이_보인다`에 카드 높이 일치 assertion 추가(2.0배에서 `북촌한옥마을`만 두 줄) | 통과 |
+| screenshot | `route_content_long_name_360dp`, `route_content_long_name_360dp_fontscale2` 추가. 360dp에서 `대학로자유극장 소극장 무대`가 두 줄로 표시되고 세 카드 하단이 정렬됨을 사람 확인 | 통과 (사람 확인) |
+| 진행 화면 회귀 | `...package=com.gilpick.progress` | 142건 중 141건 통과. `GeofenceRegistrationLogTest`는 Play Services가 없는 ATD 이미지에서 `API_NOT_CONNECTED`로 실패하며 이 변경과 무관하다. `ProgressNavigationTest`는 첫 실행에서 한 번 시간 초과했으나 단독·재실행에서 `origin/main`과 동일하게 통과해 flaky로 판단했다. |
+| 실제 지도 카메라 이동 | 미실행 | Naver NCP key가 필요한 실기기·play AVD 확인은 하지 않았다. content padding 기반 `scrollTo`가 sheet 위 영역 중앙으로 이동하는지는 사람 확인이 필요하다. |
+
 ### Kakao Maps provider 전환 검증 (#494, 2026-09-15)
 
 - Kakao Developers REST API key를 사용한 AWS 사전 PoC에서 대중교통 endpoint가 HTTP 200, `status=OK`, 경로 15개를 반환했고 console 호출량 1건 증가를 확인했다. key와 원본 응답은 기록하지 않았다.

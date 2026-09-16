@@ -15,9 +15,11 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.itinerary.ItineraryEditViewModel
 import com.gilpick.itinerary.ItineraryRepository
+import com.gilpick.notification.tripNameOf
 import com.gilpick.progress.ActiveTravelRoute
 import com.gilpick.route.RouteRepository
 import com.gilpick.route.RouteViewModel
@@ -64,6 +66,7 @@ data class RoutePreviewRoute(
  * @param detections 감지 상세 조회. `tripId`와 날짜를 얻는 데 쓴다.
  * @param routes 그 날짜 경로 조회. `scheduleVersion`과 기존 경로를 얻는 데 쓴다.
  * @param itineraries 여행 일정 개요 조회. 감지 대상 항목이 놓인 날짜를 찾는 데 쓴다(#593).
+ * @param tripName 승인 후 진행 화면을 새로 열 때 쓸 여행명 조회(#624). 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param map 지도 영역. 기본값은 F005 지도이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.replacementGraph(
@@ -73,6 +76,7 @@ fun NavGraphBuilder.replacementGraph(
     detections: (Context) -> AlternativeRepository = AlternativeRepository::default,
     routes: (Context) -> RouteRepository = RouteViewModel::defaultRepository,
     itineraries: (Context) -> ItineraryRepository = ItineraryEditViewModel::defaultRepository,
+    tripName: suspend (Context, String) -> String = ::tripNameOf,
     map: @Composable (PreviewUiState.Content, Modifier) -> Unit = { content, modifier ->
         PreviewMap(content = content, modifier = modifier)
     },
@@ -100,10 +104,13 @@ fun NavGraphBuilder.replacementGraph(
         // 승인 성공은 한 번만 처리한다. ViewModel이 값을 되돌리지 않으므로 재구성돼도 다시 가지 않는다.
         // 승인된 미리보기는 폐기하지 않는다(계약상 `409 ALREADY_APPROVED`).
         LaunchedEffect(approved) {
-            if (approved == null) return@LaunchedEffect
-            // 진행 화면이 back stack에 없을 수 있다. F011 푸시로 대체 장소 화면에 바로 들어온 경우다.
-            if (!navController.popBackStack(ActiveTravelRoute::class, inclusive = false)) {
-                navController.popBackStack()
+            val replacement = approved ?: return@LaunchedEffect
+            // 진행 화면에서 시작했으면 그 화면으로 돌아간다. 재개 조회가 변경된 장소와 되돌리기를 받아 온다.
+            if (navController.popBackStack(ActiveTravelRoute::class, inclusive = false)) return@LaunchedEffect
+            // F011 푸시나 알림 목록에서 바로 들어와 진행 화면이 back stack에 없다. 승인 결과의 `tripId`로 진행 화면을
+            // 직접 연다(#624). 승인이 끝난 후보·미리보기는 뒤로 가기로 다시 보이지 않게 함께 걷어낸다.
+            navController.navigate(ActiveTravelRoute(replacement.tripId, tripName(context, replacement.tripId))) {
+                popUpTo<AlternativePlacesRoute> { inclusive = true }
             }
         }
 
@@ -121,6 +128,7 @@ fun NavGraphBuilder.replacementGraph(
             placeName = route.placeName,
             onBack = leave,
             onRetry = viewModel::load,
+            onRecreate = viewModel::regenerate,
             onApprove = viewModel::approve,
             onOtherCandidates = leave,
             onReauthenticate = onSessionExpired,

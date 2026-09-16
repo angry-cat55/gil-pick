@@ -15,6 +15,7 @@ import androidx.browser.customtabs.CustomTabsIntent
 import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +23,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -293,6 +297,9 @@ private fun AuthRoute(
             onLogout = onLogout,
         )
 
+        // 저장된 session을 복원하는 동안이다. 로그인 화면을 먼저 보였다가 메인으로 넘기면 flicker가 된다(#616).
+        is AuthUiState.Loading -> LaunchSurface(modifier = modifier)
+
         else -> LoginScreen(
             state = state,
             onKakaoLogin = onKakaoLogin,
@@ -301,6 +308,37 @@ private fun AuthRoute(
         )
     }
 }
+
+/**
+ * 인증 상태가 정해지기 전에 보이는 브랜드 화면(#616).
+ *
+ * 창 배경(`Theme.Gilpick`의 `windowBackground`)·system splash와 같은 색이라 앱이 뜨는 동안 색이 끊기지 않는다.
+ * 로그인 수단이나 진행 표시를 두지 않는다. `restore()`는 저장소에서 session을 읽어 복호화할 뿐이라 화면에 남는
+ * 시간이 짧고, 여기에 spinner를 두면 그 자체가 깜빡임이 된다.
+ */
+@Composable
+private fun LaunchSurface(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.gilpick_logo),
+            contentDescription = stringResource(R.string.app_name),
+            modifier = Modifier
+                .widthIn(max = LAUNCH_LOGO_WIDTH)
+                .fillMaxWidth(LAUNCH_LOGO_FRACTION)
+                .aspectRatio(LAUNCH_LOGO_RATIO),
+        )
+    }
+}
+
+/** launch surface 로고. 로그인 화면과 같은 비율·최대 폭이라 이어서 볼 때 크기가 튀지 않는다. */
+private val LAUNCH_LOGO_WIDTH = 240.dp
+private const val LAUNCH_LOGO_FRACTION = 0.6f
+private const val LAUNCH_LOGO_RATIO = 801f / 311f
 
 /**
  * 로그인 후 여행 화면 사이를 오간다.

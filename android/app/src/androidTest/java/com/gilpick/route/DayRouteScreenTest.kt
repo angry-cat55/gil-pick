@@ -11,6 +11,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
@@ -276,6 +278,9 @@ class DayRouteScreenTest {
         // 장소 카드는 항상 보이고, 구간 목록은 세로 스크롤로 닿는다(가로 스크롤 없음).
         val card = composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}1").assertIsDisplayed().getBoundsInRoot()
         assertTrue(card.right <= 360.dp)
+        // 글자 2.0배에서는 `북촌한옥마을`만 두 줄이 되지만 카드 높이는 행 안에서 같다(#618).
+        val cardHeights = (1..3).map { composeRule.onNodeWithTag("$TAG_MARKER_PREFIX$it").getBoundsInRoot().let { b -> b.bottom - b.top } }
+        assertTrue("heights=$cardHeights", cardHeights.all { it == cardHeights[0] })
         val row = composeRule.onNodeWithTag("${TAG_SEGMENT_PREFIX}1").performScrollTo().assertIsDisplayed().getBoundsInRoot()
         assertTrue(row.right <= 360.dp)
     }
@@ -306,7 +311,7 @@ class DayRouteScreenTest {
                     onRetry = {},
                     onAddPlace = {},
                     onReauthenticate = {},
-                    map = { _, _, sheetFraction, modifier ->
+                    map = { _, _, sheetFraction, _, modifier ->
                         fraction = sheetFraction
                         Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
                     },
@@ -355,6 +360,127 @@ class DayRouteScreenTest {
         handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "기본"))
     }
 
+    @Test
+    fun 장소_카드를_누르면_같은_장소를_지도_이동_대상으로_넘기고_다시_눌러도_다시_넘긴다() {
+        var focus: RouteFocus? = null
+        composeRule.setContent {
+            GilpickTheme {
+                DayRouteScreen(
+                    state = RouteUiState.Content(readyRoute()),
+                    dayNumber = 2,
+                    date = LocalDate.of(2026, 5, 21),
+                    onBack = {},
+                    onRetry = {},
+                    onAddPlace = {},
+                    onReauthenticate = {},
+                    map = { _, _, _, selected, modifier ->
+                        focus = selected
+                        Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}2").performClick()
+        composeRule.runOnIdle { assertEquals(ITEM_B, (focus as? RouteFocus.Place)?.itemId) }
+        composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}3").performClick()
+        composeRule.runOnIdle { assertEquals(ITEM_C, (focus as? RouteFocus.Place)?.itemId) }
+
+        // 같은 카드를 다시 눌러도(직접 지도를 옮긴 뒤) 값이 달라져 지도가 다시 이동한다.
+        val before = focus
+        composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}3").performClick()
+        composeRule.runOnIdle {
+            assertEquals(ITEM_C, (focus as? RouteFocus.Place)?.itemId)
+            assertTrue("before=$before after=$focus", focus != before)
+        }
+    }
+
+    @Test
+    fun 내_위치_버튼은_48dp_설명을_갖고_권한이_있으면_지도를_현재_위치로_보낸다() {
+        var focus: RouteFocus? = null
+        composeRule.setContent {
+            GilpickTheme {
+                DayRouteScreen(
+                    state = RouteUiState.Content(readyRoute()),
+                    dayNumber = 2,
+                    date = LocalDate.of(2026, 5, 21),
+                    onBack = {},
+                    onRetry = {},
+                    onAddPlace = {},
+                    onReauthenticate = {},
+                    // 실제 권한을 바꾸면 instrumentation process가 죽으므로 권한 판단만 바꿔 끼운다.
+                    hasLocationPermission = { true },
+                    map = { _, _, _, selected, modifier ->
+                        focus = selected
+                        Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION)
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("내 위치로 이동")))
+        // 안내 문구는 권한을 거부당했을 때만 나온다.
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_DENIED).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.runOnIdle { assertTrue("focus=$focus", focus is RouteFocus.MyLocation) }
+
+        // 지도를 직접 움직인 뒤 다시 눌러도 새 이동 요청이 간다.
+        val before = focus
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.runOnIdle { assertTrue("before=$before after=$focus", focus is RouteFocus.MyLocation && focus != before) }
+    }
+
+    @Test
+    fun 내_위치_버튼_권한_거부_안내는_다음_행동을_알린다() {
+        composeRule.setContent { GilpickTheme { MyLocationButton(denied = true, onClick = {}) } }
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_DENIED).assertIsDisplayed()
+        composeRule.onNodeWithText("위치 권한을 허용하면 현재 위치를 볼 수 있어요").assertIsDisplayed()
+    }
+
+    @Test
+    fun 내_위치_버튼은_경로_정보_sheet와_겹치지_않는다() {
+        setScreen(RouteUiState.Content(readyRoute()))
+
+        val button = composeRule.onNodeWithTag(TAG_MY_LOCATION).assertIsDisplayed().getBoundsInRoot()
+        val sheet = composeRule.onNodeWithTag(TAG_SHEET).getBoundsInRoot()
+        assertTrue("button=$button sheet=$sheet", button.bottom <= sheet.top)
+    }
+
+    @Test
+    fun 장소_카드는_긴_이름이_줄바꿈돼도_같은_행에서_높이가_같고_48dp_버튼이다() {
+        val longNames = readyRoute().copy(
+            markers = listOf(
+                RouteMarkerDto(ITEM_A, 1, "경복궁", 37.5796, 126.977),
+                RouteMarkerDto(ITEM_B, 2, "북촌한옥마을", 37.5826, 126.9831),
+                RouteMarkerDto(ITEM_C, 3, "대학로자유극장 소극장 무대", 37.5744, 126.9857),
+            ),
+            segments = emptyList(),
+        )
+        composeRule.setContent {
+            GilpickTheme { Box(modifier = Modifier.width(360.dp)) { Screen(RouteUiState.Content(longNames)) } }
+        }
+
+        fun card(sequence: Int) = composeRule.onNodeWithTag("$TAG_MARKER_PREFIX$sequence").getBoundsInRoot()
+        val heights = (1..3).map { card(it).let { bounds -> bounds.bottom - bounds.top } }
+        // 세 번째 이름은 카드 폭(약 112dp)에서 두 줄 이상이 된다. 그래도 세 카드 높이와 하단이 같아야 한다.
+        assertTrue("heights=$heights", heights.all { it == heights[0] })
+        assertTrue("bottoms=${(1..3).map { card(it).bottom }}", (1..3).all { card(it).bottom == card(1).bottom })
+
+        composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}1")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+        composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}1")
+            .assert(SemanticsMatcher("지도에서 보기 동작 설명") { node -> node.config[SemanticsActions.OnClick].label == "지도에서 보기" })
+    }
+
     @Composable
     private fun Screen(
         state: RouteUiState,
@@ -371,7 +497,7 @@ class DayRouteScreenTest {
             onRetry = onRetry,
             onAddPlace = onAddPlace,
             onReauthenticate = onReauthenticate,
-            map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
+            map = { _, _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP)) },
         )
     }
 }

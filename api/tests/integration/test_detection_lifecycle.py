@@ -1,7 +1,7 @@
 """감지 결과의 중복 억제·종료·재개 생명주기를 검증한다."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
 import pytest
 from sqlalchemy import delete, func, select, update
@@ -11,7 +11,11 @@ from app.models.auth import User
 from app.models.detection import Detection
 from app.models.itinerary import ItineraryItem, TripDay
 from app.models.notification import Notification
-from app.schemas.detection import CongestionVerdict, OperatingHoursVerdict, WeatherVerdict
+from app.schemas.detection import (
+    CongestionVerdict,
+    OperatingHoursVerdict,
+    WeatherVerdict,
+)
 from app.services.detection import evaluator
 from tests.integration.variable_detection_support import factory, providers, seed
 
@@ -45,6 +49,66 @@ def _risk_providers(monkeypatch: pytest.MonkeyPatch) -> None:
             OperatingHoursVerdict(available=False, unavailable_reason="HOURS_UNKNOWN")
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_global_evaluation_keeps_active_trip_after_kst_midnight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine, session_factory = await factory()
+    user_ids = []
+    try:
+        _, previous_item_id, previous_user_id = await seed(
+            session_factory, category="CAFE", visit_offset_days=-1
+        )
+        _, today_item_id, today_user_id = await seed(session_factory, category="CAFE")
+        _, completed_item_id, completed_user_id = await seed(
+            session_factory,
+            category="CAFE",
+            day_status="COMPLETED",
+            visit_offset_days=-1,
+        )
+        _, inactive_item_id, inactive_user_id = await seed(
+            session_factory, category="CAFE", visit_offset_days=-1
+        )
+        user_ids = [
+            previous_user_id,
+            today_user_id,
+            completed_user_id,
+            inactive_user_id,
+        ]
+        _risk_providers(monkeypatch)
+
+        async with transaction_session(session_factory) as session:
+            previous_item = await session.get(ItineraryItem, previous_item_id)
+            previous_day = await session.get(TripDay, previous_item.trip_day_id)
+            previous_day.actual_started_at = datetime.combine(
+                previous_day.visit_date, time(23, 50), tzinfo=evaluator.KST
+            )
+            previous_item.estimated_arrival_at = previous_day.actual_started_at + timedelta(
+                minutes=20
+            )
+
+            inactive_item = await session.get(ItineraryItem, inactive_item_id)
+            inactive_day = await session.get(TripDay, inactive_item.trip_day_id)
+            inactive_day.detection_active = False
+
+        async with transaction_session(session_factory) as session:
+            count, _ = await evaluator.evaluate_all_active(session)
+
+        assert count == 2
+        async with session_factory() as session:
+            detected_item_ids = set(
+                await session.scalars(select(Detection.item_id))
+            )
+        assert detected_item_ids == {previous_item_id, today_item_id}
+        assert completed_item_id not in detected_item_ids
+        assert inactive_item_id not in detected_item_ids
+    finally:
+        if user_ids:
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id.in_(user_ids)))
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

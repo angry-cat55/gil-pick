@@ -79,7 +79,7 @@ class ProgressViewModel(
     private var job: Job? = null
 
     init {
-        viewModelScope.launch { tickEveryMinute() }
+        viewModelScope.launch { tick() }
         viewModelScope.launch { scheduleDeadlineReload() }
     }
 
@@ -419,6 +419,9 @@ class ProgressViewModel(
             val content = _state.value as? ProgressUiState.Content
             val target = content?.progress?.pendingCandidate?.autoFinalizeAt
                 ?: content?.progress?.undoable?.undoDeadline
+                // F010 장소 변경 되돌리기도 만료 시각에 다시 조회한다(#626). 30초가 지나면 서버가
+                // `undoableReplacement`를 더 이상 주지 않으므로 토스트의 행동이 제때 사라진다.
+                ?: content?.progress?.undoableReplacement?.undoExpiresAt
             if (target != null && target != lastTarget) {
                 lastTarget = target
                 val millis = millisUntil(target)
@@ -437,18 +440,32 @@ class ProgressViewModel(
         return (target.toEpochMilli() - clock.millis()).coerceAtLeast(0)
     }
 
-    /** 매분 정각에 [ProgressUiState.Content.now]를 갱신해 `N분 남았어요`가 분 단위로 맞게 한다. */
-    private suspend fun tickEveryMinute() {
+    /**
+     * [ProgressUiState.Content.now]를 주기적으로 갱신한다.
+     *
+     * 평소에는 매분 정각이면 충분하다(`N분 남았어요`). 되돌리기 토스트가 보이는 동안에는 남은 초를
+     * 매초 보여야 하므로 1초 주기로 바꾼다(#626). 분 단위로만 갱신하면 30초 카운트다운이 멈춰 보이거나
+     * 한 번에 사라진다.
+     */
+    private suspend fun tick() {
         while (true) {
-            delay(MINUTE_MILLIS - clock.millis() % MINUTE_MILLIS)
+            delay(SECOND_MILLIS - clock.millis() % SECOND_MILLIS)
+            val content = _state.value as? ProgressUiState.Content ?: continue
+            val countingDown = content.visibleReplacementUndo != null || content.visibleUndoable != null
+            val nowInstant = clock.instant()
+            // 되돌리기가 없으면 분이 바뀔 때만 갱신해 불필요한 재구성을 만들지 않는다.
+            if (!countingDown && content.now.epochSecond / 60 == nowInstant.epochSecond / 60) continue
             _state.update { state ->
-                if (state is ProgressUiState.Content) state.copy(now = clock.instant()) else state
+                if (state is ProgressUiState.Content) state.copy(now = nowInstant) else state
             }
         }
     }
 
     companion object {
         private const val MINUTE_MILLIS = 60_000L
+
+        /** 되돌리기 남은 초를 보이는 동안의 갱신 주기(#626). */
+        private const val SECOND_MILLIS = 1_000L
 
         /** 새 만료 시각이 생겼는지 확인하는 주기. 토스트 남은 초 표시와 같은 정도면 충분하다. */
         private const val DEADLINE_POLL_MILLIS = 1_000L

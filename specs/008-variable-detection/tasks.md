@@ -121,12 +121,12 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T004, T008
-  - 검증: `kma` 예보 슬롯을 ETA에 맞춰 선택하고 `policy` 임계값으로 위험 판정. 실내외 노출도가 `INDOOR`면 `available=false`·`unavailableReason=INDOOR`, 예보 없음/실패면 `NO_FORECAST`/`TIMEOUT`. `WeatherVerdict` 반환. 단위 test 포함
+  - 검증: `kma` 예보 슬롯 중 ETA 90분 이내이고 POP·PCP·PTY가 모두 있는 슬롯만 선택하고 `policy` 임계값으로 위험 판정. 실내외 노출도가 `INDOOR`면 `available=false`·`unavailableReason=INDOOR`, 예보 없음·오래됨·불완전·실패면 `NO_FORECAST`/`TIMEOUT`. `WeatherVerdict` 반환. 단위 test 포함
 - [x] T015 [P] [US1] 혼잡 평가기 in api/app/services/detection/congestion.py
   - 영역: BE
   - 담당: jh
   - 선행: T003, T004, T009
-  - 검증: 500m 지원 지점 매핑 → `seoul_citydata` ETA 슬롯 혼잡 수준 → 카테고리 민감도로 위험 판정(거리 감쇠 없음). 지원지역 아님 → `NOT_IN_SUPPORT_AREA`, 실패 → `TIMEOUT`. `CongestionVerdict`(`level`·`sensitivity`·`crowded`) 반환. 단위 test 포함
+  - 검증: 500m 지원 지점 매핑 → `seoul_citydata` ETA 30분 이내 슬롯 혼잡 수준 → 카테고리 민감도로 위험 판정(거리 감쇠 없음). 적격 예보가 없으면 ETA가 현재 30분 이내이고 `PPLTN_TIME`이 15분 이내일 때만 현재값 사용. 지원지역 아님 → `NOT_IN_SUPPORT_AREA`, stale → `NO_FORECAST`, 실패 → `TIMEOUT`. `CongestionVerdict`(`level`·`sensitivity`·`crowded`) 반환. 단위 test 포함
 - [x] T016 [P] [US1] 운영시간 평가기 in api/app/services/detection/operating_hours.py
   - 영역: BE
   - 담당: jh
@@ -141,7 +141,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T006, T014, T015, T016, T017
-  - 검증: 대상 = `detection_active=true` AND `trip_days.status='IN_PROGRESS'` AND `visit_date=오늘(KST)` 날짜의 `itinerary_items.status IN ('PLANNED','EN_ROUTE')` AND `estimated_arrival_at IS NOT NULL`. 세 변수 평가 후 위험 ≥ 1이면 `INSERT ... ON CONFLICT (fingerprint) WHERE status='ACTIVE' DO UPDATE`로 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 저장. 위험 0이면 생성 안 함. 세 변수 모두 `available=false`면 생성 안 함(오류 아님). `evaluation_snapshot`에 변수별 원값·가용성·가중치·판정·`unavailable_reason`과 사용 ETA 기록, 좌표·이동 경로 미기록. `evaluate_all_active(session)` 공개. quickstart BE 1·2로 검증
+  - 검증: 대상 = `detection_active=true` AND `trip_days.status='IN_PROGRESS'` 날짜의 `itinerary_items.status IN ('PLANNED','EN_ROUTE')` AND `estimated_arrival_at IS NOT NULL`. 자정을 넘긴 활성 여행을 포함하기 위해 전역 주기 평가에서 `visit_date=오늘(KST)` 조건은 사용하지 않는다. 세 변수 평가 후 위험 ≥ 1이면 `INSERT ... ON CONFLICT (fingerprint) WHERE status='ACTIVE' DO UPDATE`로 `eta`·`evaluation_snapshot`·`score`·`reason`·`primary_type`·`last_evaluated_at` 저장. 위험 0이면 생성 안 함. 세 변수 모두 `available=false`면 생성 안 함(오류 아님). `evaluation_snapshot`에 변수별 원값·가용성·가중치·판정·`unavailable_reason`과 사용 ETA 기록, 좌표·이동 경로 미기록. `evaluate_all_active(session)` 공개. quickstart BE 1·2로 검증
 - [x] T019 [US1] 10분 주기 작업 in api/app/jobs/variable_detection.py
   - 영역: BE
   - 담당: jh
@@ -268,7 +268,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T008, T016, T017
-  - 검증: 기상청 격자 변환 known-value, `PCP` 범주 문자열 파싱("강수없음"·"1.0mm"·"30.0~50.0mm"), 폐점 시각 요일 매칭·자정 넘김, 점수 비례 재정규화 경계
+  - 검증: 기상청 격자 변환 known-value, `PCP` 범주 문자열 파싱("강수없음"·"1.0mm 미만"·"1.0mm"·"30.0~50.0mm"), 날씨·혼잡 freshness 경계와 필수 필드 누락, 폐점 시각 요일 매칭·자정 넘김, 점수 비례 재정규화 경계
 - [x] T033 quickstart 검증 실행 in specs/008-variable-detection/quickstart.md
   - 영역: 통합
   - 담당: jh

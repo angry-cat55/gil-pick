@@ -34,6 +34,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -241,6 +242,38 @@ class PreviewViewModelTest {
         val (secondKey, secondBody) = replacementService.previewCalls[1]
         assertEquals(firstKey, secondKey)
         assertEquals(firstBody, secondBody)
+    }
+
+    /**
+     * #625: 만료 안내의 `다시 만들기`는 새 미리보기를 원하는 새 시도다. 같은 key를 보내면 서버가 저장해 둔
+     * 만료된 응답을 그대로 돌려줘 아무리 눌러도 승인할 수 없다.
+     */
+    @Test
+    fun `다시 만들기는 새 Idempotency Key로 새 미리보기를 만든다`() = runTest {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        viewModel.regenerate()
+        advanceUntilIdle()
+
+        val (firstKey, firstBody) = replacementService.previewCalls[0]
+        val (secondKey, secondBody) = replacementService.previewCalls[1]
+        assertNotEquals(firstKey, secondKey)
+        // 요청 body는 그대로다. 달라지는 것은 key뿐이다.
+        assertEquals(firstBody, secondBody)
+    }
+
+    /** #625: 직접 검색 장소(candidateId 없음)도 같은 규칙을 따른다. */
+    @Test
+    fun `직접 검색 장소도 다시 만들기에서 새 키를 쓴다`() = runTest {
+        val viewModel = newViewModel(candidateId = null)
+        advanceUntilIdle()
+
+        viewModel.regenerate()
+        advanceUntilIdle()
+
+        assertNull(replacementService.previewCalls[0].second.candidateId)
+        assertNotEquals(replacementService.previewCalls[0].first, replacementService.previewCalls[1].first)
     }
 
     @Test

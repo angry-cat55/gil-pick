@@ -12,9 +12,18 @@ def test_seoul_city_hall_grid_known_value() -> None:
 
 @pytest.mark.parametrize(
     ("value", "expected"),
-    [("강수없음", 0.0), ("1.0mm", 1.0), ("30.0~50.0mm", 30.0)],
+    [
+        ("강수없음", 0.0),
+        ("1.0mm 미만", pytest.approx(1.0, abs=1e-9)),
+        ("1.0mm", 1.0),
+        ("30.0~50.0mm", 30.0),
+    ],
 )
 def test_pcp_category_string_extracts_first_numeric_amount(
     value: str, expected: float
 ) -> None:
     assert _millimeters(value) == expected
+
+
+def test_less_than_pcp_stays_below_risk_threshold() -> None:
+    assert _millimeters("1.0mm 미만") < 1.0

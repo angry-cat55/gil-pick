@@ -656,6 +656,8 @@ feature 패키지가 아니라 중립 위치에 둔다. 특정 feature가 소유
 `muted`, `faint`, `primaryDark`, `primarySoft`, `success`·`successDark`·`successContainer`, `warning`·`warningDark`·`warningContainer`·`warningBorder`·`onWarningContainer`, `caution`·`cautionContainer`·`cautionBorder`·`cautionSoft`, `star`, `dark`, `toast`·`toastAction`, `headerIcon`(7절 헤더 아이콘 색, `onSurfaceVariant`와 같은 값)과 간격·곡률·그림자 토큰은 `CompositionLocal`과 data class로 `GilpickTheme` 안에서 제공한다.
 
 - 로그인 배경 gradient의 중간·끝 색은 `darkGradientMid #0E1A3A`·`darkGradientEnd #0F2050`이다(3절 `dark` 행, #437). Brand 타입(4절)은 `MaterialTheme.typography.displayMedium`이다.
+- 로그인 화면은 #597로 밝은 배경 한 장(`background`)과 확정 로고 이미지로 바뀌었다. `dark`·`darkGradientMid`·`darkGradientEnd`와 Brand 타입, 로그인 카드(6절 `radiusSheet` 36·`space6`)는 이제 로그인에서 쓰지 않는다. 3·4·5·6절 표의 `로그인` 사용처 표기는 Figma `LoginScreen`(#437) 기준이라 남겨 둔다.
+- 앱 런처 아이콘은 확정 로고의 핀 심벌만 잘라 쓴다(#615). adaptive icon foreground `mipmap/ic_launcher_foreground`, background `@color/ic_launcher_background`(`#FFFFFF`), Android 13 themed icon용 `mipmap/ic_launcher_monochrome`. 로고의 `Gilpick` 글자는 런처 크기에서 읽히지 않아 넣지 않는다.
 - 그림자는 `GilpickShadows`(`LocalGilpickShadows`)다. 6절 표에서 값이 있는 행마다 토큰 하나(`card`, `floatingCard`, `primaryButton`, `fab`, `sheetOverMap`, `sheetBelowMap`, `dialog`, `dropdownMenu`, `listPrimaryAction`, `calendarSelected`, `mapFloatingButton`, `stayMinusSheet`, `stayMinusDialog`, `stayPlusDialog`, `activeTripCard`, `mapSmallButton`(`shadow-md`), `toggleThumb`(`shadow-sm`))이며, 각 토큰은 CSS 겹 순서대로 `List<Shadow>`다. 모달 bottom sheet는 그림자가 없어 토큰이 없다.
 - 환산: px → dp 1:1, `blur` → `radius`, `spread` → `spread`, `x y` → `offset`, `rgba` alpha → 색의 alpha. 화면은 `Modifier.dropShadow(shape, shadow)`를 겹 순서대로 적용한다.
 

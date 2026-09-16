@@ -428,8 +428,8 @@ private fun SummaryValue(label: String, date: LocalDate?) {
 /**
  * 인라인 달력(가이드라인 7절 "날짜 선택").
  *
- * - 선택 흐름: 시작일만 고른 상태에서 다음 탭이 종료일이다. 시작일보다 앞 날짜를 누르면 그 날짜가 새 시작일이 된다.
- *   종료일까지 고른 뒤 다시 누르면 새 시작일부터 다시 고른다.
+ * - 선택 규칙은 [TripPeriodPicker]가 정한다. 수정 화면은 누른 칸([endpoint])만, 만들기 화면은 누른 날짜의 위치로 정한다(#594).
+ * - 반영할 수 없는 날짜는 기간을 바꾸지 않고 달력 아래에 이유를 적는다.
  * - **터치 영역**: Figma 칸은 40dp 높이지만 10절 48dp를 지키려고 칸 높이를 48dp로 둔다. 보이는 원·버튼은 36dp 그대로이고,
  *   누르는 영역은 칸 자체라 옆 칸과 겹치지 않는다. 360dp 화면에서 7칸의 너비는 40dp 남짓이라 가로 48dp는 확보할 수 없다.
  * - 과거 날짜도 고를 수 있게 둔다. 이미 다녀온 여행을 기록하는 것을 명세가 막지 않는다.
@@ -443,11 +443,13 @@ private fun InlineCalendar(
     occupiedDates: Set<LocalDate>,
     enabled: Boolean,
     onPeriodChange: (LocalDate?, LocalDate?) -> Unit,
+    endpoint: TripPeriodEndpoint? = null,
 ) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
     var month by remember { mutableStateOf(YearMonth.from(startDate ?: LocalDate.now())) }
+    var rejected by remember(endpoint) { mutableStateOf<TripPeriodPickError?>(null) }
 
     Column {
         Row(
@@ -495,16 +497,31 @@ private fun InlineCalendar(
                         occupied = date in occupiedDates,
                         modifier = Modifier.weight(1f),
                         onClick = { picked ->
-                            val spansOccupied = startDate != null && occupiedDates.any { it > startDate && it < picked }
-                            if (startDate == null || endDate != null || picked < startDate || spansOccupied) {
-                                onPeriodChange(picked, null)
-                            } else {
-                                onPeriodChange(startDate, picked)
+                            when (val result = TripPeriodPicker.pick(startDate, endDate, picked, occupiedDates, endpoint)) {
+                                is TripPeriodPick.Applied -> {
+                                    rejected = null
+                                    onPeriodChange(result.startDate, result.endDate)
+                                }
+                                is TripPeriodPick.Rejected -> rejected = result.reason
                             }
                         },
                     )
                 }
             }
+        }
+
+        rejected?.let { reason ->
+            Text(
+                text = stringResource(
+                    when (reason) {
+                        TripPeriodPickError.ORDER -> R.string.trip_form_error_period_order
+                        TripPeriodPickError.OCCUPIED -> R.string.trip_form_calendar_occupied_span
+                    },
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = LocalGilpickSpacing.current.space2),
+            )
         }
     }
 }
@@ -635,7 +652,8 @@ private fun EditPeriodCard(
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    // 어느 칸을 눌러 열었는지가 곧 바꿀 날짜다. 같은 칸을 다시 누르면 닫는다(#594).
+    var editing by rememberSaveable { mutableStateOf<TripPeriodEndpoint?>(null) }
     val lockedState = stringResource(R.string.trip_form_period_locked_state)
 
     FormCard {
@@ -652,7 +670,7 @@ private fun EditPeriodCard(
                 shrunk = state.startShrunk,
                 enabled = enabled,
                 description = stringResource(R.string.trip_form_start_date),
-                onClick = { expanded = !expanded },
+                onClick = { editing = TripPeriodEndpoint.START.takeIf { it != editing } },
                 modifier = Modifier.weight(1f),
             )
             Text(text = stringResource(R.string.trip_form_period_dash), color = colors.muted, style = MaterialTheme.typography.labelMedium)
@@ -661,7 +679,7 @@ private fun EditPeriodCard(
                 shrunk = state.endShrunk,
                 enabled = enabled,
                 description = stringResource(R.string.trip_form_end_date),
-                onClick = { expanded = !expanded },
+                onClick = { editing = TripPeriodEndpoint.END.takeIf { it != editing } },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -678,7 +696,7 @@ private fun EditPeriodCard(
                 modifier = Modifier.padding(top = spacing.space2),
             )
         }
-        if (expanded && enabled) {
+        editing?.takeIf { enabled }?.let { endpoint ->
             Box(modifier = Modifier.padding(top = spacing.space4)) {
                 InlineCalendar(
                     startDate = state.startDate,
@@ -686,6 +704,7 @@ private fun EditPeriodCard(
                     occupiedDates = occupiedDates,
                     enabled = enabled,
                     onPeriodChange = onPeriodChange,
+                    endpoint = endpoint,
                 )
             }
         }

@@ -319,6 +319,19 @@ class ProgressViewModelTest {
         assertEquals(Instant.parse("2026-09-08T02:12:00Z"), (viewModel.state.value as ProgressUiState.Content).now)
     }
 
+    /** #626: 되돌리기 토스트가 보이는 동안에는 남은 초가 매초 줄어야 한다. */
+    @Test
+    fun `장소 변경 되돌리기가 보이면 now가 매초 갱신된다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(undoableReplacement = replacementUndo())) }
+        viewModel.load()
+        runCurrent()
+
+        now = Instant.parse("2026-09-08T02:10:31Z")
+        advanceTimeBy(1_001)
+
+        assertEquals(Instant.parse("2026-09-08T02:10:31Z"), (viewModel.state.value as ProgressUiState.Content).now)
+    }
+
     // ---- T024: 전환 ----
 
     @Test

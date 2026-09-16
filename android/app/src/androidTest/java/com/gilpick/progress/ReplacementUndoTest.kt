@@ -94,11 +94,24 @@ class ReplacementUndoTest {
         composeRule.onNodeWithText("그 뒤에 일정이 또 바뀌었어요. 일정 편집에서 바꿀 수 있어요.").assertDoesNotExist()
     }
 
+    /** #626: 통신 실패는 남은 시간 안에서 다시 해 볼 수 있다. 행동을 감추면 되돌릴 길이 사라진다. */
     @Test
-    fun 그_밖의_실패도_일정_편집_안내를_함께_보인다() {
-        setToast(now = NOW_UNDOABLE, error = ReplacementError.Network)
+    fun 통신_실패는_다시_시도_안내와_함께_행동을_남긴다() {
+        var undos = 0
+        setToast(now = NOW_UNDOABLE, error = ReplacementError.Network, onUndo = { undos++ })
 
-        composeRule.onNodeWithText("지금은 되돌릴 수 없어요. 일정 편집에서 바꿀 수 있어요.").assertIsDisplayed()
+        composeRule.onNodeWithText("되돌리지 못했어요. 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("되돌리기").assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.runOnIdle { assertEquals(1, undos) }
+    }
+
+    /** #626: 다시 해 볼 수 있는 실패라도 시간이 지났으면 행동을 보이지 않는다. */
+    @Test
+    fun 통신_실패여도_시간이_지났으면_행동을_보이지_않는다() {
+        setToast(now = NOW_UNDO_EXPIRED, error = ReplacementError.Network)
+
+        composeRule.onNodeWithText("되돌리지 못했어요. 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("되돌리기").assertDoesNotExist()
     }
 
     // --- UI-006a 표시 우선순위 ---

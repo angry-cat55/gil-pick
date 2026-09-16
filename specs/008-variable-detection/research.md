@@ -20,9 +20,9 @@
 
 ## 2. 평가 대상 선별
 
-**Decision**: 대상 = `trip_days.detection_active = true` AND `trip_days.status = 'IN_PROGRESS'` AND `visit_date = 오늘(Asia/Seoul)` 인 날짜의 `itinerary_items` 중 `status IN ('PLANNED','EN_ROUTE')` 이고 `estimated_arrival_at IS NOT NULL` 인 항목.
+**Decision**: 대상 = `trip_days.detection_active = true` AND `trip_days.status = 'IN_PROGRESS'`인 날짜의 `itinerary_items` 중 `status IN ('PLANNED','EN_ROUTE')` 이고 `estimated_arrival_at IS NOT NULL` 인 항목. `visit_date`는 전역 주기 평가의 필터로 사용하지 않는다.
 
-**Rationale**: `detection_active`는 F006이 시작 시 `true`, 당일 완료 시 `false`, 상태 수정 복귀 시 `true`로 관리한다(`er-schema.md` §5.2, F006 research 결정 3). 여기에 오늘 날짜 조건을 더해 "진행이 시작되어 아직 완료되지 않은 당일"을 만족한다. ETA(`estimated_arrival_at`)가 없으면 "도착 예정 시각 기준" 판정이 불가능하므로 제외한다(spec Edge Case).
+**Rationale**: `detection_active`는 F006이 시작 시 `true`, 당일 완료 시 `false`, 상태 수정 복귀 시 `true`로 관리한다(`er-schema.md` §5.2, F006 research 결정 3). 따라서 이 값과 `IN_PROGRESS` 상태가 실제 진행 구간의 정본이다. `visit_date = 오늘` 조건을 함께 사용하면 23:50에 시작해 익일 00:10에도 진행 중인 여행이 정기 평가에서 누락되므로 적용하지 않는다. ETA(`estimated_arrival_at`)가 없으면 "도착 예정 시각 기준" 판정이 불가능하므로 제외한다(spec Edge Case).
 
 **해결됨(2026-09-08 plan 반영)**: spec FR-001·FR-014·Key Entities "평가 대상"을 "방문 상태가 `예정`·`이동 중`인 남은 장소"로 조정했다. `도착(ARRIVED)` 장소는 사용자가 이미 그 자리에 있어 "계획대로 방문 가능한지"를 물을 이유가 없고, `도착` 전환 시 pending 감지 결과를 종료한다. 이 조정은 정책 변경이 아니라 "남은 장소" 용어 정합이며 문서 PR review에서 팀이 확인한다.
 
@@ -32,10 +32,11 @@
 
 **Decision**: `app/clients/kma.py`가 기상청 단기예보(`getVilageFcst`)를 호출한다.
 - 요청: `serviceKey`(data.go.kr), `dataType=JSON`, `base_date`/`base_time`(발표 시각 08 구간 중 최신), `nx`/`ny`(장소 위경도를 기상청 LCC(DFS) 격자 공식으로 변환), `numOfRows` 충분히 크게.
-- 사용 category: `POP`(강수확률 %), `PCP`(1시간 강수량 범주 문자열 → 수치/범주 파싱, "강수없음"=0), `PTY`(강수형태: 0없음·1비·2비/눈·3눈·4소나기).
-- 대상 장소 `estimated_arrival_at`에 가장 가까운 `fcstDate`+`fcstTime` 슬롯을 선택한다.
+- 사용 category: `POP`(강수확률 %), `PCP`(1시간 강수량 범주 문자열 → 수치/범주 파싱, "강수없음"=0), `PTY`(강수형태: 0없음·1비·2비/눈·3눈·4소나기). 세 필드가 모두 있어야 완전한 슬롯으로 사용한다.
+- 대상 장소 `estimated_arrival_at`에 가장 가까운 `fcstDate`+`fcstTime` 슬롯을 선택하되 ETA와 90분 이내인 슬롯만 사용한다. 단기예보의 일반 1시간 간격과 연장 구간 3시간 간격을 모두 수용하는 경계다.
 - 판정(FR-007): `POP ≥ 70` 또는 `PCP ≥ 1.0mm/h` 또는 `PTY ∈ {1,2,3,4}` 이면 위험.
-- 타임아웃 5초·1회 재시도, 최종 실패·격자 변환 불가·해당 슬롯 없음 → 날씨 변수 제외(`available=false`, `unavailableReason=NO_FORECAST` 또는 `TIMEOUT`).
+- `PCP="1.0mm 미만"`은 1.0mm보다 작은 값으로 정규화해 강수량 단독 임계값을 넘지 않게 한다. 이 문자열은 공식 PCP 범주 계약을 반영한 fixture로 검증하지만 실제 운영 응답 수신 여부는 G001에서 확인한다.
+- 타임아웃 5초·1회 재시도, 최종 실패·격자 변환 불가·해당 슬롯 없음·90분 초과·필수 필드 누락 → 날씨 변수 제외(`available=false`, `unavailableReason=NO_FORECAST` 또는 `TIMEOUT`). freshness·completeness 제외는 좌표 없이 로그에 구분해 기록한다.
 
 **Rationale**: 단기예보는 +3일까지 시간 단위 예보를 제공해 당일 남은 일정을 모두 커버한다. 초단기예보(+6h)로는 늦은 오후·저녁 장소를 못 덮는다. `requirements.md` §3이 기상청 5초·1회 재시도·실패 시 날씨 변수 제외를 이미 규정한다.
 
@@ -43,7 +44,7 @@
 
 **Alternatives considered**: OpenWeather 등 상용 API — `mvp.md`가 기상청으로 고정. TourAPI 날씨 — 예보 시점·강수 상세가 부족.
 
-**G001 확인 필요**: 격자 변환 공식 검증, `base_time` 선택 규칙, `PCP` 범주 문자열의 실제 형식, JSON 응답 키 케이스.
+**G001 확인 필요**: 격자 변환 공식 검증, `base_time` 선택 규칙, `PCP="1.0mm 미만"`의 실제 운영 응답 수신 여부, JSON 응답 키 케이스.
 
 ---
 
@@ -52,11 +53,12 @@
 **Decision**:
 - `app/services/detection/congestion_areas.json`에 서울시 "실시간 도시데이터" 지원 지점의 `{name, area_code, latitude, longitude}` 목록을 버전 관리 설정으로 고정한다(`er-schema.md`: `congestion_areas`는 테이블이 아니라 버전 관리 설정).
 - `congestion.py`가 장소 `location`에서 PostGIS 거리로 500m 이내 지원 지점을 찾는다. 없으면 혼잡 변수 제외(`available=false`, `unavailableReason=NOT_IN_SUPPORT_AREA`). 500m 안에서는 거리 감쇠 없음(FR-006). 여러 지점이면 최근접 1곳.
-- `app/clients/seoul_citydata.py`가 해당 지점의 `citydata_ppltn`(인구/혼잡)을 호출한다. `FCST_PPLTN[]`에서 `estimated_arrival_at`에 가장 가까운 `FCST_TIME`의 `FCST_CONGEST_LVL`을 쓰고, 예보가 없으면 현재값 `AREA_CONGEST_LVL`로 대체한다.
+- `app/clients/seoul_citydata.py`가 해당 지점의 `citydata_ppltn`(인구/혼잡)을 호출한다. `FCST_PPLTN[]`에서 `estimated_arrival_at`과 30분 이내인 가장 가까운 `FCST_TIME`의 `FCST_CONGEST_LVL`만 쓴다.
+- 적격 예보가 없을 때 현재값 `AREA_CONGEST_LVL` fallback은 ETA가 현재 시각과 30분 이내이고 `PPLTN_TIME`이 현재 기준 15분 이내일 때만 허용한다. 서울시 실시간 인구의 공식 5분 갱신 주기에 2회 지연 여유를 둔 값이며 모두 `policy.py`에서 조정한다.
 - 혼잡 4단계: `여유`→RELAXED, `보통`→NORMAL, `약간 붐빔`→SLIGHTLY_CROWDED, `붐빔`→CROWDED.
 - 카테고리 민감도(FR-006, `er-schema.md` §5.3): 높음 = `SHOPPING`·`FOOD`·`CAFE`; 중간 = `NATURE`·`HISTORY_CULTURE`·`OTHER`·미분류.
 - 판정: 민감도 높음이면 `SLIGHTLY_CROWDED` 이상, 민감도 중간이면 `CROWDED` 이상에서 혼잡 위험. (경계값은 `policy.py`.)
-- 타임아웃 5초·1회 재시도, 최종 실패 → 혼잡 변수 제외(`unavailableReason=TIMEOUT`).
+- 타임아웃 5초·1회 재시도와 최종 실패 → 혼잡 변수 제외(`unavailableReason=TIMEOUT`). 허용 범위 내 예보와 현재값 부재 → `NO_FORECAST`. freshness·completeness 제외는 좌표 없이 로그에 기록한다.
 
 **Rationale**: `requirements.md` §3이 서울시 데이터 5초·1회 재시도·실패 시 혼잡 변수 제외를 규정. `citydata_ppltn` 타입은 혼잡·인구만 반환해 payload가 작다. 지원 지점 좌표를 API가 직접 주지 않으므로 목록을 설정으로 고정해야 500m 판정을 재현 가능하게 만든다.
 

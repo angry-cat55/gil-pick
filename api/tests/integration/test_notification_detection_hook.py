@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.db import transaction_session
+from app.jobs import variable_detection
 from app.models.auth import DeviceSession, User
 from app.models.detection import Detection
 from app.models.notification import Notification
@@ -14,7 +15,6 @@ from app.schemas.detection import (
     OperatingHoursVerdict,
     WeatherVerdict,
 )
-from app.jobs import variable_detection
 from app.services.detection import evaluator
 from tests.integration.variable_detection_support import factory, providers, seed
 
@@ -65,6 +65,48 @@ def _slightly_crowded_below_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
         "evaluate_operating_hours",
         lambda *a, **k: _value(
             OperatingHoursVerdict(available=True, closing_soon=False, visit_blocked=False, temp_closed=False)
+        ),
+    )
+
+
+def _score_at_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    """혼잡·날씨 위험으로 종합 위험 점수가 정확히 50점인 상태를 만든다."""
+    providers(monkeypatch, evaluator)
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_weather",
+        lambda *a, **k: _value(
+            WeatherVerdict(
+                available=True,
+                precipitation_probability=80,
+                precipitation_mm_per_hour=1.0,
+                precipitation_type="RAIN",
+                at_risk=True,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_congestion",
+        lambda *a, **k: _value(
+            CongestionVerdict(
+                available=True,
+                level="CROWDED",
+                sensitivity="HIGH",
+                crowded=True,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        evaluator,
+        "evaluate_operating_hours",
+        lambda *a, **k: _value(
+            OperatingHoursVerdict(
+                available=True,
+                closing_soon=False,
+                visit_blocked=False,
+                temp_closed=False,
+            )
         ),
     )
 
@@ -232,6 +274,61 @@ async def test_below_threshold_score_creates_detection_without_notification(
             )
         assert round(float(detection.score) * 100) == 20
         assert notifications == 0
+    finally:
+        if "user_id" in locals():
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id == user_id))
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("escalate", [_score_at_threshold, _blocking_visit])
+async def test_existing_unnotified_detection_notifies_once_when_risk_escalates(
+    monkeypatch: pytest.MonkeyPatch, escalate
+) -> None:
+    engine, session_factory = await factory()
+    try:
+        _, item_id, user_id = await seed(session_factory)
+        _slightly_crowded_below_threshold(monkeypatch)
+
+        async with transaction_session(session_factory) as session:
+            _, first_candidates = await evaluator.evaluate_all_active(session)
+        async with session_factory() as session:
+            detection = await session.scalar(
+                select(Detection).where(Detection.item_id == item_id)
+            )
+            first_notifications = await session.scalar(
+                select(func.count())
+                .select_from(Notification)
+                .where(Notification.user_id == user_id)
+            )
+        assert first_candidates == [detection.detection_id]
+        assert first_notifications == 0
+
+        escalate(monkeypatch)
+        await _attach_device(session_factory, user_id, "escalation-token")
+        stub = _StubFcm()
+        async with session_factory() as session:
+            async with session.begin():
+                _, escalated_candidates = await evaluator.evaluate_all_active(session)
+            await variable_detection._dispatch_place_change(
+                session, escalated_candidates, stub
+            )
+        async with transaction_session(session_factory) as session:
+            _, repeated_candidates = await evaluator.evaluate_all_active(session)
+
+        assert escalated_candidates == [detection.detection_id]
+        assert repeated_candidates == []
+        assert stub.calls == 1
+        async with session_factory() as session:
+            notification = await session.scalar(
+                select(Notification).where(
+                    Notification.user_id == user_id,
+                    Notification.detection_id == detection.detection_id,
+                )
+            )
+        assert notification is not None
+        assert notification.sent_at is not None
     finally:
         if "user_id" in locals():
             async with transaction_session(session_factory) as session:

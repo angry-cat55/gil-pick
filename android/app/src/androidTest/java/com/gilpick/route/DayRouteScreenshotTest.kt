@@ -72,6 +72,22 @@ class DayRouteScreenshotTest {
         Box(modifier = Modifier.width(360.dp)) { Screen(RouteUiState.Content(sevenRoute())) }
     }
 
+    /** 긴 장소명이 줄바꿈되는 경우. 카드 하단이 어긋나지 않는지 본다(#618). */
+    @Test
+    fun 경로_content_긴_장소명_360dp() = capture("route_content_long_name_360dp") {
+        Box(modifier = Modifier.width(360.dp)) { Screen(RouteUiState.Content(longNameRoute())) }
+    }
+
+    @Test
+    fun 경로_content_긴_장소명_360dp_최대_글자배율() = capture("route_content_long_name_360dp_fontscale2") {
+        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(RouteUiState.Content(longNameRoute())) } }
+    }
+
+    private fun longNameRoute(): RouteDto {
+        val base = readyRoute()
+        return base.copy(markers = base.markers.mapIndexed { i, marker -> if (i == 2) marker.copy(name = "대학로자유극장 소극장 무대") else marker })
+    }
+
     private fun inProgressMarks() = RouteMarks(
         start = listOf(126.97, 37.57),
         statuses = mapOf(ITEM_A to ItemStatus.COMPLETED, ITEM_B to ItemStatus.EN_ROUTE, ITEM_C to ItemStatus.PLANNED),
@@ -152,7 +168,7 @@ class DayRouteScreenshotTest {
             onRetry = {},
             onAddPlace = {},
             onReauthenticate = {},
-            map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
+            map = { _, _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(LocalGilpickColors.current.darkMap)) },
         )
     }
 

@@ -42,15 +42,15 @@ data class DayRouteRoute(
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
  * @param repository 경로 데이터 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param progressRepository 진행 현황 접근 지점을 만든다. 시작된 날짜의 상태를 지도·목록에 겹치는 데 쓴다(T031).
- * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
+ * @param map 지도 영역. 네 번째 인자는 장소 카드로 고른 이동 대상이다(#618). 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
  */
 fun NavGraphBuilder.routeGraph(
     navController: NavController,
     onSessionExpired: () -> Unit,
     repository: (Context) -> RouteRepository = RouteViewModel::defaultRepository,
     progressRepository: (Context) -> ProgressRepository? = ProgressViewModel::defaultRepository,
-    map: @Composable (RouteDto, RouteMarks, Float, Modifier) -> Unit = { route, marks, sheetFraction, modifier ->
-        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = sheetFraction)
+    map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit = { route, marks, sheetFraction, focus, modifier ->
+        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = sheetFraction, focus = focus, myLocation = true)
     },
 ) {
     composable<DayRouteRoute> { entry ->

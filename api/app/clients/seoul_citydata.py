@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
@@ -9,6 +10,8 @@ from enum import StrEnum
 import httpx2
 
 from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class CongestionLevel(StrEnum):
@@ -28,6 +31,7 @@ class PopulationForecast:
 class PopulationData:
     current_level: CongestionLevel
     forecasts: list[PopulationForecast]
+    current_at: datetime | None = None
 
 
 class SeoulCityDataProviderError(RuntimeError):
@@ -65,6 +69,18 @@ class SeoulCityDataClient:
             row = response.json()["SeoulRtd.citydata_ppltn"][0]
             kst = timezone(timedelta(hours=9))
             forecasts = [PopulationForecast(datetime.fromisoformat(v["FCST_TIME"]).replace(tzinfo=kst), LEVELS[v["FCST_CONGEST_LVL"]]) for v in row.get("FCST_PPLTN", [])]
-            return PopulationData(LEVELS[row["AREA_CONGEST_LVL"]], forecasts)
+            current_at = None
+            if row.get("PPLTN_TIME"):
+                current_at = datetime.fromisoformat(row["PPLTN_TIME"])
+                current_at = (
+                    current_at.replace(tzinfo=kst)
+                    if current_at.tzinfo is None
+                    else current_at.astimezone(kst)
+                )
+            return PopulationData(LEVELS[row["AREA_CONGEST_LVL"]], forecasts, current_at)
         except (ValueError, KeyError, TypeError, IndexError):
+            logger.info(
+                "서울시 혼잡 응답의 필수 필드가 불완전해 사용하지 않습니다.",
+                extra={"reason": "INCOMPLETE"},
+            )
             return None

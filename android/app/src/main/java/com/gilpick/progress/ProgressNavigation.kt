@@ -72,7 +72,7 @@ fun NavGraphBuilder.progressGraph(
     onNotifications: () -> Unit = {},
     onOpenVariableMonitor: (tripId: String) -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
-        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f)
+        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f, myLocation = true)
     },
 ) {
     composable<ActiveTravelRoute> { entry ->

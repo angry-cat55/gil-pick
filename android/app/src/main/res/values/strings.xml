@@ -2,13 +2,8 @@
 <resources>
     <string name="app_name">길픽</string>
 
-    <string name="login_tagline">실시간 혼잡·날씨·운영시간을 감지해\n최적의 경로를 다시 안내합니다</string>
-    <string name="login_feature_congestion">혼잡도 감지</string>
-    <string name="login_feature_weather">날씨 예보</string>
-    <string name="login_feature_reroute">자동 재경로</string>
-    <string name="login_illustration_congestion">혼잡 감지</string>
-    <string name="login_illustration_reroute">경로 변경</string>
-    <string name="login_card_title">SNS 계정으로 간편하게 시작하기</string>
+    <string name="login_headline">여행 중 바뀌는 상황까지 챙겨요</string>
+    <string name="login_tagline">실시간 혼잡·날씨·운영시간을 감지해 최적의 경로를 다시 안내합니다</string>
     <string name="login_kakao">카카오로 시작하기</string>
     <string name="login_terms">시작하면 이용약관 및 개인정보처리방침에 동의한 것으로 간주됩니다</string>
     <string name="login_in_progress">카카오 인증을 진행하고 있습니다</string>
@@ -273,6 +268,7 @@
     <string name="trip_form_calendar_day">%1$d월 %2$d일</string>
     <!-- #501 다른 여행이 차지해 고를 수 없는 날짜의 스크린리더 상태. -->
     <string name="trip_form_calendar_occupied">다른 여행 기간</string>
+    <string name="trip_form_calendar_occupied_span">다른 여행 기간이 끼어 있어 그 날짜까지 고를 수 없습니다.</string>
     <string name="trip_form_calendar_previous">이전 달</string>
     <string name="trip_form_calendar_next">다음 달</string>
     <string name="trip_form_summary_start">시작</string>
@@ -381,7 +377,12 @@
     <string name="route_segment_arrow">→</string>
     <string name="route_segment_detail">%1$s · %2$s · %3$s</string>
     <string name="route_marker_description">%1$d번째 장소 %2$s</string>
-    <string name="route_marker_start">현위치</string>
+    <string name="route_marker_start">시작 위치</string>
+    <!-- #614 실시간 현재 위치. 시작 위치 marker(route_marker_start)와 구분되는 표현을 쓴다. -->
+    <string name="route_my_location">내 위치로 이동</string>
+    <string name="route_my_location_denied">위치 권한을 허용하면 현재 위치를 볼 수 있어요</string>
+    <!-- 장소 카드를 누르면 지도를 그 장소로 옮긴다(#618). clickable의 onClickLabel로 TalkBack이 동작을 함께 읽는다. -->
+    <string name="route_marker_focus">지도에서 보기</string>
     <!-- 일자 경로 sheet 범례(Figma DayRouteScreen). 상태 문구는 progress_status_*·itinerary_edit_status_*와 같다. -->
     <string name="route_legend_done">완료</string>
     <string name="route_legend_active">이동 중</string>
@@ -676,6 +677,7 @@
     <string name="replacement_undo_expired">되돌릴 수 있는 시간이 지났어요.</string>
     <string name="replacement_undo_follow_up">그 뒤에 일정이 또 바뀌었어요.</string>
     <string name="replacement_undo_failed">지금은 되돌릴 수 없어요.</string>
+    <string name="replacement_undo_retry">되돌리지 못했어요. 다시 시도해 주세요.</string>
     <string name="replacement_undo_edit_hint">일정 편집에서 바꿀 수 있어요.</string>
 
     <!-- F011 감지 목록 (US6, Figma VariableMonitorScreen) -->

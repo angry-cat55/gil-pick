@@ -40,6 +40,20 @@ Issue #536은 `POST /trips/{tripId}/days/{date}/route/segments/{sequence}/estima
 
 **Visual Validation**: 360dp phone, 일반 phone, 최대 font scale에서 loading/empty/error/content, 1개 장소, 혼합 이동수단을 screenshot으로 Figma와 비교한다. 실제 지도에서 이동·확대·축소, marker 순서, polyline, attribution, 목록 순서 일치를 확인한다.
 
+**현재 위치 표시·내 위치 버튼 (#614, 2026-09-16)**: Naver SDK의 `FusedLocationSource`와 `locationTrackingMode`를 그대로 쓴다. 권한이 이미 있으면 화면 진입 시 `NoFollow`로 현재 위치 점만 보이고 카메라는 건드리지 않는다. `내 위치로 이동` 버튼은 `RouteFocus.MyLocation`으로 `Follow`를 켜 최신 위치로 옮기고, 사용자가 지도를 움직이면 SDK가 다시 `NoFollow`로 돌아가므로 버튼을 다시 누르면 복귀한다.
+
+- 버튼은 Figma에 없어 지도 오른쪽 위에 새로 둔다. SDK가 로고(왼쪽 아래)·축척(오른쪽 아래)·확대/축소(오른쪽 가운데, content padding 기준)를 두는 자리와 겹치지 않고, 아래쪽 경로 sheet와도 떨어진다.
+- 권한 요청은 F003 `PlaceNavigation`과 같은 `RequestMultiplePermissions` launcher로 하고, 거부되면 버튼 아래에 다음 행동을 알리는 문구를 띄운다. 권한 판단은 주입 가능한 인자로 두어 UI test가 실제 권한을 바꾸지 않고 검증한다(실행 중 권한 변경은 instrumentation process를 죽인다).
+- F006 진행 화면의 지도는 150dp 미리보기 카드이고 `경로 보기` 버튼과 SDK 확대/축소가 이미 오른쪽을 쓰므로 현재 위치 점만 켜고 버튼은 두지 않는다. F010 변경 경로 미리보기는 두 경로 비교가 목적이라 제외했다.
+- `RouteMarks.start` marker 문구를 `현위치`에서 `시작 위치`로 바꿔 실시간 현재 위치 점과 구분한다(F006 `spec.md` UI-011 동기화).
+
+**장소 카드 선택·균등 높이 (#618, 2026-09-16)**: Figma `DayRouteScreen`에는 장소 카드의 상호작용이 없다. 카드가 지도 마커와 같은 번호를 쓰는데 눌러도 아무 일이 없어 탐색이 끊긴다는 QA 지적을 받아, 카드 전체를 `지도에서 보기` 버튼(`Role.Button`, `onClickLabel`, 최소 48dp)으로 두고 누르면 `RouteMap`이 그 좌표로 카메라를 옮기게 한다. 모양은 바꾸지 않으므로 Figma 정본과 어긋나지 않는다.
+
+- 상태는 `RouteFocus(itemId, tick)` 하나다. 같은 카드를 다시 눌러도 사용자가 직접 옮긴 지도를 되돌릴 수 있도록 `tick`으로 선택을 구분한다.
+- 이동은 overlay를 다시 그리지 않고 `CameraUpdate.scrollTo(...).animate(CameraAnimation.Easing)`만 쓴다. 다시 그리면 `fitBounds`가 전체 경로로 되돌아간다. 연속 선택은 새 이동이 앞선 animation을 대신해 마지막 선택에서 멈춘다.
+- sheet 높이만큼 잡아 둔 지도 content padding 덕분에 `scrollTo`가 sheet 위 보이는 영역의 중앙으로 옮긴다. 별도 offset 계산을 두지 않는다.
+- 카드 높이는 고정 값 대신 `Row(Modifier.height(IntrinsicSize.Min))` + 카드 `fillMaxHeight()`로 맞춘다. 가장 높은 카드의 실제 필요 높이를 행 높이로 삼으므로 긴 장소명을 말줄임하지 않고도 하단이 정렬되며 글자 배율도 그대로 반영된다.
+
 ## Constitution Check
 
 *GATE: Phase 0 전 및 Phase 1 후 재검토 완료.*

@@ -96,6 +96,7 @@ Expected:
 - process 재시작 뒤에도 pending revocation이 남고 network 복구 후 처리된다.
 - DataStore 파일, WorkManager input/output, backup/data-extraction 산출물에 Access/Refresh Token 원문이 없다.
 - AndroidKeyStore key invalidation 시 local session과 읽을 수 없는 pending envelope를 제거하고 crash나 stuck 상태 없이 `SignedOut`으로 전환한다.
+- 앱 시작 인증 gate(#616): `AuthUiState.Loading` 동안에는 로그인 화면을 그리지 않고 로고만 있는 launch surface를 보여 준다. 저장된 session이 있으면 로그인 화면을 거치지 않고 여행 목록으로 간다(`AuthLoginTest.복원_중에는_로그인_화면을_보여주지_않는다`, `복원이_끝나면_로그인_화면_없이_여행_목록으로_간다`).
 
 App Link 확인:
 
@@ -106,6 +107,15 @@ adb shell am start -W -a android.intent.action.VIEW -d "https://$env:ANDROID_APP
 ```
 
 Expected: 실제 공모전 domain의 인증 완료 path가 debug·release 인증서에서 검증되고 `am start`가 길픽 package/activity로 resolve되어 다른 앱 선택 dialog 없이 열린다. 같은 host의 API callback path `/api/v1/auth/kakao/callback`은 앱이 claim하지 않아야 한다.
+
+앱 시작 gate 확인(로그인 뒤 수행):
+
+```powershell
+adb shell am force-stop com.gilpick
+adb shell am start -n com.gilpick/.MainActivity
+```
+
+Expected: launch surface(로고·`#F4F6FB`) 다음 바로 여행 목록이 뜬다. 로그인 화면의 배경·문구·카카오 버튼이 한 번도 보이지 않고 흰 화면 번쩍임이 없다. session이 없는 clean install에서는 launch surface 다음 로그인 화면이 한 번만 뜬다.
 
 ## 5. End-to-end Kakao login
 
