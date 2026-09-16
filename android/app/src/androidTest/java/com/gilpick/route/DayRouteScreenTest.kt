@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.itinerary.TransportMode
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.ui.component.TAG_SHEET_HANDLE
 import com.gilpick.ui.theme.GilpickTheme
 import java.time.LocalDate
 import com.gilpick.R

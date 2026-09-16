@@ -70,6 +70,11 @@ import com.gilpick.ui.component.EmptyState
 import com.gilpick.ui.component.ErrorState
 import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.component.LightSystemBarIcons
+import com.gilpick.ui.component.SheetAnchor
+import com.gilpick.ui.component.SheetHandle
+import com.gilpick.ui.component.dragModifier
+import com.gilpick.ui.component.measureSheet
+import com.gilpick.ui.component.rememberSheetDragState
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSizing
@@ -78,27 +83,12 @@ import com.gilpick.ui.theme.displayFont
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.filterNotNull
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.stateDescription
 
 /**
  * 날짜별 경로 화면(`spec.md` US2, Figma `DayRouteScreen`).
@@ -312,15 +302,11 @@ private fun BackButton(onBack: () -> Unit) {
 }
 
 
-/** sheet 높이 단계(#550). 접힘은 합계·출처까지, 기본은 화면의 [SHEET_DEFAULT_FRACTION], 펼침은 [SHEET_EXPANDED_FRACTION]까지다. */
-private enum class SheetAnchor { COLLAPSED, DEFAULT, EXPANDED }
-
 /**
  * 전체 화면 지도와 그 위에 겹치는 하단 sheet.
  *
- * sheet는 기본으로 화면 높이의 45%까지 차지해 지도 조작 영역을 남긴다(UI-009). 윗부분(손잡이·합계)을 끌면
- * 높이가 손가락을 따라가고, 놓으면 끈 방향의 다음 단계에 붙는다. 손잡이를 누르거나
- * 접근성 action으로도 단계를 바꾼다(#550). 구간이 많거나 글자가 크면 sheet 안에서 세로로 스크롤한다.
+ * sheet는 기본으로 화면 높이의 45%까지 차지해 지도 조작 영역을 남긴다(UI-009). 높이 단계·끌기는 공용
+ * `SheetDragState`가 맡는다(#550, #660). 구간이 많거나 글자가 크면 sheet 안에서 세로로 스크롤한다.
  * sheet가 멈추면 그 높이 비율을 [map]에 넘겨 지도 SDK의 로고·marker가 sheet에 가리지 않게 한다.
  */
 @Composable
@@ -332,17 +318,11 @@ private fun Content(
     map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val density = LocalDensity.current
-        val maxPx = constraints.maxHeight.toFloat()
-        val flingPx = with(density) { SHEET_FLING_VELOCITY.toPx() }
-        val slopPx = with(density) { SHEET_STEP_DISTANCE.toPx() }
-        var anchor by rememberSaveable { mutableStateOf(SheetAnchor.DEFAULT) }
-        // 접힘 높이는 합계 영역을 재서 정한다. 끄는 중에는 dragPx가 높이를 정한다.
-        var collapsedPx by remember { mutableFloatStateOf(0f) }
-        var dragPx by remember { mutableStateOf<Float?>(null) }
-        var sheetPx by remember { mutableIntStateOf(0) }
-        var dragStartPx by remember { mutableFloatStateOf(0f) }
-        var mapFraction by remember { mutableFloatStateOf(SHEET_DEFAULT_FRACTION) }
+        val sheet = rememberSheetDragState(
+            maxPx = constraints.maxHeight.toFloat(),
+            defaultFraction = SHEET_DEFAULT_FRACTION,
+            expandedFraction = SHEET_EXPANDED_FRACTION,
+        )
         // 카드 선택·내 위치는 지도 카메라만 옮긴다. 같은 대상을 다시 눌러도 옮기도록 누를 때마다 tick을 올린다(#618, #614).
         var focus by remember { mutableStateOf<RouteFocus?>(null) }
         var notice by remember { mutableStateOf<Int?>(null) }
@@ -367,29 +347,7 @@ private fun Content(
             if (granted.values.any { it }) locate() else notice = R.string.route_my_location_denied
         }
 
-        fun anchorPx(value: SheetAnchor) = when (value) {
-            SheetAnchor.COLLAPSED -> collapsedPx
-            SheetAnchor.DEFAULT -> maxPx * SHEET_DEFAULT_FRACTION
-            SheetAnchor.EXPANDED -> maxPx * SHEET_EXPANDED_FRACTION
-        }
-
-        val targetPx = dragPx ?: anchorPx(anchor)
-        val heightPx by animateFloatAsState(
-            targetValue = targetPx,
-            animationSpec = if (dragPx != null) snap() else spring(stiffness = Spring.StiffnessMediumLow),
-            label = "routeSheetHeight",
-        )
-        // 끌기·애니메이션이 끝나 멈춘 높이만 지도에 넘긴다. 매 frame 넘기면 카메라가 계속 다시 맞춰진다.
-        LaunchedEffect(maxPx) {
-            snapshotFlow { if (dragPx == null && heightPx == anchorPx(anchor)) sheetPx else null }
-                .filterNotNull()
-                .collect { if (maxPx > 0) mapFraction = it / maxPx }
-        }
-        val dragState = rememberDraggableState { delta ->
-            dragPx = ((dragPx ?: sheetPx.toFloat()) - delta).coerceIn(collapsedPx, anchorPx(SheetAnchor.EXPANDED))
-        }
-
-        map(route, marks, mapFraction, focus, Modifier.fillMaxSize())
+        map(route, marks, sheet.fraction, focus, Modifier.fillMaxSize())
         MyLocationButton(
             notice = notice,
             onClick = {
@@ -406,39 +364,15 @@ private fun Content(
             route = route,
             marks = marks,
             onSelectPlace = { marker -> moveTo { tick -> RouteFocus.Place(marker.itemId, tick) } },
-            anchor = anchor,
-            collapsed = anchor == SheetAnchor.COLLAPSED && dragPx == null,
-            onAnchorChange = { anchor = it },
-            onTopMeasured = { collapsedPx = it.toFloat() },
-            topModifier = Modifier.draggable(
-                state = dragState,
-                orientation = Orientation.Vertical,
-                onDragStarted = { dragStartPx = sheetPx.toFloat() },
-                onDragStopped = { velocity ->
-                    // 목록이 짧으면 보이는 높이가 단계 높이보다 낮아 "가까운 단계"가 어긋난다. 그래서 시작 단계에서
-                    // 끈 방향으로 한 단계 옮기고, 기본 높이를 넘겨 멀리 끌었으면 끝 단계까지 간다.
-                    val current = dragPx ?: sheetPx.toFloat()
-                    val moved = current - dragStartPx
-                    val defaultPx = anchorPx(SheetAnchor.DEFAULT)
-                    anchor = when {
-                        // 화면 좌표는 아래가 +라 위로 밀면 velocity가 음수, 높이 변화(moved)는 양수다.
-                        velocity < -flingPx || moved > slopPx -> when (anchor) {
-                            SheetAnchor.COLLAPSED -> if (current > defaultPx + slopPx) SheetAnchor.EXPANDED else SheetAnchor.DEFAULT
-                            else -> SheetAnchor.EXPANDED
-                        }
-                        velocity > flingPx || moved < -slopPx -> when (anchor) {
-                            SheetAnchor.EXPANDED -> if (current < defaultPx - slopPx) SheetAnchor.COLLAPSED else SheetAnchor.DEFAULT
-                            else -> SheetAnchor.COLLAPSED
-                        }
-                        else -> anchor
-                    }
-                    dragPx = null
-                },
-            ),
+            anchor = sheet.anchor,
+            collapsed = sheet.collapsed,
+            onAnchorChange = { sheet.anchor = it },
+            onTopMeasured = sheet::onTopMeasured,
+            topModifier = sheet.dragModifier(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .heightIn(max = with(density) { heightPx.toDp() })
-                .onSizeChanged { sheetPx = it.height },
+                .heightIn(max = sheet.height)
+                .measureSheet(sheet),
         )
     }
 }
@@ -494,7 +428,7 @@ private fun RouteSheet(
                 .wrapContentHeight(align = Alignment.Top, unbounded = true)
                 .onSizeChanged { onTopMeasured(it.height + bottomExtraPx) },
         ) {
-            SheetHandle(anchor = anchor, onAnchorChange = onAnchorChange)
+            SheetHandle(anchor = anchor, onAnchorChange = onAnchorChange, color = Color.White.copy(alpha = HANDLE_ALPHA))
             Text(
                 text = summary,
                 style = MaterialTheme.typography.bodyLarge,
@@ -596,51 +530,6 @@ internal fun MyLocationButton(@StringRes notice: Int?, onClick: () -> Unit, modi
                     .testTag(TAG_MY_LOCATION_NOTICE),
             )
         }
-    }
-}
-
-/**
- * 손잡이(40×4dp 막대, 터치 48dp). 누르면 접힘·기본은 한 단계 펼치고 펼침은 기본으로 돌린다. 끌기가 어려운
- * 사용자를 위해 현재 단계를 상태로 읽어 주고 `펼치기`·`접기` action을 둔다(가이드라인 10절, #550).
- */
-@Composable
-private fun SheetHandle(anchor: SheetAnchor, onAnchorChange: (SheetAnchor) -> Unit) {
-    val label = stringResource(R.string.route_sheet_handle)
-    val state = stringResource(
-        when (anchor) {
-            SheetAnchor.COLLAPSED -> R.string.route_sheet_collapsed
-            SheetAnchor.DEFAULT -> R.string.route_sheet_default
-            SheetAnchor.EXPANDED -> R.string.route_sheet_expanded
-        },
-    )
-    val expandLabel = stringResource(R.string.route_sheet_expand)
-    val collapseLabel = stringResource(R.string.route_sheet_collapse)
-    val up = SheetAnchor.entries.getOrNull(anchor.ordinal + 1)
-    val down = SheetAnchor.entries.getOrNull(anchor.ordinal - 1)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MIN_TOUCH)
-            .clickable(role = Role.Button) { onAnchorChange(up ?: SheetAnchor.DEFAULT) }
-            .semantics {
-                contentDescription = label
-                stateDescription = state
-                customActions = listOfNotNull(
-                    up?.let { CustomAccessibilityAction(expandLabel) { onAnchorChange(it); true } },
-                    down?.let { CustomAccessibilityAction(collapseLabel) { onAnchorChange(it); true } },
-                )
-            }
-            .testTag(TAG_SHEET_HANDLE),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.2f)),
-        )
     }
 }
 
@@ -902,7 +791,6 @@ private fun SequenceDot(sequence: Int, status: ItemStatus? = null) {
 
 /** UI test가 찾는 tag. */
 internal const val TAG_SHEET = "route_sheet"
-internal const val TAG_SHEET_HANDLE = "route_sheet_handle"
 internal const val TAG_SUMMARY = "route_summary"
 internal const val TAG_ATTRIBUTION = "route_attribution"
 internal const val TAG_SEGMENT_PREFIX = "route_segment_"
@@ -927,10 +815,6 @@ private const val SHEET_DEFAULT_FRACTION = 0.45f
 /** sheet 펼침 높이 비율. 펼쳐도 지도 윗부분은 남긴다(UI-009). */
 private const val SHEET_EXPANDED_FRACTION = 0.85f
 
-/** 이보다 빠르게 밀거나 멀리 끌면 그 방향의 다음 단계로 간다. 못 미치면 원래 단계로 돌아간다. */
-private val SHEET_FLING_VELOCITY: Dp = 400.dp
-private val SHEET_STEP_DISTANCE: Dp = 48.dp
-
 /** Figma 실측(범례 12dp 점, 카드 6dp 점, 흰 60%·40%·5%, `primary` 20%). 화면 전용이라 토큰이 아니다. */
 private val LEGEND_DOT: Dp = 12.dp
 private val CARD_DOT: Dp = 6.dp
@@ -938,6 +822,9 @@ private val CARD_DOT: Dp = 6.dp
 private val CARD_MIN_WIDTH: Dp = 88.dp
 private const val LEGEND_ALPHA = 0.6f
 private const val HINT_ALPHA = 0.4f
+
+/** 손잡이 막대(흰 20%). */
+private const val HANDLE_ALPHA = 0.2f
 private const val CARD_ALPHA = 0.05f
 private const val ACTIVE_CARD_ALPHA = 0.2f
 /** 범례 `예정` 점. Figma `#1E3A5F`(3절 darkMap 행의 도로색, 이름 붙은 토큰 없음)는 흰 20%와 같은 뜻으로 쓴다(PR 기록). */
