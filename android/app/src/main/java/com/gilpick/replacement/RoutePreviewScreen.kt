@@ -14,11 +14,16 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -110,12 +115,15 @@ fun RoutePreviewScreen(
         PreviewMap(content = content, modifier = mapModifier)
     },
 ) {
+    // 전체 경로 보기는 지도만 남기므로 상단 바도 감춘다. 닫기는 지도 위 버튼과 뒤로 가기가 맡는다(#660).
+    var fullMap by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Header(onBack = onBack, enabled = !state.isApproving)
+        if (!fullMap) Header(onBack = onBack, enabled = !state.isApproving)
         when (state) {
             PreviewUiState.Loading -> DelayedLoading(placeName)
             is PreviewUiState.Error -> ErrorState(
@@ -127,6 +135,8 @@ fun RoutePreviewScreen(
 
             is PreviewUiState.Content -> ContentState(
                 content = state,
+                fullMap = fullMap,
+                onFullMapChange = { fullMap = it },
                 onApprove = onApprove,
                 onRecreate = onRecreate,
                 onOtherCandidates = onOtherCandidates,
@@ -302,12 +312,16 @@ private fun ErrorState(
 
 /** 비교 본문: 지도, 무엇이 무엇으로 바뀌는지, 비교 네 항목, 두 행동. */
 /**
- * `content`: 지도(범례), 변경 요약 + 비교 표, 승인 실패 박스가 스크롤되고 버튼 두 개는 하단에 고정된다
- * (Figma `flex-1` spacer).
+ * `content`: 위쪽 지도(스크롤하지 않는다)와 아래 변경 요약·비교 표·승인 실패 박스, 하단 고정 버튼 두 개.
+ *
+ * 지도를 스크롤 영역 밖에 두는 이유는 제스처 때문이다. 스크롤 안에 있으면 세로로 끌 때 바깥 스크롤이
+ * 가져가 지도 pan이 끊긴다(#660). 경로 전체를 크게 보려면 `전체 경로 보기`로 같은 지도를 화면 가득 연다.
  */
 @Composable
 private fun ContentState(
     content: PreviewUiState.Content,
+    fullMap: Boolean,
+    onFullMapChange: (Boolean) -> Unit,
     onApprove: () -> Unit,
     onRecreate: () -> Unit,
     onOtherCandidates: () -> Unit,
@@ -315,24 +329,29 @@ private fun ContentState(
 ) {
     val spacing = LocalGilpickSpacing.current
 
+    if (fullMap) {
+        FullMap(content = content, onClose = { onFullMapChange(false) }, map = map)
+        return
+    }
     Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = spacing.space3)
+                .height(MAP_HEIGHT)
+                .padding(horizontal = spacing.space4)
+                .testTag(TAG_MAP_SLOT),
+        ) {
+            map(content, Modifier.fillMaxSize())
+            Legend(modifier = Modifier.align(Alignment.TopEnd).padding(spacing.space3))
+            ExpandMapButton(onClick = { onFullMapChange(true) }, modifier = Modifier.align(Alignment.BottomEnd).padding(spacing.space2))
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = spacing.space3)
-                    .height(MAP_HEIGHT)
-                    .padding(horizontal = spacing.space4)
-                    .testTag(TAG_MAP_SLOT),
-            ) {
-                map(content, Modifier.fillMaxSize())
-                Legend(modifier = Modifier.align(Alignment.TopEnd).padding(spacing.space3))
-            }
             Summary(content = content, modifier = Modifier.padding(horizontal = spacing.space4).padding(top = spacing.space3))
             content.approveFailure?.let { failure ->
                 ApproveFailure(
@@ -341,6 +360,7 @@ private fun ContentState(
                     modifier = Modifier.padding(horizontal = spacing.space4).padding(top = spacing.space3),
                 )
             }
+            Spacer(modifier = Modifier.height(spacing.space4))
         }
         Actions(
             content = content,
@@ -348,6 +368,79 @@ private fun ContentState(
             onRecreate = onRecreate,
             onOtherCandidates = onOtherCandidates,
         )
+    }
+}
+
+/**
+ * 전체 경로 보기(#660): 같은 두 경로를 화면 가득 그린다. 상세 경로 화면(F005)처럼 지도만 있는 화면이라
+ * pan·zoom이 다른 제스처와 겹치지 않는다. 뒤로 가기는 비교 화면으로 돌아온다.
+ */
+@Composable
+private fun FullMap(
+    content: PreviewUiState.Content,
+    onClose: () -> Unit,
+    map: @Composable (PreviewUiState.Content, Modifier) -> Unit,
+) {
+    val spacing = LocalGilpickSpacing.current
+    BackHandler(onBack = onClose)
+    Box(modifier = Modifier.fillMaxSize().testTag(TAG_FULL_MAP)) {
+        map(content, Modifier.fillMaxSize())
+        IconBoxButton(
+            icon = R.drawable.ic_lucide_arrow_left,
+            contentDescription = stringResource(R.string.replacement_full_map_close),
+            onClick = onClose,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(spacing.space4)
+                .testTag(TAG_FULL_MAP_CLOSE),
+        )
+        Legend(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(spacing.space4),
+        )
+    }
+}
+
+/** 지도 위 `전체 경로 보기` 버튼(#660). 흰 카드에 문구를 둬 아이콘만으로 뜻을 전하지 않는다. */
+@Composable
+private fun ExpandMapButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val shape = RoundedCornerShape(radius.md)
+
+    Box(
+        modifier = modifier
+            .heightIn(min = MIN_TOUCH)
+            .clip(shape)
+            .clickable(onClick = onClick, role = Role.Button)
+            .testTag(TAG_EXPAND_MAP),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = spacing.space3, vertical = spacing.space2),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.space1),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_maximize),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(EXPAND_ICON),
+            )
+            Text(
+                text = stringResource(R.string.replacement_full_map),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 
@@ -762,6 +855,9 @@ internal const val TAG_MAP_SLOT = "preview_map"
 internal const val TAG_CHANGE_SUMMARY = "preview_change_summary"
 internal const val TAG_REASON = "preview_reason"
 internal const val TAG_APPROVE_FAILURE = "preview_approve_failure"
+internal const val TAG_EXPAND_MAP = "preview_expand_map"
+internal const val TAG_FULL_MAP = "preview_full_map"
+internal const val TAG_FULL_MAP_CLOSE = "preview_full_map_close"
 
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
@@ -774,7 +870,12 @@ private val RECALC_ICON: Dp = 16.dp
 private const val RECALC_ARC_DEGREES = 270f
 private const val RECALC_SPIN_MILLIS = 1_200
 internal const val TAG_RECALCULATING = "replacement_recalculating"
-private val MAP_HEIGHT: Dp = 190.dp
+/** 비교 화면 지도 높이. 전체 경로가 한눈에 들어오도록 Figma 190dp보다 키웠다(#660). */
+private val MAP_HEIGHT: Dp = 240.dp
+
+/** 가이드라인 10절 최소 터치 영역. */
+private val MIN_TOUCH: Dp = 48.dp
+private val EXPAND_ICON: Dp = 14.dp
 private val ROW_MIN_HEIGHT: Dp = 44.dp
 private val ROW_LABEL_WIDTH: Dp = 72.dp
 private val LEGEND_SWATCH_WIDTH: Dp = 16.dp

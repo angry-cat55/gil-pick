@@ -213,6 +213,22 @@ class RoutePreviewScreenTest {
         originalRoute = readyRoute(),
     )
 
+    @Test
+    fun 전체_경로_보기는_같은_지도를_화면_가득_열고_뒤로_돌아온다() {
+        setScreen(content())
+
+        composeRule.onNodeWithTag(TAG_EXPAND_MAP).assertHeightIsAtLeast(48.dp).performClick()
+        composeRule.onNodeWithTag(TAG_FULL_MAP).assertIsDisplayed()
+        // 전체 보기에서도 어느 선이 기존이고 변경인지 문구로 남는다(UI-001).
+        composeRule.onNodeWithText("기존").assertIsDisplayed()
+        composeRule.onNodeWithText("변경").assertIsDisplayed()
+        // 비교 표는 전체 보기 동안 가려진다.
+        composeRule.onNodeWithTag(TAG_CHANGE_SUMMARY).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(TAG_FULL_MAP_CLOSE).performClick()
+        composeRule.onNodeWithTag(TAG_CHANGE_SUMMARY).assertIsDisplayed()
+    }
+
     private fun setScreen(
         state: PreviewUiState,
         onBack: () -> Unit = {},

@@ -13,6 +13,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -27,12 +30,14 @@ import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.progress.ActiveTravelRoute
 import com.gilpick.ui.component.TAG_HEADER_BACK
+import com.gilpick.ui.component.TAG_SHEET_HANDLE
 import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
 import com.gilpick.alternative.AlternativeService
 import com.gilpick.alternative.CANDIDATE_ID
 import com.gilpick.alternative.DETECTION_ID
 import com.gilpick.alternative.TAG_CANDIDATE_PREFIX
+import com.gilpick.alternative.TAG_COMPARE_PREFIX
 import com.gilpick.alternative.TAG_SEARCH
 import com.gilpick.alternative.TAG_SEARCH_ROW_PREFIX
 import com.gilpick.alternative.TRIP_ID
@@ -171,7 +176,7 @@ class ReplacementNavigationTest {
         setGraph()
         awaitCandidates()
 
-        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
 
         awaitPreview()
         composeRule.runOnIdle {
@@ -190,7 +195,7 @@ class ReplacementNavigationTest {
         setGraph()
         awaitCandidates()
 
-        composeRule.onNodeWithTag(TAG_SEARCH).performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_SEARCH).performClick()
         // F009 직접 검색은 두 글자 이상을 입력하고 검색을 실행해야 결과가 온다(F009 US3 Scenario 4).
         composeRule.onNodeWithContentDescription("장소 이름 검색").performTextInput("궁궐")
         composeRule.onNodeWithContentDescription("장소 이름 검색").performImeAction()
@@ -211,7 +216,7 @@ class ReplacementNavigationTest {
         // UI-003. 돌아간 자리에서 다른 후보를 다시 고를 수 있어야 한다(US1 시나리오 3).
         setGraph()
         awaitCandidates()
-        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
         awaitPreview()
 
         composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performClick()
@@ -228,12 +233,30 @@ class ReplacementNavigationTest {
         composeRule.onNodeWithText("경복궁 · 방문 어려움 감지").assertIsDisplayed()
     }
 
+    /** #660: 떠나기 전에 바꿔 둔 후보 목록 sheet 높이가 돌아왔을 때도 그대로여야 한다. */
+    @Test
+    fun 미리보기에서_돌아오면_후보_목록_sheet_상태가_유지된다() {
+        setGraph()
+        awaitCandidates()
+        val handle = composeRule.onNodeWithTag(TAG_SHEET_HANDLE)
+        handle.performClick()
+        composeRule.waitForIdle()
+        handle.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "펼침"))
+
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
+        awaitPreview()
+        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).performClick()
+
+        awaitCandidates()
+        composeRule.onNodeWithTag(TAG_SHEET_HANDLE).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "펼침"))
+    }
+
     @Test
     fun 뒤로_가기도_미리보기를_폐기한다() {
         // 남은 PENDING 미리보기를 서버에 쌓지 않는다(FR-006).
         setGraph()
         awaitCandidates()
-        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
         awaitPreview()
 
         composeRule.onNodeWithTag(TAG_HEADER_BACK).performClick()
@@ -250,7 +273,7 @@ class ReplacementNavigationTest {
     fun 진행_화면_없이_알림으로_들어와_승인해도_그_여행의_진행_화면으로_간다() {
         setGraph()
         awaitCandidates()
-        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
         awaitPreview()
 
         composeRule.onNodeWithTag(TAG_APPROVE).performClick()
@@ -273,7 +296,7 @@ class ReplacementNavigationTest {
             navController.navigate(AlternativePlacesRoute(DETECTION_ID, TRIP_ID))
         }
         awaitCandidates()
-        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
         awaitPreview()
 
         composeRule.onNodeWithTag(TAG_APPROVE).performClick()
@@ -328,7 +351,7 @@ class ReplacementNavigationTest {
                         },
                         onDismissed = { navController.popBackStack() },
                         repository = { alternativeRepository },
-                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
+                        map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                     replacementGraph(
                         navController,
