@@ -3,6 +3,7 @@ package com.gilpick.replacement
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -17,11 +18,14 @@ import androidx.compose.ui.test.performTextInput
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.createItineraryRetrofit
+import com.gilpick.progress.ActiveTravelRoute
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.AlternativePlacesRoute
 import com.gilpick.alternative.AlternativeRepository
@@ -101,6 +105,7 @@ class ReplacementNavigationTest {
                         rejectRequests += path
                         MockResponse(code = 204)
                     }
+                    path.endsWith("/approve") -> json(approvedReplacementJson())
                     path.endsWith("/route-previews") -> {
                         previewRequests += requestJson.decodeFromString<CreatePreviewRequest>(request.body!!.utf8())
                         json(routePreviewJson())
@@ -237,6 +242,51 @@ class ReplacementNavigationTest {
         composeRule.runOnIdle { assertTrue(rejectRequests.isNotEmpty()) }
     }
 
+    /**
+     * #624: 알림으로 바로 들어와 진행 화면이 back stack에 없어도 승인 후 그 여행의 진행 화면으로 간다.
+     * 뒤로 가기로 승인된 미리보기·후보 화면이 다시 나타나지 않는지도 함께 본다.
+     */
+    @Test
+    fun 진행_화면_없이_알림으로_들어와_승인해도_그_여행의_진행_화면으로_간다() {
+        setGraph()
+        awaitCandidates()
+        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        awaitPreview()
+
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
+
+        composeRule.waitUntil(WAIT_MILLIS) {
+            navController.currentBackStackEntry?.destination?.hasRoute<ActiveTravelRoute>() == true
+        }
+        composeRule.runOnIdle {
+            assertEquals(REPL_TRIP_ID, navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>()?.tripId)
+            // 후보·미리보기가 걷혀 뒤로 가기로 돌아갈 화면이 없다.
+            assertEquals(false, navController.popBackStack())
+        }
+    }
+
+    /** #624: 진행 화면에서 시작한 기존 흐름은 그대로 그 진행 화면으로 돌아간다. */
+    @Test
+    fun 진행_화면에서_시작하면_승인_후_같은_진행_화면으로_돌아간다() {
+        setGraph(startFromProgress = true)
+        composeRule.runOnIdle {
+            navController.navigate(AlternativePlacesRoute(DETECTION_ID, TRIP_ID))
+        }
+        awaitCandidates()
+        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        awaitPreview()
+
+        composeRule.onNodeWithTag(TAG_APPROVE).performClick()
+
+        composeRule.waitUntil(WAIT_MILLIS) {
+            navController.currentBackStackEntry?.destination?.hasRoute<ActiveTravelRoute>() == true
+        }
+        composeRule.runOnIdle {
+            // 새로 열지 않고 원래 화면으로 돌아왔으므로 처음 넣은 여행명이 그대로다.
+            assertEquals(PROGRESS_TRIP_NAME, navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>()?.tripName)
+        }
+    }
+
     private fun awaitCandidates() {
         composeRule.waitUntil(WAIT_MILLIS) {
             composeRule.onAllNodesWithTag(TAG_CANDIDATE_PREFIX + "1").fetchSemanticsNodes().isNotEmpty()
@@ -250,14 +300,20 @@ class ReplacementNavigationTest {
     }
 
     /** `MainActivity.kt`의 `alternativeGraph`·`replacementGraph` 배선을 그대로 옮긴다. */
-    private fun setGraph() {
+    private fun setGraph(startFromProgress: Boolean = false) {
         composeRule.setContent {
             navController = rememberNavController()
             GilpickTheme {
                 NavHost(
                     navController = navController,
-                    startDestination = AlternativePlacesRoute(DETECTION_ID, TRIP_ID),
+                    startDestination = if (startFromProgress) {
+                        ActiveTravelRoute(TRIP_ID, PROGRESS_TRIP_NAME)
+                    } else {
+                        AlternativePlacesRoute(DETECTION_ID, TRIP_ID)
+                    },
                 ) {
+                    // 진행 화면은 이 test의 관심사가 아니라 자리만 둔다. 도착 여부와 route 인자만 확인한다.
+                    composable<ActiveTravelRoute> { Box(modifier = Modifier.fillMaxSize().testTag(TAG_FAKE_PROGRESS)) }
                     alternativeGraph(
                         navController,
                         onSessionExpired = {},
@@ -282,6 +338,8 @@ class ReplacementNavigationTest {
                         routes = { routeRepository },
                         // 일정 개요는 이 test의 가짜 서버가 404를 준다. 앱은 ETA 날짜로 대체 판정한다(#593).
                         itineraries = { itineraryRepository },
+                        // 여행명 조회는 실제 서버 호출이라 test에서는 고정값으로 바꿔 낀다(#624).
+                        tripName = { _, _ -> APPROVED_TRIP_NAME },
                         map = { _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                 }
@@ -301,3 +359,7 @@ class ReplacementNavigationTest {
         val requestJson = Json { ignoreUnknownKeys = true }
     }
 }
+
+private const val TAG_FAKE_PROGRESS = "fake_progress"
+private const val PROGRESS_TRIP_NAME = "서울 여행"
+private const val APPROVED_TRIP_NAME = "승인 후 여행"
