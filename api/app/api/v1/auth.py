@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import AuthPrincipal, get_current_principal
 from app.api.errors import AppError, success_response
 from app.clients.kakao import KakaoClient
 from app.core.config import Settings, get_settings
@@ -29,6 +30,7 @@ from app.schemas.auth import (
 from app.services.auth import (
     AuthService,
     AuthServiceError,
+    delete_account,
     exchange_login_ticket,
     logout_device_session,
     rotate_refresh_token,
@@ -199,3 +201,20 @@ async def logout(payload: RefreshTokenRequest, session: AsyncSession = Depends(g
             "로그인 상태를 종료할 수 없습니다.",
             retryable=exc.retryable,
         ) from exc
+
+
+@router.delete(
+    "/me",
+    status_code=204,
+    response_model=None,
+    responses={
+        204: {"description": "계정 탈퇴 완료 또는 이미 탈퇴한 계정에 대한 멱등 처리"},
+        401: {"model": ErrorEnvelope},
+    },
+)
+async def delete_my_account(
+    principal: AuthPrincipal = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """인증된 사용자가 자기 계정과 소유 데이터를 탈퇴 처리한다."""
+    await delete_account(session, principal.user_id)

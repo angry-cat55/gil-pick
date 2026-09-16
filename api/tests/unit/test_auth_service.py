@@ -225,6 +225,37 @@ async def test_exchange_upserts_existing_user_without_erasing_nullable_profile()
 
 
 @pytest.mark.asyncio
+async def test_exchange_reactivates_deleted_user_without_erasing_new_profile() -> None:
+    """탈퇴(deleted_at 있음)한 사용자가 재가입하면 같은 user_id를 재활성화한다."""
+    transaction = _transaction(status="VERIFIED")
+    ticket = create_opaque_token(transaction.transaction_id)
+    transaction.login_ticket_hash = ticket.secret_hash
+    transaction.ticket_expires_at = datetime.now(UTC) + timedelta(seconds=120)
+    transaction.social_subject = "42"
+    transaction.nickname = "재가입 사용자"
+    transaction.profile_image_url = None
+    user = User(
+        social_provider="KAKAO",
+        social_subject="42",
+        nickname="탈퇴 전 별명",
+        profile_image_url="https://example.com/old.png",
+        deleted_at=datetime.now(UTC),
+    )
+    session = _Session(_Result(transaction), _Result(user), _Result())
+    service = AuthService(_SessionFactory(session), SimpleNamespace(), _settings())
+
+    result = await service.exchange_login_ticket(
+        login_ticket=ticket.encoded,
+        device_id=transaction.client_device_id,
+    )
+
+    assert result.is_new_user is False
+    assert result.user.user_id == user.user_id
+    assert user.deleted_at is None
+    assert user.nickname == "재가입 사용자"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("terminal_status", ["VERIFIED", "FAILED"])
 async def test_callback_transitions_pending_through_processing_to_terminal(
     terminal_status: str,
