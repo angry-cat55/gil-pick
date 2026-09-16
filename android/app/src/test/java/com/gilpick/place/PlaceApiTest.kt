@@ -41,6 +41,8 @@ class PlaceApiTest {
         assertEquals(listOf("월요일 09:00~18:00"), tour.regularOpeningHours)
         assertEquals(listOf("Google 제공"), tour.googleAttributions)
         assertEquals(PlaceBusinessStatus.OPERATIONAL, tour.businessStatus)
+        // 실시간 영업 여부는 businessStatus와 별개 field다(#576).
+        assertEquals(true, tour.openNow)
     }
 
     @Test
@@ -58,6 +60,7 @@ class PlaceApiTest {
         assertNull(sparse.imageUrl)
         assertNull(sparse.rating)
         assertNull(sparse.userRatingCount)
+        assertEquals(false, sparse.openNow)
         assertNull(sparse.businessStatus)
         assertNull(sparse.regularOpeningHours)
         assertNull(sparse.googleAttributions)
@@ -247,6 +250,7 @@ class PlaceApiTest {
                     "rating": 4.6,
                     "userRatingCount": 1200,
                     "businessStatus": "OPERATIONAL",
+                    "openNow": true,
                     "regularOpeningHours": ["월요일 09:00~18:00"],
                     "currentOpeningHours": ["오늘 09:00~18:00"],
                     "googleAttributions": ["Google 제공"]
@@ -266,6 +270,7 @@ class PlaceApiTest {
                     "rating": null,
                     "userRatingCount": null,
                     "businessStatus": null,
+                    "openNow": false,
                     "regularOpeningHours": null,
                     "currentOpeningHours": null,
                     "googleAttributions": null
@@ -299,6 +304,7 @@ class PlaceApiTest {
                     "rating": null,
                     "userRatingCount": null,
                     "businessStatus": null,
+                    "openNow": null,
                     "regularOpeningHours": null,
                     "currentOpeningHours": null,
                     "googleAttributions": null
@@ -330,6 +336,7 @@ class PlaceApiTest {
                 "rating": null,
                 "userRatingCount": null,
                 "businessStatus": null,
+                "openNow": null,
                 "regularOpeningHours": null,
                 "currentOpeningHours": null,
                 "googleAttributions": null,

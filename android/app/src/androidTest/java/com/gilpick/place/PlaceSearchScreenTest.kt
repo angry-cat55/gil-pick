@@ -334,6 +334,28 @@ class PlaceSearchScreenTest {
         composeRule.runOnIdle { assertEquals(1, reauths) }
     }
 
+    /** #576: 검색 결과 행도 상세와 같은 규칙으로 실시간 영업 상태를 쓴다. */
+    @Test
+    fun 검색_결과는_openNow를_현재_영업_상태로_구분하고_폐업을_우선한다() {
+        setScreen(
+            content(
+                testPlace("tourapi:1", name = "열린 곳", businessStatus = PlaceBusinessStatus.OPERATIONAL, openNow = true),
+                testPlace("tourapi:2", name = "닫힌 곳", businessStatus = PlaceBusinessStatus.OPERATIONAL, openNow = false),
+                testPlace("tourapi:3", name = "모르는 곳", businessStatus = PlaceBusinessStatus.OPERATIONAL),
+                testPlace("tourapi:4", name = "폐업한 곳", businessStatus = PlaceBusinessStatus.CLOSED_PERMANENTLY, openNow = true),
+                testPlace("tourapi:5", name = "정보 없는 곳"),
+            ),
+        )
+
+        composeRule.onNodeWithText("영업 중").assertIsDisplayed()
+        composeRule.onNodeWithText("영업 종료").assertIsDisplayed()
+        // openNow를 모르면 현재 영업 여부를 지어내지 않고 `운영 중`만 남는다.
+        composeRule.onAllNodes(hasText("운영 중")).assertCountEquals(1)
+        composeRule.onNodeWithText("폐업").assertIsDisplayed()
+        // 영업 상태를 모르는 장소에는 아무 문구도 두지 않는다.
+        composeRule.onAllNodes(hasText("영업 중")).assertCountEquals(1)
+    }
+
     private fun content(vararg places: PlaceDto) = PlaceSearchUiState(
         query = "검색어",
         committedQuery = "검색어",

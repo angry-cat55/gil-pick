@@ -94,7 +94,9 @@ data class TourApiCategoryDto(
  * @property placeId `tourapi:{contentId}` 또는 `google:{placeId}`. 상세 조회 경로에 그대로 쓴다.
  * @property tourApiCategory field는 필수이며 TourAPI 기준 결과가 아니면 `null`이다.
  * @property recommendedStayMinutes server가 [category]로 계산한 값. 60·90·120 중 하나다.
- * @property businessStatus [PlaceBusinessStatus]의 알려진 값 또는 `null`.
+ * @property businessStatus [PlaceBusinessStatus]의 알려진 값 또는 `null`. 폐업·임시 휴업을 뜻하며 현재 영업 여부가 아니다.
+ * @property openNow Google `currentOpeningHours.openNow` 원문(#576). Google이 주지 않으면 `null`이고, 이때 현재
+ *   영업 여부를 추론하지 않는다(`spec.md` FR-007).
  * @property googleAttributions Google 데이터를 표시할 때 함께 렌더링해야 하는 출처 정보.
  * @property description 상세 응답에만 포함된다.
  * @property phone 상세 응답에만 포함된다. 전화 가능 여부를 단정하지 않는다.
@@ -116,6 +118,7 @@ data class PlaceDto(
     val rating: Double?,
     val userRatingCount: Int?,
     val businessStatus: String?,
+    val openNow: Boolean?,
     val regularOpeningHours: List<String>?,
     val currentOpeningHours: List<String>?,
     val googleAttributions: List<String>?,

@@ -166,6 +166,9 @@
     <string name="place_category_shopping">쇼핑</string>
     <string name="place_category_other">기타</string>
     <string name="place_rating_description">평점 %1$s점</string>
+    <!-- #576 실시간 영업 상태. 폐업·임시 휴업(place_business_*)이 이 문구보다 우선한다. -->
+    <string name="place_open_now">영업 중</string>
+    <string name="place_closed_now">영업 종료</string>
     <string name="place_business_operational">운영 중</string>
     <string name="place_business_closed_temporarily">임시 휴업</string>
     <string name="place_business_closed_permanently">폐업</string>

@@ -30,6 +30,7 @@ internal fun tourPlaceJson(placeId: String = "tourapi:126508", name: String = "�
       "rating": 4.6,
       "userRatingCount": 1200,
       "businessStatus": "OPERATIONAL",
+      "openNow": null,
       "regularOpeningHours": ["월요일 09:00~18:00"],
       "currentOpeningHours": ["오늘 09:00~18:00"],
       "googleAttributions": ["Google 제공"]
@@ -53,6 +54,7 @@ internal fun googlePlaceJson() = """
       "rating": null,
       "userRatingCount": null,
       "businessStatus": null,
+      "openNow": null,
       "regularOpeningHours": null,
       "currentOpeningHours": null,
       "googleAttributions": null
