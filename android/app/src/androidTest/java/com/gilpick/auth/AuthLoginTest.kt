@@ -5,10 +5,13 @@ import android.content.pm.verify.domain.DomainVerificationUserState
 import android.os.Build
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -103,6 +106,34 @@ class AuthLoginTest {
         composeRule.onNodeWithText(string(R.string.login_kakao)).performClick()
 
         assertEquals(1, started)
+    }
+
+    /** #616: 저장된 session을 복원하는 동안에는 로그인 화면을 그리지 않는다. 로고만 있는 launch surface가 대신 뜬다. */
+    @Test
+    fun 복원_중에는_로그인_화면을_보여주지_않는다() {
+        composeRule.setContent {
+            GilpickApp(state = AuthUiState.Loading, onKakaoLogin = {}, onRetry = {})
+        }
+
+        composeRule.onNodeWithText(string(R.string.login_kakao)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.login_headline)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.login_terms)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(R.string.app_name)).assertIsDisplayed()
+    }
+
+    /** #616: 복원이 끝나면 로그인 화면을 거치지 않고 바로 여행 목록으로 간다. */
+    @Test
+    fun 복원이_끝나면_로그인_화면_없이_여행_목록으로_간다() {
+        var state by mutableStateOf<AuthUiState>(AuthUiState.Loading)
+        composeRule.setContent {
+            GilpickApp(state = state, onKakaoLogin = {}, onRetry = {})
+        }
+        composeRule.onNodeWithText(string(R.string.login_kakao)).assertDoesNotExist()
+
+        state = AuthUiState.Authenticated(USER_ID, nickname = "길픽", profileImageUrl = null)
+
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.login_kakao)).assertDoesNotExist()
     }
 
     @Test
