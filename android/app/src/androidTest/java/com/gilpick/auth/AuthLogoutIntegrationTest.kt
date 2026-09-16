@@ -254,4 +254,6 @@ private object FailingAuthService : AuthService {
 
     override suspend fun logout(body: RefreshTokenRequest) =
         error("서버 폐기는 worker가 맡는다")
+
+    override suspend fun deleteAccount(bearer: String) = error("이 test는 탈퇴 endpoint를 호출하지 않는다")
 }
