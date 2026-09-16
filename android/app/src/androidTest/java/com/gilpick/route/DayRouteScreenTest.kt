@@ -382,17 +382,74 @@ class DayRouteScreenTest {
         }
 
         composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}2").performClick()
-        composeRule.runOnIdle { assertEquals(ITEM_B, focus?.itemId) }
+        composeRule.runOnIdle { assertEquals(ITEM_B, (focus as? RouteFocus.Place)?.itemId) }
         composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}3").performClick()
-        composeRule.runOnIdle { assertEquals(ITEM_C, focus?.itemId) }
+        composeRule.runOnIdle { assertEquals(ITEM_C, (focus as? RouteFocus.Place)?.itemId) }
 
         // 같은 카드를 다시 눌러도(직접 지도를 옮긴 뒤) 값이 달라져 지도가 다시 이동한다.
         val before = focus
         composeRule.onNodeWithTag("${TAG_MARKER_PREFIX}3").performClick()
         composeRule.runOnIdle {
-            assertEquals(ITEM_C, focus?.itemId)
+            assertEquals(ITEM_C, (focus as? RouteFocus.Place)?.itemId)
             assertTrue("before=$before after=$focus", focus != before)
         }
+    }
+
+    @Test
+    fun 내_위치_버튼은_48dp_설명을_갖고_권한이_있으면_지도를_현재_위치로_보낸다() {
+        var focus: RouteFocus? = null
+        composeRule.setContent {
+            GilpickTheme {
+                DayRouteScreen(
+                    state = RouteUiState.Content(readyRoute()),
+                    dayNumber = 2,
+                    date = LocalDate.of(2026, 5, 21),
+                    onBack = {},
+                    onRetry = {},
+                    onAddPlace = {},
+                    onReauthenticate = {},
+                    // 실제 권한을 바꾸면 instrumentation process가 죽으므로 권한 판단만 바꿔 끼운다.
+                    hasLocationPermission = { true },
+                    map = { _, _, _, selected, modifier ->
+                        focus = selected
+                        Box(modifier = modifier.fillMaxSize().testTag(TAG_MAP))
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION)
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("내 위치로 이동")))
+        // 안내 문구는 권한을 거부당했을 때만 나온다.
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_DENIED).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.runOnIdle { assertTrue("focus=$focus", focus is RouteFocus.MyLocation) }
+
+        // 지도를 직접 움직인 뒤 다시 눌러도 새 이동 요청이 간다.
+        val before = focus
+        composeRule.onNodeWithTag(TAG_MY_LOCATION).performClick()
+        composeRule.runOnIdle { assertTrue("before=$before after=$focus", focus is RouteFocus.MyLocation && focus != before) }
+    }
+
+    @Test
+    fun 내_위치_버튼_권한_거부_안내는_다음_행동을_알린다() {
+        composeRule.setContent { GilpickTheme { MyLocationButton(denied = true, onClick = {}) } }
+
+        composeRule.onNodeWithTag(TAG_MY_LOCATION_DENIED).assertIsDisplayed()
+        composeRule.onNodeWithText("위치 권한을 허용하면 현재 위치를 볼 수 있어요").assertIsDisplayed()
+    }
+
+    @Test
+    fun 내_위치_버튼은_경로_정보_sheet와_겹치지_않는다() {
+        setScreen(RouteUiState.Content(readyRoute()))
+
+        val button = composeRule.onNodeWithTag(TAG_MY_LOCATION).assertIsDisplayed().getBoundsInRoot()
+        val sheet = composeRule.onNodeWithTag(TAG_SHEET).getBoundsInRoot()
+        assertTrue("button=$button sheet=$sheet", button.bottom <= sheet.top)
     }
 
     @Test

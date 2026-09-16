@@ -37,7 +37,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gilpick.R
+import androidx.activity.compose.LocalActivity
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.progress.DeviceLocationProvider
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
@@ -46,6 +48,8 @@ import com.naver.maps.map.CameraUpdate
 import com.naver.maps.map.MapView
 import com.naver.maps.map.NaverMap
 import com.naver.maps.map.NaverMapSdk
+import com.naver.maps.map.LocationTrackingMode
+import com.naver.maps.map.util.FusedLocationSource
 import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.overlay.OverlayImage
 import com.naver.maps.map.overlay.PathOverlay
@@ -61,7 +65,7 @@ import com.naver.maps.map.overlay.PathOverlay
  * 구간 목록이 같은 순서로 제공하므로 지도 없이도 화면은 성립한다(UI-005).
  *
  * F006 진행 표시([marks])가 있으면 marker를 상태별로 바꾼다: 완료·도착은 초록 체크, 건너뜀은 회색 X, 이동 중은
- * 파란 번호, 남은 예정은 회색 번호. 시작 위치가 있으면 `현위치` marker를 더한다(F006 UI-011, T031). 색만으로
+ * 파란 번호, 남은 예정은 회색 번호. 시작 위치가 있으면 `시작 위치` marker를 더한다(F006 UI-011, T031). 색만으로
  * 구분하지 않도록 같은 정보를 구간 목록이 문구로 제공한다.
  *
  * @param route 그릴 경로. 마커는 [RouteDto.markers] 순서 번호로, 구간은 [RouteDto.segments]의 geometry로 그린다.
@@ -71,8 +75,10 @@ import com.naver.maps.map.overlay.PathOverlay
  *   않도록 어느 쪽이 기존인지는 화면이 문구 범례로 함께 알린다.
  * @param marks 진행 표시. 기본값 [RouteMarks.NONE]은 계획만 그린다.
  * @param sheetFraction 하단 sheet가 덮는 화면 높이 비율. 그만큼 content padding을 둬 카메라·로고가 sheet 아래에 숨지 않게 한다(UI-009).
- * @param focus 장소 카드로 고른 이동 대상(#618). 기본값 `null`이면 이 인자가 없던 때와 같다. 값이 바뀌면 overlay는
- *   그대로 두고 카메라만 그 장소로 옮긴다. 같은 장소를 다시 골라도 옮기도록 [RouteFocus.tick]이 값을 구분한다.
+ * @param focus 카메라를 옮길 대상(#618, #614). 기본값 `null`이면 이 인자가 없던 때와 같다. 값이 바뀌면 overlay는
+ *   그대로 두고 카메라만 옮긴다. 같은 대상을 다시 골라도 옮기도록 [RouteFocus.tick]이 값을 구분한다.
+ * @param myLocation `true`면 실시간 현재 위치 overlay를 켠다(#614). 위치 권한이 있을 때만 켜지고, 없으면 지도는
+ *   그대로다. 시작 위치 marker(`시작 위치` 알약)와 달리 이 표시는 SDK 기본 현재 위치 점이다.
  */
 @Composable
 fun RouteMap(
@@ -82,6 +88,7 @@ fun RouteMap(
     marks: RouteMarks = RouteMarks.NONE,
     sheetFraction: Float = 0.45f,
     focus: RouteFocus? = null,
+    myLocation: Boolean = false,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -96,15 +103,40 @@ fun RouteMap(
     val overlays = remember { RouteOverlays() }
     // 카드 선택 이동은 overlay를 다시 그리지 않아야 해서(다시 그리면 fitBounds로 되돌아간다) draw에서 지도를 붙잡아 둔다.
     var map by remember { mutableStateOf<NaverMap?>(null) }
+    // 현재 위치 공급자. Play Services 위치를 SDK가 쓰는 형태로 감싼다. Activity가 없으면(테스트 등) 켜지 않는다.
+    val activity = LocalActivity.current
+    val locationSource = remember(activity) { activity?.let { FusedLocationSource(it, LOCATION_PERMISSION_REQUEST) } }
+
+    // 권한이 이미 있으면 화면에 들어올 때부터 현재 위치 점을 보인다. NoFollow라 카메라는 건드리지 않는다(#614).
+    LaunchedEffect(map, myLocation, locationSource) {
+        val target = map ?: return@LaunchedEffect
+        if (!myLocation || locationSource == null) return@LaunchedEffect
+        if (!DeviceLocationProvider.hasLocationPermission(context)) return@LaunchedEffect
+        target.locationSource = locationSource
+        target.locationTrackingMode = LocationTrackingMode.NoFollow
+    }
 
     // content padding이 sheet 높이만큼 잡혀 있어 scrollTo는 sheet 위 보이는 영역의 중앙으로 옮긴다.
     // 연속 선택은 새 이동이 앞선 animation을 대신해 마지막 선택 위치에서 멈춘다.
     LaunchedEffect(map, focus) {
-        val target = focus?.let { f -> route.markers.firstOrNull { it.itemId == f.itemId } } ?: return@LaunchedEffect
-        map?.moveCamera(
-            CameraUpdate.scrollTo(LatLng(target.latitude, target.longitude))
-                .animate(CameraAnimation.Easing),
-        )
+        val target = map ?: return@LaunchedEffect
+        when (focus) {
+            null -> Unit
+            is RouteFocus.Place -> route.markers.firstOrNull { it.itemId == focus.itemId }?.let { marker ->
+                target.moveCamera(
+                    CameraUpdate.scrollTo(LatLng(marker.latitude, marker.longitude))
+                        .animate(CameraAnimation.Easing),
+                )
+            }
+            // Follow는 현재 위치로 카메라를 옮기고 사용자가 지도를 움직일 때까지 따라간다. 위치를 아직
+            // 못 얻었으면 SDK가 첫 위치를 받을 때 옮긴다. 권한·위치 서비스가 없으면 아무 일도 없다.
+            is RouteFocus.MyLocation -> {
+                if (locationSource != null) {
+                    target.locationSource = locationSource
+                    target.locationTrackingMode = LocationTrackingMode.Follow
+                }
+            }
+        }
     }
 
     NaverMapHost(
@@ -232,12 +264,20 @@ internal fun NaverMapHost(
 }
 
 /**
- * 장소 카드로 고른 지도 이동 대상(#618).
+ * 지도 카메라를 옮길 대상.
  *
- * 사용자가 지도를 직접 옮긴 뒤 같은 카드를 다시 눌러도 이동해야 하므로, 누를 때마다 올라가는 [tick]으로
- * 같은 [itemId]의 연속 선택을 구분한다.
+ * 사용자가 지도를 직접 옮긴 뒤 같은 대상을 다시 골라도 이동해야 하므로, 고를 때마다 올라가는 [tick]으로
+ * 연속 선택을 구분한다.
  */
-data class RouteFocus(val itemId: String, val tick: Int)
+sealed interface RouteFocus {
+    val tick: Int
+
+    /** 장소 순서 카드로 고른 장소(#618). */
+    data class Place(val itemId: String, override val tick: Int) : RouteFocus
+
+    /** `내 위치로 이동` 버튼(#614). 최신 현재 위치로 옮기고 사용자가 지도를 움직일 때까지 따라간다. */
+    data class MyLocation(override val tick: Int) : RouteFocus
+}
 
 /** 지도를 그릴 수 없을 때의 자리 표시. 어두운 바탕에 문구만 둔다. */
 @Composable
@@ -367,7 +407,7 @@ internal fun circleMarker(context: Context, label: String, color: Int, density: 
     return OverlayImage.fromView(markerView(context, label, color, density, sizePx, sizePx, GradientDrawable.OVAL))
 }
 
-/** `현위치` 알약형 마커. 글자가 원에 들어가지 않아 너비만 넓힌다. F009 기존 장소 `!` 표시에도 쓴다. */
+/** `시작 위치` 알약형 마커. 글자가 원에 들어가지 않아 너비만 넓힌다. F009 기존 장소 `!` 표시에도 쓴다. */
 internal fun pillMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
     val heightPx = (MARKER_SIZE_DP * density).toInt()
     val widthPx = (START_MARKER_WIDTH_DP * density).toInt()
@@ -396,6 +436,9 @@ private fun markerView(context: Context, label: String, color: Int, density: Flo
         )
         layout(0, 0, widthPx, heightPx)
     }
+
+/** [FusedLocationSource]가 스스로 권한을 물을 때 쓰는 code. 화면이 먼저 요청하므로 실제로는 쓰이지 않는다. */
+private const val LOCATION_PERMISSION_REQUEST = 1_614
 
 internal const val MARKER_SIZE_DP = 28
 private const val START_MARKER_WIDTH_DP = 52

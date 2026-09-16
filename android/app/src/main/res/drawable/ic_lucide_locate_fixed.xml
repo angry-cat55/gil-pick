@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- lucide locate-fixed (ISC). #614 내 위치로 이동 버튼 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M2 12H5M19 12H22M12 2V5M12 19V22M19 12A7 7 0 1 1 5 12A7 7 0 1 1 19 12ZM15 12A3 3 0 1 1 9 12A3 3 0 1 1 15 12Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>

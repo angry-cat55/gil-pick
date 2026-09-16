@@ -153,7 +153,7 @@ fun ActiveTravelScreen(
     onOpenVariableMonitor: () -> Unit = {},
     onEdit: (date: String) -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
-        RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f)
+        RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f, myLocation = true)
     },
 ) {
     Column(

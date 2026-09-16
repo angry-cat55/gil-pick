@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import android.Manifest
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +56,8 @@ import com.gilpick.R
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
+import androidx.compose.ui.platform.LocalContext
+import com.gilpick.progress.DeviceLocationProvider
 import com.gilpick.progress.progressIconRes
 import com.gilpick.progress.progressLabelRes
 import androidx.compose.foundation.horizontalScroll
@@ -105,6 +111,7 @@ import androidx.compose.ui.semantics.stateDescription
  * @param onRetry `error`의 `다시 시도`.
  * @param onAddPlace `empty`의 `장소 추가`. 그 날짜의 일정 편집(장소 검색)으로 간다.
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
+ * @param hasLocationPermission 위치 권한이 있는지. 기본은 실제 기기 권한이며, UI test는 권한 상태를 바꿔 끼운다.
  * @param map 지도 영역. 세 번째 인자는 sheet가 덮는 높이 비율, 네 번째는 장소 카드로 고른 지도 이동 대상이다.
  *   기본은 Naver [RouteMap]이며, UI test·screenshot은 SDK 인증 없이 그릴 수 있는 자리 표시로 바꿔 끼운다.
  */
@@ -118,8 +125,9 @@ fun DayRouteScreen(
     onAddPlace: () -> Unit,
     onReauthenticate: () -> Unit,
     modifier: Modifier = Modifier,
+    hasLocationPermission: (Context) -> Boolean = { DeviceLocationProvider.hasLocationPermission(it) },
     map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit = { route, marks, sheetFraction, focus, mapModifier ->
-        RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = sheetFraction, focus = focus)
+        RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = sheetFraction, focus = focus, myLocation = true)
     },
 ) {
     val colors = LocalGilpickColors.current
@@ -148,7 +156,7 @@ fun DayRouteScreen(
                 RouteUiState.Empty -> EmptyState(onAddPlace = onAddPlace, onBack = onBack)
                 is RouteUiState.Error -> Unit
 
-                is RouteUiState.Content -> Content(route = state.route, marks = state.marks, map = map)
+                is RouteUiState.Content -> Content(route = state.route, marks = state.marks, hasLocationPermission = hasLocationPermission, map = map)
             }
         }
     }
@@ -297,7 +305,12 @@ private enum class SheetAnchor { COLLAPSED, DEFAULT, EXPANDED }
  * sheet가 멈추면 그 높이 비율을 [map]에 넘겨 지도 SDK의 로고·marker가 sheet에 가리지 않게 한다.
  */
 @Composable
-private fun Content(route: RouteDto, marks: RouteMarks, map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit) {
+private fun Content(
+    route: RouteDto,
+    marks: RouteMarks,
+    hasLocationPermission: (Context) -> Boolean,
+    map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit,
+) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val maxPx = constraints.maxHeight.toFloat()
@@ -310,8 +323,15 @@ private fun Content(route: RouteDto, marks: RouteMarks, map: @Composable (RouteD
         var sheetPx by remember { mutableIntStateOf(0) }
         var dragStartPx by remember { mutableFloatStateOf(0f) }
         var mapFraction by remember { mutableFloatStateOf(SHEET_DEFAULT_FRACTION) }
-        // 카드 선택은 지도 카메라만 옮긴다. 같은 카드를 다시 눌러도 옮기도록 누를 때마다 tick을 올린다(#618).
+        // 카드 선택·내 위치는 지도 카메라만 옮긴다. 같은 대상을 다시 눌러도 옮기도록 누를 때마다 tick을 올린다(#618, #614).
         var focus by remember { mutableStateOf<RouteFocus?>(null) }
+        var permissionDenied by remember { mutableStateOf(false) }
+        val context = LocalContext.current
+        fun moveTo(next: (Int) -> RouteFocus) { focus = next((focus?.tick ?: 0) + 1) }
+        // 권한을 받은 뒤에야 지도가 현재 위치를 알 수 있으므로, 허용된 뒤에 이동을 넘긴다(F003 PlaceNavigation과 같은 방식).
+        val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+            if (granted.values.any { it }) moveTo(RouteFocus::MyLocation) else permissionDenied = true
+        }
 
         fun anchorPx(value: SheetAnchor) = when (value) {
             SheetAnchor.COLLAPSED -> collapsedPx
@@ -336,10 +356,22 @@ private fun Content(route: RouteDto, marks: RouteMarks, map: @Composable (RouteD
         }
 
         map(route, marks, mapFraction, focus, Modifier.fillMaxSize())
+        MyLocationButton(
+            denied = permissionDenied,
+            onClick = {
+                permissionDenied = false
+                if (hasLocationPermission(context)) {
+                    moveTo(RouteFocus::MyLocation)
+                } else {
+                    locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                }
+            },
+            modifier = Modifier.align(Alignment.TopEnd).padding(LocalGilpickSpacing.current.space4),
+        )
         RouteSheet(
             route = route,
             marks = marks,
-            onSelectPlace = { marker -> focus = RouteFocus(marker.itemId, (focus?.tick ?: 0) + 1) },
+            onSelectPlace = { marker -> moveTo { tick -> RouteFocus.Place(marker.itemId, tick) } },
             anchor = anchor,
             collapsed = anchor == SheetAnchor.COLLAPSED && dragPx == null,
             onAnchorChange = { anchor = it },
@@ -479,6 +511,53 @@ private fun RouteSheet(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 지도 오른쪽 위 `내 위치로 이동` 버튼(#614, Figma에 없는 새 control). UI test가 두 상태를 직접 그린다.
+ *
+ * 지도 위 control과 겹치지 않는 자리다: Naver SDK는 로고를 왼쪽 아래, 축척을 오른쪽 아래, 확대/축소를
+ * 오른쪽 가운데(content padding 기준)에 둔다. 경로 정보 sheet는 아래쪽에 있다.
+ *
+ * @param denied 위치 권한을 거부당했다. 버튼 아래에 다음 행동을 알리는 문구를 띄운다.
+ */
+@Composable
+internal fun MyLocationButton(denied: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+    val label = stringResource(R.string.route_my_location)
+
+    Column(modifier = modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+        Box(
+            modifier = Modifier
+                .size(MIN_TOUCH)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable(onClick = onClick, role = Role.Button)
+                .semantics { contentDescription = label }
+                .testTag(TAG_MY_LOCATION),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_lucide_locate_fixed),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        if (denied) {
+            Text(
+                text = stringResource(R.string.route_my_location_denied),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
+                    .background(colors.darkMap.copy(alpha = 0.85f))
+                    .padding(horizontal = spacing.space3, vertical = spacing.space2)
+                    .testTag(TAG_MY_LOCATION_DENIED),
+            )
         }
     }
 }
@@ -792,6 +871,8 @@ internal const val TAG_ATTRIBUTION = "route_attribution"
 internal const val TAG_SEGMENT_PREFIX = "route_segment_"
 internal const val TAG_MARKER_PREFIX = "route_marker_"
 internal const val TAG_MAP = "route_map"
+internal const val TAG_MY_LOCATION = "route_my_location"
+internal const val TAG_MY_LOCATION_DENIED = "route_my_location_denied"
 
 private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 

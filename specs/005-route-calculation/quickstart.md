@@ -37,6 +37,18 @@ cd ..\android
 
 Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log·fixture에 key나 불필요한 정밀 좌표를 남기지 않는다.
 
+### 현재 위치 표시·내 위치 버튼 검증 (#614, 2026-09-16, jy)
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| route UI test | `ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.gilpick.route` | 통과 42건 |
+| 버튼 접근성·동작 | `내_위치_버튼은_48dp_설명을_갖고_권한이_있으면_지도를_현재_위치로_보낸다`: 48dp 이상, `Role.Button`, 설명 `내 위치로 이동`, 누르면 `RouteFocus.MyLocation` 전달, 다시 눌러도 새 요청 | 통과 |
+| 권한 거부 안내 | `내_위치_버튼_권한_거부_안내는_다음_행동을_알린다`: `위치 권한을 허용하면 현재 위치를 볼 수 있어요` 표시 | 통과 (버튼 composable 직접 검증) |
+| 다른 control 가림 | `내_위치_버튼은_경로_정보_sheet와_겹치지_않는다`: 버튼 아래끝이 sheet 위끝보다 위. SDK 로고(왼쪽 아래)·축척(오른쪽 아래)·확대/축소(오른쪽 가운데)와 다른 자리 | 통과 |
+| screenshot | `route_content_360dp` 등 기존 screenshot에 오른쪽 위 버튼이 함께 잡힌다. 사람이 위치·겹침 확인 | 통과 (사람 확인) |
+| 진행 화면 회귀 | `...package=com.gilpick.progress` | 142건 중 141건 통과(`GeofenceRegistrationLogTest`는 Play Services 없는 ATD 환경 실패로 이 변경과 무관) |
+| 실제 위치 overlay·카메라 이동 | 미실행 | Naver NCP key와 실제 위치가 필요한 확인(권한 허용 후 현재 위치 점, 버튼으로 복귀, 위치 서비스 꺼짐)은 하지 못했다. 사람 확인이 필요하다. |
+
 ### 장소 카드 선택·균등 높이 검증 (#618, 2026-09-16, jy)
 
 | 항목 | 명령·방법 | 결과 |
