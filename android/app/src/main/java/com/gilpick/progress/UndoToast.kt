@@ -71,8 +71,10 @@ fun UndoToast(
  * [UndoToastShell]을 공유하고 문구와 실패 안내만 다르다.
  *
  * 되돌릴 수 있는 시간이 지나면 행동만 사라지고 **무엇이 바뀌었는지는 계속 보인다**(F010 UI-006).
- * 실패하면 원인과 함께 **일정 편집으로 바꿀 수 있다는 안내**를 보인다(F010 FR-019·UI-007) —
- * 되돌릴 수 없게 된 뒤에도 사용자에게 남은 길이 있음을 알려야 하기 때문이다.
+ * 되돌릴 수 없게 된 실패(`UNDO_EXPIRED`·`FOLLOW_UP_CHANGE_EXISTS`)에는 원인과 함께 **일정 편집으로
+ * 바꿀 수 있다는 안내**를 보인다(F010 FR-019·UI-007) — 남은 길이 있음을 알려야 하기 때문이다.
+ * 통신 실패처럼 다시 해 볼 수 있는 실패에는 남은 시간 동안 행동을 그대로 두어 다시 시도하게 한다(#626).
+ * 첫 요청이 서버에 닿았는데 응답만 유실됐다면 서버가 같은 결과를 돌려주므로 다시 눌러도 안전하다.
  *
  * @param undo 되돌릴 수 있는 장소 변경. 서버가 되돌릴 수 있는 동안만 실어 준다.
  * @param now 남은 시간 계산에 쓰는 기기 시각. 만료 판정은 서버가 한다(F010 FR-015).
@@ -89,17 +91,18 @@ fun ReplacementUndoToast(
     onUndo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val retryable = error != null && error.isUndoRetryable
     UndoToastShell(
-        message = if (error != null) {
-            stringResource(error.undoMessageRes) + " " + stringResource(R.string.replacement_undo_edit_hint)
-        } else {
-            stringResource(R.string.replacement_undo_toast, undo.newPlaceName)
+        message = when {
+            retryable -> stringResource(R.string.replacement_undo_retry)
+            error != null -> stringResource(error.undoMessageRes) + " " + stringResource(R.string.replacement_undo_edit_hint)
+            else -> stringResource(R.string.replacement_undo_toast, undo.newPlaceName)
         },
         remainingSeconds = remainingSeconds(undo.undoExpiresAt, now),
-        // 실패한 뒤에는 같은 요청을 다시 보내도 결과가 같다. 행동을 감추고 안내만 남긴다.
         submitting = submitting,
         onUndo = onUndo,
-        showAction = error == null,
+        // 되돌릴 수 없게 된 실패에서는 행동을 감추고 안내만 남긴다. 다시 해 볼 수 있는 실패는 행동을 남긴다(#626).
+        showAction = error == null || retryable,
         modifier = modifier,
     )
 }
@@ -184,6 +187,15 @@ internal fun remainingSeconds(undoDeadline: String, now: Instant): Int {
  *
  * 되돌릴 수 없게 된 두 원인을 구분한다. 그 밖의 실패는 다시 시도할 수 있으므로 하나로 묶는다.
  */
+/**
+ * 되돌리기를 다시 시도할 수 있는 실패인지(#626).
+ *
+ * `UNDO_EXPIRED`·`FOLLOW_UP_CHANGE_EXISTS`는 상태가 이미 바뀌어 다시 눌러도 같은 결과다. 통신 실패는
+ * 요청이 서버에 닿지 못했거나 응답만 유실된 경우라 남은 시간 안에서 다시 보낼 수 있다.
+ */
+private val ReplacementError.isUndoRetryable: Boolean
+    get() = this == ReplacementError.Network
+
 private val ReplacementError.undoMessageRes: Int
     get() = when (this) {
         ReplacementError.UndoExpired -> R.string.replacement_undo_expired

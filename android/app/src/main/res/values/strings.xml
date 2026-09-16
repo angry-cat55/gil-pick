@@ -677,6 +677,7 @@
     <string name="replacement_undo_expired">되돌릴 수 있는 시간이 지났어요.</string>
     <string name="replacement_undo_follow_up">그 뒤에 일정이 또 바뀌었어요.</string>
     <string name="replacement_undo_failed">지금은 되돌릴 수 없어요.</string>
+    <string name="replacement_undo_retry">되돌리지 못했어요. 다시 시도해 주세요.</string>
     <string name="replacement_undo_edit_hint">일정 편집에서 바꿀 수 있어요.</string>
 
     <!-- F011 감지 목록 (US6, Figma VariableMonitorScreen) -->
