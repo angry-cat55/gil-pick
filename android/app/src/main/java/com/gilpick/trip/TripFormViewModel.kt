@@ -647,14 +647,21 @@ class TripFormViewModel(private val repository: TripRepository) : ViewModel() {
             // 기간은 바뀐 때만 보낸다. 지난 날짜로 만든 여행은 이미 완료 상태라 같은 기간도 TRIP_LOCKED로 거절된다(#569).
             is FormMode.Create if created != null -> {
                 val periodChanged = start.toString() != created.startDate || end.toString() != created.endDate
-                repository.updateTrip(
-                    tripId = created.tripId,
-                    version = created.version,
-                    name = current.name,
-                    startDate = start.takeIf { periodChanged },
-                    endDate = end.takeIf { periodChanged },
-                    confirmDeleteOutOfRangeItems = false,
-                )
+                val nameChanged = current.name.trim() != created.name
+                if (!periodChanged && !nameChanged) {
+                    // 사진만 실패했고 이름·기간은 그대로다. 보낼 것이 없는 수정 요청은 만들지 않는다(#589).
+                    // 빈 수정도 서버가 version을 확인하므로, 그 사이 여행이 바뀌었으면 사진과 무관한 오류가 뜬다.
+                    AuthResult.Success(created, 200)
+                } else {
+                    repository.updateTrip(
+                        tripId = created.tripId,
+                        version = created.version,
+                        name = current.name,
+                        startDate = start.takeIf { periodChanged },
+                        endDate = end.takeIf { periodChanged },
+                        confirmDeleteOutOfRangeItems = false,
+                    )
+                }
             }
 
             is FormMode.Create -> {

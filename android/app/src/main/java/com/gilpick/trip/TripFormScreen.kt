@@ -999,7 +999,10 @@ private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?, e
                 if (conflictTripName != null) stringResource(R.string.trip_form_error_period_conflict, conflictTripName)
                 else stringResource(R.string.trip_form_error_period_conflict_unnamed)
 
-            TripFormSubmitError.IMAGE_UPLOAD_FAILED -> stringResource(R.string.trip_form_error_image_upload_failed)
+            // 만들기에서는 여행이 이미 만들어졌다는 사실을 먼저 말한다. "저장했지만"으로는 여행이 생겼는지 알 수 없다(#589).
+            TripFormSubmitError.IMAGE_UPLOAD_FAILED -> stringResource(
+                if (editing) R.string.trip_form_error_image_upload_failed_edit else R.string.trip_form_error_image_upload_failed,
+            )
             // 수정 화면에서 "만들 수 없습니다"는 틀린 안내다(#555).
             TripFormSubmitError.UNEXPECTED ->
                 stringResource(if (editing) R.string.trip_form_error_unexpected_edit else R.string.trip_form_error_unexpected)

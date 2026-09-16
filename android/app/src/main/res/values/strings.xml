@@ -151,7 +151,8 @@
     <string name="trip_form_error_unexpected">지금은 여행을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
     <!-- #555 수정 화면의 그 밖의 실패, 사진 단계만 실패했을 때. -->
     <string name="trip_form_error_unexpected_edit">지금은 여행을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
-    <string name="trip_form_error_image_upload_failed">여행 정보는 저장했지만 사진을 올리지 못했습니다. 잠시 후 다시 저장해 주세요.</string>
+    <string name="trip_form_error_image_upload_failed">여행은 만들었지만 사진을 올리지 못했습니다. 다시 저장하면 사진만 올라갑니다.</string>
+    <string name="trip_form_error_image_upload_failed_edit">여행 정보는 저장했지만 사진을 올리지 못했습니다. 다시 저장하면 사진만 올라갑니다.</string>
 
     <!-- 장소 공통 -->
     <string name="place_category_nature">자연</string>

@@ -170,7 +170,31 @@ class TripFormViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, service.createCalls.size)
-        assertEquals(listOf(1), service.updateCalls.map { it.version })
+        // #589: 이름·기간이 그대로라 보낼 것이 없는 수정 요청은 아예 만들지 않는다. 사진만 다시 올라간다.
+        assertEquals(emptyList<UpdateTripRequest>(), service.updateCalls)
+        assertEquals(2, service.uploadCalls.size)
+        assertEquals("t1", viewModel.state.value.savedTripId)
+    }
+
+    /** #589: 사진만 실패했고 이름·기간이 그대로면 다시 저장할 때 수정 요청 없이 사진만 올린다. */
+    @Test
+    fun `이름과 기간이 그대로면 다시 저장할 때 수정 요청을 보내지 않는다`() = runTest {
+        service.onCreate = { detail(trip("t1", name = "서울 여행", version = 1)) }
+        service.onUpdate = { error("이름·기간이 그대로면 수정 요청을 보내지 않는다") }
+        service.onUpload = { errorResponse(500, "INTERNAL_ERROR") }
+        val viewModel = filledViewModel()
+        viewModel.onImagePicked(TripImagePick.Picked(PickedTripImage(byteArrayOf(1), "image/jpeg")))
+
+        viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(TripFormSubmitError.IMAGE_UPLOAD_FAILED, viewModel.state.value.submitError)
+
+        service.onUpload = { detail(trip("t1", name = "서울 여행", version = 2, imageUrl = IMAGE_URL)) }
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(1, service.createCalls.size)
+        assertEquals(emptyList<UpdateTripRequest>(), service.updateCalls)
         assertEquals(2, service.uploadCalls.size)
         assertEquals("t1", viewModel.state.value.savedTripId)
     }
@@ -224,7 +248,8 @@ class TripFormViewModelTest {
 
         assertNull(viewModel.state.value.submitError)
         assertEquals("t1", viewModel.state.value.savedTripId)
-        assertEquals(listOf(null to null), service.updateCalls.map { it.startDate to it.endDate })
+        // #589부터는 이름·기간이 그대로면 수정 요청 자체를 보내지 않으므로 완료된 여행도 잠금에 걸릴 일이 없다.
+        assertEquals(emptyList<UpdateTripRequest>(), service.updateCalls)
     }
 
     @Test
