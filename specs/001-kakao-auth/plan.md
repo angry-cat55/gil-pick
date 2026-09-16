@@ -124,6 +124,10 @@ android/
 
 **Structure Decision**: Backend와 Android를 하나의 repository 안의 `api/`, `android/`로 분리한다. F001에서는 인증에 필요한 파일만 만들며 단일 구현을 위한 interface/factory, 범용 OAuth provider abstraction, Redis, Token blacklist, 별도 message queue는 만들지 않는다. `AuthRepository`는 Android 로그인 상태의 유일한 변경 진입점이고 Backend `auth.py`는 얇은 transport 계층, `auth.py` service는 transaction 경계를 소유한다. F002 전에는 `AuthenticatedHomeScreen`을 빈 여행 목록 shell로 사용한다.
 
+### 앱 시작 인증 gate (#616)
+
+`AuthUiState.Loading`은 아직 로그인 여부를 모르는 상태이므로 로그인 화면으로 보내지 않는다. `MainActivity`의 `AuthRoute`가 이 상태를 창 배경(`Theme.Gilpick`의 `windowBackground`)과 같은 색의 launch surface(로고만)로 연결한다. `AuthRepository.restore()`는 network 없이 저장소에서 session을 읽어 복호화할 뿐이라 이 화면이 남는 시간이 짧고, 여기에 spinner나 로그인 수단을 두면 그 자체가 깜빡임이 된다. 검증 절차는 `quickstart.md` 4절에 있다.
+
 ## Phase 0 Research Decisions
 
 결정 근거와 대안은 [research.md](research.md)에 기록했다. 모든 기술적 미확정 사항은 해소됐으며 `NEEDS CLARIFICATION`은 없다.

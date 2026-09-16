@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,11 +47,13 @@ import com.gilpick.ui.theme.displayFont
  * Figma `LoginScreen`(#437)의 어두운 gradient·경로 일러스트·기능 칩·아래 흰 카드는 없앴다. 카드 위 손잡이는 끌 수 없는데도
  * 바텀시트처럼 보여 오해를 샀고, 확정 로고의 글자가 어두운 색이라 어두운 배경에서는 읽히지 않는다.
  *
- * 상태는 카카오 버튼 자리에서 알린다(가이드라인 9절 최저선): 세션 복원 중은 대기 표시, 로그인 중은 대기 표시와 문구,
- * 실패는 원인 문구와 다시 시도. 재시도는 언제나 새 Kakao 인증이며 앱이 같은 ticket이나 인가 코드를 다시 쓰지 않는다.
+ * 상태는 카카오 버튼 자리에서 알린다(가이드라인 9절 최저선): 로그인 중은 대기 표시와 문구, 실패는 원인 문구와
+ * 다시 시도. 재시도는 언제나 새 Kakao 인증이며 앱이 같은 ticket이나 인가 코드를 다시 쓰지 않는다.
  * 글자 배율이 크면 화면 전체가 세로로 스크롤돼 버튼과 약관까지 닿는다.
  *
- * @param state 현재 인증 상태. `Loading`, `SignedOut`, `LoggingIn`, `LoginFailed`만 의미가 있다.
+ * `Loading`은 이 화면에 오지 않는다. session 복원 중에는 `MainActivity`의 launch surface가 대신 뜬다(#616).
+ *
+ * @param state 현재 인증 상태. `SignedOut`, `LoggingIn`, `LoginFailed`만 의미가 있다.
  * @param onKakaoLogin 카카오 로그인을 시작한다.
  * @param onRetry 실패 후 다시 시도한다.
  */
@@ -132,11 +133,6 @@ private fun SignInArea(state: AuthUiState, onKakaoLogin: () -> Unit, onRetry: ()
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (state) {
-            // 저장된 session을 복원하는 동안에는 로그인 수단을 잠깐 보였다 감추지 않는다.
-            is AuthUiState.Loading -> Box(modifier = Modifier.heightIn(min = KAKAO_HEIGHT), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-
             is AuthUiState.LoggingIn -> Row(
                 modifier = Modifier.heightIn(min = KAKAO_HEIGHT),
                 horizontalArrangement = Arrangement.spacedBy(spacing.space3),
