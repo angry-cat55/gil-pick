@@ -6,6 +6,7 @@ import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
 import com.gilpick.auth.FakeSessionCipher
 import java.io.File
+import okhttp3.ResponseBody.Companion.toResponseBody
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -229,6 +230,76 @@ class TripListViewModelTest {
         assertEquals(TripListPhase.Content, viewModel.state.value.phase)
     }
 
+    // --- #617: 목록 카드 대표 이미지 ---
+
+    @Test
+    fun `대표 이미지가 있는 여행만 원본을 받아 covers에 담는다`() = runTest {
+        val requested = mutableListOf<String>()
+        service.onImageContent = { id ->
+            requested += id
+            imageResponse(byteArrayOf(1, 2))
+        }
+        val viewModel = loaded(listOf(trip("t1", imageUrl = IMAGE_URL), trip("t2")))
+
+        assertEquals(listOf("t1"), requested)
+        assertEquals(listOf<Byte>(1, 2), viewModel.state.value.covers[coverKey(trip("t1", imageUrl = IMAGE_URL))]?.toList())
+    }
+
+    @Test
+    fun `이미 받은 이미지는 목록을 다시 조회해도 다시 요청하지 않는다`() = runTest {
+        val requested = mutableListOf<String>()
+        service.onImageContent = { id ->
+            requested += id
+            imageResponse(byteArrayOf(1))
+        }
+        val viewModel = loaded(listOf(trip("t1", imageUrl = IMAGE_URL)))
+
+        // 상세에 다녀오면 목록을 다시 받는다. 같은 이미지를 또 내려받으면 재진입마다 N+1이 된다.
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(listOf("t1"), requested)
+    }
+
+    @Test
+    fun `이미지를 바꾸면 version이 올라 새 이미지를 받는다`() = runTest {
+        var bytes = byteArrayOf(1)
+        service.onImageContent = { imageResponse(bytes) }
+        val viewModel = loaded(listOf(trip("t1", imageUrl = IMAGE_URL, version = 1)))
+
+        bytes = byteArrayOf(9)
+        service.onList = { page(listOf(trip("t1", imageUrl = IMAGE_URL, version = 2))) }
+        viewModel.load()
+        advanceUntilIdle()
+
+        val covers = viewModel.state.value.covers
+        assertEquals(listOf<Byte>(9), covers[coverKey(trip("t1", imageUrl = IMAGE_URL, version = 2))]?.toList())
+        // 옛 이미지는 남기지 않는다. 남으면 카드가 이전 이미지를 다시 그릴 수 있다.
+        assertEquals(1, covers.size)
+    }
+
+    @Test
+    fun `이미지를 지운 여행은 covers에서 사라진다`() = runTest {
+        service.onImageContent = { imageResponse(byteArrayOf(1)) }
+        val viewModel = loaded(listOf(trip("t1", imageUrl = IMAGE_URL, version = 1)))
+
+        service.onList = { page(listOf(trip("t1", version = 2))) }
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.covers.isEmpty())
+    }
+
+    @Test
+    fun `이미지를 받지 못해도 목록은 그대로 보인다`() = runTest {
+        service.onImageContent = { throw java.io.IOException("offline") }
+        val viewModel = loaded(listOf(trip("t1", imageUrl = IMAGE_URL), trip("t2", imageUrl = IMAGE_URL)))
+
+        assertEquals(TripListPhase.Content, viewModel.state.value.phase)
+        assertEquals(listOf("t1", "t2"), viewModel.state.value.trips.map { it.tripId })
+        assertTrue(viewModel.state.value.covers.isEmpty())
+    }
+
     /** 첫 페이지를 이미 받아 둔 view model을 만든다. */
     private suspend fun TestScope.loaded(
         trips: List<TripDto> = listOf(trip("t1")),
@@ -268,5 +339,14 @@ class TripListViewModelTest {
             refreshExpiresAtEpochSeconds = 2_592_000,
         )
         return TripListViewModel(TripRepository(api = service, auth = auth))
+    }
+
+    private companion object {
+
+        /** 서버가 내려주는 대표 이미지 주소. 앱은 "이미지 있음" 표시로만 쓴다. */
+        const val IMAGE_URL = "http://api.example/trips/t1/image/content"
+
+        /** 이미지 원본 응답. */
+        fun imageResponse(bytes: ByteArray) = retrofit2.Response.success(bytes.toResponseBody(null))
     }
 }

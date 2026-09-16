@@ -125,6 +125,7 @@ sealed interface TripListPhase {
  *
  * @property hasNext 이어질 페이지가 남았는지 여부. 무한 스크롤 종료 판정에 쓴다.
  * @property loadingMore 다음 페이지를 받아오는 중인지 여부.
+ * @property covers 받아 둔 대표 이미지 원본. key는 [coverKey](여행 + version)라 이미지를 바꾸면 값이 저절로 갈린다.
  */
 data class TripListUiState(
     val query: String = "",
@@ -133,6 +134,7 @@ data class TripListUiState(
     val phase: TripListPhase = TripListPhase.Loading,
     val loadingMore: Boolean = false,
     val hasNext: Boolean = false,
+    val covers: Map<String, ByteArray> = emptyMap(),
 ) {
     /**
      * 검색어나 상태 필터가 걸린 상태인지 여부.
@@ -163,6 +165,9 @@ class TripListViewModel(private val repository: TripRepository) : ViewModel() {
 
     /** 진행 중인 조회. 조건이 바뀌면 취소하고 새로 시작한다. */
     private var loadJob: Job? = null
+
+    /** 진행 중인 대표 이미지 조회. 목록이 바뀌면 취소하고 새 목록 기준으로 다시 시작한다. */
+    private var coverJob: Job? = null
 
     /** 첫 페이지를 조회한다. 이미 받아 둔 목록이 있으면 새로 채운다. */
     fun load() {
@@ -210,6 +215,7 @@ class TripListViewModel(private val repository: TripRepository) : ViewModel() {
                             loadingMore = false,
                         )
                     }
+                    loadCovers()
                 }
 
                 // 이미 보여 주고 있는 목록은 지우지 않는다. 추가 로드만 실패한 것이다.
@@ -243,11 +249,44 @@ class TripListViewModel(private val repository: TripRepository) : ViewModel() {
                             else TripListPhase.Content,
                         )
                     }
+                    loadCovers()
                 }
 
                 is AuthResult.Failure -> _state.update {
                     it.copy(phase = TripListPhase.Failed(result.error.toListError()))
                 }
+            }
+        }
+    }
+
+    /**
+     * 지금 목록에 있는 여행의 대표 이미지 원본을 받는다(#617).
+     *
+     * `imageUrl`은 인증이 필요하고 서버가 요청 host로 만든 절대 주소라 직접 쓰지 않는다. 상세·수정 화면과 같이
+     * "이미지 있음" 표시로만 보고 원본은 tripId로 받는다.
+     *
+     * 요청 정책:
+     * - **한 번에 하나씩**: 한 페이지가 100개라 동시에 던지면 이미지 요청이 목록·상세 요청을 밀어낸다. 순서대로 받아
+     *   먼저 받은 카드부터 채운다.
+     * - **다시 받지 않음**: 이미 [coverKey]가 있는 여행은 건너뛴다. 목록에 다시 들어와도(ViewModel이 살아 있는 동안)
+     *   같은 이미지를 또 받지 않는다. 이미지를 바꾸면 `version`이 올라 key가 달라지므로 새로 받는다.
+     * - **취소**: 검색어·필터가 바뀌면 이전 조회를 취소한다. 화면을 떠나면 `viewModelScope`가 함께 끝낸다.
+     * - **정리**: 지금 목록에 없는 key는 버린다. 이미지를 지우면 `imageUrl`이 `null`이 되므로 이전 이미지가 남지 않는다.
+     *
+     * 실패하면 그 여행만 대체 배경으로 남는다. 목록 전체를 실패로 돌리지 않는다.
+     */
+    private fun loadCovers() {
+        coverJob?.cancel()
+        coverJob = viewModelScope.launch {
+            val keys = _state.value.trips.map(::coverKey).toSet()
+            _state.update { it.copy(covers = it.covers.filterKeys(keys::contains)) }
+
+            _state.value.trips.forEach { trip ->
+                if (trip.imageUrl == null) return@forEach
+                val key = coverKey(trip)
+                if (key in _state.value.covers) return@forEach
+                val image = (repository.getTripImage(trip.tripId) as? AuthResult.Success)?.value ?: return@forEach
+                _state.update { it.copy(covers = it.covers + (key to image)) }
             }
         }
     }
@@ -306,6 +345,14 @@ class TripListViewModel(private val repository: TripRepository) : ViewModel() {
         }
     }
 }
+
+/**
+ * [TripListUiState.covers]에서 이 여행의 대표 이미지를 찾는 key(#617).
+ *
+ * `version`을 넣는 이유: 이미지를 바꿔도 `tripId`는 그대로라 tripId만 쓰면 이전 이미지가 계속 보인다. 이미지를 바꾸거나
+ * 지우면 서버가 `version`을 올리므로, key가 달라져 새 이미지를 받고 옛 값은 쓰이지 않는다.
+ */
+internal fun coverKey(trip: TripDto): String = "${trip.tripId}:${trip.version}"
 
 /** 통신·서버 실패를 화면이 안내할 수 있는 원인으로 좁힌다. */
 private fun AuthError.toListError(): TripListError = when (this) {

@@ -7,6 +7,7 @@
 ## Plan 갱신 기록
 
 - 2026-08-28: F001의 PR #111(`docs/design/ui-guidelines.md`, AGENTS.md 10절 신설)·#113(`com.gilpick.ui.theme` 구축)이 F002 plan 작성 이후 merge되어, Android 관련 Technical Context·Project Structure를 이 문서에서 갱신했다. `spec.md`는 요구사항(무엇을 할 수 있어야 하는지)만 다루고 화면 구현 방식을 규정하지 않으므로 변경하지 않았다. `tasks.md`의 FE 화면 구현 task 검증 기준도 같은 PR에서 함께 갱신한다.
+- 2026-09-16: 목록 카드 대표 이미지 표시(FR-019a, #617)를 추가했다. 카드 3종은 이미지 원본 bytes를 인자로 받고, 요청은 `TripListViewModel`이 맡는다. 요청 정책은 아래 `대표 이미지 요청 정책` 절에 적었다.
 - 2026-09-10: 사용자별 삭제되지 않은 여행의 날짜 범위 중복을 금지하는 정책을 추가했다. 오늘 날짜 기준 `여행 중` 여행은 최대 1개가 되며, F006의 날짜별 실제 진행 상태는 별도 개념으로 유지한다.
 
 ## Summary
@@ -32,6 +33,17 @@
 **Constraints**: 여행명 2~30자(trim 후), 기간 최대 7일, `startDate <= endDate`; 같은 사용자의 삭제되지 않은 여행 기간은 양 끝 날짜를 포함해 중복 불가; 완료 상태 여행은 기간 수정 불가(이름 수정과 삭제는 허용); 수정은 `version` 낙관적 동시성 제어; 목록은 cursor 페이지네이션과 공통 envelope 사용; 모든 보호 API는 소유권 검증(FR-017); Android 화면은 `docs/design/ui-guidelines.md`와 AGENTS.md 10절을 따라 색상·간격·타이포 리터럴을 직접 쓰지 않고 `com.gilpick.ui.theme` 토큰과 `com.gilpick.ui.component`의 여행 카드·여행 목록 행·날짜 선택·상태 뱃지를 재사용하며, 목록·상세 화면은 loading·empty·error·content 4상태를 모두 구현해야 한다
 
 **Scale/Scope**: MVP 단일 Backend 배포 단위; 여행 endpoint 5개(TRIP-001~005); 사용자당 여행 수 별도 상한 없음(성능 목표는 100건 기준)
+
+## 대표 이미지 요청 정책 (FR-019a, #617)
+
+`imageUrl`은 인증 header가 필요하고 서버가 요청 host로 만든 절대 주소라 앱이 직접 쓰지 않는다. 상세·수정 화면과 같이 "이미지 있음" 표시로만 보고 원본은 `GET /trips/{tripId}/image/content`로 받는다. 목록은 한 번에 최대 100개를 받으므로 요청 정책을 먼저 정했다.
+
+- **동시성**: `TripListViewModel`이 한 번에 하나씩 순서대로 받는다. 동시에 던지면 이미지 요청이 목록·상세 요청을 밀어낸다. 받은 카드부터 차례로 채워진다.
+- **cache**: 받은 원본은 `TripListUiState.covers`에 `여행 id + version` key로 담는다. 목록에 다시 들어와도(ViewModel이 살아 있는 동안) 같은 이미지를 다시 받지 않아 재진입마다 N+1이 생기지 않는다. 이미지를 바꾸면 서버가 `version`을 올려 key가 갈리므로 새 이미지를 받는다.
+- **정리**: 목록에 없는 key는 버린다. 이미지를 지우면 `imageUrl`이 `null`이 되어 이전 이미지가 남지 않는다.
+- **취소**: 검색어·필터가 바뀌면 진행 중인 이미지 조회를 취소하고 새 목록 기준으로 다시 시작한다. 화면을 떠나면 `viewModelScope`가 함께 끝낸다. 카드는 key로 이미지를 찾으므로 스크롤 재사용으로 다른 여행의 이미지가 들어갈 수 없다.
+- **실패**: 한 여행의 이미지를 받지 못하면 그 카드만 기본 표시로 남고 목록은 `content`를 유지한다.
+- disk cache는 두지 않는다. 앱을 다시 켜면 다시 받는다. 이미지가 여행당 하나이고 목록 진입이 잦지 않아 지금은 필요 없다고 판단했다.
 
 ## Constitution Check
 

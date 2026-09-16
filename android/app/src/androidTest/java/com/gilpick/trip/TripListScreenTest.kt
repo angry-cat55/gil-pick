@@ -4,13 +4,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.graphics.Bitmap
+import android.graphics.Color
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.ui.component.TAG_TRIP_CARD_IMAGE
 import com.gilpick.ui.theme.GilpickTheme
+import java.io.ByteArrayOutputStream
+import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,6 +77,70 @@ class TripListScreenTest {
 
         composeRule.onNodeWithText("여행 중").assertIsNotSelected()
         composeRule.onNodeWithText("전체").assertIsSelected()
+    }
+
+    // --- 4. 대표 이미지(#617) ---
+
+    @Test
+    fun 대표_이미지를_받은_카드에만_이미지가_그려진다() {
+        val today = LocalDate.now(KST)
+        val trips = listOf(
+            tripOf("t1", today.minusDays(1), TripStatus.IN_PROGRESS),
+            tripOf("t2", today.plusDays(7), TripStatus.UPCOMING),
+            tripOf("t3", today.minusYears(1), TripStatus.COMPLETED),
+            tripOf("t4", today.plusDays(30), TripStatus.UPCOMING),
+        )
+        // 진행 중·예정·완료 세 종류만 이미지를 받아 뒀다. `t4`는 대체 배경만 보여야 한다.
+        val covers = trips.take(3).associate { coverKey(it) to png() }
+
+        setContent(TripListUiState(phase = TripListPhase.Content, trips = trips, covers = covers))
+
+        // 카드 전체가 하나의 클릭 대상이라 자식 semantics가 카드로 합쳐진다. 이미지 노드는 합치지 않은 tree에서 센다.
+        composeRule.onAllNodesWithTag(TAG_TRIP_CARD_IMAGE, useUnmergedTree = true).assertCountEquals(3)
+    }
+
+    @Test
+    fun 대표_이미지가_없으면_이미지를_그리지_않는다() {
+        val trips = listOf(tripOf("t1", LocalDate.now(KST).plusDays(3), TripStatus.UPCOMING))
+
+        setContent(TripListUiState(phase = TripListPhase.Content, trips = trips))
+
+        composeRule.onAllNodesWithTag(TAG_TRIP_CARD_IMAGE, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    private fun tripOf(id: String, start: LocalDate, status: TripStatus) = TripDto(
+        tripId = id,
+        name = "서울 여행 $id",
+        startDate = start.toString(),
+        endDate = start.plusDays(2).toString(),
+        status = status,
+        dayCount = 3,
+        version = 1,
+        imageUrl = "http://api.example/trips/$id/image/content",
+    )
+
+    /** 카드에 넘길 실제 PNG bytes. Coil이 디코딩할 수 있는 최소 이미지다. */
+    private fun png(): ByteArray = ByteArrayOutputStream().use { out ->
+        Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+            .apply { eraseColor(Color.RED) }
+            .compress(Bitmap.CompressFormat.PNG, 100, out)
+        out.toByteArray()
+    }
+
+    private fun setContent(state: TripListUiState) {
+        composeRule.setContent {
+            GilpickTheme {
+                TripListScreen(
+                    state = state,
+                    onQueryChange = {},
+                    onStatusFilterChange = {},
+                    onRetry = {},
+                    onLoadMore = {},
+                    onCreateTrip = {},
+                    onTripClick = {},
+                )
+            }
+        }
     }
 
     /**

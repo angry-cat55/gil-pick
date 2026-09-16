@@ -24,10 +24,13 @@ import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.gilpick.R
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
@@ -39,7 +42,8 @@ import com.gilpick.ui.theme.displayFont
  * 여행 카드 3종(Figma `MyTripsScreen`, #441).
  *
  * 도메인 타입을 받지 않고 문자열만 받는다. `com.gilpick.ui.component`가 특정 feature에 의존하면 다른 feature가 이 컴포넌트를
- * 쓸 근거가 없어진다(가이드라인 11절). 커버 이미지는 여행 API에 값이 없어 지어내지 않고 이미지 대체 배경(`faint`)만 둔다(12절).
+ * 쓸 근거가 없어진다(가이드라인 11절). 대표 이미지는 호출부가 받아 둔 원본 bytes를 넘긴다(#617). 인증이 필요한 주소라
+ * 컴포넌트가 직접 받지 않는다. 없거나 받지 못했으면 이미지 대체 배경(`faint`)만 둔다(12절).
  * 카드 전체가 누를 수 있는 하나의 대상이다(48dp 이상, 10절).
  */
 
@@ -50,6 +54,7 @@ import com.gilpick.ui.theme.displayFont
  * @param period 기간(`5월 21일 – 5월 25일`).
  * @param length 일수(`4박 5일`).
  * @param trailing 오른쪽 파란 강조(`장소 12곳`). 값이 없으면 `null`이라 자리를 비운다.
+ * @param image 대표 이미지 원본. `null`이면 대체 배경만 보인다.
  */
 @Composable
 fun ActiveTripCard(
@@ -61,6 +66,7 @@ fun ActiveTripCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: String? = null,
+    image: ByteArray? = null,
 ) {
     val spacing = LocalGilpickSpacing.current
     val scheme = MaterialTheme.colorScheme
@@ -74,6 +80,7 @@ fun ActiveTripCard(
                 .heightIn(min = ACTIVE_COVER_HEIGHT)
                 .background(LocalGilpickColors.current.faint),
         ) {
+            CoverImage(image = image, modifier = Modifier.matchParentSize())
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -136,6 +143,7 @@ fun ActiveTripCard(
  *
  * @param badgeLabel D-day(`D-7`). 오늘과 시작일로 계산한 값이다.
  * @param meta 셋째 줄(`4박 5일 · 10곳`).
+ * @param image 대표 이미지 원본. `null`이면 대체 배경만 보인다.
  */
 @Composable
 fun UpcomingTripCard(
@@ -145,6 +153,7 @@ fun UpcomingTripCard(
     meta: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    image: ByteArray? = null,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -156,7 +165,7 @@ fun UpcomingTripCard(
             horizontalArrangement = Arrangement.spacedBy(spacing.space4),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Thumbnail(size = UPCOMING_THUMB)
+            Thumbnail(size = UPCOMING_THUMB, image = image)
             Column(modifier = Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.space2), verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -188,6 +197,7 @@ fun UpcomingTripCard(
  * 완료 여행 카드: 56dp 썸네일 자리, 흐림(75%), 제목·기간·방문 요약, `완료` 칩.
  *
  * @param meta 셋째 줄(`14곳 방문 · 1곳 건너뜀`). 값이 없으면 `null`이라 줄을 비운다.
+ * @param image 대표 이미지 원본. `null`이면 대체 배경만 보인다.
  */
 @Composable
 fun CompletedTripCard(
@@ -197,6 +207,7 @@ fun CompletedTripCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     meta: String? = null,
+    image: ByteArray? = null,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -213,7 +224,7 @@ fun CompletedTripCard(
             horizontalArrangement = Arrangement.spacedBy(spacing.space4),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Thumbnail(size = COMPLETED_THUMB)
+            Thumbnail(size = COMPLETED_THUMB, image = image)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
@@ -249,14 +260,30 @@ private fun CardSurface(
     ) { content() }
 }
 
-/** 커버 이미지 자리. API에 이미지가 없어 대체 배경만 둔다(Figma `bg-[#E8EDF5]` 자리, `faint`). */
+/** 썸네일 자리. 대표 이미지가 없거나 받지 못했으면 대체 배경만 보인다(Figma `bg-[#E8EDF5]` 자리, `faint`). */
 @Composable
-private fun Thumbnail(size: androidx.compose.ui.unit.Dp) {
+private fun Thumbnail(size: androidx.compose.ui.unit.Dp, image: ByteArray? = null) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
             .background(LocalGilpickColors.current.faint),
+    ) { CoverImage(image = image, modifier = Modifier.matchParentSize()) }
+}
+
+/**
+ * 대표 이미지(#617). 자리를 꽉 채우되 비율은 그대로 두고 넘치는 부분을 잘라낸다.
+ *
+ * 이미지 내용을 설명할 수 없고 바로 옆·아래에 여행명이 있어 장식으로 둔다(가이드라인 10절). 상세 화면 hero와 같은 규칙이다.
+ */
+@Composable
+private fun CoverImage(image: ByteArray?, modifier: Modifier = Modifier) {
+    if (image == null) return
+    AsyncImage(
+        model = image,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier.testTag(TAG_TRIP_CARD_IMAGE),
     )
 }
 
