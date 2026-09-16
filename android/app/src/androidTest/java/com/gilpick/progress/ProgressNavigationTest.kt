@@ -282,7 +282,7 @@ class ProgressNavigationTest {
                         onSessionExpired = {},
                         repository = { routeRepository },
                         progressRepository = { progressRepository },
-                        map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize()) },
+                        map = { _, _, _, _, modifier -> Box(modifier = modifier.fillMaxSize()) },
                     )
                     progressGraph(
                         navController,

@@ -379,6 +379,8 @@
     <string name="route_segment_detail">%1$s · %2$s · %3$s</string>
     <string name="route_marker_description">%1$d번째 장소 %2$s</string>
     <string name="route_marker_start">현위치</string>
+    <!-- 장소 카드를 누르면 지도를 그 장소로 옮긴다(#618). clickable의 onClickLabel로 TalkBack이 동작을 함께 읽는다. -->
+    <string name="route_marker_focus">지도에서 보기</string>
     <!-- 일자 경로 sheet 범례(Figma DayRouteScreen). 상태 문구는 progress_status_*·itinerary_edit_status_*와 같다. -->
     <string name="route_legend_done">완료</string>
     <string name="route_legend_active">이동 중</string>

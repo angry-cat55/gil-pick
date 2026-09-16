@@ -41,6 +41,7 @@ import com.gilpick.itinerary.ItemStatus
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
+import com.naver.maps.map.CameraAnimation
 import com.naver.maps.map.CameraUpdate
 import com.naver.maps.map.MapView
 import com.naver.maps.map.NaverMap
@@ -70,6 +71,8 @@ import com.naver.maps.map.overlay.PathOverlay
  *   않도록 어느 쪽이 기존인지는 화면이 문구 범례로 함께 알린다.
  * @param marks 진행 표시. 기본값 [RouteMarks.NONE]은 계획만 그린다.
  * @param sheetFraction 하단 sheet가 덮는 화면 높이 비율. 그만큼 content padding을 둬 카메라·로고가 sheet 아래에 숨지 않게 한다(UI-009).
+ * @param focus 장소 카드로 고른 이동 대상(#618). 기본값 `null`이면 이 인자가 없던 때와 같다. 값이 바뀌면 overlay는
+ *   그대로 두고 카메라만 그 장소로 옮긴다. 같은 장소를 다시 골라도 옮기도록 [RouteFocus.tick]이 값을 구분한다.
  */
 @Composable
 fun RouteMap(
@@ -78,6 +81,7 @@ fun RouteMap(
     baseRoute: RouteDto? = null,
     marks: RouteMarks = RouteMarks.NONE,
     sheetFraction: Float = 0.45f,
+    focus: RouteFocus? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -90,6 +94,18 @@ fun RouteMap(
     val description = stringResource(R.string.route_map_description, route.markers.size)
     val startLabel = stringResource(R.string.route_marker_start)
     val overlays = remember { RouteOverlays() }
+    // 카드 선택 이동은 overlay를 다시 그리지 않아야 해서(다시 그리면 fitBounds로 되돌아간다) draw에서 지도를 붙잡아 둔다.
+    var map by remember { mutableStateOf<NaverMap?>(null) }
+
+    // content padding이 sheet 높이만큼 잡혀 있어 scrollTo는 sheet 위 보이는 영역의 중앙으로 옮긴다.
+    // 연속 선택은 새 이동이 앞선 animation을 대신해 마지막 선택 위치에서 멈춘다.
+    LaunchedEffect(map, focus) {
+        val target = focus?.let { f -> route.markers.firstOrNull { it.itemId == f.itemId } } ?: return@LaunchedEffect
+        map?.moveCamera(
+            CameraUpdate.scrollTo(LatLng(target.latitude, target.longitude))
+                .animate(CameraAnimation.Easing),
+        )
+    }
 
     NaverMapHost(
         modifier = modifier,
@@ -97,11 +113,12 @@ fun RouteMap(
         // sheet 높이가 바뀌면 content padding과 카메라 범위를 다시 맞춘다(#550).
         drawKey = listOf(route, baseRoute, marks, sheetFraction),
         onDispose = { overlays.clear() },
-    ) { map, size ->
+    ) { naverMap, size ->
+        map = naverMap
         val bottomPadding = (size.height * sheetFraction).toInt()
-        map.setContentPadding(0, 0, 0, bottomPadding)
+        naverMap.setContentPadding(0, 0, 0, bottomPadding)
         overlays.show(
-            map = map,
+            map = naverMap,
             route = route,
             baseRoute = baseRoute,
             basePathColor = faintColor,
@@ -213,6 +230,14 @@ internal fun NaverMapHost(
             .testTag(TAG_MAP),
     )
 }
+
+/**
+ * 장소 카드로 고른 지도 이동 대상(#618).
+ *
+ * 사용자가 지도를 직접 옮긴 뒤 같은 카드를 다시 눌러도 이동해야 하므로, 누를 때마다 올라가는 [tick]으로
+ * 같은 [itemId]의 연속 선택을 구분한다.
+ */
+data class RouteFocus(val itemId: String, val tick: Int)
 
 /** 지도를 그릴 수 없을 때의 자리 표시. 어두운 바탕에 문구만 둔다. */
 @Composable
