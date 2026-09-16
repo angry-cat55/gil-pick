@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -78,6 +80,9 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
+            // 로고 묶음을 화면 가운데에 두고 카카오 버튼은 아래에 붙인다. 빈 칸이 위·가운데로 나뉘도록
+            // 맨 앞에 높이 0인 자리를 둔다. 내용이 화면보다 길어지면 빈 칸이 사라져 예전처럼 스크롤된다.
+            Spacer(modifier = Modifier.height(0.dp))
             BrandArea()
             SignInArea(state = state, onKakaoLogin = onKakaoLogin, onRetry = onRetry)
         }
@@ -92,7 +97,7 @@ private fun BrandArea() {
     val headline = stringResource(R.string.login_headline)
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = BRAND_TOP_PADDING),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Image(
@@ -206,8 +211,7 @@ private fun KakaoButton(label: Int, onClick: () -> Unit) {
 private val LOGO_MAX_WIDTH = 240.dp
 private const val LOGO_RATIO = 801f / 311f
 
-/** 화면 위 여백과 로고~문구 간격. */
-private val BRAND_TOP_PADDING = 32.dp
+/** 로고~문구 간격. */
 private val BRAND_GAP = 32.dp
 
 /** 가이드라인 7절 카카오 버튼 56dp·말풍선 22, 로그인 중 대기 표시 24. */
