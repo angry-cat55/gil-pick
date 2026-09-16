@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.performTextInput
@@ -342,7 +343,7 @@ class PlaceSearchScreenTest {
         composeRule.runOnIdle { assertEquals(1, reauths) }
     }
 
-    /** #574: 칩 여섯 개가 360dp 한 화면에 가로 스크롤 없이 모두 보인다. */
+    /** #574: 칩 여섯 개가 360dp 한 줄에 가로 스크롤 없이 모두 보인다. */
     @Test
     fun 카테고리_칩_여섯_개는_360dp에서_가로_스크롤_없이_모두_보인다() {
         composeRule.setContent {
@@ -375,8 +376,9 @@ class PlaceSearchScreenTest {
         }
     }
 
+    /** #574: 글자 배율을 키우면 한 줄에 다 들어가지 않는다. 가로 스크롤로 여섯 번째 칩까지 닿고 선택된다. */
     @Test
-    fun 카테고리_칩은_최대_글자_배율_360dp에서도_모두_보이고_선택된다() {
+    fun 카테고리_칩은_최대_글자_배율_360dp에서도_스크롤로_모두_닿는다() {
         var picked: PlaceCategory? = null
         composeRule.setContent {
             GilpickTheme {
@@ -404,10 +406,9 @@ class PlaceSearchScreenTest {
         }
 
         CHIP_LABELS.forEach { label ->
-            val bounds = composeRule.onNodeWithText(label).assertIsDisplayed().getBoundsInRoot()
-            assertTrue("$label=$bounds", bounds.right <= 360.dp && bounds.left >= 0.dp)
+            composeRule.onNodeWithText(label).performScrollTo().assertIsDisplayed()
         }
-        composeRule.onNodeWithText("쇼핑").performClick()
+        composeRule.onNodeWithText("쇼핑").performScrollTo().performClick()
         composeRule.runOnIdle { assertEquals(PlaceCategory.SHOPPING, picked) }
     }
 

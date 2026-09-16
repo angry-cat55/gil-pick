@@ -3,8 +3,8 @@ package com.gilpick.place
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -270,13 +270,12 @@ private fun Header(
             onSearch = onSearch,
             modifier = Modifier.padding(bottom = spacing.space3),
         )
-        // Figma는 칩 줄을 가로 스크롤(`overflow-x-auto`)로 두지만 360dp에서 여섯 번째 칩(`쇼핑`)이 화면 밖으로
-        // 밀려 스크롤해야 보였다(#574). 줄을 넘겨 한 화면에 모두 두고, 글자 배율이 커지면 줄이 더 늘어난다.
-        // 한 줄 3개로 끊어 5+1처럼 어긋나지 않게 한다.
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-            verticalArrangement = Arrangement.spacedBy(spacing.space2),
-            maxItemsInEachRow = CHIPS_PER_ROW,
+        // Figma대로 칩은 한 줄이다. 360dp에서 여섯 번째 칩(`쇼핑`)이 화면 밖으로 밀리던 문제(#574)는 줄을 나누는
+        // 대신 칩 좌우 여백과 칩 사이 간격을 줄여 해결한다. 글자 배율을 키우면 한 줄에 다 들어가지 않으므로
+        // 가로 스크롤은 남겨 두고 접근만 보장한다(기본 배율에서는 스크롤할 것이 없어 움직이지 않는다).
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(CHIP_GAP),
         ) {
             CategoryChip(
                 label = stringResource(R.string.place_search_category_all),
@@ -385,10 +384,11 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             color = if (selected) colors.surface else colors.onSurfaceVariant,
+            maxLines = 1,
             modifier = Modifier
                 .clip(shape)
                 .background(if (selected) colors.onSurface else colors.background)
-                .padding(horizontal = 14.dp, vertical = LocalGilpickSpacing.current.space2),
+                .padding(horizontal = CHIP_HORIZONTAL_PADDING, vertical = LocalGilpickSpacing.current.space2),
         )
     }
 }
@@ -752,8 +752,14 @@ internal fun OutlineButton(label: String, onClick: () -> Unit) {
 }
 
 /** Figma 칩 순서. `기타`는 Figma에 없어 두지 않는다. */
-/** 칩 한 줄에 둘 개수. 여섯 칩이 360dp 한 줄에 들어가지 않아 3+3으로 끊는다(#574). */
-private const val CHIPS_PER_ROW = 3
+/**
+ * 칩 좌우 여백과 칩 사이 간격(#574).
+ *
+ * Figma는 `px-3.5`(14dp)·`gap-2`(8dp)지만 그대로 두면 여섯 칩의 너비 합이 360dp 화면의 본문 폭(320dp)을 넘는다.
+ * 글자 크기는 Figma의 13sp를 지키고 여백만 줄여 한 줄에 담는다.
+ */
+private val CHIP_HORIZONTAL_PADDING = 10.dp
+private val CHIP_GAP = 4.dp
 
 private val CHIP_CATEGORIES = listOf(
     PlaceCategory.NATURE,
