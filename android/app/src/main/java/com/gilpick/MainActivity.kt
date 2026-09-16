@@ -672,6 +672,9 @@ private fun TripRoute(
             // 가진 AuthViewModel.logout으로만 이어진다(FR-010). 진입은 위 하단 탭 `설정`이다(T026).
             settingsGraph(
                 onLogout = onLogout,
+                // 탈퇴가 끝나면 서버가 모든 session을 이미 없앤 뒤다. 폐기를 예약하는 로그아웃이
+                // 아니라 local session만 지우는 경로로 보내야 사라진 자격을 다시 폐기하려 들지 않는다(#667).
+                onAccountDeleted = onSessionExpired,
                 onSessionExpired = onSessionExpired,
                 nickname = nickname,
                 profileImageUrl = profileImageUrl,

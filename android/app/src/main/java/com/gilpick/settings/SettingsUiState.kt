@@ -47,6 +47,26 @@ sealed interface PreferencePhase {
 }
 
 /**
+ * 계정 탈퇴 요청의 진행 단계(#667).
+ *
+ * 확인 다이얼로그를 열었는지는 여기 담지 않는다. F002 `TripDeletePhase`와 같은 규칙으로,
+ * 화면 안에서만 쓰이는 표시 상태는 화면이 직접 들고 요청을 보낸 뒤에야 알 수 있는 결과만
+ * 여기에 둔다. 성공 상태도 없다 — 탈퇴가 끝나면 로그인 화면으로 바뀌어 이 상태를 읽을
+ * 화면 자체가 사라진다.
+ */
+sealed interface AccountDeletePhase {
+
+    /** 아직 탈퇴를 요청하지 않았다. */
+    data object Idle : AccountDeletePhase
+
+    /** 요청을 보냈고 응답을 기다린다. 다이얼로그의 버튼을 잠근다(중복 탭 차단). */
+    data object Deleting : AccountDeletePhase
+
+    /** 탈퇴에 실패했다. 계정과 로그인 상태는 그대로다. */
+    data class Failed(val error: SettingsError) : AccountDeletePhase
+}
+
+/**
  * 설정 화면 상태(data-model 3 `SettingsUiState`).
  *
  * 계정·앱 정보는 **상태 전이가 없다**. F001 session과 설치본에서 한 번 읽어 그대로 보이는
@@ -63,6 +83,7 @@ sealed interface PreferencePhase {
  * @property preference 알림 설정 영역의 상태.
  * @property policyOpenError 정책 문서를 열지 못한 이유. 평상시는 `null`이다(FR-008).
  *   설정 조회·변경과 **독립**이라 설정이 실패한 상태에서도 정책 문서는 열 수 있고, 그 반대도 같다.
+ * @property accountDeletion 계정 탈퇴 요청의 진행 단계(#667). 설정 조회·정책 열기와 독립이다.
  */
 data class SettingsUiState(
     val nickname: String? = null,
@@ -71,4 +92,5 @@ data class SettingsUiState(
     val versionName: String = BuildConfig.VERSION_NAME,
     val preference: PreferencePhase = PreferencePhase.Loading,
     val policyOpenError: PolicyOpenFailure? = null,
+    val accountDeletion: AccountDeletePhase = AccountDeletePhase.Idle,
 )

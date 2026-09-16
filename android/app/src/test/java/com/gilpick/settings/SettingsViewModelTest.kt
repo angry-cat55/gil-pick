@@ -4,7 +4,10 @@ import com.gilpick.auth.AuthAppLinkHandler
 import com.gilpick.auth.AuthRepository
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.FakeAuthService
+import com.gilpick.auth.AuthService
+import com.gilpick.auth.AuthUiState
 import com.gilpick.auth.FakeSessionCipher
+import com.gilpick.auth.ProgrammableAuthService
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -17,6 +20,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,6 +30,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import retrofit2.Response
 
 /**
  * T009(ViewModel)·T014: 조회·저장 상태 전이와 빠른 연속 선택 검증.
@@ -314,19 +320,97 @@ class SettingsViewModelTest {
         assertTrue(viewModel.state.value.preference is PreferencePhase.Error)
     }
 
+    // --- 계정 탈퇴(#667) ---
+
+    @Test
+    fun `탈퇴에 성공하면 한 번만 요청하고 호출자에게 알린다`() = runTest {
+        val authService = ProgrammableAuthService().apply { onDeleteAccount = { Response.success(204, Unit) } }
+        val viewModel = loaded(initial = true, authService = authService)
+
+        var deleted = 0
+        viewModel.deleteAccount { deleted++ }
+        advanceUntilIdle()
+
+        assertEquals(1, deleted)
+        assertEquals(1, authService.deleteAccountCount)
+        assertEquals("Bearer access-token-1", authService.lastDeleteAccountBearer)
+    }
+
+    @Test
+    fun `응답을 기다리는 사이 다시 확정해도 요청은 한 번만 나간다`() = runTest {
+        // 중복 탭이 두 번째 탈퇴를 만들면 성공한 탈퇴가 실패로 보인다.
+        val gate = CompletableDeferred<Unit>()
+        val authService = ProgrammableAuthService().apply {
+            onDeleteAccount = { gate.await(); Response.success(204, Unit) }
+        }
+        val viewModel = loaded(initial = true, authService = authService)
+
+        var deleted = 0
+        viewModel.deleteAccount { deleted++ }
+        runCurrent()
+        viewModel.deleteAccount { deleted++ }
+        runCurrent()
+        assertTrue(viewModel.state.value.accountDeletion is AccountDeletePhase.Deleting)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, deleted)
+        assertEquals(1, authService.deleteAccountCount)
+    }
+
+    @Test
+    fun `탈퇴에 실패하면 로그인 상태를 유지하고 원인을 남긴다`() = runTest {
+        val authService = ProgrammableAuthService().apply {
+            onDeleteAccount = { Response.error(500, "".toResponseBody("application/json".toMediaType())) }
+        }
+        val auth = auth(authService)
+        val viewModel = loaded(initial = true, auth = auth)
+
+        var deleted = 0
+        viewModel.deleteAccount { deleted++ }
+        advanceUntilIdle()
+
+        assertEquals(0, deleted)
+        assertEquals(
+            AccountDeletePhase.Failed(SettingsError.Unexpected),
+            viewModel.state.value.accountDeletion,
+        )
+        // 실패한 탈퇴는 session을 건드리지 않는다. 같은 자리에서 다시 시도할 수 있어야 한다.
+        assertTrue(auth.state.value is AuthUiState.Authenticated)
+        assertTrue(auth.currentSession() != null)
+    }
+
+    @Test
+    fun `탈퇴 실패 안내는 다이얼로그를 닫으면 사라진다`() = runTest {
+        val authService = ProgrammableAuthService().apply {
+            onDeleteAccount = { Response.error(500, "".toResponseBody("application/json".toMediaType())) }
+        }
+        val viewModel = loaded(initial = true, authService = authService)
+        viewModel.deleteAccount {}
+        advanceUntilIdle()
+
+        viewModel.clearAccountDeleteError()
+
+        assertEquals(AccountDeletePhase.Idle, viewModel.state.value.accountDeletion)
+    }
+
     /** 첫 조회까지 끝난 ViewModel. `init`이 부르는 조회가 끝난 뒤를 돌려준다. */
-    private suspend fun loaded(initial: Boolean): SettingsViewModel {
+    private suspend fun loaded(
+        initial: Boolean,
+        authService: AuthService = FakeAuthService,
+        auth: AuthRepository? = null,
+    ): SettingsViewModel {
         service.onGet = { preferenceOk(initial) }
-        val viewModel = newViewModel()
+        val viewModel = newViewModel(auth ?: auth(authService))
         dispatcher.scheduler.advanceUntilIdle()
         return viewModel
     }
 
-    private suspend fun newViewModel() =
-        SettingsViewModel(repository = SettingsRepository(api = service, auth = auth()))
+    private suspend fun newViewModel(auth: AuthRepository? = null) =
+        SettingsViewModel(repository = SettingsRepository(api = service, auth = auth ?: auth()))
 
     /** 로그인된 session을 가진 인증 계층. 다른 feature의 ViewModel test와 같다. */
-    private suspend fun auth(): AuthRepository {
+    private suspend fun auth(authService: AuthService = FakeAuthService): AuthRepository {
         val store = AuthSessionStore(
             AuthSessionStore.createDataStore(
                 File(tempFolder.newFolder(), AuthSessionStore.FILE_NAME),
@@ -336,7 +420,7 @@ class SettingsViewModelTest {
         )
         val auth = AuthRepository(
             store = store,
-            api = FakeAuthService,
+            api = authService,
             appLinkHandler = AuthAppLinkHandler("app.gilpick.example"),
             scope = CoroutineScope(dispatcher + SupervisorJob()),
         )

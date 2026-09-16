@@ -56,14 +56,18 @@ class FakeSettingsService(initial: Boolean = true) : SettingsService {
  * 로그인된 session을 가진 [SettingsRepository]. F001 `AuthLogoutIntegrationTest`와 같은 조립이다.
  * 인증 endpoint는 부르지 않아야 하므로 부르면 실패한다.
  */
-suspend fun signedInSettingsRepository(context: Context, service: SettingsService): SettingsRepository {
+suspend fun signedInSettingsRepository(
+    context: Context,
+    service: SettingsService,
+    authService: AuthService = NoAuthService,
+): SettingsRepository {
     val store = AuthSessionStore(
         AuthSessionStore.createDataStore(File(context.cacheDir, "settings-test-${System.nanoTime()}.pb")),
         KeystoreSessionCipher("gilpick.settings.test"),
     )
     val auth = AuthRepository(
         store = store,
-        api = NoAuthService,
+        api = authService,
         appLinkHandler = AuthAppLinkHandler("app.gilpick.example"),
     )
     val now = System.currentTimeMillis() / 1_000
@@ -80,9 +84,25 @@ suspend fun signedInSettingsRepository(context: Context, service: SettingsServic
     return SettingsRepository(api = service, auth = auth)
 }
 
-private object NoAuthService : AuthService {
+/**
+ * 탈퇴 endpoint만 응답하는 인증 service(#667). 그 밖의 endpoint는 부르면 실패해, 탈퇴 흐름이
+ * 로그인·갱신·로그아웃을 건드리지 않는다는 것을 드러낸다.
+ */
+class DeleteAccountAuthService(private val response: () -> Response<Unit>) : AuthService by NoAuthService {
+    /** 지금까지 도착한 탈퇴 요청 수. 중복 탭이 두 번째 요청을 만들지 않는지 확인한다. */
+    var deleteCalls = 0
+        private set
+
+    override suspend fun deleteAccount(bearer: String): Response<Unit> {
+        deleteCalls++
+        return response()
+    }
+}
+
+internal object NoAuthService : AuthService {
     override suspend fun createLoginTransaction(body: CreateLoginTransactionRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")
     override suspend fun exchangeLoginTicket(body: LoginTicketExchangeRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")
     override suspend fun refreshTokens(body: RefreshTokenRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")
     override suspend fun logout(body: RefreshTokenRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")
+    override suspend fun deleteAccount(bearer: String) = error("이 test는 탈퇴 endpoint를 호출하지 않는다")
 }
