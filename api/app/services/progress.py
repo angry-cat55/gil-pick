@@ -27,6 +27,7 @@ from app.schemas.progress import (
     ProgressData,
     ProgressItem,
     ProgressProcessingSource,
+    StartMode,
     StartDayProgressRequest,
     StartLocation,
 )
@@ -37,6 +38,60 @@ from app.services.route import RouteCalculationService
 from app.db import transaction_session
 
 logger = logging.getLogger("gilpick.progress")
+
+
+def apply_start_transition(
+    day: TripDay,
+    first: ItineraryItem | None,
+    start_mode: StartMode,
+    now: datetime,
+) -> list[dict[str, str]]:
+    """시작 방식에 맞춰 날짜와 첫 장소 상태를 함께 변경한다.
+
+    Args:
+        day: 시작할 여행 날짜와 전체 일정 항목 aggregate.
+        first: 순서상 첫 번째 예정 장소.
+        start_mode: 첫 장소로 이동하거나 첫 장소에서 시작하는 방식.
+        now: 시작과 현장 도착에 기록할 서버 수신 시각.
+
+    Returns:
+        `START` transition에 저장할 항목·날짜 상태 변경 목록.
+
+    Notes:
+        현장 시작한 첫 장소가 마지막 남은 장소면 기존 완료 규칙에 따라 날짜도
+        완료한다. 이 함수는 메모리 상태만 바꾸며 commit은 호출자가 수행한다.
+    """
+    affected: list[dict[str, str]] = []
+    day.status = "IN_PROGRESS"
+    day.actual_started_at = now
+    day.detection_active = True
+
+    if first is not None:
+        after_status = (
+            "ARRIVED" if start_mode is StartMode.AT_FIRST_PLACE else "EN_ROUTE"
+        )
+        first.status = after_status
+        if after_status == "ARRIVED":
+            first.actual_arrived_at = now
+        affected.append(
+            {
+                "itemId": str(first.item_id),
+                "beforeStatus": "PLANNED",
+                "afterStatus": after_status,
+            }
+        )
+
+    if start_mode is StartMode.AT_FIRST_PLACE and not any(
+        item.status in {"PLANNED", "EN_ROUTE"} for item in day.items
+    ):
+        day.status = "COMPLETED"
+        day.completed_at = now
+        day.detection_active = False
+
+    affected.append(
+        {"dayStatusBefore": "NOT_STARTED", "dayStatusAfter": day.status}
+    )
+    return affected
 
 
 def apply_manual_transition(
@@ -535,14 +590,15 @@ class ProgressService:
             raise AppError(409, "VERSION_CONFLICT", "진행 버전이 일치하지 않습니다.")
 
         now = datetime.now(UTC)
-        location = payload.current_location
+        location = (
+            payload.current_location
+            if payload.start_mode is StartMode.MOVE_TO_FIRST
+            else None
+        )
         if location is not None:
             occurred = location.occurred_at.astimezone(UTC)
             if location.accuracy_meters > 100 or abs((now - occurred).total_seconds()) > 120:
                 location = None
-        day.status = "IN_PROGRESS"
-        day.actual_started_at = now
-        day.detection_active = True
         day.progress_version += 1
         if location is not None:
             day.start_location = WKTElement(
@@ -552,8 +608,7 @@ class ProgressService:
             day.start_accuracy_meters = location.accuracy_meters
             day.start_captured_at = location.occurred_at
         first = next((item for item in items if item.status == "PLANNED"), None)
-        if first is not None:
-            first.status = "EN_ROUTE"
+        affected_items = apply_start_transition(day, first, payload.start_mode, now)
         destination = None
         if location is not None and first is not None and self.calculator is not None:
             point = cast(Place.location, Geometry(geometry_type="POINT", srid=4326))
@@ -566,10 +621,7 @@ class ProgressService:
             transition_type="START",
             status="CONFIRMED",
             source="MANUAL",
-            affected_items=(
-                [{"itemId": str(first.item_id), "beforeStatus": "PLANNED", "afterStatus": "EN_ROUTE"}]
-                if first is not None else []
-            ) + [{"dayStatusBefore": "NOT_STARTED", "dayStatusAfter": "IN_PROGRESS"}],
+            affected_items=affected_items,
             detected_at=now,
             confirmed_at=now,
             schedule_version_before=day.schedule_version,
@@ -597,11 +649,12 @@ class ProgressService:
             "result": "SUCCESS",
         })
         if destination is not None and location is not None and first is not None:
+            assert payload.transport_mode is not None
             try:
                 segment = await self.calculator.calculate_single_segment(
                     origin=Coordinate(longitude=location.longitude, latitude=location.latitude),
                     destination=Coordinate(longitude=destination[0], latitude=destination[1]),
-                    transport_mode=ClientTransportMode.WALK,
+                    transport_mode=ClientTransportMode(payload.transport_mode.value),
                     overall_deadline_seconds=8.0,
                 )
             except RouteProviderError as error:
@@ -626,7 +679,8 @@ class ProgressService:
                     statement = pg_insert(ProgressSegment).values(
                         progress_segment_id=uuid.uuid4(), trip_day_id=day.trip_day_id,
                         from_item_id=None, to_item_id=first.item_id,
-                        transport_mode="WALK", provider=segment.provider.value,
+                        transport_mode=payload.transport_mode.value,
+                        provider=segment.provider.value,
                         duration_seconds=segment.duration_seconds,
                         distance_meters=segment.distance_meters, computed_at=datetime.now(UTC),
                     ).on_conflict_do_update(

@@ -109,7 +109,7 @@
   - 영역: BE
   - 담당: jh
   - 선행: T007, T013
-  - 검증: 오늘(KST)·장소 수 검증, `FOR UPDATE`로 동시 시작 직렬화, 이미 시작이면 저장값 반환, 위치 유효성(100m·2분) 서버 재검증, `START` transition·`progress_version+1` 커밋 후 transaction 밖 도보 구간 계산 → `progress_segments` 저장·ETA 재계산, PROG-001 `inboundTravel`·`nextItemId` 파생. T011 통과
+  - 검증: 오늘(KST)·장소 수 검증, `FOR UPDATE`로 동시 시작 직렬화, 이미 시작이면 저장값 반환, 위치 유효성(100m·2분) 서버 재검증, `START` transition·`progress_version+1` 커밋 후 transaction 밖 시작 구간 계산 → `progress_segments` 저장·ETA 재계산, PROG-001 `inboundTravel`·`nextItemId` 파생. 시작 방식·이동수단 확장은 T041~T043에서 검증
 - [X] T015 [US1] 진행 router 등록(GET progress, POST start) in api/app/api/v1/progress.py, api/app/main.py
   - 영역: BE
   - 담당: jh
@@ -299,6 +299,32 @@
 
 ---
 
+## Phase 8: Follow-up Issue #650 - 첫 장소 시작 방식 분리
+
+- [X] T041 [P] [US1] PROG-002 시작 방식 계약과 문서 동기화 in api/app/schemas/progress.py, specs/006-trip-progress/contracts/progress.openapi.yaml, specs/006-trip-progress/spec.md, specs/006-trip-progress/plan.md, specs/006-trip-progress/data-model.md, specs/006-trip-progress/research.md, docs/design/api-spec.md, docs/design/er-schema.md, docs/planning/requirements.md, docs/planning/functional-spec.md, docs/planning/user-flow.md, docs/planning/mvp.md
+  - 영역: BE
+  - 담당: jh
+  - 선행: T040, Issue #650
+  - 검증: `MOVE_TO_FIRST`·`AT_FIRST_PLACE`와 조건부 `transportMode` 계약, 기존 요청의 `MOVE_TO_FIRST`+`WALK` 호환, 시작 구간과 F004 장소 간 구간의 의미가 계약·명세·공통 문서에서 일치
+- [X] T042 [P] [US1] 시작 방식 schema·contract·service·integration test 작성 in api/tests/unit/test_progress_schema.py, api/tests/unit/test_progress_service.py, api/tests/contract/test_progress_contract.py, api/tests/integration/test_progress_flow.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T041
+  - 검증: 선택 이동수단 전달·저장, 위치 없음과 provider 실패 fallback, 현장 시작 provider 미호출·첫 장소 `ARRIVED`, 한 장소 일정 `COMPLETED`, 기존 멱등·version 동작 통과
+- [X] T043 [US1] 시작 방식별 상태 전환과 시작 구간 계산 구현 in api/app/services/progress.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T042
+  - 검증: `MOVE_TO_FIRST`는 첫 장소 `EN_ROUTE`와 요청 이동수단 구간, `AT_FIRST_PLACE`는 첫 장소 `ARRIVED`와 provider 미호출, T042와 기존 F006 진행 test 통과
+- [ ] T044 [US1] Android 시작 선택 UI와 PROG-002 연동 갱신 in docs/design/figma-make/src/screens/TripDetailScreen.tsx, android/app/src/main/java/com/gilpick/progress/ProgressApi.kt, android/app/src/main/java/com/gilpick/trip/TripDetailViewModel.kt, android/app/src/main/java/com/gilpick/trip/TripDetailScreen.kt
+  - 영역: FE
+  - 담당: jy
+  - 선행: T043, Issue #650
+  - 추적 Issue: #654
+  - 검증: `첫 장소로 이동하기`·`첫 장소에서 시작하기`와 이동수단 선택, 새 요청 계약 전송, Compose UI·ViewModel·API 연동 test 및 360dp·최대 글자 배율 screenshot 확인
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -311,6 +337,8 @@ Setup(T001~T003)
   → US3(T032~T035)
   → US4(T036~T037)
   → Polish(T038~T040)
+  → Follow-up #650(T041~T043)
+  → Frontend #654(T044)
 ```
 
 ### User Story Dependencies
@@ -369,8 +397,8 @@ FE jy: T033 → T035 ; T036 → T037
 
 | 요구사항 | 담당 task |
 |---|---|
-| FR-001·FR-002·FR-003 시작 조건·시각 고정·첫 장소 이동 중 | T011, T014, T015 |
-| FR-004·FR-004a·FR-005 ETA 규칙·미계획 구간·`정보 없음` | T007, T010, T013, T014, T027 |
+| FR-001·FR-002·FR-003 시작 조건·시각 고정·시작 방식별 첫 장소 상태 | T011, T014, T015, T041, T042, T043 |
+| FR-004·FR-004a·FR-005 ETA 규칙·선택 이동수단·미계획 구간·`정보 없음` | T007, T010, T013, T014, T027, T041, T042, T043 |
 | FR-004b·FR-020 1회 위치·권한과 무관한 수동 진행 | T002, T012, T017, T018, T040 |
 | FR-006~FR-009 상태 흐름·도착·출발·건너뛰기 | T022, T023, T026, T027, T028, T029, T030 |
 | FR-010·FR-011 완료·건너뛰기 취소, 도착으로 변경 | T032, T034, T035 |
@@ -387,7 +415,7 @@ FE jy: T033 → T035 ; T036 → T037
 | UI-002·UI-006 카드 세 모드·경과 표시·당일 완료 | T025, T030 |
 | UI-003 상태 수정 시트 | T003, T033, T035 |
 | UI-005 다른 날짜 조회 | T036, T037 |
-| UI-007 여행 상세 시작 버튼 | T012, T018 |
+| UI-007 여행 상세 시작 버튼과 시작 방식 선택 | T012, T018, T044 |
 | UI-009·UI-010·UI-012 접근성·360dp·screenshot | T039 |
 | UI-011 지도·시작 위치·상태 marker | T031 |
 | SC-001 응답 시간 | T038 |

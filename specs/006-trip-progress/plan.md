@@ -6,7 +6,7 @@
 
 ## Summary
 
-사용자가 오늘 날짜의 진행을 `오늘 여행 시작`으로 시작하면 서버가 시작 시각을 한 번 고정하고, F005 계획 경로의 구간 이동시간과 체류 시간으로 장소별 ETA를 계산해 저장한다. 도착·출발·건너뛰기·상태 수정은 `PATCH /itinerary-items/{itemId}/status` 하나로 처리하며 서버가 파생 전환·ETA 재계산·당일 완료를 한 transaction으로 적용하고 `progress_transitions`에 기록한다. 계획 경로에 없는 두 구간(시작 위치→첫 장소 도보, 건너뛰기로 생긴 인접 구간)만 F005 provider를 단일 구간으로 호출해 `progress_segments`에 저장한다. Android는 새 `progress` package의 진행 화면과 상태 수정 시트, 여행 상세의 시작 버튼·1회 위치 취득을 구현한다.
+사용자가 오늘 날짜의 진행을 시작하면 서버가 시작 시각을 한 번 고정한다. `MOVE_TO_FIRST`는 선택한 이동수단과 유효한 현재 위치로 첫 장소 구간을 계산하고 첫 장소를 `EN_ROUTE`로, `AT_FIRST_PLACE`는 provider 호출 없이 첫 장소를 `ARRIVED`로 처리한다. 도착·출발·건너뛰기·상태 수정은 `PATCH /itinerary-items/{itemId}/status` 하나로 처리하며 서버가 파생 전환·ETA 재계산·당일 완료를 한 transaction으로 적용하고 `progress_transitions`에 기록한다. 계획 경로에 없는 구간만 F005 provider를 단일 구간으로 호출해 `progress_segments`에 저장한다.
 
 ## Technical Context
 
@@ -118,7 +118,7 @@ android/app/src/main/java/com/gilpick/
 ### Backend
 
 1. **migration 005**: `trip_days.progress_version`(int, default 0), `progress_transitions`(ERD 7.2 + `progress_version_after`, `idempotency_key`, unique), `progress_segments`.
-2. **시작(PROG-002)**: 인증·소유권·날짜 검증 → 오늘(KST) 아니면 `409 DAY_NOT_TODAY`, 장소 0곳 `422 DAY_EMPTY` → 이미 시작이면 저장값 200 → 위치 유효성(100m·2분) 검사 → transaction: `IN_PROGRESS`, `actual_started_at=now`, `start_location`, `detection_active=true`, 첫 `PLANNED`→`EN_ROUTE`, transition `START`, `progress_version+1`, 커밋 → 유효 위치가 있으면 transaction 밖에서 도보 단일 구간 계산 → 별도 transaction에 `progress_segments` upsert + ETA 재계산 → PROG-001 형식으로 응답. 동시 시작은 `trip_days` row lock(`SELECT ... FOR UPDATE`)으로 직렬화한다.
+2. **시작(PROG-002)**: 인증·소유권·날짜 검증 → 오늘(KST) 아니면 `409 DAY_NOT_TODAY`, 장소 0곳 `422 DAY_EMPTY` → 이미 시작이면 저장값 200 → `MOVE_TO_FIRST`이면 위치 유효성(100m·2분) 검사, `IN_PROGRESS`와 첫 `PLANNED`→`EN_ROUTE`; `AT_FIRST_PLACE`이면 위치를 사용하지 않고 첫 `PLANNED`→`ARRIVED`, 한 장소뿐이면 `COMPLETED` → transaction에 `actual_started_at=now`, transition `START`, `progress_version+1` 저장 → 이동 시작에 유효 위치가 있으면 transaction 밖에서 요청 `transportMode` 단일 구간 계산 → 별도 transaction에 `progress_segments` upsert + ETA 재계산 → PROG-001 형식으로 응답. 동시 시작은 `trip_days` row lock(`SELECT ... FOR UPDATE`)으로 직렬화한다.
 3. **전환(PROG-006)**: item → day → trip 소유권 검증 → `NOT_STARTED`면 `409 DAY_NOT_STARTED` → `Idempotency-Key` 기존 기록이면 최초 결과 200 → `progress_version` 비교 → research 결정 3 표로 허용 여부·파생 변경 계산 → 한 transaction에 항목 상태·실제 시각·당일 상태·transition·`progress_version+1` 적용 → 건너뛰기로 새 인접 쌍이 생기고 `progress_segments`에 없으면 transaction 밖 단일 구간 계산 후 저장 → ETA 재계산 → 응답.
 4. **ETA 재계산(`services/eta.py`)**: data-model.md 규칙. 입력은 day·items·활성 route payload·progress_segments. `itinerary.save_day`(진행 중 날짜)와 `route` READY 확정 뒤에도 호출한다. F004 저장으로 인접 쌍이 바뀌어 남는 `progress_segments` 행은 무해하므로 정리하지 않는다.
 5. **PROG-001**: day·items·활성 route·segments를 읽어 `inboundTravel`(`PLANNED_ROUTE`/`COMPUTED`/null)을 파생한다.
@@ -127,7 +127,7 @@ android/app/src/main/java/com/gilpick/
 ### Android
 
 1. **`ProgressRepository`**: `getDayProgress`, `startDay(location?)`, `updateStatus(itemId, status, version)`; `Idempotency-Key`는 요청 내용(대상·목표 상태·`progressVersion`)에서 파생한 UUID(`UUID.nameUUIDFromBytes`)라 `다시 시도`는 자동으로 같은 key를 재사용하고, 전환이 적용돼 version이 바뀐 다음 요청은 새 key가 된다(호출자가 key를 보관하지 않음, 2026-09-07 T009 결정). 오류는 `ProgressError`로 정규화(F005 `RouteError` 방식).
-2. **`TripDetailViewModel.startToday()`**: 오늘 날짜 판정(기기 KST) → `CurrentLocationProvider.current()`(권한·timeout·유효성 포함, 실패 시 null) → `startDay` → 성공 시 navigation event. 버튼 상태: 기간 밖 비활성+안내, 장소 0곳 `장소 추가` 안내, 시작됨 `여행 진행 화면으로`(PROG-001 `dayStatus`로 판정, TripDetail 진입 시 오늘 날짜만 조회).
+2. **`TripDetailViewModel.startToday()`**: 오늘 날짜 판정(기기 KST) → 시작 방식 선택. `MOVE_TO_FIRST`는 이동수단 선택과 `CurrentLocationProvider.current()`(권한·timeout·유효성 포함, 실패 시 null)을 거쳐 `startDay`, `AT_FIRST_PLACE`는 위치 취득 없이 `startDay` → 성공 시 navigation event. 버튼 상태: 기간 밖 비활성+안내, 장소 0곳 `장소 추가` 안내, 시작됨 `여행 진행 화면으로`(PROG-001 `dayStatus`로 판정, TripDetail 진입 시 오늘 날짜만 조회). Android 갱신은 Issue #654에서 수행한다.
 3. **`ProgressViewModel`**: overview(F004) + progress(오늘) 병렬 조회 → `Content`. 행동은 목표 상태로 매핑(`도착했어요`/`도착으로 변경`→`ARRIVED`, `다음 장소로 출발`→`COMPLETED`, `건너뛰기`→`SKIPPED`, `완료 취소`→`ARRIVED`, `건너뛰기 취소`→`PLANNED`). 응답의 progress로 상태 교체. `409 VERSION_CONFLICT`는 재조회 후 안내.
 4. **`ActiveTravelScreen`**: `viewingDate` 전환·`오늘로 돌아가기`; 오늘만 `NextPlaceCard`(EN_ROUTE/ARRIVED/완료 세 모드)·행동; 목록 행 탭 → `StatusSheet`; `장소 추가` → `ItineraryEditRoute(date=today, openSearch=true)`; `경로 보기` → `DayRouteRoute`.
 5. **`RouteMap`·`DayRouteScreen` 확장**: 시작 위치 marker(있을 때)와 처리 상태별 marker 구분(색+숫자/체크)은 F005 marker 모델에 상태 필드를 더하는 최소 변경으로 한다. 시작된 날짜의 F005 경로 화면은 PROG-001을 함께 조회해 marker·구간 목록에 상태를 문구+아이콘으로 표시한다(F005 UI-010이 F006에 남긴 자리).

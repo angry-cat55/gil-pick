@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.errors import AppError
 from app.models.itinerary import ItineraryItem, TripDay
 from app.schemas.progress import StartDayProgressRequest
-from app.services.progress import ProgressService, apply_manual_transition
+from app.schemas.progress import StartMode
+from app.services.progress import (
+    ProgressService,
+    apply_manual_transition,
+    apply_start_transition,
+)
 
 
 def _item(sequence: int, status: str) -> ItineraryItem:
@@ -85,6 +90,38 @@ def test_arrive_records_actual_time_and_completes_last_remaining_item() -> None:
         {"itemId": str(item.item_id), "beforeStatus": "EN_ROUTE", "afterStatus": "ARRIVED"},
         {"dayStatusBefore": "IN_PROGRESS", "dayStatusAfter": "COMPLETED"},
     ]
+
+
+def test_at_first_place_start_arrives_first_item() -> None:
+    now = datetime(2026, 9, 8, 1, tzinfo=UTC)
+    first, second = _item(1, "PLANNED"), _item(2, "PLANNED")
+    second.trip_day_id = first.trip_day_id
+    day = _day([first, second])
+
+    affected = apply_start_transition(day, first, StartMode.AT_FIRST_PLACE, now)
+
+    assert first.status == "ARRIVED"
+    assert first.actual_arrived_at == now
+    assert day.status == "IN_PROGRESS"
+    assert day.completed_at is None
+    assert affected[0]["afterStatus"] == "ARRIVED"
+
+
+def test_at_first_place_start_completes_single_item_day() -> None:
+    now = datetime(2026, 9, 8, 1, tzinfo=UTC)
+    first = _item(1, "PLANNED")
+    day = _day([first])
+
+    affected = apply_start_transition(day, first, StartMode.AT_FIRST_PLACE, now)
+
+    assert first.status == "ARRIVED"
+    assert day.status == "COMPLETED"
+    assert day.completed_at == now
+    assert day.detection_active is False
+    assert affected[-1] == {
+        "dayStatusBefore": "NOT_STARTED",
+        "dayStatusAfter": "COMPLETED",
+    }
 
 
 def test_depart_completes_arrived_item_and_starts_next_planned_item() -> None:
