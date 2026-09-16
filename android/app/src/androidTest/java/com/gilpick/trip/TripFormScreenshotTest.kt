@@ -102,6 +102,31 @@ class TripFormScreenshotTest {
         return java.io.ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     }
 
+    /** #573: 360dp 여행 수정 화면. 기간 안내 문구가 글자 단위로 쪼개지지 않는지 기록한다. */
+    @Test
+    fun 여행_수정_360dp() = capture("trip_form_edit_360dp") {
+        Box(modifier = Modifier.width(360.dp)) { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2))) }
+    }
+
+    /** #573: 완료된 여행(기간 잠김) 360dp. 잠금 안내 문구의 줄바꿈을 기록한다. */
+    @Test
+    fun 여행_수정_기간_잠김_360dp() = capture("trip_form_edit_locked_360dp") {
+        Box(modifier = Modifier.width(360.dp)) {
+            Screen(edited().copy(mode = FormMode.Edit(tripId = "t1", version = 1, status = TripStatus.COMPLETED)))
+        }
+    }
+
+    /** #573: 360dp·최대 글자 배율. 좁은 폭에서도 문구가 단어 단위로 줄바꿈되는지 기록한다. */
+    @Test
+    fun 여행_수정_360dp_최대_글자배율() = capture("trip_form_edit_360dp_fontscale2") {
+        Box(modifier = Modifier.width(360.dp)) {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2)))
+            }
+        }
+    }
+
     @Test
     fun 여행_수정_기간_축소() = capture("trip_form_edit_shrunk") { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2))) }
 

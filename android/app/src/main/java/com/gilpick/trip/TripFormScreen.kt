@@ -58,8 +58,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -185,7 +188,7 @@ fun TripFormScreen(
                 )
                 Text(
                     text = stringResource(R.string.trip_form_period_max_hint),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
                     color = LocalGilpickColors.current.muted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -362,7 +365,7 @@ private fun NameCard(
                         TripNameError.TOO_LONG -> R.string.trip_form_error_name_long
                     },
                 ),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(top = spacing.space2),
             )
@@ -518,7 +521,7 @@ private fun InlineCalendar(
                         TripPeriodPickError.OCCUPIED -> R.string.trip_form_calendar_occupied_span
                     },
                 ),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(top = LocalGilpickSpacing.current.space2),
             )
@@ -691,7 +694,7 @@ private fun EditPeriodCard(
             // 색과 흐린 스타일만으로는 이유를 알 수 없다. 문구를 함께 둔다(10절).
             Text(
                 text = stringResource(R.string.trip_form_period_locked),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = spacing.space2),
             )
@@ -749,7 +752,7 @@ private fun DateBox(
 private fun ShrinkWarning(textRes: Int) {
     Text(
         text = stringResource(textRes),
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
         color = LocalGilpickColors.current.warning,
         modifier = Modifier.padding(top = LocalGilpickSpacing.current.space2),
     )
@@ -765,7 +768,7 @@ private fun PeriodErrorText(error: TripPeriodError) {
                 TripPeriodError.TOO_LONG -> R.string.trip_form_error_period_long
             },
         ),
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
         color = MaterialTheme.colorScheme.error,
     )
 }
@@ -803,7 +806,7 @@ private fun BottomActions(
         reason?.let {
             Text(
                 text = stringResource(it),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.koreanWordWrap(),
                 color = LocalGilpickColors.current.muted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
@@ -920,18 +923,18 @@ private fun ShrinkConfirmDialog(
                 }
                 Text(
                     text = stringResource(R.string.trip_form_shrink_title, deletedItemCount),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.koreanWordWrap(),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = spacing.space4, bottom = spacing.space2),
                 )
                 Text(
                     text = stringResource(R.string.trip_form_shrink_body),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.koreanWordWrap(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = stringResource(R.string.trip_form_shrink_question),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.koreanWordWrap(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = spacing.space6),
                 )
@@ -987,10 +990,22 @@ private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?, e
             TripFormSubmitError.UNEXPECTED ->
                 stringResource(if (editing) R.string.trip_form_error_unexpected_edit else R.string.trip_form_error_unexpected)
         },
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodyMedium.koreanWordWrap(),
         color = MaterialTheme.colorScheme.error,
     )
 }
+
+/**
+ * 안내·오류 문구를 어절 단위로 줄바꿈한다(#573).
+ *
+ * 한글 기본 규칙은 글자 단위로 끊어 좁은 폭에서 `일정`/`이`, `최대 7`/`일까지`처럼 단어 가운데가 갈라진다.
+ * [LineBreak.WordBreak.Phrase]는 문자열의 locale이 한국어일 때만 동작하므로 기기 언어와 무관하게 적용되도록
+ * locale을 함께 지정한다(앱 문구는 모두 한국어다). 어절 규칙은 API 33부터 동작하고 그 아래 기기에서는 기존과 같다.
+ */
+private fun TextStyle.koreanWordWrap(): TextStyle =
+    copy(lineBreak = LineBreak.Simple.copy(wordBreak = LineBreak.WordBreak.Phrase), localeList = KOREAN)
+
+private val KOREAN = LocaleList("ko-KR")
 
 /** 일요일부터 시작하는 요일 순서(Figma 달력 머리). */
 private val WEEK = listOf(DayOfWeek.SUNDAY) + DayOfWeek.entries.filter { it != DayOfWeek.SUNDAY }
