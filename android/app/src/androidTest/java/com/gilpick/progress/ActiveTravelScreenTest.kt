@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -485,17 +487,19 @@ class ActiveTravelScreenTest {
     // ---- #553: 대중교통 상세 단계 ----
 
     @Test
-    fun 이동_중_대중교통_구간은_카드에_승차_환승_하차_단계를_보인다() {
+    fun 이동_중_대중교통_구간은_카드에_수단별_출발_도착_줄을_보인다() {
         setScreen(content(days = transitStepsDays()))
 
         composeRule.onNodeWithTag(TAG_TRANSIT_STEPS).assertIsDisplayed()
+        // #653: 한 줄 = 한 단계. 수단(노선), 출발 → 도착, 소요시간이 같은 줄에 온다.
         listOf(
-            "도보 4분",
-            "경복궁역에서 지하철 3호선 승차 · 5분",
-            "종로3가역에서 지하철 1호선 환승 · 4분",
-            "종각역 하차",
-            "도보 6분",
+            "도보: 경복궁 → 경복궁역 · 4분",
+            "지하철 3호선: 경복궁역 → 종로3가역 · 5분",
+            "지하철 1호선: 종로3가역 → 종각역 · 4분",
+            "도보: 종각역 → 북촌한옥마을 · 6분",
         ).forEach { cardText(TAG_CARD_NEXT, it).assertIsDisplayed() }
+        // 화살표를 기호로 읽지 않도록 줄마다 문장 설명을 준다. 카드와 일정 목록 두 곳에 같은 줄이 있다.
+        composeRule.onAllNodesWithContentDescription("경복궁역에서 종로3가역까지 지하철 3호선 5분").assertCountEquals(2)
         // 합계 문구는 그대로 남는다.
         cardText(TAG_CARD_NEXT, "경복궁에서 대중교통 20분 · 3.4km").assertIsDisplayed()
     }
@@ -512,17 +516,19 @@ class ActiveTravelScreenTest {
 
     /** #595: 일정 목록의 대중교통 구간 행에도 카드와 같은 문구·순서로 단계를 보인다. */
     @Test
-    fun 일정_목록의_대중교통_구간도_승차_환승_하차_단계를_보인다() {
+    fun 일정_목록의_대중교통_구간도_같은_수단별_줄을_보인다() {
         setScreen(content(days = transitStepsDays()))
 
-        val steps = composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").performScrollTo().assertIsDisplayed()
+        // 카드와 같은 문구·순서다(#653).
         listOf(
-            "도보 4분",
-            "경복궁역에서 지하철 3호선 승차 · 5분",
-            "종로3가역에서 지하철 1호선 환승 · 4분",
-            "종각역 하차",
-            "도보 6분",
-        ).forEach { steps.assert(hasText(it)) }
+            "도보: 경복궁 → 경복궁역 · 4분",
+            "지하철 3호선: 경복궁역 → 종로3가역 · 5분",
+            "지하철 1호선: 종로3가역 → 종각역 · 4분",
+            "도보: 종각역 → 북촌한옥마을 · 6분",
+        ).forEach { line ->
+            composeRule.onNode(hasText(line) and hasAnyAncestor(hasTestTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1"))).assertExists()
+        }
         // 단계가 없는 구간은 합계만 보인다.
         composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}2").assertDoesNotExist()
     }
@@ -532,12 +538,24 @@ class ActiveTravelScreenTest {
     fun 지난_대중교통_구간도_일정_목록에서_단계를_볼_수_있다() {
         setScreen(content(progress = arrivedProgress(), days = transitStepsDays()))
 
-        composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").performScrollTo().assertIsDisplayed().assert(hasText("종각역 하차"))
+        composeRule.onNodeWithTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1").performScrollTo().assertIsDisplayed()
+        composeRule.onNode(
+            hasText("지하철 1호선: 종로3가역 → 종각역 · 4분") and hasAnyAncestor(hasTestTag("${TAG_ROW_TRANSIT_STEPS_PREFIX}1")),
+        ).assertExists()
     }
 
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
     private fun cardText(cardTag: String, text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(cardTag)))
+
+    /** #653: 서버가 정류장 이름을 채우지 않은 단계는 구간 양 끝 장소명으로 메운다. */
+    @Test
+    fun 정류장_이름이_없으면_구간_양_끝_장소로_채운다() {
+        setScreen(content(days = namelessTransitStepsDays()))
+
+        cardText(TAG_CARD_NEXT, "버스 7016: 경복궁 → 북촌한옥마을 · 10분").assertIsDisplayed()
+        composeRule.onAllNodesWithContentDescription("경복궁에서 북촌한옥마을까지 버스 7016 10분").assertCountEquals(2)
+    }
 
     // ---- #652: 날짜 진행바 정렬 ----
 
