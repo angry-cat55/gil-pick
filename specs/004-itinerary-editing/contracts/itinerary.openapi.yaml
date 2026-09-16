@@ -155,6 +155,10 @@ components:
         latitude: { type: number, minimum: -90, maximum: 90 }
         longitude: { type: number, minimum: -180, maximum: 180 }
         imageUrl: { type: [string, 'null'], format: uri }
+        googlePlaceId:
+          type: [string, 'null']
+          maxLength: 255
+          description: F003에서 확정 매칭된 보조 Google Place ID. 구버전 client는 생략할 수 있다
     PlaceSummary:
       type: object
       description: 응답 항목의 표시용 장소 요약

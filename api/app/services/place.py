@@ -19,8 +19,8 @@ from app.clients.tour_api import TourApiClientError
 from app.schemas.place import (
     BusinessStatus,
     PlaceCategory,
-    PlaceSource,
     PlaceDetail,
+    PlaceSource,
     PlaceSummary,
     TourApiCategory,
 )
@@ -106,6 +106,7 @@ def tour_place(raw: dict[str, Any]) -> PlaceSummary | None:
         open_now=None,
         regular_opening_hours=None, current_opening_hours=None,
         google_attributions=None,
+        google_place_id=None,
     )
 
 
@@ -132,6 +133,7 @@ def google_place(raw: dict[str, Any], category: PlaceCategory) -> PlaceSummary |
         regular_opening_hours=raw.get("regularOpeningHours", {}).get("weekdayDescriptions"),
         current_opening_hours=raw.get("currentOpeningHours", {}).get("weekdayDescriptions"),
         google_attributions=PlaceService._attributions(raw.get("attributions")),
+        google_place_id=source_id,
     )
 
 
@@ -169,6 +171,7 @@ def merge_google(target: PlaceSummary, source: PlaceSummary) -> None:
     for field in (
         "rating", "user_rating_count", "business_status", "open_now",
         "regular_opening_hours", "current_opening_hours", "google_attributions",
+        "google_place_id",
     ):
         setattr(target, field, getattr(source, field))
 

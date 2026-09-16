@@ -221,7 +221,7 @@ erDiagram
 | `address` | text | Y | 표시 주소 |
 | `location` | geography(Point,4326) | N | 위도·경도 |
 | `image_url` | text | Y | 대표 이미지 |
-| `google_place_id` | varchar(255) | Y | `google:{id}` 장소를 저장할 때 provider ID에서 추출 |
+| `google_place_id` | varchar(255) | Y | Google 장소의 기본 ID 또는 TourAPI 장소와 확정 매칭된 보조 ID. F008 운영시간 조회에 사용 |
 | `created_at` | timestamptz | N | 일정에 처음 참조된 시각 |
 | `updated_at` | timestamptz | N | 최소 참조정보 갱신 시각 |
 

@@ -809,6 +809,7 @@ Response `200`:
         "placeId": "tourapi:126508",
         "source": "TOUR_API",
         "sourcePlaceId": "126508",
+        "googlePlaceId": "ChIJ_matched_place",
         "name": "경복궁",
         "category": "HISTORY_CULTURE",
         "tourApiCategory": {
@@ -856,6 +857,7 @@ Response `200`:
     "placeId": "tourapi:126508",
     "source": "TOUR_API",
     "sourcePlaceId": "126508",
+    "googlePlaceId": "ChIJ_matched_place",
     "name": "경복궁",
     "category": "HISTORY_CULTURE",
     "tourApiCategory": {
@@ -891,7 +893,8 @@ Response `200`:
 - Google이 제공한 `currentOpeningHours.openNow`는 nullable `openNow`로 그대로 전달하고, 미제공·보완 실패·TourAPI 단독 장소는 `null`
 - TourAPI 운영 안내에서 현재 영업 여부 또는 정확한 종료 시각을 추론하지 않음
 - 자연·문화·역사 등 비상업 카테고리를 지정하면 TourAPI만 사용하고, 전체 키워드·음식·카페·쇼핑은 TourAPI 결과가 `limit` 미만일 때 Google Places로 부족분 보완. Google Text Search는 cursor 검색 흐름당 최대 한 번 호출하며 지정 카테고리와 다른 Google 유형은 제외
-- 확정 매칭은 TourAPI ID·기본·상세정보를 유지하고 Google 평점·평점 수·영업정보만 병합하며 모호한 Google 후보는 제외
+- 확정 매칭은 TourAPI ID·기본·상세정보를 유지하고 nullable `googlePlaceId`와 Google 평점·평점 수·영업정보를 병합하며 모호한 Google 후보는 제외
+- `placeId`는 상세 조회용 기본 식별자이고 `googlePlaceId`는 TourAPI 장소의 F008 운영시간 조회까지 전달하는 보조 식별자다. 매칭 실패 시 `null`이다
 - Google 전용 결과는 `google:{placeId}`를 사용하고 Google 사진·리뷰는 반환하지 않음
 - Google 실패 시 TourAPI 결과를 유지하고 Google 필드만 제외하며, TourAPI 실패를 Google 결과로 대체하지 않음
 - 장소별 provider 배지는 화면에 표시하지 않지만 Google 데이터 영역의 필수 attribution은 준수
@@ -1423,6 +1426,7 @@ Response `200`: 전환 적용 후 날짜 전체 진행 현황을 반환한다.
 - 예보 누락 시 날씨 변수 제외
 
 운영시간:
+- TourAPI 장소도 일정 저장 시 보존된 보조 `googlePlaceId`가 있으면 그 ID로 조회한다. 보조 ID가 없는 기존 데이터와 매칭 실패 결과는 `HOURS_UNKNOWN`으로 제외한다
 - ETA가 폐점 시각 이상이면 방문 불가
 - ETA가 폐점 30분 전 이내면 폐점 임박 경고
 - 임시휴업 정보가 있으면 방문 불가

@@ -23,7 +23,7 @@
 |---|---|---|
 | `place_id` | uuid | PK, 서버 내부용. API에는 노출하지 않는다 |
 | `tour_content_id` | varchar(255), null | `tourapi:{id}`의 `{id}`. partial unique |
-| `google_place_id` | varchar(255), null | `google:{id}`의 `{id}`. partial unique |
+| `google_place_id` | varchar(255), null | `google:{id}`의 `{id}` 또는 TourAPI 장소와 확정 매칭된 보조 Google ID. partial unique |
 | `name` | varchar(255) | F003 `name` |
 | `category` | varchar(30) | F003 `category` 6개 enum |
 | `tour_category_1~3` | varchar(120), null | F003 `tourApiCategory.large/middle/small` |
@@ -31,7 +31,7 @@
 | `location` | geography(Point) | F003 `latitude`·`longitude`. 둘 다 없으면 저장 거부(`422 INVALID_ITINERARY`) |
 | `image_url` | text, null | F003 `imageUrl` |
 
-- provider 식별자로 upsert한다. 이미 있으면 `name`·`address`·`image_url`·`tour_category_*`만 갱신하고 `place_id`는 유지한다.
+- provider 식별자로 upsert한다. 이미 있으면 `name`·`address`·`image_url`·`tour_category_*`를 갱신하고, TourAPI snapshot에 확정 매칭된 `googlePlaceId`가 있으면 `google_place_id`도 lazy 보강하며 내부 `place_id`는 유지한다. 구버전 client와 기존 미보강 행은 `null`을 허용한다.
 - 평점·리뷰 수·영업시간·provider 원문은 저장하지 않는다.
 
 ## 3. `ItineraryItem` (`itinerary_items`)

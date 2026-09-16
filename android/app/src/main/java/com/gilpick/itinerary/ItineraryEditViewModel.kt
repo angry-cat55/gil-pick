@@ -366,6 +366,7 @@ class ItineraryEditViewModel(
                 latitude = latitude,
                 longitude = longitude,
                 imageUrl = place.imageUrl,
+                googlePlaceId = place.googlePlaceId,
             ),
             stayMinutes = request.stayMinutes,
             staySource = if (request.stayMinutes == place.recommendedStayMinutes) StaySource.RECOMMENDED

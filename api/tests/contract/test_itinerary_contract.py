@@ -12,7 +12,7 @@ from app.api.v1.itinerary import _itinerary_service, _save_route_service, _trip_
 from app.core.security import AuthPrincipal
 from app.main import app
 from app.schemas.itinerary import DayItinerary, ItineraryOverview
-from app.schemas.route import FailedRouteData, NotCalculatedRouteData, ReadyRouteData, RouteFailure
+from app.schemas.route import FailedRouteData, NotCalculatedRouteData, RouteFailure
 from app.schemas.trip import Trip, TripStatus
 
 
@@ -227,6 +227,43 @@ def test_put_requires_uuid_idempotency_key(principal: AuthPrincipal) -> None:
     assert header["required"] is True
     assert header["schema"]["format"] == "uuid"
     assert {"200", "201", "409", "422"} <= set(operation["responses"])
+
+
+def test_put_accepts_optional_matched_google_place_id(principal: AuthPrincipal) -> None:
+    """TourAPI 기본 ID와 별개인 보조 Google ID를 snapshot 계약으로 전달한다."""
+    service = StubItineraryService(created=True)
+    _override(principal, service)
+    try:
+        response = TestClient(app).put(
+            f"/api/v1/trips/{uuid.uuid4()}/days/2026-09-01/itinerary",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={
+                "version": 0,
+                "items": [{
+                    "itemId": None,
+                    "placeId": "tourapi:126508",
+                    "place": {
+                        "name": "경복궁",
+                        "category": "HISTORY_CULTURE",
+                        "tourApiCategory": None,
+                        "address": None,
+                        "latitude": 37.5796,
+                        "longitude": 126.977,
+                        "imageUrl": None,
+                        "googlePlaceId": "ChIJ_tour_match",
+                    },
+                    "sequence": 1,
+                    "plannedStayMinutes": 90,
+                    "staySource": "RECOMMENDED",
+                    "transportModeToNext": None,
+                }],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert service.calls[0]["payload"].items[0].place.google_place_id == "ChIJ_tour_match"
 
 
 def test_put_calculates_route_only_when_route_input_changed(

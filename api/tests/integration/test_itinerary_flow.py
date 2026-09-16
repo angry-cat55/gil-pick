@@ -1,7 +1,7 @@
 """PostgreSQL에서 일정 저장의 version·멱등·장소 재사용을 검증한다."""
 
-import os
 import logging
+import os
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -21,9 +21,8 @@ from app.models.trip import Trip
 from app.schemas.itinerary import SaveDayItineraryRequest, StaySource
 from app.schemas.trip import UpdateTripRequest
 from app.services.itinerary import ItineraryService
-from app.services.trip import TripService
 from app.services.route import RouteCalculationService, RouteService
-from app.clients.route_provider import Provider
+from app.services.trip import TripService
 
 
 @pytest.fixture
@@ -306,6 +305,54 @@ async def test_first_save_and_same_key_retry_are_idempotent(
         assert await session.scalar(select(func.count()).select_from(TripDay).where(TripDay.trip_id == trip_id)) == 1
         assert await session.scalar(select(func.count()).select_from(ItineraryItem).join(TripDay).where(TripDay.trip_id == trip_id)) == 1
         assert await session.scalar(select(func.count()).select_from(Place).where(Place.tour_content_id == "126508")) == 1
+
+
+@pytest.mark.asyncio
+async def test_tourapi_snapshot_preserves_matched_google_place_id(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """기존 TourAPI 행을 재저장하면 확정 매칭 Google ID를 lazy 보강한다."""
+    trip_id, visit_date = await _seed(session_factory)
+    content_id = uuid.uuid4().hex
+    google_place_id = f"ChIJ_{uuid.uuid4().hex}"
+    item = _place_item(1, None)
+    item["placeId"] = f"tourapi:{content_id}"
+    async with transaction_session(session_factory) as session:
+        await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=visit_date,
+            start_date=visit_date,
+            payload=SaveDayItineraryRequest(version=0, items=[item]),
+            idempotency_key=uuid.uuid4(),
+        )
+    async with session_factory() as session:
+        before = await session.scalar(
+            select(Place).where(Place.tour_content_id == content_id)
+        )
+        assert before is not None and before.google_place_id is None
+
+    place = item["place"]
+    assert isinstance(place, dict)
+    place["googlePlaceId"] = google_place_id
+    payload = SaveDayItineraryRequest(version=0, items=[item])
+    second_date = visit_date + timedelta(days=1)
+
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id,
+            visit_date=second_date,
+            start_date=visit_date,
+            payload=payload,
+            idempotency_key=uuid.uuid4(),
+        )
+
+    assert saved.items[0].place.place_id == f"tourapi:{content_id}"
+    async with session_factory() as session:
+        stored = await session.scalar(
+            select(Place).where(Place.tour_content_id == content_id)
+        )
+        assert stored is not None
+        assert stored.google_place_id == google_place_id
 
 
 @pytest.mark.asyncio

@@ -70,6 +70,8 @@
 
 ## 5. 운영시간 변수 — 폐점 시각과 임시휴업
 
+**장소 ID 연결 정책(2026-09-16 #629)**: F003이 TourAPI 장소와 Google Places 후보를 확정 매칭하면 `googlePlaceId`를 별도 보조 ID로 반환하고, F004 일정 snapshot이 이를 같은 `places` 행의 `google_place_id`에 보존한다. `tourapi:{contentId}`는 공개 기본 식별자로 계속 사용하고 F008은 저장된 `google_place_id`로 Google 운영시간을 조회한다. 매칭 실패·구버전 client·기존 미보강 행은 ID를 추측하지 않고 `HOURS_UNKNOWN`으로 제외한다. 기존 행은 해당 장소를 다시 추가할 때 lazy 보강하며 근거 없는 일괄 backfill은 하지 않는다.
+
 **Decision**: `operating_hours.py`가 대상 장소의 Google Places `places.get`을 `currentOpeningHours.periods`·`regularOpeningHours.periods`·`businessStatus`·`utcOffsetMinutes` field mask로 직접 호출한다(F003이 이미 쓰는 Google Places v1 계약).
 - `businessStatus = CLOSED_TEMPORARILY` → 방문 불가(`visitBlocked=true`, `tempClosed=true`) (FR-008 "확인 가능한 임시휴업").
 - `businessStatus = CLOSED_PERMANENTLY` → 방문 불가(`visitBlocked=true`).

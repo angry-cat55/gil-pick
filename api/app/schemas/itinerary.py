@@ -7,7 +7,7 @@ from datetime import date
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import ConfigDict, Field, HttpUrl, field_validator
+from pydantic import ConfigDict, Field, HttpUrl
 from pydantic.alias_generators import to_camel
 
 from app.schemas.auth import ApiModel, ResponseMeta
@@ -59,6 +59,7 @@ class PlaceSnapshot(ItineraryRequestModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     image_url: HttpUrl | None
+    google_place_id: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class ItineraryPlaceSummary(ApiModel):

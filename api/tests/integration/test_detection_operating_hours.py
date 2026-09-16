@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import delete, select
@@ -13,9 +14,17 @@ from app.core.security import AuthPrincipal
 from app.db import transaction_session
 from app.models.auth import User
 from app.models.detection import Detection
-from app.schemas.detection import CongestionVerdict, OperatingHoursVerdict, WeatherVerdict
+from app.models.itinerary import ItineraryItem, Place, TripDay
+from app.models.trip import Trip
+from app.schemas.detection import (
+    CongestionVerdict,
+    OperatingHoursVerdict,
+    WeatherVerdict,
+)
+from app.schemas.itinerary import SaveDayItineraryRequest
 from app.services.detection import evaluator
-from tests.integration.variable_detection_support import factory, providers, seed
+from app.services.itinerary import ItineraryService
+from tests.integration.variable_detection_support import KST, factory, providers, seed
 
 
 @pytest.mark.asyncio
@@ -76,6 +85,112 @@ async def test_visit_blocked_creates_one_active_detection(monkeypatch: pytest.Mo
         assert stored.read_at == first_read_at
     finally:
         if "user_id" in locals():
+            async with transaction_session(session_factory) as session:
+                await session.execute(delete(User).where(User.user_id == user_id))
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_saved_tourapi_match_reaches_operating_hours_evaluator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TourAPI 검색 매칭 ID가 일정 저장 뒤에도 Google 운영시간 조회에 사용된다."""
+    engine, session_factory = await factory()
+    user_id: uuid.UUID | None = None
+    try:
+        now = datetime.now(KST)
+        async with transaction_session(session_factory) as session:
+            user = User(social_provider="KAKAO", social_subject=f"tour-match-{uuid.uuid4()}")
+            session.add(user)
+            await session.flush()
+            user_id = user.user_id
+            trip = Trip(
+                user_id=user.user_id,
+                name="TourAPI Google ID 전달",
+                start_date=now.date(),
+                end_date=now.date(),
+            )
+            session.add(trip)
+            await session.flush()
+            trip_id = trip.trip_id
+
+        payload = SaveDayItineraryRequest.model_validate({
+            "version": 0,
+            "items": [{
+                "itemId": None,
+                "placeId": "tourapi:126508",
+                "place": {
+                    "name": "매칭 장소",
+                    "category": "CAFE",
+                    "tourApiCategory": {"large": "FD", "middle": "FD05", "small": None},
+                    "address": "서울특별시 중구",
+                    "latitude": 37.5752,
+                    "longitude": 126.9768,
+                    "imageUrl": None,
+                    "googlePlaceId": "ChIJ_tour_match",
+                },
+                "sequence": 1,
+                "plannedStayMinutes": 60,
+                "staySource": "RECOMMENDED",
+                "transportModeToNext": None,
+            }],
+        })
+        async with transaction_session(session_factory) as session:
+            saved, _, _ = await ItineraryService(session).save_day(
+                trip_id=trip_id,
+                visit_date=now.date(),
+                start_date=now.date(),
+                payload=payload,
+                idempotency_key=uuid.uuid4(),
+            )
+            day = await session.scalar(select(TripDay).where(TripDay.trip_id == trip_id))
+            item = await session.get(ItineraryItem, saved.items[0].item_id)
+            assert day is not None and item is not None
+            day.status = "IN_PROGRESS"
+            day.detection_active = True
+            item.estimated_arrival_at = now + timedelta(hours=1)
+
+        requested_ids: list[str] = []
+
+        async def hours_verdict(*args, place_id: str, **kwargs):
+            requested_ids.append(place_id)
+            return OperatingHoursVerdict(
+                available=True,
+                closing_soon=False,
+                visit_blocked=True,
+                temp_closed=False,
+            )
+
+        providers(monkeypatch, evaluator)
+        monkeypatch.setattr(
+            evaluator,
+            "evaluate_weather",
+            lambda *a, **k: _value(WeatherVerdict(available=False, unavailable_reason="NO_FORECAST")),
+        )
+        monkeypatch.setattr(
+            evaluator,
+            "evaluate_congestion",
+            lambda *a, **k: _value(CongestionVerdict(available=False, unavailable_reason="NOT_IN_SUPPORT_AREA")),
+        )
+        monkeypatch.setattr(evaluator, "evaluate_operating_hours", hours_verdict)
+
+        async with transaction_session(session_factory) as session:
+            rows = await evaluator._load_eligible_rows(
+                session, trip_day_id=day.trip_day_id
+            )
+            count, _ = await evaluator._evaluate_rows(session, rows)
+        async with session_factory() as session:
+            place = await session.scalar(select(Place).where(Place.tour_content_id == "126508"))
+            detection = await session.scalar(
+                select(Detection).where(Detection.item_id == saved.items[0].item_id)
+            )
+
+        assert count == 1
+        assert requested_ids == ["ChIJ_tour_match"]
+        assert place is not None and place.google_place_id == "ChIJ_tour_match"
+        assert detection is not None and detection.primary_type == "OPERATING_HOURS"
+    finally:
+        if user_id is not None:
             async with transaction_session(session_factory) as session:
                 await session.execute(delete(User).where(User.user_id == user_id))
         await engine.dispose()
