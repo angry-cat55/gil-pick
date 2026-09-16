@@ -46,6 +46,15 @@ android\gradlew.bat -p android connectedDebugAndroidTest
 6. 360dp 폭, 최대 font scale, TalkBack focus 순서, live region, 48dp touch target을 확인한다.
 7. 장소별 provider 배지는 표시하지 않는다. Google 정보가 있는 영역에는 필수 attribution이, TourAPI 결과가 있는 검색 결과 목록·상세 정보 영역에는 `출처: ⓒ한국관광공사` 한 줄이 표시된다. Google 결과만 있으면 공공데이터 출처는 표시되지 않는다(UI-012, 2026-09-16).
 
+### 카테고리 필터 줄바꿈 검증 (#574, 2026-09-16, jy)
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| 칩 layout | Figma대로 한 줄(`Row`)을 유지하고 칩 좌우 여백 14→10dp, 칩 사이 간격 8→4dp로 줄인다. 글자 크기 13sp는 그대로다 | 적용 |
+| UI test | `ANDROID_SERIAL=emulator-5554 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.gilpick.place.PlaceSearchScreenTest` | 통과 28건. 신규 `카테고리_칩_여섯_개는_360dp에서_가로_스크롤_없이_모두_보인다`(6개 모두 표시·48dp·좌우 360dp 안), `카테고리_칩은_최대_글자_배율_360dp에서도_스크롤로_모두_닿는다`(글자 2.0배에서는 한 줄에 다 들어가지 않아 가로 스크롤로 `쇼핑`까지 닿고 선택이 전달됨) |
+| screenshot | `search_content_360dp`: 이전에는 `쇼핑`이 화면 밖으로 밀렸고, 지금은 한 줄에 여섯 칩이 모두 들어간다 | 통과 (사람 확인) |
+| Figma 차이 | 없다. Figma `AddPlaceScreen`의 한 줄 구성과 `overflow-x-auto`를 그대로 두고 여백만 줄였다 | — |
+
 ### 실시간 영업 상태 표시 검증 (#576, 2026-09-16, jy)
 
 | 항목 | 명령·방법 | 결과 |
