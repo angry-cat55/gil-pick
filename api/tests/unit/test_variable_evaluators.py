@@ -5,14 +5,21 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.clients.kma import ForecastSlot
-from app.clients.seoul_citydata import CongestionLevel, PopulationData, PopulationForecast
-from app.schemas.detection import CongestionVerdict, OperatingHoursVerdict, WeatherVerdict
+from app.clients.seoul_citydata import (
+    CongestionLevel,
+    PopulationData,
+    PopulationForecast,
+)
+from app.schemas.detection import (
+    CongestionVerdict,
+    OperatingHoursVerdict,
+    WeatherVerdict,
+)
 from app.services.detection.congestion import evaluate_congestion
 from app.services.detection.operating_hours import evaluate_operating_hours
 from app.services.detection.operating_hours_source import BusinessStatus, OperatingHours
 from app.services.detection.scoring import score_variables
 from app.services.detection.weather import evaluate_weather
-
 
 ETA = datetime(2026, 9, 8, 4, 30, tzinfo=UTC)
 
@@ -41,6 +48,22 @@ class _Seoul:
         )
 
 
+class _Forecasts:
+    def __init__(self, slots):
+        self.slots = slots
+
+    async def get_forecast(self, latitude: float, longitude: float):
+        return self.slots
+
+
+class _Population:
+    def __init__(self, value: PopulationData):
+        self.value = value
+
+    async def get_population(self, area_code: str):
+        return self.value
+
+
 class _Hours:
     def __init__(self, value: OperatingHours): self.value = value
     async def get(self, place_id: str, eta: datetime): return self.value
@@ -59,6 +82,51 @@ async def test_weather_uses_nearest_eta_slot_and_policy_threshold() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "slot",
+    [
+        ForecastSlot(ETA - timedelta(minutes=91), pop=10, pcp="강수없음", pty=0),
+        ForecastSlot(ETA, pop=None, pcp="강수없음", pty=0),
+        ForecastSlot(ETA, pop=10, pcp=None, pty=0),
+        ForecastSlot(ETA, pop=10, pcp="강수없음", pty=None),
+        ForecastSlot(ETA, pop=10, pcp="알 수 없음", pty=0),
+    ],
+)
+async def test_weather_rejects_stale_or_incomplete_slot(slot: ForecastSlot) -> None:
+    verdict = await evaluate_weather(
+        _Forecasts([slot]),
+        category="NATURE",
+        latitude=37.5,
+        longitude=127.0,
+        eta=ETA,
+    )
+
+    assert verdict == WeatherVerdict(
+        available=False, unavailable_reason="NO_FORECAST"
+    )
+
+
+@pytest.mark.asyncio
+async def test_weather_accepts_slot_at_freshness_boundary() -> None:
+    verdict = await evaluate_weather(
+        _Forecasts(
+            [
+                ForecastSlot(
+                    ETA - timedelta(minutes=90), pop=10, pcp="강수없음", pty=0
+                )
+            ]
+        ),
+        category="NATURE",
+        latitude=37.5,
+        longitude=127.0,
+        eta=ETA,
+    )
+
+    assert verdict.available is True
+    assert verdict.at_risk is False
+
+
+@pytest.mark.asyncio
 async def test_indoor_weather_is_unavailable_without_provider_call() -> None:
     verdict = await evaluate_weather(_Kma(), category="CAFE", latitude=37.5, longitude=127.0, eta=ETA)
     assert verdict == WeatherVerdict(available=False, unavailable_reason="INDOOR")
@@ -70,6 +138,84 @@ async def test_congestion_uses_eta_forecast_and_category_sensitivity() -> None:
     assert verdict == CongestionVerdict(
         available=True,
         level="SLIGHTLY_CROWDED",
+        sensitivity="HIGH",
+        crowded=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_congestion_rejects_forecast_outside_eta_tolerance() -> None:
+    verdict = await evaluate_congestion(
+        _AreaSession(),
+        _Population(
+            PopulationData(
+                CongestionLevel.CROWDED,
+                [
+                    PopulationForecast(
+                        ETA - timedelta(minutes=31), CongestionLevel.RELAXED
+                    )
+                ],
+                current_at=ETA - timedelta(hours=8),
+            )
+        ),
+        category="CAFE",
+        latitude=37.5752,
+        longitude=126.9768,
+        eta=ETA,
+        now=ETA,
+    )
+
+    assert verdict == CongestionVerdict(
+        available=False, unavailable_reason="NO_FORECAST"
+    )
+
+
+@pytest.mark.asyncio
+async def test_congestion_accepts_forecast_at_eta_tolerance_boundary() -> None:
+    verdict = await evaluate_congestion(
+        _AreaSession(),
+        _Population(
+            PopulationData(
+                CongestionLevel.RELAXED,
+                [
+                    PopulationForecast(
+                        ETA - timedelta(minutes=30), CongestionLevel.CROWDED
+                    )
+                ],
+            )
+        ),
+        category="CAFE",
+        latitude=37.5752,
+        longitude=126.9768,
+        eta=ETA,
+        now=ETA,
+    )
+
+    assert verdict.available is True
+    assert verdict.level == "CROWDED"
+
+
+@pytest.mark.asyncio
+async def test_congestion_uses_fresh_current_level_for_near_eta_fallback() -> None:
+    verdict = await evaluate_congestion(
+        _AreaSession(),
+        _Population(
+            PopulationData(
+                CongestionLevel.CROWDED,
+                [],
+                current_at=ETA - timedelta(minutes=15),
+            )
+        ),
+        category="CAFE",
+        latitude=37.5752,
+        longitude=126.9768,
+        eta=ETA + timedelta(minutes=30),
+        now=ETA,
+    )
+
+    assert verdict == CongestionVerdict(
+        available=True,
+        level="CROWDED",
         sensitivity="HIGH",
         crowded=True,
     )

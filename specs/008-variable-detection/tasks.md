@@ -121,12 +121,12 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T004, T008
-  - 검증: `kma` 예보 슬롯을 ETA에 맞춰 선택하고 `policy` 임계값으로 위험 판정. 실내외 노출도가 `INDOOR`면 `available=false`·`unavailableReason=INDOOR`, 예보 없음/실패면 `NO_FORECAST`/`TIMEOUT`. `WeatherVerdict` 반환. 단위 test 포함
+  - 검증: `kma` 예보 슬롯 중 ETA 90분 이내이고 POP·PCP·PTY가 모두 있는 슬롯만 선택하고 `policy` 임계값으로 위험 판정. 실내외 노출도가 `INDOOR`면 `available=false`·`unavailableReason=INDOOR`, 예보 없음·오래됨·불완전·실패면 `NO_FORECAST`/`TIMEOUT`. `WeatherVerdict` 반환. 단위 test 포함
 - [x] T015 [P] [US1] 혼잡 평가기 in api/app/services/detection/congestion.py
   - 영역: BE
   - 담당: jh
   - 선행: T003, T004, T009
-  - 검증: 500m 지원 지점 매핑 → `seoul_citydata` ETA 슬롯 혼잡 수준 → 카테고리 민감도로 위험 판정(거리 감쇠 없음). 지원지역 아님 → `NOT_IN_SUPPORT_AREA`, 실패 → `TIMEOUT`. `CongestionVerdict`(`level`·`sensitivity`·`crowded`) 반환. 단위 test 포함
+  - 검증: 500m 지원 지점 매핑 → `seoul_citydata` ETA 30분 이내 슬롯 혼잡 수준 → 카테고리 민감도로 위험 판정(거리 감쇠 없음). 적격 예보가 없으면 ETA가 현재 30분 이내이고 `PPLTN_TIME`이 15분 이내일 때만 현재값 사용. 지원지역 아님 → `NOT_IN_SUPPORT_AREA`, stale → `NO_FORECAST`, 실패 → `TIMEOUT`. `CongestionVerdict`(`level`·`sensitivity`·`crowded`) 반환. 단위 test 포함
 - [x] T016 [P] [US1] 운영시간 평가기 in api/app/services/detection/operating_hours.py
   - 영역: BE
   - 담당: jh
@@ -268,7 +268,7 @@ description: "F008 여행 변수 감지 구현 task 목록"
   - 영역: BE
   - 담당: jh
   - 선행: T008, T016, T017
-  - 검증: 기상청 격자 변환 known-value, `PCP` 범주 문자열 파싱("강수없음"·"1.0mm"·"30.0~50.0mm"), 폐점 시각 요일 매칭·자정 넘김, 점수 비례 재정규화 경계
+  - 검증: 기상청 격자 변환 known-value, `PCP` 범주 문자열 파싱("강수없음"·"1.0mm 미만"·"1.0mm"·"30.0~50.0mm"), 날씨·혼잡 freshness 경계와 필수 필드 누락, 폐점 시각 요일 매칭·자정 넘김, 점수 비례 재정규화 경계
 - [x] T033 quickstart 검증 실행 in specs/008-variable-detection/quickstart.md
   - 영역: 통합
   - 담당: jh
