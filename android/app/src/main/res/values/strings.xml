@@ -151,7 +151,8 @@
     <string name="trip_form_error_unexpected">지금은 여행을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
     <!-- #555 수정 화면의 그 밖의 실패, 사진 단계만 실패했을 때. -->
     <string name="trip_form_error_unexpected_edit">지금은 여행을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
-    <string name="trip_form_error_image_upload_failed">여행 정보는 저장했지만 사진을 올리지 못했습니다. 잠시 후 다시 저장해 주세요.</string>
+    <string name="trip_form_error_image_upload_failed">여행은 만들었지만 사진을 올리지 못했습니다. 다시 저장하면 사진만 올라갑니다.</string>
+    <string name="trip_form_error_image_upload_failed_edit">여행 정보는 저장했지만 사진을 올리지 못했습니다. 다시 저장하면 사진만 올라갑니다.</string>
 
     <!-- 장소 공통 -->
     <string name="place_category_nature">자연</string>
@@ -287,6 +288,7 @@
     <!-- 기간 축소 삭제 확인 대화상자. 문구는 Figma `EditTripScreen`을 따른다. -->
     <!-- %1$d는 새 기간 밖으로 밀려나 삭제될 장소 수. 서버가 알려 준 값이다. -->
     <string name="trip_form_shrink_title">일정 %1$d곳이 삭제됩니다</string>
+    <string name="trip_form_shrink_day">%1$d월 %2$d일 · %3$d곳</string>
     <string name="trip_form_shrink_body">여행 기간을 줄이면 삭제된 일정은 복구할 수 없어요.</string>
     <string name="trip_form_shrink_question">계속 진행할까요?</string>
     <string name="trip_form_shrink_confirm">저장하기</string>

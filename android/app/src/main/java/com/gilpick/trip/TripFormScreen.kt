@@ -212,9 +212,9 @@ fun TripFormScreen(
     }
 
     // 서버가 삭제될 장소 수를 알려 준 동안에만 띄운다. 동의하기 전에는 저장되지 않는다.
-    state.deleteConfirmation?.let { deletedItemCount ->
+    state.deleteConfirmation?.let { confirmation ->
         ShrinkConfirmDialog(
-            deletedItemCount = deletedItemCount,
+            confirmation = confirmation,
             submitting = state.submitting,
             onConfirm = onConfirmDeleteOutOfRangeItems,
             onDismiss = onCancelDeleteConfirmation,
@@ -875,13 +875,13 @@ private fun LoadingState(modifier: Modifier = Modifier) {
  * [GradientButton]으로, 창에 dialog 그림자를 준다(#443). 되돌릴 수 없는 삭제라 경고 색을 쓰지만 제목이 삭제될
  * 장소 수를 말하고 본문이 복구 불가를 적어 색만으로 알리지 않는다(가이드라인 10절).
  *
- * @param deletedItemCount 새 기간 밖으로 밀려나 삭제될 장소 수. 서버가 알려 준 값이다.
+ * @param confirmation 서버가 알려 준 삭제될 장소 수와 날짜별 개수(TRIP-04).
  * @param submitting 동의 후 재요청이 진행 중인지.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ShrinkConfirmDialog(
-    deletedItemCount: Int,
+    confirmation: TripShrinkConfirmation,
     submitting: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
@@ -922,11 +922,25 @@ private fun ShrinkConfirmDialog(
                     )
                 }
                 Text(
-                    text = stringResource(R.string.trip_form_shrink_title, deletedItemCount),
+                    text = stringResource(R.string.trip_form_shrink_title, confirmation.itemCount),
                     style = MaterialTheme.typography.titleLarge.koreanWordWrap(),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = spacing.space4, bottom = spacing.space2),
                 )
+                // 어느 날짜의 일정이 사라지는지 함께 알린다(TRIP-04, user-flow 2절). 서버가 날짜를 주지 않으면 이 줄은 없다.
+                confirmation.days.forEach { day ->
+                    Text(
+                        text = stringResource(
+                            R.string.trip_form_shrink_day,
+                            day.date.monthValue,
+                            day.date.dayOfMonth,
+                            day.itemCount,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium.koreanWordWrap(),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = spacing.space1),
+                    )
+                }
                 Text(
                     text = stringResource(R.string.trip_form_shrink_body),
                     style = MaterialTheme.typography.bodyMedium.koreanWordWrap(),
@@ -985,7 +999,10 @@ private fun SubmitError(error: TripFormSubmitError, conflictTripName: String?, e
                 if (conflictTripName != null) stringResource(R.string.trip_form_error_period_conflict, conflictTripName)
                 else stringResource(R.string.trip_form_error_period_conflict_unnamed)
 
-            TripFormSubmitError.IMAGE_UPLOAD_FAILED -> stringResource(R.string.trip_form_error_image_upload_failed)
+            // 만들기에서는 여행이 이미 만들어졌다는 사실을 먼저 말한다. "저장했지만"으로는 여행이 생겼는지 알 수 없다(#589).
+            TripFormSubmitError.IMAGE_UPLOAD_FAILED -> stringResource(
+                if (editing) R.string.trip_form_error_image_upload_failed_edit else R.string.trip_form_error_image_upload_failed,
+            )
             // 수정 화면에서 "만들 수 없습니다"는 틀린 안내다(#555).
             TripFormSubmitError.UNEXPECTED ->
                 stringResource(if (editing) R.string.trip_form_error_unexpected_edit else R.string.trip_form_error_unexpected)

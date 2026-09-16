@@ -132,7 +132,13 @@ class TripFormScreenshotTest {
 
     @Test
     fun 기간_축소_확인_대화상자() {
-        composeRule.setContent { GilpickTheme { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2), deleteConfirmation = 2)) } }
+        composeRule.setContent { GilpickTheme { Screen(edited().copy(endDate = LocalDate.of(2026, 9, 2), deleteConfirmation = TripShrinkConfirmation(
+                        itemCount = 3,
+                        days = listOf(
+                            TripShrinkDay(LocalDate.of(2026, 9, 22), 1),
+                            TripShrinkDay(LocalDate.of(2026, 9, 23), 2),
+                        ),
+                    ))) } }
         composeRule.waitForIdle()
         save("trip_form_shrink_dialog", composeRule.onNode(isDialog()).captureToImage().asAndroidBitmap())
     }
