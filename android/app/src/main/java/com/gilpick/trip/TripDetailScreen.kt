@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -683,6 +687,10 @@ private fun DetailContent(
             onOpenRoute = onOpenRoute,
             onRetryRoute = onRetryRoute,
         )
+
+        // 창이 edge-to-edge라 배경은 navigation bar 뒤까지 이어지지만, 마지막 일정이 그 뒤에 가리면 읽을 수 없다.
+        // 배경은 그대로 두고 스크롤 끝만 bar 높이만큼 비운다(#590). 하단 탭이 없는 전체 화면이라 스스로 처리한다.
+        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
     }
 }
 

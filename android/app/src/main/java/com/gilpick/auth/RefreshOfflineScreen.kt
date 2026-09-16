@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,6 +35,8 @@ fun RefreshOfflineScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            // 창이 edge-to-edge라 system bar 뒤까지 그려진다. 헤더가 없는 화면이라 안전 영역만 확보한다(#590).
+            .systemBarsPadding()
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,

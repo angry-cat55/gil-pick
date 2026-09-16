@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import com.gilpick.ui.component.EmptyState
 import com.gilpick.ui.component.ErrorState
 import com.gilpick.ui.component.GradientButton
+import com.gilpick.ui.component.LightSystemBarIcons
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickSizing
@@ -137,6 +138,9 @@ fun DayRouteScreen(
         ErrorState(problem = state.problem, onRetry = onRetry, onBack = onBack, onReauthenticate = onReauthenticate, modifier = modifier.fillMaxSize().statusBarsPadding())
         return
     }
+
+    // 어두운 지도 배경이 system bar 뒤까지 이어지므로 그 위 아이콘도 밝게 바꾼다(#590).
+    LightSystemBarIcons()
 
     Column(
         modifier = modifier

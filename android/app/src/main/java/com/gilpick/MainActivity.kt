@@ -5,10 +5,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color as PlatformColor
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
@@ -141,6 +144,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 화면들이 이미 system bar inset을 직접 처리한다(UI-006). 창을 edge-to-edge로 열어야 각 화면의 상단 배경이
+        // 상태 표시줄 뒤까지 이어진다(#590). API 35+는 플랫폼이 강제하지만 그 아래 기기는 이 호출이 없으면
+        // 기본 테마의 회색 `statusBarColor`가 칠해져 앱 화면과 끊겨 보인다.
+        // 앱에 어두운 배색이 없으므로 기기의 다크 모드와 무관하게 밝은 배경 기준(어두운 아이콘)으로 고정한다.
+        // 어두운 상단을 쓰는 화면은 [LightSystemBarIcons]로 그동안만 뒤집는다.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(PlatformColor.TRANSPARENT, PlatformColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(PlatformColor.TRANSPARENT, PlatformColor.TRANSPARENT),
+        )
         viewModel.restore()
         createNotificationChannel()
         askNotificationPermission()
