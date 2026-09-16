@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
@@ -40,9 +41,11 @@ import com.gilpick.route.RouteFailureDto
 import com.gilpick.route.RouteMarkerDto
 import com.gilpick.place.PlaceCategory
 import com.gilpick.progress.ProgressError
+import com.gilpick.progress.StartMode
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.Serializable
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -432,13 +435,37 @@ class TripDetailScreenTest {
     }
 
     @Test
-    fun 시작할_수_있으면_버튼이_활성이고_누르면_시작을_요청한다() {
-        var started = 0
-        setDetail(startWith(TripStartPhase.Ready("2026-09-02", 0)), onStartToday = { started++ })
+    fun 시작할_수_있으면_버튼이_활성이고_누르면_시작_방식을_먼저_고른다() {
+        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
+        setDetail(startWith(TripStartPhase.Ready("2026-09-02", 0)), onStartToday = { mode, transport -> started += mode to transport })
 
         composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().assertIsEnabled().performClick()
 
-        assertEquals(1, started)
+        // 시트가 먼저 열리고, 고르기 전에는 시작 요청이 가지 않는다(#654).
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(emptyList<Pair<StartMode, TransportMode?>>(), started) }
+
+        // 현장 시작은 위치도 이동수단도 없이 보낸다.
+        composeRule.onNodeWithText("첫 장소에서 시작하기").performClick()
+        composeRule.onNodeWithText("시작하기").performClick()
+
+        composeRule.runOnIdle { assertEquals(listOf(StartMode.AT_FIRST_PLACE to null), started) }
+    }
+
+    @Test
+    fun 첫_장소로_이동하기는_고른_이동수단을_함께_보낸다() {
+        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
+        setDetail(startWith(TripStartPhase.Ready("2026-09-02", 0)), onStartToday = { mode, transport -> started += mode to transport })
+
+        composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().performClick()
+        composeRule.onNodeWithText("첫 장소로 이동하기").performClick()
+        composeRule.onNodeWithText("자동차").performClick()
+        composeRule.onNodeWithText("시작하기").performClick()
+
+        // 위치 권한이 없는 기기에서는 권한 안내가 먼저 뜨므로 요청 여부를 단정하지 않는다.
+        composeRule.runOnIdle {
+            assertTrue(started.isEmpty() || started == listOf(StartMode.MOVE_TO_FIRST to TransportMode.CAR))
+        }
     }
 
     @Test
@@ -483,17 +510,19 @@ class TripDetailScreenTest {
     }
 
     @Test
-    fun 시작_요청_실패의_다시_시도는_권한_확인_후_같은_시작을_다시_요청한다() {
-        var started = 0
+    fun 시작_요청_실패의_다시_시도는_고른_시작_방식_그대로_다시_요청한다() {
+        var retried = 0
         setDetail(
             startWith(TripStartPhase.Failed(ProgressError.Unexpected, ready = TripStartPhase.Ready("2026-09-02", 0))),
-            onStartToday = { started++ },
+            onRetryStart = { retried++ },
         )
 
         composeRule.onNodeWithText("지금은 여행을 시작할 수 없습니다", substring = true).performScrollTo().assertIsDisplayed()
+        // 다시 시도는 방식을 다시 묻지 않는다(#654).
         composeRule.onNodeWithText("다시 시도").performScrollTo().performClick()
 
-        assertEquals(1, started)
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertDoesNotExist()
+        assertEquals(1, retried)
     }
 
     /** 여행은 받았고 시작 영역만 [start] 상태인 상세 화면 상태를 만든다. */
@@ -615,7 +644,7 @@ class TripDetailScreenTest {
         onSelectPlace: (String) -> Unit = {},
         routes: Map<String, DayRoutePhase> = emptyMap(),
         onRetryRoute: (String) -> Unit = {},
-        onStartToday: () -> Unit = {},
+        onStartToday: (StartMode, TransportMode?) -> Unit = { _, _ -> },
         onRetryStart: () -> Unit = {},
         onOpenProgress: (String) -> Unit = {},
         onLaunchConsumed: () -> Unit = {},

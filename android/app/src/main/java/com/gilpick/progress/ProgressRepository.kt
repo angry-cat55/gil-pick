@@ -7,6 +7,7 @@ import com.gilpick.auth.AuthResult
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.auth.toAuthResult
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.itinerary.TransportMode
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -37,19 +38,29 @@ class ProgressRepository(
      *
      * @param progressVersion 조회한 진행 version. 시작 전 날짜는 0.
      * @param currentLocation 유효한 현재 위치. 권한이 없거나 얻지 못했으면 `null`(FR-004b).
+     * @param startMode 사용자가 고른 시작 방식(#654).
+     * @param transportMode [StartMode.MOVE_TO_FIRST]에서 고른 시작 구간 이동수단. 현장 시작은 `null`이다.
      */
     suspend fun startDay(
         tripId: String,
         date: LocalDate,
         progressVersion: Int,
         currentLocation: CurrentLocationDto?,
+        startMode: StartMode = StartMode.MOVE_TO_FIRST,
+        transportMode: TransportMode? = TransportMode.WALK,
     ): AuthResult<ProgressData> = call { token ->
         api.startDayProgress(
             bearer = token,
-            idempotencyKey = idempotencyKey("start", tripId, date.iso(), progressVersion),
+            // 시작 방식·이동수단이 다르면 다른 시작 요청이므로 멱등 key도 달라야 한다.
+            idempotencyKey = idempotencyKey("start", tripId, date.iso(), progressVersion, startMode.name, transportMode?.name ?: "-"),
             tripId = tripId,
             date = date.iso(),
-            body = StartProgressRequest(progressVersion = progressVersion, currentLocation = currentLocation),
+            body = StartProgressRequest(
+                progressVersion = progressVersion,
+                currentLocation = currentLocation,
+                startMode = startMode,
+                transportMode = transportMode,
+            ),
         )
     }
 

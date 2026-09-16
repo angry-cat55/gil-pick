@@ -8,10 +8,10 @@ enum class PlaceTransport { WALK, TRANSIT, CAR }
  *
  * F003은 이 값을 만들어 넘기기만 하고 저장하지 않는다(FR-014). 일정에 반영하는 쪽은 F004다.
  *
- * @property transport 선택한 이동 수단.
+ * @property transport 선택한 이동 수단. 첫 장소를 담을 때는 앞 구간이 없어 묻지 않으므로 `null`이다(#654).
  * @property stayMinutes 체류 시간(분). 30~360, 30분 단위.
  */
 data class AddToScheduleRequest(
-    val transport: PlaceTransport,
+    val transport: PlaceTransport?,
     val stayMinutes: Int,
 )

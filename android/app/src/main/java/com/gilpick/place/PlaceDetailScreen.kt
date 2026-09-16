@@ -100,6 +100,7 @@ fun PlaceDetailScreen(
     modifier: Modifier = Modifier,
     onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
     onOpenMap: () -> Unit = {},
+    askTransport: Boolean = true,
 ) {
     when (val phase = state.phase) {
         is PlaceDetailPhase.Content -> Content(
@@ -107,6 +108,7 @@ fun PlaceDetailScreen(
             onBack = onBack,
             onAddToSchedule = onAddToSchedule,
             onOpenMap = onOpenMap,
+            askTransport = askTransport,
             modifier = modifier,
         )
 
@@ -253,6 +255,7 @@ private fun Content(
     onBack: () -> Unit,
     onAddToSchedule: (AddToScheduleRequest) -> Unit,
     onOpenMap: () -> Unit,
+    askTransport: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var showSheet by remember { mutableStateOf(false) }
@@ -266,6 +269,7 @@ private fun Content(
                 showSheet = false
                 onAddToSchedule(request)
             },
+            askTransport = askTransport,
         )
     }
     Column(
@@ -580,13 +584,14 @@ internal fun AddToScheduleSheet(
     defaultMinutes: Int,
     onDismiss: () -> Unit,
     onConfirm: (AddToScheduleRequest) -> Unit,
+    askTransport: Boolean = true,
 ) {
     var transport by remember { mutableStateOf(PlaceTransport.TRANSIT) }
     var minutes by remember { mutableIntStateOf(defaultMinutes.coerceIn(STAY_MIN, STAY_MAX)) }
     val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
     // `취소`·`일정에 추가`는 한 줄을 가로로 나눈 버튼이라 12dp다(가이드라인 6절 R3, D4).
     val buttonShape = RoundedCornerShape(LocalGilpickRadius.current.md)
-    val title = stringResource(R.string.place_detail_sheet_title)
+    val title = stringResource(if (askTransport) R.string.place_detail_sheet_title else R.string.place_detail_sheet_title_first)
     val minutesText = stringResource(R.string.place_detail_stay_minutes, minutes)
 
     ModalBottomSheet(
@@ -617,18 +622,24 @@ internal fun AddToScheduleSheet(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = stringResource(R.string.place_detail_sheet_subtitle, placeName),
+                text = stringResource(
+                    if (askTransport) R.string.place_detail_sheet_subtitle else R.string.place_detail_sheet_subtitle_first,
+                    placeName,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = LocalGilpickColors.current.muted,
                 modifier = Modifier.padding(top = LocalGilpickSpacing.current.space1, bottom = LocalGilpickSpacing.current.space5),
             )
-            PlaceTransport.entries.forEach { option ->
-                TransportOption(
-                    option = option,
-                    selected = transport == option,
-                    onClick = { transport = option },
-                    modifier = Modifier.padding(bottom = LocalGilpickSpacing.current.space2),
-                )
+            // 첫 장소는 앞 구간이 없어 이동 수단을 묻지 않는다(#654). 체류 시간만 고른다.
+            if (askTransport) {
+                PlaceTransport.entries.forEach { option ->
+                    TransportOption(
+                        option = option,
+                        selected = transport == option,
+                        onClick = { transport = option },
+                        modifier = Modifier.padding(bottom = LocalGilpickSpacing.current.space2),
+                    )
+                }
             }
             Text(
                 text = stringResource(R.string.place_detail_stay_title),
@@ -691,7 +702,7 @@ internal fun AddToScheduleSheet(
                         .clip(buttonShape)
                         .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, LocalGilpickColors.current.primaryDark)))
                         .clickable(
-                            onClick = { onConfirm(AddToScheduleRequest(transport, minutes)) },
+                            onClick = { onConfirm(AddToScheduleRequest(transport.takeIf { askTransport }, minutes)) },
                             role = Role.Button,
                         )
                         .testTag(ADD_TO_SCHEDULE_CONFIRM_TAG),

@@ -172,7 +172,7 @@ description: "F004 일정 구성 구현 task 목록"
   - 담당: jy
   - 선행: T017, T020
   - 검증: Figma 대화상자·시트 대조, `−`·`+` 40/44dp 원과 48dp 터치, 처리된 항목 표시
-- [x] T023 [US2] 손잡이 끌기 순서 변경(foundation gesture, 라이브러리 없음) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt
+- [x] ~~T023 [US2] 손잡이 끌기 순서 변경(foundation gesture, 라이브러리 없음) in android/app/src/main/java/com/gilpick/itinerary/ItineraryEditScreen.kt~~ (2026-09-16 #654로 MVP에서 제외. 구현을 되돌리고 순서 변경 조작을 화면에서 없앴다)
   - 영역: FE
   - 담당: jy
   - 선행: T022

@@ -79,8 +79,11 @@ class ProgressApiTest {
         assertEquals("/api/v1/trips/$PROGRESS_TRIP_ID/days/$PROGRESS_DATE/progress/start", request.url.encodedPath)
         assertEquals(KEY, request.headers["Idempotency-Key"])
         val sent = Json.parseToJsonElement(request.body!!.utf8()).jsonObject
-        assertEquals(setOf("progressVersion", "currentLocation"), sent.keys)
+        // #654: 시작 방식과 시작 구간 이동수단을 함께 보낸다(#650 계약).
+        assertEquals(setOf("progressVersion", "currentLocation", "startMode", "transportMode"), sent.keys)
         assertEquals("0", sent["progressVersion"].toString())
+        assertEquals("\"MOVE_TO_FIRST\"", sent["startMode"].toString())
+        assertEquals("\"WALK\"", sent["transportMode"].toString())
         assertEquals(
             setOf("latitude", "longitude", "accuracyMeters", "occurredAt"),
             sent["currentLocation"]!!.jsonObject.keys,
@@ -96,6 +99,23 @@ class ProgressApiTest {
 
         val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
         assertEquals(JsonNull, sent["currentLocation"])
+    }
+
+    @Test
+    fun `현장 시작은 이동수단 없이 AT_FIRST_PLACE로 보낸다`() = withService { server, api ->
+        server.enqueue(MockResponse(code = 200, body = inProgressJson(progressVersion = 1)))
+
+        api.startDayProgress(
+            BEARER,
+            KEY,
+            PROGRESS_TRIP_ID,
+            PROGRESS_DATE,
+            StartProgressRequest(0, null, StartMode.AT_FIRST_PLACE, null),
+        )
+
+        val sent = Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+        assertEquals("\"AT_FIRST_PLACE\"", sent["startMode"].toString())
+        assertEquals(JsonNull, sent["transportMode"])
     }
 
     @Test

@@ -134,18 +134,7 @@ export default function ScheduleEditScreen({ onBack, onSave, onAddPlace, isNew =
             return (
               <div key={place.id}>
                 <div className="flex items-start gap-3 px-4 py-4">
-                  {/* Drag handle — 예정만 */}
-                  {editable ? (
-                    <div className="flex flex-col items-center gap-1 mt-1 flex-shrink-0 cursor-grab active:cursor-grabbing">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2">
-                        <circle cx="9" cy="6" r="1" fill="#CBD5E1"/><circle cx="15" cy="6" r="1" fill="#CBD5E1"/>
-                        <circle cx="9" cy="12" r="1" fill="#CBD5E1"/><circle cx="15" cy="12" r="1" fill="#CBD5E1"/>
-                        <circle cx="9" cy="18" r="1" fill="#CBD5E1"/><circle cx="15" cy="18" r="1" fill="#CBD5E1"/>
-                      </svg>
-                    </div>
-                  ) : (
-                    <div className="w-[14px] flex-shrink-0" />
-                  )}
+                  {/* 순서 변경은 MVP 범위 밖이라 손잡이를 두지 않는다(#654) */}
 
                   {/* Status circle */}
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${

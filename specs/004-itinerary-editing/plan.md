@@ -24,20 +24,20 @@
 
 **Performance Goals**: 일정 조회·저장 3초 이내(SC-002), 상세 진입 → 저장 5분 이내(SC-001). 하루 10곳 × 7일이라 페이징·가상화 불필요
 
-**Constraints**: 소유권 검증 필수; 통째 저장 + `schedule_version` 충돌 감지; `Idempotency-Key` 필수와 재전송 무해(FR-009); 체류 30~360분·30분 단위; 마지막 항목 이동 수단 null; 하루 최대 10곳; 처리된 항목은 체류 시간 외 장소·이동 수단·순서 변경과 삭제 잠금; 경로 계산·ETA·지도(F005)·상태 전환(F006)·대체 장소(F009/F010)는 범위 밖; 스크린리더 대응 범위 밖(2026-09-05 팀 결정)
+**Constraints**: 소유권 검증 필수; 통째 저장 + `schedule_version` 충돌 감지; `Idempotency-Key` 필수와 재전송 무해(FR-009); 체류 30~360분·30분 단위; 마지막 항목 이동 수단 null; 하루 최대 10곳; 처리된 항목은 체류 시간 외 장소·이동 수단 변경과 삭제 잠금; MVP는 순서 변경 미제공(2026-09-16 #654); 경로 계산·ETA·지도(F005)·상태 전환(F006)·대체 장소(F009/F010)는 범위 밖; 스크린리더 대응 범위 밖(2026-09-05 팀 결정)
 
 **Scale/Scope**: Backend endpoint 3개 신설 + F002 PATCH 1개 수정, migration 1개; Android 편집 화면 1개 신설, 여행 상세·여행 수정 화면 2개 수정, F003 navigation 연결
 
 ## UI Implementation & Validation
 
-**Design Sources**: Figma Make `Design UI from Reference`의 `ScheduleEditScreen`, `TripDetailScreen` 일정 영역, `EditTripScreen` 확인 대화상자가 정본이다([spec.md](spec.md) UI-011). `docs/design/ui-guidelines.md` 5절 크기, 9절 화면 상태, 10절 접근성 최저선을 적용한다. Figma 수정 4건(이동 수단 시트의 체류 시간 제거, 순서 변경 손잡이·버튼, 날짜 헤더 `장소 추가`, 기간 축소 확인 대화상자)은 구현 전 반영을 확인한다.
+**Design Sources**: Figma Make `Design UI from Reference`의 `ScheduleEditScreen`, `TripDetailScreen` 일정 영역, `EditTripScreen` 확인 대화상자가 정본이다([spec.md](spec.md) UI-011). `docs/design/ui-guidelines.md` 5절 크기, 9절 화면 상태, 10절 접근성 최저선을 적용한다. Figma 수정 4건(이동 수단 시트의 체류 시간 제거, 순서 변경 손잡이·버튼, 날짜 헤더 `장소 추가`, 기간 축소 확인 대화상자)은 구현 전 반영을 확인했다. 2026-09-16 #654로 순서 변경을 MVP에서 빼면서 손잡이·이동 버튼은 화면에서 제거했고, 첫 장소 추가 시트(이동 수단 없음)와 가운데 삭제 시트는 Figma 정본 반영이 남아 있다.
 
 **Figma 반영 확인 기록(T002, jy)**: 2026-09-06 1차 확인에서 4건 모두 미반영이었고, 같은 날 Owner(jy)가 Figma를 수정한 뒤 2차 확인으로 `ScheduleEditScreen.tsx`·`TripDetailScreen.tsx`·`EditTripScreen.tsx` 원본을 Figma MCP로 다시 받아 `docs/design/figma-make/src/screens` 사본을 갱신했다(반영 일자 2026-09-06). 4건 모두 반영됐고, 구현은 아래 Figma 모양을 따른다.
 
 | 항목 | Figma 반영 상태(2026-09-06 2차) | 구현 시 참고 |
 |---|---|---|
 | 이동 수단 시트의 체류 시간 제거 | 반영. 시트는 도보·대중교통·자동차 카드와 `취소`·`적용`만 남았다 | 시트에서 체류 시간을 다루지 않는다(UI-004) |
-| 순서 변경 손잡이·위아래 버튼 | 반영. 예정 행에만 왼쪽 6점 손잡이(14px)와 오른쪽 위·아래 28px 버튼(첫·마지막 행은 비활성 30%), 삭제 버튼이 있다. 완료·건너뜀 행은 손잡이·이동·삭제·`변경`을 숨기고 장소명을 회색으로, 건너뜀 원에는 X 아이콘을 표시한다 | 처리된 항목 잠금(UI-008, research 8절)과 일치. Android는 28px 버튼을 48dp 터치 영역으로 감싼다 |
+| ~~순서 변경 손잡이·위아래 버튼~~ | 2026-09-16 #654로 MVP에서 제외. 화면에서 손잡이·이동 버튼·이동 접근성 액션을 모두 없앴다. 완료·건너뜀 행은 계속 삭제·`변경`을 숨기고 장소명을 회색으로, 건너뜀 원에는 X 아이콘을 표시한다 | 순서는 담은 차례로만 정해진다(UI-008 개정). Figma의 손잡이 표시도 함께 걷어내야 한다 |
 | 여행 상세 날짜 헤더 `장소 추가` | 반영. 헤더 오른쪽 `{N}곳` 옆에 `+ 추가` pill 버튼(연파랑 배경, 11px 굵은 글자) | 버튼 글자는 Figma대로 `추가`. 동작은 spec FR-015대로 그 날짜의 장소 검색 진입 |
 | 여행 수정 삭제 확인 대화상자 | 반영. 종료일을 줄이면 종료일 칸이 빨간 배경으로 바뀌고 안내 한 줄이 붙으며, `저장`을 누르면 `일정 {N}곳이 삭제됩니다` 제목, 주황 경고 아이콘, 설명 2줄, `저장하기` 주버튼과 `취소` 보조 행동의 대화상자가 뜬다. 기존 경고 카드와 checkbox는 사라졌다 | 대화상자 문구는 Figma를 따른다(spec UI-013의 `삭제될 장소 N곳`은 같은 뜻의 표현) |
 
@@ -45,9 +45,9 @@
 
 **Tokens & Components**: `GilpickTheme`, `LocalGilpickColors`·`Spacing`·`Sizing`·`Radius`를 그대로 쓰고 새 토큰은 추가하지 않는다. 날짜 탭·순서 번호 원·점선 `장소 추가` 버튼은 편집 화면과 여행 상세에서 함께 쓰일 때만 `ui/component`로 추출한다. 체류 시간 `−`·`+`는 F003 `AddToScheduleSheet`의 stepper 규칙(40dp 원, dialog 44dp)을 재사용한다. 장소 썸네일은 `RemoteImage`.
 
-**State & Interaction**: [data-model.md](data-model.md) 6절 `ItineraryEditUiState`. 초안(`draft`)과 저장본(`savedVersion`)을 분리하고 `dirty`로 닫기 확인을 결정한다. `Loading`은 1초 규칙, `Empty`는 `장소 추가` 안내, `Failed`는 원인+`다시 시도`. 저장 중 `저장` 비활성. 409는 사용자 안내 없이 최신 version으로 최대 2회 재저장([research.md](research.md) 4절). 예정 장소의 순서 변경은 위·아래 버튼 + 손잡이 끌기(9절)이며 처리된 장소는 두 조작을 숨긴다. type-safe `ItineraryEditRoute(tripId, date, openSearch)`; F003 결과는 `SavedStateHandle`로 돌아온다(10절).
+**State & Interaction**: [data-model.md](data-model.md) 6절 `ItineraryEditUiState`. 초안(`draft`)과 저장본(`savedVersion`)을 분리하고 `dirty`로 닫기 확인을 결정한다. `Loading`은 1초 규칙, `Empty`는 `장소 추가` 안내, `Failed`는 원인+`다시 시도`. 저장 중 `저장` 비활성. 409는 사용자 안내 없이 최신 version으로 최대 2회 재저장([research.md](research.md) 4절). 순서 변경 조작은 두지 않는다(#654). 가운데 장소를 뺄 때만 `EditDialog.RemoveTransport`로 새 `앞 → 뒤` 구간의 이동 수단을 받고, 고르기 전에는 초안을 바꾸지 않는다. type-safe `ItineraryEditRoute(tripId, date, openSearch)`; F003 결과는 `SavedStateHandle`로 돌아온다(10절).
 
-**Accessibility & Adaptive Layout**: 닫기·삭제·`−`·`+`·이동 버튼·손잡이에 `contentDescription`, 모든 터치 영역 48dp·간격 8dp. 처리 상태는 색+아이콘+문구. 360dp와 font scale 2.0에서 장소명 줄바꿈, 하단 `저장`은 `navigationBarsPadding`. TalkBack 공지·포커스 조정은 범위 밖이되 기존 semantics는 유지한다.
+**Accessibility & Adaptive Layout**: 닫기·삭제·`−`·`+` 버튼에 `contentDescription`, 모든 터치 영역 48dp·간격 8dp. 처리 상태는 색+아이콘+문구. 360dp와 font scale 2.0에서 장소명 줄바꿈, 하단 `저장`은 `navigationBarsPadding`. TalkBack 공지·포커스 조정은 범위 밖이되 기존 semantics는 유지한다.
 
 **Visual Validation**: [quickstart.md](quickstart.md) Android 수동 검증 6항목. 편집 화면 4상태, 10곳·긴 장소명, 처리된 항목 fixture, 취소 확인, 기간 축소 대화상자, 360dp·font scale 2.0 스크린샷을 PR에 기록한다.
 
@@ -113,7 +113,7 @@ android/app/src/main/java/com/gilpick/
 │   ├── ItineraryApi.kt            # DTO·TransportMode·ItineraryService(Retrofit)
 │   ├── ItineraryRepository.kt     # AuthRepository.withAuthorizedCall, 오류 분류
 │   ├── ItineraryEditViewModel.kt  # draft/saved 분리, SavedStateHandle, 자동 재저장
-│   ├── ItineraryEditScreen.kt     # Figma ScheduleEditScreen, 대화상자·시트, 순서 변경
+│   ├── ItineraryEditScreen.kt     # Figma ScheduleEditScreen, 대화상자·시트
 │   └── ItineraryLabels.kt         # 체류 시간·이동 수단·날짜 표시 문자열
 ├── trip/
 │   ├── TripDetailScreen.kt        # (수정) 날짜별 일정 목록, 일정 편집·날짜별 장소 추가
@@ -148,4 +148,4 @@ android/app/src/androidTest/java/com/gilpick/itinerary/  # 편집 화면·naviga
 
 **Constitution I 예외 기록**: FR-008의 안내 없는 자동 재저장은 사용자가 누른 `저장`을 완료하는 동작이지만, 다른 기기가 먼저 저장한 변경을 확인 없이 덮어쓴다. 팀 결정(spec Clarifications 2026-09-05)으로 채택했고 근거는 spec Assumptions에 있다. 종료 조건: 실제 사용에서 덮어쓰기로 인한 문제가 확인되면 "다른 곳에서 바뀌었습니다" 안내 후 사용자가 `저장`을 다시 누르는 방식으로 바꾼다. 이 예외는 문서 PR 본문에 함께 기록한다.
 
-Constitution 위반은 없다. GeoAlchemy2는 ERD의 PostGIS `geography` 컬럼을 ORM으로 다루기 위한 최소 추가이며, 순서 변경 끌기는 라이브러리 없이 foundation gesture로 구현하고 버튼이 기능을 보장한다. 항목 단위 API, idempotency 저장 테이블, 경로 계산 선반영은 도입하지 않는다.
+Constitution 위반은 없다. GeoAlchemy2는 ERD의 PostGIS `geography` 컬럼을 ORM으로 다루기 위한 최소 추가이며, 순서 변경은 MVP에서 제공하지 않아 관련 gesture 코드와 라이브러리가 모두 없다(#654). 항목 단위 API, idempotency 저장 테이블, 경로 계산 선반영은 도입하지 않는다.

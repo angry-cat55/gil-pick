@@ -19,6 +19,7 @@ import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.RouteStatus
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.itinerary.createItineraryRetrofit
 import com.gilpick.itinerary.toItineraryError
 import com.gilpick.notification.FcmTokenClearWorker
@@ -29,6 +30,7 @@ import com.gilpick.progress.DeviceLocationProvider
 import com.gilpick.progress.ProgressError
 import com.gilpick.progress.ProgressRepository
 import com.gilpick.progress.ProgressService
+import com.gilpick.progress.StartMode
 import com.gilpick.progress.createProgressRetrofit
 import com.gilpick.progress.toProgressError
 import com.gilpick.route.RouteDto
@@ -182,8 +184,15 @@ sealed interface TripStartPhase {
      *
      * @property ready 시작 요청이 실패했으면 그 입력. 같은 입력으로 다시 시도하면 같은 멱등 키가 나간다.
      *   조회 실패면 `null`이고 다시 시도는 조회부터 한다.
+     * @property startMode 실패한 요청의 시작 방식. 다시 시도는 사용자가 다시 고르지 않고 이 선택을 그대로 쓴다(#654).
+     * @property transportMode 실패한 요청의 시작 구간 이동수단. 현장 시작이면 `null`이다.
      */
-    data class Failed(val error: ProgressError, val ready: Ready? = null) : TripStartPhase
+    data class Failed(
+        val error: ProgressError,
+        val ready: Ready? = null,
+        val startMode: StartMode = StartMode.MOVE_TO_FIRST,
+        val transportMode: TransportMode? = TransportMode.WALK,
+    ) : TripStartPhase
 }
 
 /**
@@ -333,7 +342,7 @@ class TripDetailViewModel(
      * 권한·정확도·시간 조건을 만족할 때만 실리고, 못 얻어도 시작은 진행한다(FR-020). 서버가 이미
      * 시작됐다고 답해도 `200`이므로 같은 흐름으로 진행 화면에 간다(FR-002).
      */
-    fun startToday() {
+    fun startToday(startMode: StartMode = StartMode.MOVE_TO_FIRST, transportMode: TransportMode? = TransportMode.WALK) {
         val ready = when (val start = _state.value.start) {
             is TripStartPhase.Ready -> start
             is TripStartPhase.Failed -> start.ready ?: return
@@ -342,8 +351,16 @@ class TripDetailViewModel(
         _state.update { it.copy(start = TripStartPhase.Starting(ready.date)) }
 
         viewModelScope.launch {
-            val location = locationProvider.current()
-            val result = progressRepository.startDay(tripId, LocalDate.parse(ready.date), ready.progressVersion, location)
+            // 현장 시작은 시작 구간이 없어 현재 위치를 쓰지 않는다(#650 계약, #654).
+            val location = if (startMode == StartMode.MOVE_TO_FIRST) locationProvider.current() else null
+            val result = progressRepository.startDay(
+                tripId = tripId,
+                date = LocalDate.parse(ready.date),
+                progressVersion = ready.progressVersion,
+                currentLocation = location,
+                startMode = startMode,
+                transportMode = transportMode,
+            )
             val phase = when (result) {
                 is AuthResult.Success -> TripStartPhase.Launched(ready.date)
                 is AuthResult.Failure -> when (val error = result.error.toProgressError()) {
@@ -354,18 +371,18 @@ class TripDetailViewModel(
                         loadProgress(LocalDate.parse(ready.date))
                         return@launch
                     }
-                    else -> TripStartPhase.Failed(error, ready)
+                    else -> TripStartPhase.Failed(error, ready, startMode, transportMode)
                 }
             }
             _state.update { it.copy(start = phase) }
         }
     }
 
-    /** 시작 영역의 실패를 다시 시도한다. 시작 요청 실패면 같은 입력으로, 조회 실패면 조회부터 한다. */
+    /** 시작 영역의 실패를 다시 시도한다. 시작 요청 실패면 고른 시작 방식·이동수단 그대로, 조회 실패면 조회부터 한다. */
     fun retryStart() {
         val failed = _state.value.start as? TripStartPhase.Failed ?: return
         if (failed.ready != null) {
-            startToday()
+            startToday(failed.startMode, failed.transportMode)
         } else {
             loadStart((_state.value.phase as? TripDetailPhase.Content)?.trip ?: return)
         }
