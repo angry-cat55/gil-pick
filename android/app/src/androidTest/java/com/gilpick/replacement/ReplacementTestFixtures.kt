@@ -14,6 +14,7 @@ import com.gilpick.route.readyRouteJson
 internal const val REPL_TRIP_ID = "3f1d2c4b-5a6e-4f70-8a91-b2c3d4e5f607"
 internal const val REPL_DETECTION_ID = "8a2918f7-e6d5-4c4b-8a29-18f7e6d5c4b3"
 internal const val REPL_ITEM_ID = "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b3"
+internal const val REPL_REPLACEMENT_ID = "7b6a5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d"
 internal const val REPL_PREVIEW_ID = "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a"
 internal const val REPL_CANDIDATE_ID = "eyJkIjoiOGEyOTE4ZjcifQ.c2lnbmF0dXJl"
 internal const val REPL_PLACE_ID = "tourapi:126508"
@@ -66,5 +67,26 @@ internal fun routePreviewJson(
 """.trimIndent()
 
 /** 운영 마감 시각을 확보하지 못한 미리보기. 그 항목만 `null`이고 나머지는 그대로다(FR-002). */
+/** REPL-002 승인 응답(#624). 승인 후 이동할 여행을 `tripId`로 알려 준다. */
+internal fun approvedReplacementJson() = """
+    {
+      "success": true,
+      "data": {
+        "replacementId": "$REPL_REPLACEMENT_ID",
+        "tripId": "$REPL_TRIP_ID",
+        "date": "2026-09-08",
+        "itemId": "$REPL_ITEM_ID",
+        "originalPlaceId": "google:original",
+        "newPlaceId": "$REPL_PLACE_ID",
+        "newPlaceName": "창덕궁",
+        "originalPlaceName": "경복궁",
+        "scheduleVersion": ${REPL_SCHEDULE_VERSION + 1},
+        "routeStatus": "READY",
+        "undoExpiresAt": "2036-09-08T14:39:20+09:00"
+      },
+      "meta": {"requestId": "$REPL_REQUEST_ID"}
+    }
+""".trimIndent()
+
 internal fun previewWithoutClosingTimeJson() =
     routePreviewJson(closesAt = """{"before": null, "after": null}""")
