@@ -604,6 +604,8 @@ Figma 팔레트가 대비 기준을 여러 곳에서 넘지 못하므로(3절), 
 - 자동 도착 처리처럼 시간이 걸리는 동작에는 남은 시간과 취소 수단을 함께 노출한다.
 - 지도 위 정보는 지도를 못 보는 사용자를 위해 목록으로도 제공한다.
 - 상태 표시줄 뒤까지 그리는 edge-to-edge 화면은 상단에 흰 띠를 두고(`statusBarsPadding`) 하단 CTA는 제스처 바 위에 둔다(`navigationBarsPadding`).
+- 앱 창은 `MainActivity`에서 `enableEdgeToEdge`로 연다. 이 호출이 없으면 API 35 미만 기기에서 시스템이 회색 `statusBarColor`를 칠해 앱 화면과 끊긴다(#590).
+- system bar 아이콘은 밝은 배경 기준(어두운 아이콘)이 기본이다. 지도처럼 위아래가 어두운 화면은 그 화면이 보이는 동안만 `LightSystemBarIcons()`로 밝은 아이콘을 쓴다.
 
 ### 범위 — 스크린리더 대응은 하지 않는다
 
