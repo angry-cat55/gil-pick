@@ -152,6 +152,53 @@ android {
     }
 }
 
+/** APK·AAB를 실제로 만들어 내보내는 task 이름 앞부분. 컴파일·lint만 하는 release task는 검사하지 않는다. */
+val releasePackagingPrefixes = listOf("assemble", "bundle", "package", "install")
+
+/** `gradle.properties`에 커밋된 자리표시자 API 도메인. 이 값으로는 어떤 요청도 성공하지 않는다. */
+val placeholderApiHost = "api.gilpick.example"
+
+/**
+ * 제출용 release 빌드가 자리표시자·빈 값으로 만들어지는 것을 막는다.
+ *
+ * debug 빌드와 CI는 값이 없어도 돌아가야 해서 위 property들이 모두 선택값이다. 그래서 release도
+ * 조용히 성공해 버리는데, 실제로는 서버에 못 붙거나(`GILPICK_API_BASE_URL` 기본값이 존재하지 않는
+ * `api.gilpick.example`) 지도가 비거나 무서명 APK가 되어 App Link 검증을 할 수 없다. 사람이 기억하는
+ * 대신 build가 막는다(#670).
+ *
+ * 검사는 APK·AAB를 실제로 만드는 task에만 건다. `compileReleaseKotlin`·`lintRelease`처럼 산출물을
+ * 내보내지 않는 release task는 그대로 둔다. task graph가 정해지는 시점에 확인해 컴파일을 시작하기 전에 멈춘다.
+ */
+gradle.taskGraph.whenReady {
+    val packagingRelease = allTasks.any { task ->
+        task.project == project &&
+            task.name.endsWith("Release") &&
+            releasePackagingPrefixes.any { task.name.startsWith(it) }
+    }
+    if (!packagingRelease) return@whenReady
+
+    val missing = buildList {
+        if (apiBaseUrl.isBlank() || apiBaseUrl.contains(placeholderApiHost)) {
+            add("GILPICK_API_BASE_URL (현재 값: \"$apiBaseUrl\" — 제출 서버 주소로 바꿔야 한다)")
+        }
+        if (naverMapsClientId.isBlank()) add("GILPICK_NAVER_MAPS_CLIENT_ID (없으면 지도 화면이 모두 비어 보인다)")
+        if (!hasReleaseSigning) {
+            add(
+                "GILPICK_KEYSTORE_PATH·GILPICK_KEYSTORE_PASSWORD·GILPICK_KEY_ALIAS·GILPICK_KEY_PASSWORD " +
+                    "(넷 다 있어야 서명한다. 무서명 APK로는 App Link 검증을 할 수 없다)",
+            )
+        }
+    }
+    check(missing.isEmpty()) {
+        buildString {
+            appendLine("release 빌드에 필요한 값이 빠졌다(#670):")
+            missing.forEach { appendLine("  - $it") }
+            appendLine("`~/.gradle/gradle.properties`에 넣거나 `-P<이름>=<값>`으로 주입한 뒤 다시 실행한다.")
+            append("debug 빌드와 unit test는 이 값들이 없어도 그대로 실행된다.")
+        }
+    }
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.compose.material3:material3")
