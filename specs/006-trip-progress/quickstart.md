@@ -22,7 +22,7 @@ cd ..\android
 1. 시작: 오늘 날짜·장소 3곳·READY 경로에서 `POST .../progress/start` → `IN_PROGRESS`, 첫 장소 `EN_ROUTE`, ETA 3개가 `시작+0`, `+체류+구간`, `+체류+구간` 규칙과 일치. `progressVersion` 1.
 2. 시작 멱등: 같은 `Idempotency-Key` 재전송과 다른 key의 재시작 모두 같은 `actualStartedAt`. 동시 요청 2개도 시각 하나.
 3. 시작 거부: 오늘이 기간 밖 `409 DAY_NOT_TODAY`, 장소 0곳 `422 DAY_EMPTY`, 타인·삭제 여행 `403/404`.
-4. 시작 위치: 유효 위치(정확도 ≤100m, ≤2분)면 `start_location` 저장·도보 구간 계산·첫 ETA 반영. 정확도 150m 또는 5분 지난 위치는 무시하고 위치 없이 시작. provider 실패 시 시작은 성공, 첫 ETA null.
+4. 시작 방식: `MOVE_TO_FIRST`는 유효 위치(정확도 ≤100m, ≤2분)를 `start_location`에 저장하고 선택한 `transportMode`로 시작 구간과 첫 ETA를 계산한다. 정확도 150m 또는 5분 지난 위치는 무시하고 위치 없이 시작하며 provider 실패 시에도 시작은 성공한다. `AT_FIRST_PLACE`는 provider를 호출하지 않고 첫 장소를 `ARRIVED`로 처리하며, 한 장소 일정은 즉시 `COMPLETED`가 된다.
 5. 도착: `PATCH .../status {ARRIVED}` → `actual_arrived_at` 저장, 이후 ETA가 `실제 도착+체류+구간`으로 갱신.
 6. 출발: `{COMPLETED}` → 현재 `COMPLETED`·`actual_departed_at`, 다음 `EN_ROUTE`, 이후 ETA가 `실제 출발+구간` 기준.
 7. 건너뛰기: `EN_ROUTE` 장소 `{SKIPPED}` → 다음 장소 `EN_ROUTE`, `progress_segments`에 `이전→다음` 구간(이전 장소 이동수단) 1행, ETA 반영. provider 실패면 행 없음·ETA null·전환은 성공.

@@ -7,7 +7,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from app.schemas.auth import ApiModel, ResponseMeta
@@ -39,6 +39,11 @@ class ProgressTargetStatus(StrEnum):
     COMPLETED = "COMPLETED"
     SKIPPED = "SKIPPED"
     PLANNED = "PLANNED"
+
+
+class StartMode(StrEnum):
+    MOVE_TO_FIRST = "MOVE_TO_FIRST"
+    AT_FIRST_PLACE = "AT_FIRST_PLACE"
 
 
 class InboundTravelSource(StrEnum):
@@ -168,7 +173,30 @@ class CurrentLocation(ProgressRequestModel):
 
 class StartDayProgressRequest(ProgressRequestModel):
     progress_version: int = Field(ge=0)
+    start_mode: StartMode = StartMode.MOVE_TO_FIRST
+    transport_mode: TransportMode | None = TransportMode.WALK
     current_location: CurrentLocation | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_start_defaults(cls, value: object) -> object:
+        if isinstance(value, dict):
+            normalized = dict(value)
+            start_mode = normalized.setdefault("startMode", StartMode.MOVE_TO_FIRST)
+            if "transportMode" not in normalized:
+                normalized["transportMode"] = (
+                    None if start_mode == StartMode.AT_FIRST_PLACE else "WALK"
+                )
+            return normalized
+        return value
+
+    @model_validator(mode="after")
+    def validate_start_options(self) -> StartDayProgressRequest:
+        if self.start_mode is StartMode.AT_FIRST_PLACE and self.transport_mode is not None:
+            raise ValueError("첫 장소에서 시작할 때는 이동수단을 보낼 수 없습니다.")
+        if self.start_mode is StartMode.MOVE_TO_FIRST and self.transport_mode is None:
+            raise ValueError("첫 장소로 이동할 때는 이동수단이 필요합니다.")
+        return self
 
 
 class UpdateItemProgressStatusRequest(ProgressRequestModel):

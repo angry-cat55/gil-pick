@@ -134,6 +134,12 @@ def test_progress_paths_and_start_contract() -> None:
         assert started.json()["data"]["detectionTargets"] == []
         assert started.json()["data"]["pendingCandidate"] is None
         assert started.json()["data"]["undoable"] is None
+        at_first = client.post(
+            f"/api/v1/trips/{trip_id}/days/2026-09-01/progress/start",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={"progressVersion": 0, "startMode": "AT_FIRST_PLACE"},
+        )
+        assert at_first.status_code == 200
     finally:
         app.dependency_overrides.clear()
 
@@ -145,6 +151,18 @@ def test_progress_openapi_declares_expected_responses() -> None:
     assert {"200", "400", "401", "403", "404"} <= set(get_op["responses"])
     assert {"200", "400", "401", "403", "404", "409", "422"} <= set(start_op["responses"])
     assert "422" not in get_op["responses"]
+
+    start_request = schema["components"]["schemas"]["StartDayProgressRequest"]
+    assert set(start_request["properties"]) >= {
+        "progressVersion",
+        "startMode",
+        "transportMode",
+        "currentLocation",
+    }
+    assert set(schema["components"]["schemas"]["StartMode"]["enum"]) == {
+        "MOVE_TO_FIRST",
+        "AT_FIRST_PLACE",
+    }
 
     progress_schema = schema["components"]["schemas"]["ProgressData"]
     assert {"detectionTargets", "pendingCandidate", "undoable"} <= set(
@@ -187,6 +205,9 @@ def test_progress_source_contract_matches_common_validation_error_policy() -> No
         "error"
     ]
     progress_item = contract["components"]["schemas"]["ProgressItem"]
+    start_request = paths["/trips/{tripId}/days/{date}/progress/start"]["post"][
+        "requestBody"
+    ]["content"]["application/json"]["schema"]
 
     assert "400" in get_responses
     assert "400" in start_responses
@@ -200,6 +221,13 @@ def test_progress_source_contract_matches_common_validation_error_policy() -> No
     assert set(
         contract["components"]["schemas"]["ProgressProcessingSource"]["enum"]
     ) == {"MANUAL", "AUTO"}
+    assert {"startMode", "transportMode", "currentLocation"} <= set(
+        start_request["properties"]
+    )
+    assert set(contract["components"]["schemas"]["StartMode"]["enum"]) == {
+        "MOVE_TO_FIRST",
+        "AT_FIRST_PLACE",
+    }
 
 
 def test_unstored_day_progress_contract_returns_empty_and_rejects_start() -> None:

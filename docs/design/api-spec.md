@@ -1156,6 +1156,8 @@ Request Body:
 ```json
 {
   "progressVersion": 0,
+  "startMode": "MOVE_TO_FIRST",
+  "transportMode": "TRANSIT",
   "currentLocation": {
     "latitude": 37.5796,
     "longitude": 126.9770,
@@ -1165,15 +1167,16 @@ Request Body:
 }
 ```
 
-`currentLocation`은 생략하거나 null로 보낼 수 있다. 값이 있으면 위 네 필드를 모두 보낸다.
+`startMode`은 `MOVE_TO_FIRST` 또는 `AT_FIRST_PLACE`다. `MOVE_TO_FIRST`는 `transportMode`(`WALK`, `TRANSIT`, `CAR`)를 함께 보내고, `AT_FIRST_PLACE`는 `transportMode`를 생략하거나 null로 보낸다. 기존 클라이언트 호환을 위해 두 필드를 모두 생략하면 `MOVE_TO_FIRST`와 `WALK`로 처리한다. `currentLocation`은 생략하거나 null로 보낼 수 있으며 값이 있으면 위 네 필드를 모두 보낸다.
 
 Response `200`: PROG-001과 같은 날짜 전체 진행 현황을 반환한다.
 
 정책:
 - 서버 수신 시각을 `actualStartedAt`으로 저장
 - 이미 `IN_PROGRESS` 또는 `COMPLETED`이면 기존 `actualStartedAt`과 저장된 진행 현황을 변경하지 않고 반환
-- 현재 위치는 정확도 100m 이하이고 서버 수신 기준 2분 이내일 때만 저장
-- 유효한 현재 위치가 있으면 첫 장소까지 도보 구간을 계산하며, 계산 실패는 여행 시작을 막지 않음
+- `MOVE_TO_FIRST`는 현재 위치가 정확도 100m 이하이고 서버 수신 기준 2분 이내일 때만 저장하고 선택 이동수단으로 첫 장소 구간을 계산함
+- 위치 부재·무효 또는 provider 계산 실패는 여행 시작을 막지 않으며 첫 ETA와 시작 구간 정보는 `정보 없음`으로 반환할 수 있음
+- `AT_FIRST_PLACE`는 위치와 provider를 사용하지 않고 첫 장소를 `ARRIVED`로 처리하며, 장소가 하나뿐이면 당일을 `COMPLETED`로 처리함
 
 주요 오류: `400 INVALID_REQUEST`, `401`, `403`, `404`, `409 VERSION_CONFLICT`, `409 DAY_NOT_TODAY`, `422 DAY_EMPTY`
 

@@ -13,6 +13,7 @@ from app.schemas.progress import (
     ProgressErrorCode,
     ProgressItem,
     ProgressProcessingSource,
+    StartMode,
     ProgressTargetStatus,
     StartDayProgressRequest,
     UndoableTransition,
@@ -165,6 +166,41 @@ def test_start_request_accepts_omitted_or_null_location_and_rejects_snake_case()
 
     with pytest.raises(ValidationError):
         StartDayProgressRequest.model_validate({"progress_version": 0})
+
+
+def test_start_request_supports_move_and_at_first_place_modes() -> None:
+    move = StartDayProgressRequest.model_validate(
+        {
+            "progressVersion": 0,
+            "startMode": "MOVE_TO_FIRST",
+            "transportMode": "TRANSIT",
+        }
+    )
+    at_first = StartDayProgressRequest.model_validate(
+        {"progressVersion": 0, "startMode": "AT_FIRST_PLACE"}
+    )
+    move_with_default_transport = StartDayProgressRequest.model_validate(
+        {"progressVersion": 0, "startMode": "MOVE_TO_FIRST"}
+    )
+
+    assert {mode.value for mode in StartMode} == {
+        "MOVE_TO_FIRST",
+        "AT_FIRST_PLACE",
+    }
+    assert move.transport_mode == "TRANSIT"
+    assert move_with_default_transport.transport_mode == "WALK"
+    assert at_first.transport_mode is None
+
+
+def test_start_request_rejects_transport_mode_at_first_place() -> None:
+    with pytest.raises(ValidationError):
+        StartDayProgressRequest.model_validate(
+            {
+                "progressVersion": 0,
+                "startMode": "AT_FIRST_PLACE",
+                "transportMode": "WALK",
+            }
+        )
 
 
 def test_progress_response_nullable_fields_are_still_required() -> None:

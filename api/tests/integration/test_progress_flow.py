@@ -27,9 +27,11 @@ from app.clients.route_provider import Provider, RouteProviderError
 class _Calculator:
     def __init__(self) -> None:
         self.calls = 0
+        self.last_transport_mode = None
 
     async def calculate_single_segment(self, **kwargs):
         self.calls += 1
+        self.last_transport_mode = kwargs["transport_mode"]
         return SingleSegmentResult(duration_seconds=600, distance_meters=800, provider=Provider.TMAP)
 
 
@@ -191,15 +193,18 @@ async def test_valid_start_location_persists_computed_segment_and_eta(
     trip_id, _ = await _seed(session_factory)
     now = datetime.now(UTC)
     today = now.astimezone(timezone(timedelta(hours=9))).date()
+    calculator = _Calculator()
     payload = StartDayProgressRequest.model_validate({
         "progressVersion": 0,
+        "startMode": "MOVE_TO_FIRST",
+        "transportMode": "TRANSIT",
         "currentLocation": {"latitude": 37.57, "longitude": 126.98, "accuracyMeters": 20, "occurredAt": now.isoformat()},
     })
     key = uuid.uuid4()
 
     async with transaction_session(session_factory) as session:
         result = await ProgressService(
-            session, calculator=_Calculator(), session_factory=session_factory
+            session, calculator=calculator, session_factory=session_factory
         ).start_day(
             trip_id=trip_id, visit_date=today, payload=payload, idempotency_key=key
         )
@@ -209,10 +214,70 @@ async def test_valid_start_location_persists_computed_segment_and_eta(
         )
 
     assert result.start_location is not None
+    assert calculator.last_transport_mode.value == "TRANSIT"
     assert retried.start_location == result.start_location
     assert result.items[0].inbound_travel is not None
     assert result.items[0].inbound_travel.source == "COMPUTED"
+    assert result.items[0].inbound_travel.transport_mode == "TRANSIT"
     assert result.items[0].estimated_arrival_at == result.actual_started_at + timedelta(seconds=600)
+
+
+@pytest.mark.asyncio
+async def test_at_first_place_starts_with_arrival_without_provider_call(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, day_id, _ = await _seed_three(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+    calculator = _Calculator()
+    payload = StartDayProgressRequest.model_validate(
+        {"progressVersion": 0, "startMode": "AT_FIRST_PLACE"}
+    )
+
+    async with session_factory() as session:
+        result = await ProgressService(
+            session, calculator=calculator, session_factory=session_factory
+        ).start_day(
+            trip_id=trip_id,
+            visit_date=today,
+            payload=payload,
+            idempotency_key=uuid.uuid4(),
+        )
+    async with session_factory() as session:
+        transition = await session.scalar(
+            select(ProgressTransition).where(
+                ProgressTransition.trip_day_id == day_id
+            )
+        )
+
+    assert calculator.calls == 0
+    assert result.start_location is None
+    assert result.day_status == "IN_PROGRESS"
+    assert result.items[0].status == "ARRIVED"
+    assert result.items[0].actual_arrived_at == result.actual_started_at
+    assert transition is not None
+    assert transition.affected_items[0]["afterStatus"] == "ARRIVED"
+
+
+@pytest.mark.asyncio
+async def test_at_first_place_completes_single_place_day(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    trip_id, _ = await _seed(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+
+    async with session_factory() as session:
+        result = await ProgressService(session).start_day(
+            trip_id=trip_id,
+            visit_date=today,
+            payload=StartDayProgressRequest.model_validate(
+                {"progressVersion": 0, "startMode": "AT_FIRST_PLACE"}
+            ),
+            idempotency_key=uuid.uuid4(),
+        )
+
+    assert result.day_status == "COMPLETED"
+    assert result.completed_at == result.actual_started_at
+    assert result.items[0].status == "ARRIVED"
 
 
 @pytest.mark.asyncio

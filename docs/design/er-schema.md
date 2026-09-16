@@ -557,10 +557,10 @@ enum은 PostgreSQL enum 대신 `varchar + CHECK`를 사용해 Alembic 변경 부
 
 1. `trip_days` 행을 잠근다.
 2. `progress_version`과 `Idempotency-Key`를 검증한다.
-3. 최초 요청이면 `actual_started_at`, 선택적 시작 위치, `status=IN_PROGRESS`, `detection_active=true`를 저장한다.
-4. 첫 일정 장소를 `EN_ROUTE`로 변경하고 `START` transition을 기록한다.
+3. 최초 요청이면 `actual_started_at`과 시작 상태를 저장한다. `MOVE_TO_FIRST`일 때만 유효한 시작 위치를 저장한다.
+4. `MOVE_TO_FIRST`는 첫 장소를 `EN_ROUTE`로, `AT_FIRST_PLACE`는 첫 장소를 `ARRIVED`로 변경하고 `START` transition을 기록한다. 현장 시작한 장소가 하나뿐이면 날짜도 `COMPLETED`로 처리한다.
 5. `progress_version`을 증가시키고 같은 transaction으로 commit한다.
-6. 현재 위치→첫 장소 provider 계산은 transaction 밖에서 수행한다. 성공하면 `progress_segments`를 별도 transaction으로 upsert하고 ETA를 갱신하며, 실패해도 시작 상태는 유지한다.
+6. `MOVE_TO_FIRST`의 현재 위치→첫 장소 provider 계산은 요청 이동수단으로 transaction 밖에서 수행한다. 성공하면 `progress_segments`를 별도 transaction으로 upsert하고 ETA를 갱신하며, 실패해도 시작 상태는 유지한다. `AT_FIRST_PLACE`는 provider를 호출하지 않는다.
 
 ### 수동 진행 상태 전환
 
