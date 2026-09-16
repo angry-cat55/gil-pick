@@ -50,7 +50,7 @@ fun NavGraphBuilder.routeGraph(
     repository: (Context) -> RouteRepository = RouteViewModel::defaultRepository,
     progressRepository: (Context) -> ProgressRepository? = ProgressViewModel::defaultRepository,
     map: @Composable (RouteDto, RouteMarks, Float, RouteFocus?, Modifier) -> Unit = { route, marks, sheetFraction, focus, modifier ->
-        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = sheetFraction, focus = focus)
+        RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = sheetFraction, focus = focus, myLocation = true)
     },
 ) {
     composable<DayRouteRoute> { entry ->
