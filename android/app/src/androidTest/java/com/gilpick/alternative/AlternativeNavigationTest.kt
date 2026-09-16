@@ -73,6 +73,9 @@ class AlternativeNavigationTest {
     private val dismissRequests = mutableListOf<String>()
     private val selected = mutableListOf<SelectedAlternative>()
 
+    /** 후보 행 탭으로 장소 상세를 열어 달라고 받은 값(#660). */
+    private val opened = mutableListOf<SelectedAlternative>()
+
     @Before
     fun setUp() {
         server.start()
@@ -147,7 +150,7 @@ class AlternativeNavigationTest {
         composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).performClick()
         awaitAlternatives()
 
-        composeRule.onNodeWithText("경로 비교").performScrollTo().performClick()
+        composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + 1).performScrollTo().performClick()
 
         composeRule.runOnIdle {
             assertEquals(
@@ -166,6 +169,23 @@ class AlternativeNavigationTest {
             // 선택은 값 전달뿐이다. 화면은 그대로이고 거절 요청도 없다.
             assertEquals(true, navController.currentBackStackEntry?.destination?.hasRoute<AlternativePlacesRoute>())
             assertEquals(emptyList<String>(), dismissRequests)
+        }
+    }
+
+    @Test
+    fun 후보_행을_누르면_같은_후보_값으로_onOpenPlace가_불린다() {
+        setGraph()
+        awaitBanner()
+        composeRule.onNodeWithTag(TAG_VARIABLE_BANNER).performClick()
+        awaitAlternatives()
+
+        composeRule.onNodeWithTag(TAG_CANDIDATE_PREFIX + 1).performScrollTo().performClick()
+
+        composeRule.runOnIdle {
+            // 상세로 가는 값도 경로 비교와 같은 후보 정보다. 상세의 `장소 변경`이 이 값으로 변경 흐름을 잇는다(#660).
+            assertEquals(listOf(CANDIDATE_ID), opened.map { it.candidateId })
+            assertEquals(listOf("tourapi:126508"), opened.map { it.placeId })
+            assertEquals(emptyList<SelectedAlternative>(), selected)
         }
     }
 
@@ -213,9 +233,10 @@ class AlternativeNavigationTest {
                         navController,
                         onSessionExpired = {},
                         onSelectPlace = { selected += it },
+                        onOpenPlace = { opened += it },
                         onDismissed = { navController.popBackStack() },
                         repository = { alternativeRepository },
-                        map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
+                        map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                 }
             }

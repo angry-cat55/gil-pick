@@ -16,6 +16,7 @@ import com.gilpick.auth.toAuthResult
 import com.gilpick.notification.FcmTokenClearWorker
 import com.gilpick.notification.FcmTokenSyncWorker
 import com.gilpick.place.PlaceListMeta
+import com.gilpick.route.Position
 import java.io.IOException
 import retrofit2.Response
 
@@ -97,6 +98,20 @@ class AlternativeRepository(
     /** 추천 후보를 조회한다(ALT-001). 후보가 없으면 `items`가 빈 성공 응답이다. */
     suspend fun listAlternatives(detectionId: String): AuthResult<AlternativeListDto> = call { token ->
         api.listAlternatives(bearer = token, detectionId = detectionId).toAuthResult()
+    }
+
+    /**
+     * 기존 장소의 좌표를 조회한다(#660).
+     *
+     * 지도에 원래 장소를 함께 그리기 위한 보조 조회다. 실패하면 후보만 그리면 되므로 원인을 구분하지 않고
+     * `null`을 돌려준다(후보 목록 자체는 이 실패와 무관하게 성립한다).
+     */
+    suspend fun originPosition(placeId: String): Position? {
+        val result = call { token -> api.getPlace(bearer = token, placeId = placeId).toAuthResult() }
+        val place = (result as? AuthResult.Success)?.value ?: return null
+        val latitude = place.latitude ?: return null
+        val longitude = place.longitude ?: return null
+        return listOf(longitude, latitude)
     }
 
     /**

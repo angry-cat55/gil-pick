@@ -104,7 +104,7 @@ class AlternativeSearchScreenshotTest {
             onLoadMore = {},
             onRetryLoadMore = {},
             onSelect = {},
-            map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.primaryContainer)) },
+            map = { _, _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.primaryContainer)) },
         )
     }
 

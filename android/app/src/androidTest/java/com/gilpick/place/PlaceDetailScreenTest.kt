@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -298,6 +299,19 @@ class PlaceDetailScreenTest {
 
     private fun content(place: PlaceDto) = PlaceDetailUiState(PlaceDetailPhase.Content(place))
 
+    @Test
+    fun 대체_장소_문맥에서는_장소_변경_CTA가_시트_없이_바로_변경으로_간다() {
+        var replaces = 0
+        setScreen(content(testPlace("tourapi:1")), onReplace = { replaces++ })
+
+        composeRule.onNodeWithText("일정에 추가").assertDoesNotExist()
+        composeRule.onNodeWithTag(PLACE_DETAIL_PRIMARY_TAG).assertTextEquals("장소 변경").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, replaces) }
+        // 이동 수단·체류 시간 시트는 F004 문맥에서만 뜬다.
+        composeRule.onNodeWithTag(ADD_TO_SCHEDULE_CONFIRM_TAG).assertDoesNotExist()
+    }
+
     private fun setScreen(
         state: PlaceDetailUiState,
         onBack: () -> Unit = {},
@@ -305,10 +319,19 @@ class PlaceDetailScreenTest {
         onReauthenticate: () -> Unit = {},
         onAddToSchedule: (AddToScheduleRequest) -> Unit = {},
         onOpenMap: () -> Unit = {},
+        onReplace: (() -> Unit)? = null,
     ) {
         composeRule.setContent {
             GilpickTheme {
-                PlaceDetailScreen(state = state, onBack = onBack, onRetry = onRetry, onReauthenticate = onReauthenticate, onAddToSchedule = onAddToSchedule, onOpenMap = onOpenMap)
+                PlaceDetailScreen(
+                    state = state,
+                    onBack = onBack,
+                    onRetry = onRetry,
+                    onReauthenticate = onReauthenticate,
+                    onAddToSchedule = onAddToSchedule,
+                    onOpenMap = onOpenMap,
+                    onReplace = onReplace,
+                )
             }
         }
     }

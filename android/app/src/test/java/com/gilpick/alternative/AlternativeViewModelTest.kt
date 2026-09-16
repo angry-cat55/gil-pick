@@ -81,6 +81,39 @@ class AlternativeViewModelTest {
     }
 
     @Test
+    fun `기존 장소 좌표는 후보 표시를 막지 않고 뒤따라 채워진다`() = runTest {
+        val place = CompletableDeferred<Unit>()
+        service.onGetPlace = { placeId -> place.await(); placeResponse(originPlace(placeId, latitude = 37.5796, longitude = 126.9770)) }
+
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        // 좌표 조회가 끝나기 전에도 후보는 이미 보인다(#660).
+        val before = viewModel.state.value as AlternativeUiState.Content
+        assertEquals(listOf(1, 2), before.candidates.items.map { it.rank })
+        assertNull(before.origin)
+
+        place.complete(Unit)
+        advanceUntilIdle()
+
+        val after = viewModel.state.value as AlternativeUiState.Content
+        assertEquals(listOf(126.9770, 37.5796), after.origin)
+        assertEquals(listOf("tourapi:126001"), service.placeCalls)
+    }
+
+    @Test
+    fun `기존 장소 좌표를 못 얻으면 후보만 그린다`() = runTest {
+        service.onGetPlace = { fail(404, AlternativeErrorCodes.DETECTION_NOT_FOUND) }
+
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        val content = viewModel.state.value as AlternativeUiState.Content
+        assertNull(content.origin)
+        assertEquals(listOf(1, 2), content.candidates.items.map { it.rank })
+    }
+
+    @Test
     fun `후보가 없으면 빈 content다`() = runTest {
         service.onListAlternatives = { ok(alternativesEmptyJson()) }
 

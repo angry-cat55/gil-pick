@@ -32,9 +32,16 @@ data class PlaceSearchRoute(val firstPlace: Boolean = false)
  *
  * @property placeId `tourapi:{contentId}` 또는 `google:{placeId}`. 검색 결과에서 받은
  *   값을 가공하지 않고 그대로 넘긴다. server가 이 prefix로 조회 provider를 정한다.
+ * @property detectionId 대체 장소 문맥으로 열렸으면 그 감지. `null`이면 F004 `일정에 추가` 문맥이다(#660).
+ * @property candidateId 대체 장소 문맥에서 F009 추천 후보면 그 토큰. 직접 검색이면 `null`이다.
  */
 @Serializable
-data class PlaceDetailRoute(val placeId: String, val firstPlace: Boolean = false)
+data class PlaceDetailRoute(
+    val placeId: String,
+    val firstPlace: Boolean = false,
+    val detectionId: String? = null,
+    val candidateId: String? = null,
+)
 
 /**
  * 장소 지도 전체 화면 route(#479). 상세가 이미 가진 값만 넘기므로 다시 조회하지 않는다.
@@ -63,11 +70,14 @@ data class PlaceMapRoute(val name: String, val latitude: Double?, val longitude:
  * @param onSessionExpired 자격이 무효로 확정됐다. F001 재인증 흐름으로 넘긴다.
  * @param onAddToSchedule 검색 결과 행의 `+` 또는 상세의 `일정에 추가` 시트에서 확정한 값. 일정에
  *   반영하고 편집 화면으로 돌아가는 일은 호출자(F004)가 한다.
+ * @param onReplacePlace 대체 장소 문맥으로 열린 상세의 `장소 변경`. 고른 장소로 F010 변경 경로 미리보기를
+ *   여는 일은 호출자가 한다(#660).
  */
 fun NavGraphBuilder.placeGraph(
     navController: NavController,
     onSessionExpired: () -> Unit,
     onAddToSchedule: (PlaceDto, AddToScheduleRequest) -> Unit = { _, _ -> },
+    onReplacePlace: (detectionId: String, candidateId: String?, place: PlaceDto) -> Unit = { _, _, _ -> },
     loadNearbyOnEntry: Boolean = true,
 ) {
     composable<PlaceSearchRoute> { entry ->
@@ -148,6 +158,12 @@ fun NavGraphBuilder.placeGraph(
             onOpenMap = {
                 (state.phase as? PlaceDetailPhase.Content)?.place?.let { place ->
                     navController.navigate(PlaceMapRoute(place.name, place.latitude, place.longitude))
+                }
+            },
+            // 대체 장소 문맥에서는 `일정에 추가` 대신 `장소 변경`이다. 시트 없이 바로 경로 비교로 간다(#660).
+            onReplace = route.detectionId?.let { detectionId ->
+                {
+                    (state.phase as? PlaceDetailPhase.Content)?.let { onReplacePlace(detectionId, route.candidateId, it.place) }
                 }
             },
             askTransport = !route.firstPlace,

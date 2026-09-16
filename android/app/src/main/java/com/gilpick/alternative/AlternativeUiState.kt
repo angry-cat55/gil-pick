@@ -1,6 +1,7 @@
 package com.gilpick.alternative
 
 import com.gilpick.place.PlaceCategory
+import com.gilpick.route.Position
 /**
  * 대체 장소 화면의 표시 상태(data-model.md §3.1, spec UI-006).
  *
@@ -34,10 +35,13 @@ sealed interface AlternativeUiState {
      * @property refreshing 재조회 중. 기존 내용을 그대로 두고 조용히 갱신한다.
      * @property dismissPending 거절(DETECT-004) 응답 대기 중. `기존 일정 그대로 진행`을 잠근다(UI-005).
      * @property dismissError 마지막 거절 실패. 화면은 그대로 두고 원인을 보인다.
+     * @property origin 기존 장소 좌표(`[경도, 위도]`). ALT-001·DETECT-002에는 좌표가 없어 `originPlaceId`로
+     *   따로 조회한다. 못 얻으면 `null`이고 지도는 후보만 그린다(UI-004, #660).
      */
     data class Content(
         val detection: DetectionDetailDto,
         val candidates: AlternativeListDto,
+        val origin: Position? = null,
         val refreshing: Boolean = false,
         val dismissPending: Boolean = false,
         val dismissError: AlternativeError? = null,

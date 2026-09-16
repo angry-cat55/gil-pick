@@ -642,6 +642,17 @@ private fun TripRoute(
                     )
                 },
                 onDismissed = { navController.popBackStack() },
+                // 후보 행 탭은 같은 후보 정보를 들고 장소 상세로 간다. 상세의 `장소 변경`이 아래 placeGraph의
+                // onReplacePlace로 돌아와 같은 미리보기 route를 연다(#660).
+                onOpenPlace = { selected ->
+                    navController.navigate(
+                        PlaceDetailRoute(
+                            placeId = selected.placeId,
+                            detectionId = selected.detectionId,
+                            candidateId = selected.candidateId,
+                        ),
+                    )
+                },
             )
 
             // F010 변경 경로 미리보기. destination 정의는 com.gilpick.replacement가 소유한다. 위
@@ -673,6 +684,16 @@ private fun TripRoute(
                 navController,
                 onSessionExpired = onSessionExpired,
                 onAddToSchedule = navController::returnAddToSchedule,
+                onReplacePlace = { detectionId, candidateId, place ->
+                    navController.navigate(
+                        RoutePreviewRoute(
+                            detectionId = detectionId,
+                            placeId = place.placeId,
+                            candidateId = candidateId,
+                            placeName = place.name,
+                        ),
+                    )
+                },
             )
         }
     }

@@ -67,6 +67,16 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.Manifest
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.gilpick.progress.DeviceLocationProvider
+import com.gilpick.route.MyLocationButton
+import com.gilpick.route.Position
+import com.gilpick.route.RouteFocus
 import com.gilpick.place.tourApiAttributionText
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.R
@@ -82,6 +92,7 @@ import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import com.gilpick.ui.theme.displayFont
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
@@ -96,7 +107,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  *
  * @param onToggleSelect 행·마커 탭. 같은 결과를 다시 누르면 선택이 풀린다.
  * @param onSelectCategory 카테고리 칩. `null`은 `전체`.
- * @param map 지도 영역. 기본은 Naver [AlternativeSearchMap]이며 UI test·screenshot은 자리 표시로 바꿔 끼운다.
+ * @param hasLocationPermission 위치 권한이 있는지. 기본은 실제 기기 권한이며, UI test는 권한 상태를 바꿔 끼운다.
+ * @param currentLocation `내 위치로 이동`이 누를 때마다 확인하는 현재 위치(`[경도, 위도]`). 못 얻으면 `null`이고
+ *   화면은 지도를 옮기는 대신 이유를 알린다(#660, F005와 같은 처리).
+ * @param map 지도 영역. 네 번째 인자는 `내 위치로 이동`이 확인한 좌표다. 기본은 Naver [AlternativeSearchMap]이며
+ *   UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
 fun AlternativeSearchScreen(
@@ -113,16 +128,45 @@ fun AlternativeSearchScreen(
     modifier: Modifier = Modifier,
     onToggleSelect: (placeId: String) -> Unit = {},
     onSelectCategory: (PlaceCategory?) -> Unit = {},
-    map: @Composable (List<AlternativeSearchItemDto>, String?, (String) -> Unit, Modifier) -> Unit = { results, selected, onMarkerClick, mapModifier ->
-        AlternativeSearchMap(results = results, selectedPlaceId = selected, onMarkerClick = onMarkerClick, modifier = mapModifier)
+    hasLocationPermission: (Context) -> Boolean = { DeviceLocationProvider.hasLocationPermission(it) },
+    currentLocation: suspend (Context) -> Position? = { context ->
+        DeviceLocationProvider.forMap(context)?.let { listOf(it.longitude, it.latitude) }
+    },
+    map: @Composable (List<AlternativeSearchItemDto>, String?, (String) -> Unit, RouteFocus.MyLocation?, Modifier) -> Unit = { results, selected, onMarkerClick, focus, mapModifier ->
+        AlternativeSearchMap(results = results, selectedPlaceId = selected, onMarkerClick = onMarkerClick, focus = focus, modifier = mapModifier)
     },
 ) {
     val spacing = LocalGilpickSpacing.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 누를 때마다 위치를 새로 확인한다. 화면에 들어온 시점에 위치 서비스가 꺼져 있었더라도 이 누름에서
+    // 다시 시도하고, 끝내 못 얻으면 아무 일도 없는 대신 이유를 알린다(#651과 같은 처리).
+    var focus by remember { mutableStateOf<RouteFocus.MyLocation?>(null) }
+    var notice by remember { mutableStateOf<Int?>(null) }
+    var locating by remember { mutableStateOf(false) }
+    fun locate() {
+        if (locating) return
+        locating = true
+        notice = null
+        scope.launch {
+            val position = currentLocation(context)
+            locating = false
+            if (position == null) {
+                notice = R.string.route_my_location_unavailable
+            } else {
+                focus = RouteFocus.MyLocation(position, (focus?.tick ?: 0) + 1)
+            }
+        }
+    }
+    // 권한을 받은 뒤에야 현재 위치를 알 수 있으므로, 허용된 뒤에 확인한다(F003 PlaceNavigation과 같은 방식).
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.any { it }) locate() else notice = R.string.route_my_location_denied
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val sheetMaxHeight = maxHeight * SHEET_MAX_FRACTION
         Box(modifier = Modifier.fillMaxSize().testTag(TAG_SEARCH_MAP)) {
-            map(state.results, state.selectedPlaceId, onToggleSelect, Modifier.fillMaxSize())
+            map(state.results, state.selectedPlaceId, onToggleSelect, focus, Modifier.fillMaxSize())
         }
         Column(modifier = Modifier.statusBarsPadding().padding(top = spacing.space4)) {
             FloatingSearchBar(
@@ -137,6 +181,21 @@ fun AlternativeSearchScreen(
             if (!categories.isNullOrEmpty()) {
                 CategoryChips(categories = categories, selected = state.category, onSelect = onSelectCategory, modifier = Modifier.padding(top = spacing.space3))
             }
+            // 권한 거부와 위치 확인 실패를 같은 자리에서 구분해 알린다(F005 `내 위치로 이동`과 같은 control).
+            MyLocationButton(
+                notice = notice,
+                onClick = {
+                    notice = null
+                    if (hasLocationPermission(context)) {
+                        locate()
+                    } else {
+                        locationPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(top = spacing.space3, end = spacing.space4),
+            )
         }
         ResultSheet(
             state = state,

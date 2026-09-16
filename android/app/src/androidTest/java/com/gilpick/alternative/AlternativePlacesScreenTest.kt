@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -18,9 +19,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.ui.component.TAG_HEADER_BACK
+import com.gilpick.ui.component.TAG_SHEET_HANDLE
 import com.gilpick.auth.SuccessEnvelope
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.json.Json
@@ -87,7 +91,8 @@ class AlternativePlacesScreenTest {
     @Test
     fun 후보_행은_순위와_이름과_카테고리와_거리와_평점과_운영_상태와_근거를_보이고_1위만_TOP이다() {
         val selected = mutableListOf<AlternativeCandidateDto>()
-        setScreen(content(), onSelect = { selected += it })
+        val opened = mutableListOf<AlternativeCandidateDto>()
+        setScreen(content(), onSelect = { selected += it }, onOpenDetail = { opened += it })
 
         candidate(1).performScrollTo()
         inCandidate(1, "창덕궁").assertIsDisplayed()
@@ -103,9 +108,29 @@ class AlternativePlacesScreenTest {
         inCandidate(2, "카페 · 1.5km").assertIsDisplayed()
         inCandidate(2, "운영시간 확인 불가").assertIsDisplayed()
 
-        inCandidate(1, "경로 비교").assertHeightIsAtLeast(48.dp).performClick()
-        inCandidate(2, "비교").assertHeightIsAtLeast(48.dp).performClick()
+        // 모든 후보의 CTA가 같은 `비교`다. 1위만 다른 버튼이면 이미 고른 후보처럼 읽힌다(#660).
+        compare(1).assertHeightIsAtLeast(48.dp).assertTextEquals("비교").performClick()
+        compare(2).assertHeightIsAtLeast(48.dp).assertTextEquals("비교").performClick()
         composeRule.runOnIdle { assertEquals(listOf(1, 2), selected.map { it.rank }) }
+
+        // 행 자체를 누르면 장소 상세로 간다(#660).
+        candidate(2).performClick()
+        composeRule.runOnIdle { assertEquals(listOf(2), opened.map { it.rank }) }
+    }
+
+    @Test
+    fun sheet를_끌어_내려도_감지_요약과_추천_후보_수는_남는다() {
+        setScreen(content())
+
+        // 후보 목록은 sheet를 가장 낮춰도 머리말까지는 남는다(#660).
+        composeRule.onNodeWithTag(TAG_SHEET_HANDLE).performTouchInput { swipeDown(startY = centerY, endY = centerY + 2_000f) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("경복궁 · 방문 어려움 감지", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_COUNT).assertIsDisplayed()
+        // 접히면 지도 영역이 더 넓어진다. 손잡이를 다시 올리면 후보 행이 돌아온다.
+        composeRule.onNodeWithTag(TAG_SHEET_HANDLE).performClick()
+        composeRule.waitForIdle()
+        candidate(1).assertIsDisplayed()
     }
 
     @Test
@@ -211,6 +236,8 @@ class AlternativePlacesScreenTest {
 
     private fun candidate(rank: Int) = composeRule.onNodeWithTag(TAG_CANDIDATE_PREFIX + rank)
 
+    private fun compare(rank: Int) = composeRule.onNodeWithTag(TAG_COMPARE_PREFIX + rank)
+
     private fun inCandidate(rank: Int, text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(TAG_CANDIDATE_PREFIX + rank)))
 
@@ -219,6 +246,7 @@ class AlternativePlacesScreenTest {
         onBack: () -> Unit = {},
         onRetry: () -> Unit = {},
         onSelect: (AlternativeCandidateDto) -> Unit = {},
+        onOpenDetail: (AlternativeCandidateDto) -> Unit = {},
         onSearch: () -> Unit = {},
         onKeep: () -> Unit = {},
         onRetryKeep: () -> Unit = onKeep,
@@ -230,11 +258,12 @@ class AlternativePlacesScreenTest {
                     onBack = onBack,
                     onRetry = onRetry,
                     onSelect = onSelect,
+                    onOpenDetail = onOpenDetail,
                     onSearch = onSearch,
                     onKeep = onKeep,
                     onRetryKeep = onRetryKeep,
                     onReauthenticate = {},
-                    map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
+                    map = { _, _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                 )
             }
         }
