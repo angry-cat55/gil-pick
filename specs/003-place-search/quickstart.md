@@ -46,6 +46,15 @@ android\gradlew.bat -p android connectedDebugAndroidTest
 6. 360dp 폭, 최대 font scale, TalkBack focus 순서, live region, 48dp touch target을 확인한다.
 7. 장소별 provider 배지는 표시하지 않는다. Google 정보가 있는 영역에는 필수 attribution이, TourAPI 결과가 있는 검색 결과 목록·상세 정보 영역에는 `출처: ⓒ한국관광공사` 한 줄이 표시된다. Google 결과만 있으면 공공데이터 출처는 표시되지 않는다(UI-012, 2026-09-16).
 
+### 카테고리 필터 줄바꿈 검증 (#574, 2026-09-16, jy)
+
+| 항목 | 명령·방법 | 결과 |
+|---|---|---|
+| 칩 layout | 가로 스크롤 `Row`를 `FlowRow(maxItemsInEachRow = 3)`로 바꿔 3+3 두 줄로 둔다 | 적용 |
+| UI test | `ANDROID_SERIAL=emulator-5556 android\gradlew.bat --offline :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.gilpick.place.PlaceSearchScreenTest` | 통과 28건. 신규 `카테고리_칩_여섯_개는_360dp에서_가로_스크롤_없이_모두_보인다`(6개 모두 표시·48dp·좌우 360dp 안), `카테고리_칩은_최대_글자_배율_360dp에서도_모두_보이고_선택된다`(글자 2.0배에서도 모두 보이고 `쇼핑` 선택이 전달됨) |
+| screenshot | `search_content_360dp`: 이전에는 `쇼핑`이 화면 밖으로 밀렸고, 지금은 3+3 두 줄로 모두 보인다 | 통과 (사람 확인) |
+| Figma 차이 | Figma `AddPlaceScreen`은 `overflow-x-auto` 한 줄이다. 360dp에서 여섯 번째 칩을 볼 수 없어 `spec.md` UI-016으로 예외를 기록했다 | 기록 완료 |
+
 ### 실시간 영업 상태 표시 검증 (#576, 2026-09-16, jy)
 
 | 항목 | 명령·방법 | 결과 |

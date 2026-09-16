@@ -3,8 +3,8 @@ package com.gilpick.place
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -270,9 +270,13 @@ private fun Header(
             onSearch = onSearch,
             modifier = Modifier.padding(bottom = spacing.space3),
         )
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        // Figma는 칩 줄을 가로 스크롤(`overflow-x-auto`)로 두지만 360dp에서 여섯 번째 칩(`쇼핑`)이 화면 밖으로
+        // 밀려 스크롤해야 보였다(#574). 줄을 넘겨 한 화면에 모두 두고, 글자 배율이 커지면 줄이 더 늘어난다.
+        // 한 줄 3개로 끊어 5+1처럼 어긋나지 않게 한다.
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+            verticalArrangement = Arrangement.spacedBy(spacing.space2),
+            maxItemsInEachRow = CHIPS_PER_ROW,
         ) {
             CategoryChip(
                 label = stringResource(R.string.place_search_category_all),
@@ -748,6 +752,9 @@ internal fun OutlineButton(label: String, onClick: () -> Unit) {
 }
 
 /** Figma 칩 순서. `기타`는 Figma에 없어 두지 않는다. */
+/** 칩 한 줄에 둘 개수. 여섯 칩이 360dp 한 줄에 들어가지 않아 3+3으로 끊는다(#574). */
+private const val CHIPS_PER_ROW = 3
+
 private val CHIP_CATEGORIES = listOf(
     PlaceCategory.NATURE,
     PlaceCategory.HISTORY_CULTURE,

@@ -1,5 +1,10 @@
 package com.gilpick.place
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,11 +20,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gilpick.ui.theme.GilpickTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -334,6 +342,75 @@ class PlaceSearchScreenTest {
         composeRule.runOnIdle { assertEquals(1, reauths) }
     }
 
+    /** #574: 칩 여섯 개가 360dp 한 화면에 가로 스크롤 없이 모두 보인다. */
+    @Test
+    fun 카테고리_칩_여섯_개는_360dp에서_가로_스크롤_없이_모두_보인다() {
+        composeRule.setContent {
+            GilpickTheme {
+                Box(modifier = Modifier.width(360.dp)) {
+                    PlaceSearchScreen(
+                        state = PlaceSearchUiState(),
+                        onBack = {},
+                        onQueryChange = {},
+                        onClearQuery = {},
+                        onCategoryChange = {},
+                        onSearch = {},
+                        onRetry = {},
+                        onReauthenticate = {},
+                        onLoadMore = {},
+                        onRetryLoadMore = {},
+                        onSearchByCategory = {},
+                        onPlaceClick = {},
+                        onAddToSchedule = { _, _ -> },
+                    )
+                }
+            }
+        }
+
+        CHIP_LABELS.forEach { label ->
+            val chip = composeRule.onNodeWithText(label).assertIsDisplayed()
+            chip.assertHeightIsAtLeast(48.dp)
+            val bounds = chip.getBoundsInRoot()
+            assertTrue("$label=$bounds", bounds.right <= 360.dp && bounds.left >= 0.dp)
+        }
+    }
+
+    @Test
+    fun 카테고리_칩은_최대_글자_배율_360dp에서도_모두_보이고_선택된다() {
+        var picked: PlaceCategory? = null
+        composeRule.setContent {
+            GilpickTheme {
+                Box(modifier = Modifier.width(360.dp)) {
+                    val density = LocalDensity.current
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                        PlaceSearchScreen(
+                            state = PlaceSearchUiState(),
+                            onBack = {},
+                            onQueryChange = {},
+                            onClearQuery = {},
+                            onCategoryChange = { picked = it },
+                            onSearch = {},
+                            onRetry = {},
+                            onReauthenticate = {},
+                            onLoadMore = {},
+                            onRetryLoadMore = {},
+                            onSearchByCategory = {},
+                            onPlaceClick = {},
+                            onAddToSchedule = { _, _ -> },
+                        )
+                    }
+                }
+            }
+        }
+
+        CHIP_LABELS.forEach { label ->
+            val bounds = composeRule.onNodeWithText(label).assertIsDisplayed().getBoundsInRoot()
+            assertTrue("$label=$bounds", bounds.right <= 360.dp && bounds.left >= 0.dp)
+        }
+        composeRule.onNodeWithText("쇼핑").performClick()
+        composeRule.runOnIdle { assertEquals(PlaceCategory.SHOPPING, picked) }
+    }
+
     /** #576: 검색 결과 행도 상세와 같은 규칙으로 실시간 영업 상태를 쓴다. */
     @Test
     fun 검색_결과는_openNow를_현재_영업_상태로_구분하고_폐업을_우선한다() {
@@ -355,6 +432,8 @@ class PlaceSearchScreenTest {
         // 영업 상태를 모르는 장소에는 아무 문구도 두지 않는다.
         composeRule.onAllNodes(hasText("영업 중")).assertCountEquals(1)
     }
+
+    private val CHIP_LABELS = listOf("전체", "자연", "문화·역사", "음식", "카페", "쇼핑")
 
     private fun content(vararg places: PlaceDto) = PlaceSearchUiState(
         query = "검색어",
