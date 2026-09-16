@@ -27,6 +27,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilpick.itinerary.DayItineraryDto
+import com.gilpick.itinerary.RouteStatus
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.alternative.DetectionStatus
@@ -42,6 +44,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.absoluteValue
 
 /**
  * T020·T025·T033·T036: 진행 화면의 네 상태·헤더·다음 장소 카드 세 모양·지도 자리·일정 목록·`장소 추가`·접근성 기본
@@ -535,6 +538,106 @@ class ActiveTravelScreenTest {
     /** 카드 안의 문구. 같은 장소명·시각이 아래 목록 행에도 있어 카드로 좁혀 찾는다. */
     private fun cardText(cardTag: String, text: String) =
         composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(cardTag)))
+
+    // ---- #652: 날짜 진행바 정렬 ----
+
+    /** 채움 끝이 오늘 점 중심에 맞아야 한다. 여행 일수가 늘수록 예전 비율 계산은 더 크게 어긋났다. */
+    @Test
+    fun 진행바_채움_끝이_오늘_점_중심에_맞는다() {
+        var days by mutableStateOf(daysOf(2, todayIndex = 1))
+        setDays { days }
+
+        listOf(2 to 1, 3 to 1, 5 to 2, 7 to 3).forEach { (total, todayIndex) ->
+            composeRule.runOnIdle { days = daysOf(total, todayIndex) }
+            composeRule.waitForIdle()
+
+            val fill = composeRule.onNodeWithTag(TAG_DAY_PROGRESS_FILL).getBoundsInRoot()
+            val dot = composeRule.onNodeWithContentDescription(dotDescription(todayIndex, todayIndex)).getBoundsInRoot()
+            val dotCenter = dot.left + (dot.right - dot.left) / 2
+
+            assertTrue("일수 $total: 채움 끝 ${fill.right}, 오늘 점 중심 $dotCenter", (fill.right - dotCenter).value.absoluteValue <= 2f)
+        }
+    }
+
+    /** 오늘이 여행 기간 밖이면: 시작 전은 채우지 않고, 끝난 뒤는 마지막 점 중심까지 채운다. */
+    @Test
+    fun 오늘이_여행_기간_밖이면_정해진_규칙대로_채운다() {
+        var days by mutableStateOf(daysOf(3, todayIndex = 0, start = "2026-09-20"))
+        setDays { days }
+
+        // 시작 전: 채움 폭이 0이다.
+        val empty = composeRule.onNodeWithTag(TAG_DAY_PROGRESS_FILL).getBoundsInRoot()
+        assertEquals(empty.left, empty.right)
+
+        composeRule.runOnIdle { days = daysOf(3, todayIndex = 0, start = "2026-08-01") }
+        composeRule.waitForIdle()
+
+        // 끝난 뒤: 마지막 점 중심까지 채운다.
+        val fill = composeRule.onNodeWithTag(TAG_DAY_PROGRESS_FILL).getBoundsInRoot()
+        val last = composeRule.onNodeWithContentDescription("3일차 8월 3일").getBoundsInRoot()
+        val lastCenter = last.left + (last.right - last.left) / 2
+        assertTrue("채움 끝 ${fill.right}, 마지막 점 중심 $lastCenter", (fill.right - lastCenter).value.absoluteValue <= 2f)
+    }
+
+    /** #652: 확대/축소 컨트롤(오른쪽 아래)과 겹치지 않게 `경로 보기`는 지도 위쪽에 둔다. */
+    @Test
+    fun 경로_보기_버튼은_지도_아래쪽_컨트롤_자리를_비운다() {
+        setScreen(content())
+
+        val slot = composeRule.onNodeWithTag(TAG_MAP_SLOT).getBoundsInRoot()
+        val button = composeRule.onNodeWithText("경로 보기").getBoundsInRoot()
+        val slotCenterY = slot.top + (slot.bottom - slot.top) / 2
+
+        assertTrue("버튼이 지도 위쪽 절반에 있어야 한다", button.bottom < slotCenterY)
+        composeRule.onNodeWithText("경로 보기").assertHeightIsAtLeast(48.dp)
+    }
+
+    /** 날짜만 바꿔 가며 볼 수 있게 개요를 상태로 받는다. `setContent`는 test마다 한 번만 부를 수 있다. */
+    private fun setDays(days: () -> List<DayItineraryDto>) {
+        composeRule.setContent {
+            GilpickTheme {
+                ActiveTravelScreen(
+                    state = content(days = days()),
+                    tripName = "서울 여행",
+                    onRetry = {},
+                    onAddPlace = {},
+                    onOpenRoute = { _, _ -> },
+                    onReauthenticate = {},
+                    onArrive = {},
+                    onSkip = {},
+                    onDepart = {},
+                    onRetryAction = {},
+                    onDismissActionError = {},
+                    onStatusAction = { _, _ -> },
+                    onSelectDate = {},
+                    onReturnToToday = {},
+                    onOpenAlternatives = {},
+                    map = { _, _, modifier -> FakeMap(modifier) },
+                )
+            }
+        }
+    }
+
+    /** 오늘(9/8)을 [todayIndex]에 둔 [total]일 여행 개요. [start]를 주면 오늘이 여행 기간 밖이 된다. */
+    private fun daysOf(
+        total: Int,
+        todayIndex: Int,
+        start: String = LocalDate.parse(PROGRESS_DATE).minusDays(todayIndex.toLong()).toString(),
+    ) = (0 until total).map { index ->
+        DayItineraryDto(
+            date = LocalDate.parse(start).plusDays(index.toLong()).toString(),
+            dayNumber = index + 1,
+            version = 0,
+            routeStatus = RouteStatus.NOT_CALCULATED,
+            items = emptyList(),
+            route = null,
+        )
+    }
+
+    private fun dotDescription(index: Int, todayIndex: Int): String {
+        val date = LocalDate.parse(PROGRESS_DATE).minusDays(todayIndex.toLong()).plusDays(index.toLong())
+        return "${index + 1}일차 ${date.monthValue}월 ${date.dayOfMonth}일"
+    }
 
     private fun setScreen(
         state: ProgressUiState,

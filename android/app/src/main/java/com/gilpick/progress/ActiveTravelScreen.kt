@@ -49,6 +49,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -375,13 +377,22 @@ private fun DayProgress(
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
     val todayIndex = days.indexOfFirst { it.date == today.toString() }
-    val filled = if (days.isEmpty()) 0f else (todayIndex.coerceAtLeast(0)).toFloat() / days.size
+    // 채움 끝을 오늘 점의 중심에 맞춘다(#652). 날짜 칸을 같은 폭으로 두면 i번째 점 중심은 막대의
+    // `(i + 0.5) / N` 지점이다. 예전 `i / N`은 항상 반 칸 앞에서 끝나 일수가 늘수록 더 어긋났다.
+    //
+    // 오늘이 여행 기간 밖이면: 시작 전이면 채우지 않고, 끝난 뒤면 마지막 점 중심까지 채운다.
+    val filledIndex = when {
+        days.isEmpty() -> -1
+        todayIndex >= 0 -> todayIndex
+        today < LocalDate.parse(days.first().date) -> -1
+        else -> days.lastIndex
+    }
+    val filled = if (filledIndex < 0) 0f else (filledIndex + 0.5f) / days.size
 
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = spacing.space1)
                 .height(PROGRESS_BAR_HEIGHT)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.outlineVariant),
@@ -390,16 +401,13 @@ private fun DayProgress(
                 modifier = Modifier
                     .fillMaxWidth(filled)
                     .height(PROGRESS_BAR_HEIGHT)
+                    .testTag(TAG_DAY_PROGRESS_FILL)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary),
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = spacing.space1 + 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
+        // 칸을 같은 폭으로 나눠야 점 중심이 막대의 `(i + 0.5) / N`에 온다(#652).
+        Row(modifier = Modifier.fillMaxWidth().padding(top = spacing.space1 + 2.dp)) {
             days.forEachIndexed { index, day ->
                 val date = LocalDate.parse(day.date)
                 val reached = index <= todayIndex
@@ -409,7 +417,8 @@ private fun DayProgress(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(spacing.space1),
                     modifier = Modifier
-                        .sizeIn(minWidth = MIN_TOUCH, minHeight = MIN_TOUCH)
+                        .weight(1f)
+                        .heightIn(min = MIN_TOUCH)
                         .clickable(onClick = { onSelectDate(date) }, role = Role.Button)
                         .semantics(mergeDescendants = true) { contentDescription = description },
                 ) {
@@ -1221,7 +1230,7 @@ private fun MapSlot(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(MAP_HEIGHT)
+            .height(mapHeight())
             .clip(RoundedCornerShape(radius.lg))
             .background(MaterialTheme.colorScheme.primaryContainer)
             .testTag(TAG_MAP_SLOT),
@@ -1239,9 +1248,10 @@ private fun MapSlot(
                     .padding(horizontal = spacing.space4),
             )
         }
+        // SDK 확대/축소 컨트롤이 오른쪽 아래에 있어 같은 자리에 두면 무엇이 눌리는지 알 수 없다. 위로 올린다(#652).
         Box(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .align(Alignment.TopEnd)
                 .padding(spacing.space3)
                 .heightIn(min = MIN_TOUCH)
                 .clip(RoundedCornerShape(radius.sm))
@@ -1584,6 +1594,7 @@ private val DASHED_BORDER_WIDTH = 2.dp
 /** `장소 추가` 점선의 대시·간격 길이. */
 private val DASHED_BORDER_DASH = 6.dp
 /** UI test가 찾는 tag. */
+internal const val TAG_DAY_PROGRESS_FILL = "progress_day_progress_fill"
 internal const val TAG_DAY_SUMMARY = "progress_day_summary"
 
 /** 헤더 알림 벨(F011). */
@@ -1628,7 +1639,17 @@ private const val DISABLED_ALPHA = 0.5f
 private val BUSY_INDICATOR: Dp = 16.dp
 
 /** Figma 지도 자리 높이(`h-[150px]`). */
-private val MAP_HEIGHT: Dp = 150.dp
+/**
+ * 지도 높이(#652). Figma는 150dp 고정이지만 그 크기로는 하루 경로가 뭉쳐 보여 형태를 알아볼 수 없다.
+ * 화면 높이에 비례시키되 범위를 묶어 작은 기기에서 아래 일정 목록이 밀려나지 않게 한다.
+ */
+@Composable
+private fun mapHeight(): Dp =
+    (LocalConfiguration.current.screenHeightDp.dp * MAP_HEIGHT_RATIO).coerceIn(MAP_HEIGHT_MIN, MAP_HEIGHT_MAX)
+
+private const val MAP_HEIGHT_RATIO = 0.3f
+private val MAP_HEIGHT_MIN: Dp = 200.dp
+private val MAP_HEIGHT_MAX: Dp = 280.dp
 
 /** Figma 날짜 진행 막대(`h-1.5`)와 점(`w-2.5`). */
 private val PROGRESS_BAR_HEIGHT: Dp = 6.dp
