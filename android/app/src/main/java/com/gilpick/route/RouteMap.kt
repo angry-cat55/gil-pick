@@ -101,6 +101,9 @@ fun RouteMap(
     val description = stringResource(R.string.route_map_description, route.markers.size)
     val startLabel = stringResource(R.string.route_marker_start)
     val overlays = remember { RouteOverlays() }
+    // 카메라를 경로 전체에 맞추는 일은 그릴 내용이 바뀌었을 때만 한다. sheet 높이가 바뀌어 다시 그릴 때도
+    // 맞추면 사용자가 카드·내 위치로 옮겨 둔 카메라가 경로로 되돌아간다(#651).
+    val fitted = remember { mutableStateOf<Any?>(null) }
     // 카드 선택 이동은 overlay를 다시 그리지 않아야 해서(다시 그리면 fitBounds로 되돌아간다) draw에서 지도를 붙잡아 둔다.
     var map by remember { mutableStateOf<NaverMap?>(null) }
     // 현재 위치 공급자. Play Services 위치를 SDK가 쓰는 형태로 감싼다. Activity가 없으면(테스트 등) 켜지 않는다.
@@ -128,13 +131,18 @@ fun RouteMap(
                         .animate(CameraAnimation.Easing),
                 )
             }
-            // Follow는 현재 위치로 카메라를 옮기고 사용자가 지도를 움직일 때까지 따라간다. 위치를 아직
-            // 못 얻었으면 SDK가 첫 위치를 받을 때 옮긴다. 권한·위치 서비스가 없으면 아무 일도 없다.
+            // 화면이 이미 좌표를 확인해 넘겼으므로 SDK의 첫 위치를 기다리지 않고 바로 옮긴다(#651).
+            // 추적도 함께 켜 현재 위치 점이 따라오게 하고, 화면에 들어올 때 위치를 못 켰던 경우에도
+            // 이 누름에서 공급자가 다시 붙는다.
             is RouteFocus.MyLocation -> {
                 if (locationSource != null) {
                     target.locationSource = locationSource
                     target.locationTrackingMode = LocationTrackingMode.Follow
                 }
+                target.moveCamera(
+                    CameraUpdate.scrollTo(LatLng(focus.position.latitude, focus.position.longitude))
+                        .animate(CameraAnimation.Easing),
+                )
             }
         }
     }
@@ -149,7 +157,9 @@ fun RouteMap(
         map = naverMap
         val bottomPadding = (size.height * sheetFraction).toInt()
         naverMap.setContentPadding(0, 0, 0, bottomPadding)
+        val content = listOf(route, baseRoute, marks)
         overlays.show(
+            fitCamera = fitted.value != content,
             map = naverMap,
             route = route,
             baseRoute = baseRoute,
@@ -169,6 +179,7 @@ fun RouteMap(
             pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
             boundsPaddingPx = with(density) { BOUNDS_PADDING.roundToPx() },
         )
+        fitted.value = content
     }
 }
 
@@ -275,8 +286,13 @@ sealed interface RouteFocus {
     /** 장소 순서 카드로 고른 장소(#618). */
     data class Place(val itemId: String, override val tick: Int) : RouteFocus
 
-    /** `내 위치로 이동` 버튼(#614). 최신 현재 위치로 옮기고 사용자가 지도를 움직일 때까지 따라간다. */
-    data class MyLocation(override val tick: Int) : RouteFocus
+    /**
+     * `내 위치로 이동` 버튼(#614). 화면이 확인한 현재 위치로 옮기고 사용자가 지도를 움직일 때까지 따라간다.
+     *
+     * @property position 옮길 자리(`[경도, 위도]`). 위치를 못 얻으면 이 값을 만들 수 없으므로 화면이
+     *   지도를 옮기는 대신 안내를 띄운다(#651).
+     */
+    data class MyLocation(val position: Position, override val tick: Int) : RouteFocus
 }
 
 /** 지도를 그릴 수 없을 때의 자리 표시. 어두운 바탕에 문구만 둔다. */
@@ -309,7 +325,9 @@ private class RouteOverlays {
         paths.clear()
     }
 
+    /** @param fitCamera 카메라를 경로 전체 범위로 맞출지. `false`면 overlay만 다시 그리고 카메라는 그대로 둔다. */
     fun show(
+        fitCamera: Boolean,
         map: NaverMap,
         route: RouteDto,
         baseRoute: RouteDto?,
@@ -376,6 +394,7 @@ private class RouteOverlays {
                 this.map = map
             }
         }
+        if (!fitCamera) return
         // 기존 경로를 함께 그릴 때는 한 장소로 확대하지 않는다. 두 경로가 모두 보여야 비교가 된다.
         if (route.markers.size == 1 && marks.start == null && baseRoute == null) {
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(route.markers[0].latitude, route.markers[0].longitude), SINGLE_PLACE_ZOOM))
