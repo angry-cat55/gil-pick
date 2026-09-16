@@ -42,8 +42,8 @@ _REASONS = {
 async def evaluate_all_active(session: AsyncSession) -> tuple[int, list[uuid.UUID]]:
     """현재 평가 가능한 일정 항목을 조회해 위험 결과를 원자적으로 갱신한다.
 
-    반환값은 `(평가 건수, 이번에 처음 INSERT된 감지 ID 목록)`이다. 두 번째 값은
-    F011 dispatch가 커밋 직후 장소 변경 제안 알림을 즉시 발송하는 데 쓴다.
+    반환값은 `(평가 건수, 신규 감지 또는 이번 평가에서 알림이 생성된 감지 ID 목록)`이다.
+    두 번째 값은 F011 dispatch가 커밋 직후 장소 변경 제안 알림을 즉시 발송하는 데 쓴다.
     """
     await _invalidate_ineligible(session)
     rows = await _load_eligible_rows(session)
@@ -121,7 +121,7 @@ async def _evaluate_rows(
     seoul = SeoulCityDataClient(settings)
     hours = OperatingHoursSource(settings)
     count = 0
-    created: list[uuid.UUID] = []
+    dispatch_candidates: list[uuid.UUID] = []
     try:
         for item, place, day, latitude, longitude in rows:
             eta = item.estimated_arrival_at
@@ -170,7 +170,7 @@ async def _evaluate_rows(
                     )
                 count += 1
                 if new_detection_id is not None:
-                    created.append(new_detection_id)
+                    dispatch_candidates.append(new_detection_id)
             except _NoRisk:
                 continue
             except Exception:
@@ -179,7 +179,7 @@ async def _evaluate_rows(
         await kma.aclose()
         await seoul.aclose()
         await hours.aclose()
-    return count, created
+    return count, dispatch_candidates
 
 
 class _NoRisk(Exception):
@@ -214,9 +214,9 @@ async def _store_detection(
 ) -> uuid.UUID | None:
     """한 장소의 평가 결과를 ACTIVE upsert로 저장한다.
 
-    감지가 **처음 INSERT**될 때만 그 `detection_id`를 반환하고 같은 transaction
-    안에서 장소 변경 제안 알림(F011)을 만든다. 갱신(`on_conflict_do_update`)이나
-    위험 없음 경로는 `None`을 반환한다.
+    신규 감지는 기존처럼 `detection_id`를 반환한다. 기존 ACTIVE 감지가 처음으로
+    알림 기준을 충족한 경우에도 같은 transaction에서 알림을 만들고 ID를 반환한다.
+    이미 알림이 있거나 위험이 없는 경로는 `None`을 반환한다.
     """
     eligibility = (
         await session.execute(
@@ -345,13 +345,11 @@ async def _store_detection(
         },
     ).returning(Detection.detection_id, text("(xmax = 0) AS inserted"))
     detection_id, inserted = (await session.execute(statement)).one()
-    if not inserted:
-        return None
-    # F011: 감지 최초 생성에만 장소 변경 제안 알림을 같은 transaction 안에서 만든다.
-    # (설정 off·비활성 감지면 서비스가 no-op, dedup_key로 재실행에 멱등)
+    # F011: 신규 여부와 관계없이 현재 위험이 알림 기준을 처음 충족하면 같은 transaction
+    # 안에서 알림을 만든다. 설정 off·비활성 감지는 no-op이고 dedup_key로 재평가에 멱등이다.
     from app.services.notification import NotificationService
 
-    await NotificationService(session).create_place_change_suggestion(
+    notification = await NotificationService(session).create_place_change_suggestion(
         Detection(
             detection_id=detection_id,
             trip_day_id=values["trip_day_id"],
@@ -362,4 +360,4 @@ async def _store_detection(
         total_risk_score=score.total_risk_score,
         visit_blocked=bool(operating.visit_blocked),
     )
-    return detection_id
+    return detection_id if inserted or notification is not None else None
