@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -90,6 +91,7 @@ import com.gilpick.itinerary.toPlaceTransport
 import com.gilpick.place.TransportOption
 import com.gilpick.progress.DeviceLocationProvider
 import com.gilpick.progress.LocationPermissionScreen
+import com.gilpick.progress.LbsConsentRepository
 import com.gilpick.progress.ProgressError
 import com.gilpick.progress.StartMode
 import com.gilpick.route.RouteDto
@@ -97,6 +99,8 @@ import com.gilpick.route.RouteSegmentDto
 import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.route.messageRes
+import com.gilpick.settings.PolicyDocument
+import com.gilpick.settings.PolicyDocumentLauncher
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.ErrorState as CommonErrorState
 import com.gilpick.ui.component.GradientButton
@@ -108,6 +112,8 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import com.gilpick.auth.AuthResult
 
 /**
  * 여행 상세 화면.
@@ -703,6 +709,9 @@ private fun ItineraryActions(
 ) {
     val spacing = LocalGilpickSpacing.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lbsConsentRepository = remember(context) { LbsConsentRepository.default(context) }
+    val policyLauncher = remember(context) { PolicyDocumentLauncher.default(context) }
     // 시작 방식 시트에서 고른 이동수단. 위치 권한 흐름을 거쳐 돌아와도 그 선택으로 시작한다(#654).
     var pendingTransport by rememberSaveable { mutableStateOf(TransportMode.WALK) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -710,6 +719,9 @@ private fun ItineraryActions(
     ) { onStartToday(StartMode.MOVE_TO_FIRST, pendingTransport) }
     // 권한이 없으면 시스템 창 전에 위치 권한 안내 화면을 먼저 보인다(#440). 허용·거부·나중에 하기 모두 시작한다(FR-020).
     var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
+    var lbsAgreed by rememberSaveable { mutableStateOf(false) }
+    var savingLbsConsent by rememberSaveable { mutableStateOf(false) }
+    var lbsConsentFailed by rememberSaveable { mutableStateOf(false) }
     var startSheetOpen by rememberSaveable { mutableStateOf(false) }
     // 현재 위치에서 첫 장소로 이동하는 시작만 위치가 필요하다. 현장 시작은 권한을 묻지 않는다.
     val moveToFirst = { transport: TransportMode ->
@@ -742,15 +754,36 @@ private fun ItineraryActions(
         ) {
             LocationPermissionScreen(
                 onAllow = {
-                    permissionGuideOpen = false
-                    permissionLauncher.launch(
-                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                    )
+                    savingLbsConsent = true
+                    lbsConsentFailed = false
+                    scope.launch {
+                        when (lbsConsentRepository.agree()) {
+                            is AuthResult.Success -> {
+                                savingLbsConsent = false
+                                permissionGuideOpen = false
+                                permissionLauncher.launch(
+                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                                )
+                            }
+                            is AuthResult.Failure -> {
+                                savingLbsConsent = false
+                                lbsConsentFailed = true
+                            }
+                        }
+                    }
                 },
                 onLater = {
                     permissionGuideOpen = false
                     onStartToday(StartMode.MOVE_TO_FIRST, pendingTransport)
                 },
+                lbsAgreed = lbsAgreed,
+                onLbsAgreedChange = {
+                    lbsAgreed = it
+                    lbsConsentFailed = false
+                },
+                onOpenLbsTerms = { policyLauncher.open(PolicyDocument.LOCATION_TERMS) },
+                submitting = savingLbsConsent,
+                submitFailed = lbsConsentFailed,
                 modifier = Modifier.fillMaxSize(),
             )
         }

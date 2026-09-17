@@ -10,6 +10,11 @@ import retrofit2.Response
  */
 object FakeAuthService : AuthService {
 
+    override suspend fun agreeToLbsTerms(
+        bearer: String,
+        body: LbsConsentRequest,
+    ): Response<SuccessEnvelope<LbsConsentData>> = error("이 test는 LBS 동의 endpoint를 호출하지 않는다")
+
     override suspend fun createLoginTransaction(
         body: CreateLoginTransactionRequest,
     ): Response<SuccessEnvelope<LoginTransactionData>> = error("이 test는 인증 endpoint를 호출하지 않는다")
@@ -36,6 +41,11 @@ object FakeAuthService : AuthService {
  * 대기시켜 동시 요청을 만든다. 호출 순번은 lambda의 인자로 전달한다.
  */
 class ProgrammableAuthService : AuthService {
+
+    override suspend fun agreeToLbsTerms(
+        bearer: String,
+        body: LbsConsentRequest,
+    ): Response<SuccessEnvelope<LbsConsentData>> = error("이 test는 LBS 동의 endpoint를 호출하지 않는다")
 
     /** refresh endpoint 호출 횟수. 진입 시점에 증가한다. */
     @Volatile

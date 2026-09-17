@@ -159,6 +159,7 @@ $apiBaseUrl = "https://your-api.example.com/api/v1/"
 | `GILPICK_DEBUG_KEYSTORE_PATH` | 팀 공용 debug 서명과 App Link 검증 |
 | `GILPICK_PRIVACY_POLICY_URL` | 개인정보 처리방침 연결 |
 | `GILPICK_TERMS_OF_SERVICE_URL` | 이용약관 연결 |
+| `GILPICK_LOCATION_TERMS_URL` | 위치기반서비스 이용약관 연결 |
 
 `google-services.json`, keystore, Firebase Admin 서비스 계정 JSON은 GitHub에 올리지 않습니다.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
+from typing import Annotated
 from urllib.parse import urlencode
 
 import httpx2
@@ -21,6 +22,8 @@ from app.schemas.auth import (
     AuthTokenData,
     CreateLoginTransactionRequest,
     ErrorEnvelope,
+    LbsConsentData,
+    LbsConsentRequest,
     LoginTicketExchangeRequest,
     LoginTransactionData,
     RefreshTokenData,
@@ -30,6 +33,7 @@ from app.schemas.auth import (
 from app.services.auth import (
     AuthService,
     AuthServiceError,
+    agree_to_lbs_terms,
     delete_account,
     exchange_login_ticket,
     logout_device_session,
@@ -40,6 +44,28 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 NO_CACHE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 CALLBACK_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 logger = logging.getLogger("gilpick.auth")
+
+
+@router.put(
+    "/me/lbs-consent",
+    response_model=SuccessEnvelope[LbsConsentData],
+    responses={
+        200: {"model": SuccessEnvelope[LbsConsentData]},
+        400: {"model": ErrorEnvelope},
+        401: {"model": ErrorEnvelope},
+    },
+)
+async def agree_lbs_terms(
+    payload: LbsConsentRequest,
+    request: Request,
+    principal: Annotated[AuthPrincipal, Depends(get_current_principal)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """인증된 사용자의 현재 LBS 약관 명시적 동의를 기록한다."""
+    # Literal validation이 현재 버전과 true만 허용한다. payload를 읽어 계약 의도를 명확히 한다.
+    _ = payload
+    data = await agree_to_lbs_terms(session, principal.user_id)
+    return success_response(request, data)
 
 
 async def _service(settings: Settings = Depends(get_settings)) -> AsyncIterator[AuthService]:

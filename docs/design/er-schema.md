@@ -93,6 +93,9 @@ erDiagram
 | `nickname` | varchar(80) | Y | 표시 이름 |
 | `profile_image_url` | text | Y | 프로필 이미지 |
 | `replacement_suggestion_enabled` | boolean | N | 장소 변경 제안 알림, 기본 true |
+| `lbs_agreed` | boolean | N | 위치기반서비스 약관 동의 여부, 기본 false |
+| `lbs_agreed_at` | timestamptz | Y | 현재 약관 버전에 동의한 시각 |
+| `lbs_version` | varchar(20) | Y | 동의한 위치기반서비스 약관 버전 |
 | `created_at` | timestamptz | N | 생성 시각 |
 | `updated_at` | timestamptz | N | 수정 시각 |
 | `deleted_at` | timestamptz | Y | 탈퇴 시각 |
@@ -100,6 +103,7 @@ erDiagram
 제약:
 
 - `UNIQUE(social_provider, social_subject)`
+- `lbs_agreed=false`이면 동의 시각·버전은 모두 NULL이고, true이면 모두 존재한다.
 - 사용자 설정이 한 개뿐이므로 별도 `user_preferences` 테이블을 만들지 않는다.
 
 ### 4.2 `device_sessions`

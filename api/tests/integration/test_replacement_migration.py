@@ -89,6 +89,12 @@ def test_replacement_migration_round_trip() -> None:
         for table, columns in existing_columns.items()
     }
     expected_columns["trips"] = (*expected_columns["trips"], "image_url")
+    expected_columns["users"] = (
+        *expected_columns["users"],
+        "lbs_agreed",
+        "lbs_agreed_at",
+        "lbs_version",
+    )
     assert {table: migrated_columns[table] for table in expected_columns} == expected_columns
 
     command.downgrade(config, "008_create_detections")

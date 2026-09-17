@@ -29,6 +29,7 @@ val naverMapsClientId: String = providers.gradleProperty("GILPICK_NAVER_MAPS_CLI
  */
 val privacyPolicyUrl: String = providers.gradleProperty("GILPICK_PRIVACY_POLICY_URL").orNull.orEmpty()
 val termsOfServiceUrl: String = providers.gradleProperty("GILPICK_TERMS_OF_SERVICE_URL").orNull.orEmpty()
+val locationTermsUrl: String = providers.gradleProperty("GILPICK_LOCATION_TERMS_URL").orNull.orEmpty()
 
 /**
  * 제출용 release 서명 정보.
@@ -98,6 +99,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("String", "PRIVACY_POLICY_URL", "\"$privacyPolicyUrl\"")
         buildConfigField("String", "TERMS_OF_SERVICE_URL", "\"$termsOfServiceUrl\"")
+        buildConfigField("String", "LOCATION_TERMS_URL", "\"$locationTermsUrl\"")
     }
 
     signingConfigs {

@@ -6,10 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.v1.auth import _service
-from app.core.config import get_settings
 from app.main import app
 from app.services.auth import AuthServiceError, RefreshResult
-
 
 US1_RESPONSES = {
     "/api/v1/auth/kakao/transactions": {"201", "400", "500"},
@@ -24,6 +22,10 @@ SESSION_RESPONSES = {
 
 ACCOUNT_RESPONSES = {
     "/api/v1/auth/me": {"204", "401"},
+}
+
+LBS_CONSENT_RESPONSES = {
+    "/api/v1/auth/me/lbs-consent": {"200", "400", "401"},
 }
 
 
@@ -198,6 +200,75 @@ def test_delete_account_endpoint_calls_service_and_returns_204(monkeypatch) -> N
     assert response.status_code == 204
     assert not response.content
     assert calls == [principal.user_id]
+
+
+def test_lbs_consent_contract_is_authenticated_and_versioned(openapi: dict) -> None:
+    operation = _operation(openapi, "/api/v1/auth/me/lbs-consent", "put")
+
+    assert set(operation["responses"]) == LBS_CONSENT_RESPONSES["/api/v1/auth/me/lbs-consent"]
+    assert operation["security"] == [{"HTTPBearer": []}]
+    request_schema = openapi["components"]["schemas"][
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
+    ]
+    assert request_schema["properties"]["lbsAgreed"]["const"] is True
+    assert request_schema["properties"]["lbsVersion"]["const"] == "v1.0"
+
+
+def test_lbs_consent_endpoint_records_authenticated_user(monkeypatch) -> None:
+    import uuid
+    from datetime import UTC, datetime
+
+    from app.api.dependencies import get_current_principal
+    from app.core.security import AuthPrincipal
+    from app.schemas.auth import LbsConsentData
+
+    user_id = uuid.uuid4()
+    agreed_at = datetime(2026, 9, 17, 12, 0, tzinfo=UTC)
+    calls: list[uuid.UUID] = []
+
+    async def agree(_session: object, target_user_id: uuid.UUID) -> LbsConsentData:
+        calls.append(target_user_id)
+        return LbsConsentData(lbs_agreed=True, lbs_agreed_at=agreed_at, lbs_version="v1.0")
+
+    monkeypatch.setattr("app.api.v1.auth.agree_to_lbs_terms", agree)
+    app.dependency_overrides[get_current_principal] = lambda: AuthPrincipal(
+        user_id=user_id, session_id=uuid.uuid4(), token_id=uuid.uuid4()
+    )
+    try:
+        response = TestClient(app).put(
+            "/api/v1/auth/me/lbs-consent",
+            json={"lbsAgreed": True, "lbsVersion": "v1.0"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "lbsAgreed": True,
+        "lbsAgreedAt": "2026-09-17T12:00:00Z",
+        "lbsVersion": "v1.0",
+    }
+    assert calls == [user_id]
+
+
+def test_lbs_consent_rejects_false_or_unknown_version() -> None:
+    import uuid
+
+    from app.api.dependencies import get_current_principal
+    from app.core.security import AuthPrincipal
+
+    app.dependency_overrides[get_current_principal] = lambda: AuthPrincipal(
+        user_id=uuid.uuid4(), session_id=uuid.uuid4(), token_id=uuid.uuid4()
+    )
+    try:
+        client = TestClient(app)
+        for body in (
+            {"lbsAgreed": False, "lbsVersion": "v1.0"},
+            {"lbsAgreed": True, "lbsVersion": "v2.0"},
+        ):
+            assert client.put("/api/v1/auth/me/lbs-consent", json=body).status_code == 400
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_refresh_endpoint_returns_rotated_pair_and_request_id(monkeypatch) -> None:

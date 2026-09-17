@@ -240,6 +240,11 @@ class AuthLogoutIntegrationTest {
  */
 private object FailingAuthService : AuthService {
 
+    override suspend fun agreeToLbsTerms(
+        bearer: String,
+        body: LbsConsentRequest,
+    ) = error("로그아웃 경로는 LBS 동의 endpoint를 호출하지 않는다")
+
     override suspend fun createLoginTransaction(
         body: CreateLoginTransactionRequest,
     ) = error("로그아웃 경로는 인증 endpoint를 호출하지 않는다")

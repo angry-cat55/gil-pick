@@ -5,7 +5,7 @@
 파일이다.
 
 이 `web/` 디렉터리가 Cloudflare Pages(`gilpick.pages.dev`) 업로드 원본이다. 폴더째로 올리면
-`/.well-known/assetlinks.json`과 F012 정책 문서 `/privacy/`, `/terms/`가 함께 배포된다.
+`/.well-known/assetlinks.json`과 F012 정책 문서 `/privacy/`, `/terms/`, `/location-terms/`가 함께 배포된다.
 
 ## 왜 필요한가
 

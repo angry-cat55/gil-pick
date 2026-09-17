@@ -376,6 +376,19 @@ data class RefreshTokenData(
     val refreshExpiresIn: Int,
 )
 
+@Serializable
+data class LbsConsentRequest(
+    val lbsAgreed: Boolean = true,
+    val lbsVersion: String = "v1.0",
+)
+
+@Serializable
+data class LbsConsentData(
+    val lbsAgreed: Boolean,
+    val lbsAgreedAt: String,
+    val lbsVersion: String,
+)
+
 /**
  * 인증 endpoint 호출 계약.
  *
@@ -383,6 +396,13 @@ data class RefreshTokenData(
  * 반환하고 [toAuthResult]에서 상태 코드를 보존한다.
  */
 interface AuthService {
+
+    /** 현재 위치기반서비스 이용약관에 대한 명시적 동의를 기록한다. */
+    @retrofit2.http.PUT("auth/me/lbs-consent")
+    suspend fun agreeToLbsTerms(
+        @retrofit2.http.Header("Authorization") bearer: String,
+        @Body body: LbsConsentRequest = LbsConsentRequest(),
+    ): Response<SuccessEnvelope<LbsConsentData>>
 
     /** 기기에 결합된 로그인 transaction을 만들고 Kakao 인증 URL을 받는다. */
     @POST("auth/kakao/transactions")

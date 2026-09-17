@@ -578,6 +578,12 @@ fun PolicyDocumentSection(
             tag = TAG_TERMS_OF_SERVICE,
             onClick = { onOpen(PolicyDocument.TERMS_OF_SERVICE) },
         )
+        RowDivider()
+        PolicyRow(
+            label = stringResource(R.string.settings_location_terms),
+            tag = TAG_LOCATION_TERMS,
+            onClick = { onOpen(PolicyDocument.LOCATION_TERMS) },
+        )
         openError?.let { failure ->
             PolicyErrorBar(failure = failure, onRetry = onRetry, onDismiss = onDismissError)
         }
@@ -745,6 +751,7 @@ internal const val TAG_RETRY = "settings_retry"
 internal const val TAG_POLICY_SECTION = "settings_policy_section"
 internal const val TAG_PRIVACY_POLICY = "settings_privacy_policy"
 internal const val TAG_TERMS_OF_SERVICE = "settings_terms_of_service"
+internal const val TAG_LOCATION_TERMS = "settings_location_terms"
 internal const val TAG_POLICY_ERROR = "settings_policy_error"
 internal const val TAG_POLICY_RETRY = "settings_policy_retry"
 internal const val TAG_POLICY_DISMISS = "settings_policy_dismiss"
