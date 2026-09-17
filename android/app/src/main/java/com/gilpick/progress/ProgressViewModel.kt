@@ -78,9 +78,29 @@ class ProgressViewModel(
     /** 진행 중인 조회. 재진입·`다시 시도` 연타로 겹치는 조회를 막는다. */
     private var job: Job? = null
 
+    /**
+     * 진행 화면이 지금 보이는지(#684).
+     *
+     * 탭을 옮기거나 다른 여행 화면으로 가도 이 ViewModel은 back stack·저장된 탭 상태에 남아 살아 있다.
+     * 그동안 만료 시각 재조회와 감지 대상 동기화가 돌면, 보이지도 않는 이전 여행이 계속 조회되고
+     * 앱에 하나뿐인 geofence 감지 문맥을 이전 여행으로 덮어쓴다. 보이는 동안에만 이 작업을 한다.
+     */
+    private var foreground = true
+
     init {
         viewModelScope.launch { tick() }
         viewModelScope.launch { scheduleDeadlineReload() }
+    }
+
+    /** 진행 화면이 다시 보인다. 반복 작업을 재개하고 최신 상태를 조회한다(#684). */
+    fun onResume() {
+        foreground = true
+        load()
+    }
+
+    /** 진행 화면이 가려졌다. 보이지 않는 동안 이 여행의 반복 조회와 감지 동기화를 멈춘다(#684). */
+    fun onPause() {
+        foreground = false
     }
 
     /**
@@ -124,7 +144,8 @@ class ProgressViewModel(
                     )
                 }
             }
-            syncGeofences()
+            // 조회 중에 화면이 가려졌으면 감지 문맥을 건드리지 않는다. 다시 보일 때 재개 조회가 맞춘다(#684).
+            if (foreground) syncGeofences()
         }
     }
 
@@ -422,11 +443,12 @@ class ProgressViewModel(
                 // F010 장소 변경 되돌리기도 만료 시각에 다시 조회한다(#626). 30초가 지나면 서버가
                 // `undoableReplacement`를 더 이상 주지 않으므로 토스트의 행동이 제때 사라진다.
                 ?: content?.progress?.undoableReplacement?.undoExpiresAt
-            if (target != null && target != lastTarget) {
+            if (foreground && target != null && target != lastTarget) {
                 lastTarget = target
                 val millis = millisUntil(target)
                 if (millis > 0) delay(millis)
-                load()
+                // 기다리는 사이 화면이 가려졌으면 조회하지 않는다. 다시 보일 때 재개 조회가 대신한다(#684).
+                if (foreground) load() else lastTarget = null
             }
             delay(DEADLINE_POLL_MILLIS)
         }
@@ -450,6 +472,7 @@ class ProgressViewModel(
     private suspend fun tick() {
         while (true) {
             delay(SECOND_MILLIS - clock.millis() % SECOND_MILLIS)
+            if (!foreground) continue
             val content = _state.value as? ProgressUiState.Content ?: continue
             val countingDown = content.visibleReplacementUndo != null || content.visibleUndoable != null
             val nowInstant = clock.instant()

@@ -714,7 +714,9 @@ internal fun NavController.navigateToTab(route: Any) {
     navigate(route) {
         popUpTo(start.id) { saveState = true }
         launchSingleTop = true
-        restoreState = !start.hasRoute(route::class)
+        // `진행` 탭은 저장된 화면을 되살리지 않고 지금 진행 중인 여행을 다시 찾는다. 되살리면 전날 보던
+        // 여행의 진행 화면이 다음 여행 대신 열린다(#684).
+        restoreState = !start.hasRoute(route::class) && route !is ActiveTripTabRoute
     }
 }
 

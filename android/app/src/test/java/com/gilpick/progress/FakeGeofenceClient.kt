@@ -16,6 +16,12 @@ internal class RecordingGeofenceClient : GeofenceClient {
         removed += geofenceIds
     }
 
+    var removedAll = 0
+
+    override suspend fun removeAll() {
+        removedAll++
+    }
+
     fun clearLog() {
         added.clear()
         removed.clear()
