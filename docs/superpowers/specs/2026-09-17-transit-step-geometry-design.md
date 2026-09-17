@@ -44,4 +44,3 @@ Kakao 대중교통 경로의 장소와 첫·마지막 단계 사이, 그리고 �
 - step 순서·geometry 연속성·전체 geometry 조합을 검증한다.
 - JSONB round-trip과 step geometry 없는 legacy payload를 검증한다.
 - OpenAPI·공용 API 문서·F005 명세를 동기화한다.
-

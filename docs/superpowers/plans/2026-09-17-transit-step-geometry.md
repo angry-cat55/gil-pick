@@ -98,4 +98,3 @@
 - [ ] `speckit-analyze`로 spec·plan·tasks 일관성을 검사하고 발견된 충돌을 수정한다.
 - [ ] 실제 credential이 필요한 Kakao→TMAP 종단 검증은 secret을 읽지 않고 실행 가능 여부만 판단해 quickstart와 PR에 사실대로 기록한다.
 - [ ] 변경사항을 commit·push하고 PR을 생성한다.
-
