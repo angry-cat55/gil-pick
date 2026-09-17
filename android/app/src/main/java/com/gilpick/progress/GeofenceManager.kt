@@ -31,6 +31,9 @@ interface GeofenceClient {
 
     /** `geofenceId`로 해제한다. */
     suspend fun remove(geofenceIds: List<String>)
+
+    /** 이 앱이 건 지오펜스를 모두 해제한다. 어떤 id가 걸려 있는지 모를 때 쓴다(#684). */
+    suspend fun removeAll()
 }
 
 /**
@@ -66,6 +69,14 @@ class GeofenceManager(
      */
     suspend fun sync(tripId: String, date: String, targets: List<DetectionTargetDto>): Boolean {
         val next = targets.associateBy { it.geofenceId }
+        // 다른 여행·날짜의 감지가 걸려 있으면 그 id를 이 인스턴스는 모른다(앱 재실행·다른 여행 화면이 건 것).
+        // 남겨 두면 그 지오펜스 이벤트가 이 여행의 감지로 올라가므로 모두 풀고 새로 건다(#684).
+        val other = session.current?.takeIf { it.tripId != tripId || it.date != date }
+        if (other != null && next.isNotEmpty()) {
+            log("sync date=$date: replacing detection of another trip/date (date=${other.date}) -> remove all")
+            runCatching { client.removeAll() }.onFailure { log("sync: removeAll FAILED: ${it.describeGeofenceFailure()}") }
+            registered = emptyMap()
+        }
         val toRemove = registered.keys - next.keys
         // 값이 바뀐 대상도 다시 등록한다. 반경이나 좌표가 달라졌을 수 있다.
         val toAdd = next.values.filter { registered[it.geofenceId] != it }
@@ -79,7 +90,7 @@ class GeofenceManager(
             if (toRemove.isNotEmpty()) client.remove(toRemove.toList())
             if (toAdd.isNotEmpty()) client.add(toAdd)
             registered = next
-            if (next.isEmpty()) session.clear() else session.save(tripId, date)
+            if (next.isEmpty()) clearSessionIfOwned(tripId, date) else session.save(tripId, date)
             log("sync date=$date: registered ${next.size} (added=${toAdd.size} removed=${toRemove.size}) ids=${next.keys}")
             true
         } catch (e: Exception) {
@@ -90,11 +101,18 @@ class GeofenceManager(
         }
     }
 
+    /** 기억한 감지 문맥이 이 여행·날짜일 때만 지운다. 다른 여행의 문맥은 남긴다(#684). */
+    private fun clearSessionIfOwned(tripId: String, date: String) {
+        val current = session.current ?: return
+        if (current.tripId == tripId && current.date == date) session.clear()
+    }
+
     /** 등록된 대상을 모두 해제한다. 진행 화면을 벗어나거나 권한을 잃었을 때 부른다. */
     suspend fun clear() {
         val ids = registered.keys.toList()
         registered = emptyMap()
-        session.clear()
+        // 이 인스턴스가 건 감지만 푼다. 다른 여행이 기억해 둔 감지 문맥까지 지우면 그 여행의 이벤트가 버려진다(#684).
+        if (ids.isNotEmpty()) session.clear()
         if (ids.isNotEmpty()) {
             log("clear: removing ${ids.size} ids=$ids")
             runCatching { client.remove(ids) }.onFailure { log("clear: remove FAILED: ${it.describeGeofenceFailure()}") }
@@ -204,6 +222,10 @@ class PlayServicesGeofenceClient(context: Context) : GeofenceClient {
 
     override suspend fun remove(geofenceIds: List<String>) {
         client.removeGeofences(geofenceIds).await()
+    }
+
+    override suspend fun removeAll() {
+        client.removeGeofences(pendingIntent).await()
     }
 
     private fun DetectionTargetDto.toGeofence(): Geofence = Geofence.Builder()

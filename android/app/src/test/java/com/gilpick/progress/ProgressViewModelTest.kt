@@ -851,6 +851,40 @@ class ProgressViewModelTest {
         }
     }
 
+    // --- #684: 가려진 이전 여행 화면 ---
+
+    /** #684: 가려진 동안에는 만료 시각이 지나도 이 여행을 다시 조회하지 않고, 다시 보이면 조회한다. */
+    @Test
+    fun `화면이 가려지면 만료 시각 재조회를 멈추고 다시 보이면 조회한다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(pendingCandidate = departureCandidate())) }
+        viewModel.onResume()
+        runCurrent()
+        val before = progressService.getCalls.size
+
+        viewModel.onPause()
+        // 자동 확정 시각(02:38)이 한참 지나도록 시간을 보낸다.
+        now = Instant.parse("2026-09-08T03:00:00Z")
+        advanceTimeBy(60 * 60_000L)
+        assertEquals(before, progressService.getCalls.size)
+
+        viewModel.onResume()
+        runCurrent()
+        assertEquals(before + 1, progressService.getCalls.size)
+    }
+
+    /** #684: 조회 중에 화면이 가려지면 감지 대상을 등록하지 않는다. 다른 여행의 감지 문맥을 덮어쓰기 때문이다. */
+    @Test
+    fun `조회 중에 가려지면 감지 대상을 동기화하지 않는다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress().copy(detectionTargets = listOf(detectionTarget()))) }
+
+        viewModel.load()
+        viewModel.onPause()
+        runCurrent()
+
+        assertEquals(emptyList<List<String>>(), geofenceClient.added)
+        assertNull(geofenceSession.current)
+    }
+
     // --- F010 장소 변경 되돌리기(T031) ---
 
     @Test

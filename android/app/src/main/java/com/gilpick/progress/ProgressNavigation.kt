@@ -100,8 +100,9 @@ fun NavGraphBuilder.progressGraph(
         LifecycleResumeEffect(Unit) {
             // 재개할 때마다 조회하고, 그 안에서 권한을 다시 확인한다. 설정에서 바꾸고 돌아온 경우와
             // 진행 중 권한을 회수한 경우가 모두 여기로 들어온다.
-            viewModel.load()
-            onPauseOrDispose {}
+            viewModel.onResume()
+            // 탭 이동·다른 여행 화면으로 가려지면 이 여행의 반복 조회와 감지 동기화를 멈춘다(#684).
+            onPauseOrDispose { viewModel.onPause() }
         }
 
         // 백그라운드 위치는 앱 사용 중 권한과 같은 화면에서 함께 물을 수 없다(research 8절).

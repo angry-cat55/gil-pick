@@ -103,6 +103,40 @@ class GeofenceManagerTest {
         assertNull(session.current)
     }
 
+    /** #684: 다른 여행·날짜의 감지가 걸려 있으면 그 id를 몰라도 모두 풀고 이 여행으로 새로 건다. */
+    @Test
+    fun `다른 여행의 감지 문맥이 남아 있으면 모두 풀고 새로 등록한다`() = runTest {
+        session.save("9a8b7c6d-0000-4000-8000-000000000684", "2026-09-07")
+
+        manager.sync(TRIP_ID, DATE, listOf(arrival()))
+
+        assertEquals(1, client.removedAll)
+        assertEquals(listOf(listOf(arrival().geofenceId)), client.added)
+        assertEquals(DetectionSession(TRIP_ID, DATE), session.current)
+    }
+
+    /** #684: 같은 여행·날짜의 재조회는 전부 풀지 않는다. 풀면 체류 판정이 처음부터 다시 시작된다. */
+    @Test
+    fun `같은 여행의 감지 문맥이면 전부 풀지 않는다`() = runTest {
+        manager.sync(TRIP_ID, DATE, listOf(arrival()))
+
+        GeofenceManager(client, session).sync(TRIP_ID, DATE, listOf(arrival()))
+
+        assertEquals(0, client.removedAll)
+    }
+
+    /** #684: 아무것도 걸지 않은 인스턴스의 clear나 빈 목록은 다른 여행이 기억한 감지 문맥을 지우지 않는다. */
+    @Test
+    fun `등록한 적 없는 인스턴스는 다른 여행의 감지 문맥을 지우지 않는다`() = runTest {
+        session.save("9a8b7c6d-0000-4000-8000-000000000684", "2026-09-07")
+
+        manager.clear()
+        manager.sync(TRIP_ID, DATE, emptyList())
+
+        assertEquals(DetectionSession("9a8b7c6d-0000-4000-8000-000000000684", "2026-09-07"), session.current)
+        assertEquals(0, client.removedAll)
+    }
+
     @Test
     fun `등록 결과와 실패 원인을 로그로 남기고 좌표는 남기지 않는다`() = runTest {
         val lines = mutableListOf<String>()
