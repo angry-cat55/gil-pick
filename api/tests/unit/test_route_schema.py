@@ -47,6 +47,13 @@ def test_ready_route_accepts_ordered_segments_and_geojson() -> None:
     assert data.route.segments[0].geometry.type == "LineString"
 
 
+def test_segment_walking_fallback_defaults_false_for_stored_routes() -> None:
+    """#685: 필드가 없던 예전 저장 경로도 읽히고, 응답에는 기본값 false가 실린다."""
+    data = ReadyRouteData.model_validate(_ready_payload())
+
+    assert data.route.segments[0].is_walking_fallback is False
+    assert data.model_dump(by_alias=True)["route"]["segments"][0]["isWalkingFallback"] is False
+    
 def test_legacy_route_step_without_geometry_defaults_to_none() -> None:
     payload = _ready_payload()
     route = payload["route"]

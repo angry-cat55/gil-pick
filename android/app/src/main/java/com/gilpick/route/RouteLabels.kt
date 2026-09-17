@@ -59,7 +59,16 @@ val RouteFailureDto.messageRes: Int
         RouteFailureCodes.PROVIDER_UNAVAILABLE -> R.string.route_failure_unavailable
         RouteFailureCodes.NOT_FOUND -> R.string.route_failure_not_found
         RouteFailureCodes.INVALID_RESULT -> R.string.route_failure_invalid
+        RouteFailureCodes.WALKING_FALLBACK_NOT_FOUND -> R.string.route_failure_walking_fallback
         else -> R.string.route_failure_unknown
+    }
+
+/** `error` 상태의 제목. 대중교통·도보 경로가 모두 없으면 전용 제목을 쓴다(#685). */
+val RouteProblem.titleRes: Int
+    @StringRes get() = when {
+        this is RouteProblem.Calculation && failure.code == RouteFailureCodes.WALKING_FALLBACK_NOT_FOUND ->
+            R.string.route_failure_walking_fallback_title
+        else -> R.string.route_error_title
     }
 
 /** `error` 상태의 원인 문구. */

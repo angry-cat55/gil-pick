@@ -322,6 +322,45 @@ class RouteCalculationService:
         mode = origin.transport_mode_to_next
         if mode is None:
             raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+        try:
+            return await self._calculate_segment_with_mode(
+                snapshot=snapshot,
+                sequence=sequence,
+                origin=origin,
+                destination=destination,
+                mode=mode,
+                semaphore=semaphore,
+                deadline=deadline,
+            )
+        except RouteProviderError as error:
+            if not _can_fall_back_to_walking(mode, error):
+                raise
+        # 가는 길에 이용할 대중교통이 없으면 Kakao가 경로를 주지 않는다. 도보로 한 번 대신 계산한다(#685).
+        try:
+            segment = await self._calculate_segment_with_mode(
+                snapshot=snapshot,
+                sequence=sequence,
+                origin=origin,
+                destination=destination,
+                mode=ClientTransportMode.WALK,
+                semaphore=semaphore,
+                deadline=deadline,
+            )
+        except RouteProviderError as error:
+            raise RouteProviderError("ROUTE_WALKING_FALLBACK_NOT_FOUND", retryable=False) from error
+        return segment.model_copy(update={"is_walking_fallback": True})
+
+    async def _calculate_segment_with_mode(
+        self,
+        *,
+        snapshot: RouteSnapshot,
+        sequence: int,
+        origin: RouteItemSnapshot,
+        destination: RouteItemSnapshot,
+        mode: ClientTransportMode,
+        semaphore: asyncio.Semaphore,
+        deadline: float,
+    ) -> RouteSegment:
         provider = self.providers[mode]
         async with semaphore:
             for attempt in (1, 2):
@@ -987,6 +1026,7 @@ def _failed(code: str, *, retryable: bool) -> RouteCalculationResult:
         "ROUTE_PROVIDER_UNAVAILABLE": "경로 제공자를 일시적으로 사용할 수 없습니다.",
         "ROUTE_NOT_FOUND": "이동 가능한 경로를 찾지 못했습니다.",
         "ROUTE_INVALID_RESULT": "경로 계산 결과가 올바르지 않습니다.",
+        "ROUTE_WALKING_FALLBACK_NOT_FOUND": "대중교통·도보 경로를 찾지 못했습니다.",
     }
     failure_code = RouteFailureCode(code)
     return RouteCalculationResult(
@@ -1132,6 +1172,16 @@ def _route_data_from_result(
             failure=result.failure,
         )
     raise ValueError("응답으로 변환할 수 없는 경로 계산 결과입니다.")
+
+
+def _can_fall_back_to_walking(mode: ClientTransportMode, error: RouteProviderError) -> bool:
+    """대중교통 구간에서 이용할 대중교통이 하나도 없을 때만 도보 대체를 허용한다(#685).
+
+    Kakao는 출발·도착지 근처에 정류장이 없거나(`STARTNODES_NULL`·`ENDNODES_NULL`) 대중교통 경로가
+    없으면(`NO_RESULTS`·`EQUAL_POINTS`) `ROUTE_NOT_FOUND`로 정규화된다. 거리와 무관하게 이 경우만 대체한다.
+    timeout·rate limit·잘못된 응답은 경로가 없다는 뜻이 아니므로 대체하지 않는다.
+    """
+    return mode is ClientTransportMode.TRANSIT and error.code == "ROUTE_NOT_FOUND"
 
 
 def _provider_for_mode(mode: ClientTransportMode) -> ClientProvider:

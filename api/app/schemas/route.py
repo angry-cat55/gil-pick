@@ -42,6 +42,8 @@ class RouteFailureCode(StrEnum):
     ROUTE_PROVIDER_UNAVAILABLE = "ROUTE_PROVIDER_UNAVAILABLE"
     ROUTE_NOT_FOUND = "ROUTE_NOT_FOUND"
     ROUTE_INVALID_RESULT = "ROUTE_INVALID_RESULT"
+    # 대중교통 경로가 없어 도보로 대체하려 했지만 도보 경로도 찾지 못했다(#685).
+    ROUTE_WALKING_FALLBACK_NOT_FOUND = "ROUTE_WALKING_FALLBACK_NOT_FOUND"
 
 
 Position = tuple[Annotated[float, Field(ge=-180, le=180)], Annotated[float, Field(ge=-90, le=90)]]
@@ -82,6 +84,9 @@ class RouteSegment(ApiModel):
     geometry: RouteGeometry
     provider_attribution: str = Field(min_length=1)
     steps: list[RouteStep] = Field(default_factory=list)
+    # 사용자는 대중교통을 골랐지만 대중교통 경로가 없어 도보로 대신 계산했다(#685).
+    # 예전에 저장된 경로에는 없으므로 기본값은 False다.
+    is_walking_fallback: bool = False
 
 
 class Route(ApiModel):

@@ -280,7 +280,7 @@ private fun ErrorState(problem: RouteProblem, onRetry: () -> Unit, onBack: () ->
     val sessionExpired = (problem as? RouteProblem.Request)?.error == RouteError.SessionExpired
 
     ErrorState(
-        title = stringResource(R.string.route_error_title),
+        title = stringResource(problem.titleRes),
         description = stringResource(problem.messageRes),
         primaryLabel = stringResource(if (sessionExpired) R.string.place_reauthenticate else R.string.route_retry),
         onPrimary = if (sessionExpired) onReauthenticate else onRetry,
@@ -685,7 +685,9 @@ private fun SegmentRow(
     val distance = distanceLabel(segment.distanceMeters)
     val fromName = statusName(from.name, fromStatus)
     val toName = statusName(to.name, toStatus)
+    val fallbackNotice = stringResource(R.string.route_segment_walking_fallback)
     val description = stringResource(R.string.route_segment_description, segment.sequence, fromName, toName, mode, duration, distance)
+        .let { if (segment.isWalkingFallback) "$it, $fallbackNotice" else it }
 
     Row(
         modifier = Modifier
@@ -733,6 +735,15 @@ private fun SegmentRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onDarkMuted,
             )
+            // 대중교통 경로가 없어 도보로 대신 안내하는 구간(#685). 오류가 아니라 정상 결과라 인라인으로만 알린다.
+            if (segment.isWalkingFallback) {
+                Text(
+                    text = fallbackNotice,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.primaryLight,
+                    modifier = Modifier.testTag("$TAG_SEGMENT_WALKING_FALLBACK_PREFIX${segment.sequence}"),
+                )
+            }
         }
     }
 }
@@ -794,6 +805,7 @@ internal const val TAG_SHEET = "route_sheet"
 internal const val TAG_SUMMARY = "route_summary"
 internal const val TAG_ATTRIBUTION = "route_attribution"
 internal const val TAG_SEGMENT_PREFIX = "route_segment_"
+internal const val TAG_SEGMENT_WALKING_FALLBACK_PREFIX = "route_segment_walking_fallback_"
 internal const val TAG_MARKER_PREFIX = "route_marker_"
 internal const val TAG_MAP = "route_map"
 private val NOTICE_MAX_WIDTH: Dp = 240.dp

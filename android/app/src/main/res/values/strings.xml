@@ -388,6 +388,9 @@
     <string name="route_failure_timeout">경로 서비스 응답이 늦어 계산하지 못했어요. 일정은 그대로 저장돼 있어요.</string>
     <string name="route_failure_rate_limited">경로 서비스 요청이 많아 계산하지 못했어요. 잠시 후 다시 시도해 주세요.</string>
     <string name="route_failure_unavailable">경로 서비스에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.</string>
+    <string name="route_segment_walking_fallback">대중교통 경로가 없어 도보로 안내해요</string>
+    <string name="route_failure_walking_fallback_title">길찾기 결과가 없습니다</string>
+    <string name="route_failure_walking_fallback">대중교통·도보 경로를 찾지 못했어요</string>
     <string name="route_failure_not_found">이동 경로를 찾지 못했어요. 장소 위치나 이동 수단을 확인해 주세요.</string>
     <string name="route_failure_invalid">경로 서비스 응답이 올바르지 않아 계산하지 못했어요.</string>
     <string name="route_failure_unknown">경로를 계산하지 못했어요. 일정은 그대로 저장돼 있어요.</string>
