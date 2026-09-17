@@ -8,33 +8,36 @@ import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime, timedelta
 
+import httpx2
 import pytest
 from geoalchemy2.elements import WKTElement
-import httpx2
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.clients.route_provider import (
-    Coordinate,
-    NormalizedRoute,
-    Provider,
-    RouteProviderError,
-    TransportMode,
-)
-from app.db import transaction_session
 from app.api.dependencies import get_current_principal
 from app.api.errors import AppError
 from app.api.v1.itinerary import _save_route_service, _trip_service
+from app.clients.route_provider import (
+    Coordinate,
+    NormalizedRoute,
+    NormalizedTransitStep,
+    Provider,
+    RouteProviderError,
+    TransitStepType,
+    TransportMode,
+)
 from app.core.security import AuthPrincipal
-from app.db import get_session
+from app.db import get_session, transaction_session
 from app.main import app
 from app.models.auth import User
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.route import Route as RouteModel, RouteEstimate
+from app.models.route import Route as RouteModel
+from app.models.route import RouteEstimate
 from app.models.trip import Trip
-from app.schemas.trip import Trip as TripSchema, TripStatus
-from app.services.route import RouteCalculationService, RouteService
+from app.schemas.trip import Trip as TripSchema
+from app.schemas.trip import TripStatus
 from app.services.itinerary import ItineraryService
+from app.services.route import RouteCalculationService, RouteService
 
 
 @pytest.fixture
@@ -71,6 +74,16 @@ class FixedProvider:
             distance_meters=800,
             coordinates=[origin, destination],
             attribution=self.provider.value,
+            steps=(
+                [NormalizedTransitStep(
+                    type=TransitStepType.WALK,
+                    duration_seconds=600,
+                    distance_meters=800,
+                    geometry=[origin, destination],
+                )]
+                if transport_mode is TransportMode.TRANSIT
+                else []
+            ),
         )
 
 

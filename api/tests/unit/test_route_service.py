@@ -12,8 +12,10 @@ import pytest
 from app.clients.route_provider import (
     Coordinate,
     NormalizedRoute,
+    NormalizedTransitStep,
     Provider,
     RouteProviderError,
+    TransitStepType,
     TransportMode,
 )
 from app.services.route import (
@@ -57,6 +59,16 @@ class FakeProvider:
                 distance_meters=1_000 * self.calls,
                 coordinates=[origin, destination],
                 attribution=self.provider.value,
+                steps=(
+                    [NormalizedTransitStep(
+                        type=TransitStepType.WALK,
+                        duration_seconds=100 * self.calls,
+                        distance_meters=1_000 * self.calls,
+                        geometry=[origin, destination],
+                    )]
+                    if transport_mode is TransportMode.TRANSIT
+                    else []
+                ),
             )
         finally:
             self.active -= 1
