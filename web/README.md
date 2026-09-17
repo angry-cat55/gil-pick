@@ -4,8 +4,11 @@
 도메인 소유권을 검증해야 한다. 이 디렉터리의 `.well-known/assetlinks.json`은 그 검증에 쓰이는
 파일이다.
 
-이 `web/` 디렉터리가 Cloudflare Pages(`gilpick.pages.dev`) 업로드 원본이다. 폴더째로 올리면
+이 `web/` 디렉터리가 Cloudflare Pages 정책 문서 사이트의 업로드 원본이다. 폴더째로 올리면
 `/.well-known/assetlinks.json`과 F012 정책 문서 `/privacy/`, `/terms/`, `/location-terms/`가 함께 배포된다.
+
+위치기반서비스 이용약관의 운영 주소는
+`https://gilpick-policy.pages.dev/location-terms/`이다.
 
 ## 왜 필요한가
 
