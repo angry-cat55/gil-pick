@@ -345,7 +345,7 @@ private class RouteOverlays {
         // 기존 경로를 먼저 깔아 변경 경로가 위에 오게 한다. 마커는 변경 경로 것만 둬서 같은
         // 장소에 두 마커가 겹치지 않게 한다(F010 UI-001).
         baseRoute?.segments?.forEach { segment ->
-            val coords = segmentPath(segment, baseRoute.markers).map { LatLng(it.latitude, it.longitude) }
+            val coords = segmentPath(segment).map { LatLng(it.latitude, it.longitude) }
             coords.forEach { bounds.include(it) }
             if (coords.size < 2) return@forEach
             paths += PathOverlay().apply {
@@ -382,7 +382,7 @@ private class RouteOverlays {
             }
         }
         route.segments.forEach { segment ->
-            val coords = segmentPath(segment, route.markers).map { LatLng(it.latitude, it.longitude) }
+            val coords = segmentPath(segment).map { LatLng(it.latitude, it.longitude) }
             coords.forEach { bounds.include(it) }
             // 구간 형상은 두 점 이상이 계약이지만, 어긋난 응답으로 앱이 죽지 않게 한 번 더 지킨다.
             if (coords.size < 2) return@forEach
@@ -404,20 +404,9 @@ private class RouteOverlays {
     }
 }
 
-/**
- * 구간 선을 이룰 좌표(#551). 제공자 경로는 도로·정류장에 맞춰 시작하고 끝나 장소 좌표와 떨어져 있을 수 있다
- * (실측: Kakao 대중교통 양 끝이 장소에서 약 180m). 출발·도착 장소 좌표를 양 끝에 이어 선이 마커에서 마커까지 닿게 한다.
- * 이미 같은 점이면 다시 넣지 않는다.
- */
-internal fun segmentPath(segment: RouteSegmentDto, markers: List<RouteMarkerDto>): List<Position> {
-    val coords = segment.geometry.coordinates
-    val from = markers.firstOrNull { it.itemId == segment.fromItemId }?.let { listOf(it.longitude, it.latitude) }
-    val to = markers.firstOrNull { it.itemId == segment.toItemId }?.let { listOf(it.longitude, it.latitude) }
-    return buildList {
-        if (from != null && from != coords.firstOrNull()) add(from)
-        addAll(coords)
-        if (to != null && to != coords.lastOrNull()) add(to)
-    }
+/** Backend가 장소와 단계 사이 보행 경로까지 보완한 구간 geometry를 그대로 사용한다(#686). */
+internal fun segmentPath(segment: RouteSegmentDto): List<Position> {
+    return segment.geometry.coordinates
 }
 
 /** 순서 번호 또는 상태 기호를 담은 원형 마커 아이콘. 번호는 목록의 순서 번호와 같은 값이다(UI-006). F009 후보 순위에도 쓴다. */
