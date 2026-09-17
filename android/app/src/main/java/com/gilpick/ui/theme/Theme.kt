@@ -136,6 +136,14 @@ data class GilpickColors(
     val headerIcon: Color,
     val darkGradientMid: Color,
     val darkGradientEnd: Color,
+    /** 경로 지도 도보 선(#687). 대중교통 안의 도보는 같은 색의 점선이다. */
+    val routeWalk: Color,
+    /** 경로 지도 버스 선(#687). */
+    val routeBus: Color,
+    /** 경로 지도 지하철 선(#687). */
+    val routeSubway: Color,
+    /** 경로 지도 자동차 선(#687). 단계 형상이 없는 예전 대중교통 구간도 이 색으로 그린다. */
+    val routeCar: Color,
 )
 
 private val GilpickLightColors = GilpickColors(
@@ -170,6 +178,10 @@ private val GilpickLightColors = GilpickColors(
     headerIcon = Color(0xFF6B7280),
     darkGradientMid = Color(0xFF0E1A3A),
     darkGradientEnd = Color(0xFF0F2050),
+    routeWalk = Color(0xFF64748B),
+    routeBus = Color(0xFF0891B2),
+    routeSubway = Color(0xFF8B5CF6),
+    routeCar = Color(0xFF3B7BF8),
 )
 
 /** 4dp 배수 간격. Figma Tailwind 단위(1 = 4px) 그대로다. 용도는 가이드라인 5절에 있다. */
