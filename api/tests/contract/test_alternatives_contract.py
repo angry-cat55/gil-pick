@@ -432,9 +432,13 @@ async def test_alternative_service_search_annotates_places(
     ]
     received_cursors = []
 
-    async def fake_search_places(self, *, query, category, area_code, cursor, limit):
+    async def fake_search_places(
+        self, *, query, category, area_code, latitude, longitude, radius_meters,
+        cursor, limit,
+    ):
         assert query == "카페"
         assert category is None and area_code is None
+        assert (latitude, longitude, radius_meters) == (37.5665, 126.9780, 2000)
         received_cursors.append(cursor)
         if cursor is None:
             return first_page, "NEXT", True

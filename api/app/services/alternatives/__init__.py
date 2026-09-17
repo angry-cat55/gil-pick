@@ -190,6 +190,9 @@ class AlternativeService:
                 query=query,
                 category=None,
                 area_code=None,
+                latitude=origin.latitude,
+                longitude=origin.longitude,
+                radius_meters=SEARCH_RADII_METERS[-1],
                 cursor=next_cursor,
                 limit=limit,
             )
