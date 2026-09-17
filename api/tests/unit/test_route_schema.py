@@ -53,6 +53,32 @@ def test_segment_walking_fallback_defaults_false_for_stored_routes() -> None:
 
     assert data.route.segments[0].is_walking_fallback is False
     assert data.model_dump(by_alias=True)["route"]["segments"][0]["isWalkingFallback"] is False
+    
+def test_legacy_route_step_without_geometry_defaults_to_none() -> None:
+    payload = _ready_payload()
+    route = payload["route"]
+    assert isinstance(route, dict)
+    segments = route["segments"]
+    assert isinstance(segments, list)
+    segment = segments[0]
+    assert isinstance(segment, dict)
+    segment["transportMode"] = "TRANSIT"
+    segment["provider"] = "KAKAO"
+    segment["providerAttribution"] = "Kakao Maps"
+    segment["steps"] = [{
+        "type": "WALK",
+        "durationSeconds": 60,
+        "distanceMeters": 80,
+        "boardingName": None,
+        "alightingName": None,
+        "lineName": None,
+        "stopCount": None,
+    }]
+    route["providerAttributions"] = ["Kakao Maps"]
+
+    data = ReadyRouteData.model_validate(payload)
+
+    assert data.route.segments[0].steps[0].geometry is None
 
 
 @pytest.mark.parametrize("provider", ["KAKAO", "ODSAY"])

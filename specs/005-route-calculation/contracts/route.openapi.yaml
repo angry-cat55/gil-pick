@@ -184,6 +184,10 @@ components:
         alightingName: { type: [string, "null"] }
         lineName: { type: [string, "null"] }
         stopCount: { type: [integer, "null"], minimum: 0 }
+        geometry:
+          oneOf:
+            - { $ref: '#/components/schemas/RouteGeometry' }
+            - { type: 'null' }
     RouteSegment:
       type: object
       required: [sequence, fromItemId, toItemId, transportMode, provider, durationSeconds, distanceMeters, geometry, providerAttribution, steps]

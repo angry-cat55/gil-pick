@@ -14,8 +14,8 @@ from app.clients.route_provider import (
     NormalizedTransitStep,
     Provider,
     RouteProviderError,
-    TransportMode,
     TransitStepType,
+    TransportMode,
 )
 from app.core.config import Settings
 
@@ -189,6 +189,10 @@ class KakaoTransitClient:
                         boarding_name=stops[0] if stops else None,
                         alighting_name=stops[-1] if stops else None,
                         line_name=" / ".join(dict.fromkeys(vehicles)) or None,
+                        geometry=[
+                            Coordinate(longitude=point[0], latitude=point[1])
+                            for point in raw_step["path"]["points"]
+                        ],
                     )
                 )
             return parsed

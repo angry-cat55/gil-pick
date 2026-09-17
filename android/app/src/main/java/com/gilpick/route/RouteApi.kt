@@ -71,6 +71,7 @@ data class RouteStepDto(
     val alightingName: String? = null,
     val lineName: String? = null,
     val stopCount: Int? = null,
+    val geometry: RouteGeometryDto? = null,
 )
 
 /** GeoJSON 좌표 한 점. `[경도, 위도]` 순서의 배열이라 data class로 풀지 않는다. */

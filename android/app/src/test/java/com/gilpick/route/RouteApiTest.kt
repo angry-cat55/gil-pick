@@ -70,7 +70,7 @@ class RouteApiTest {
     fun `대중교통 구간의 상세 단계를 받고 steps가 없는 구간은 빈 목록이다`() = withService { server, api ->
         val steps = """
             "steps": [
-              {"type": "WALK", "durationSeconds": 240, "distanceMeters": 300, "boardingName": null, "alightingName": null, "lineName": null, "stopCount": null},
+              {"type": "WALK", "durationSeconds": 240, "distanceMeters": 300, "boardingName": null, "alightingName": null, "lineName": null, "stopCount": null, "geometry": {"type": "LineString", "coordinates": [[126.9831, 37.5826], [126.99, 37.58]]}},
               {"type": "SUBWAY", "durationSeconds": 300, "distanceMeters": 2100, "boardingName": "경복궁역", "alightingName": "안국역", "lineName": "3호선", "stopCount": 2}
             ],
         """
@@ -82,7 +82,15 @@ class RouteApiTest {
         assertEquals(emptyList<RouteStepDto>(), route.segments[0].steps)
         assertEquals(
             listOf(
-                RouteStepDto(RouteStepType.WALK, 240, 300),
+                RouteStepDto(
+                    RouteStepType.WALK,
+                    240,
+                    300,
+                    geometry = RouteGeometryDto(
+                        "LineString",
+                        listOf(listOf(126.9831, 37.5826), listOf(126.99, 37.58)),
+                    ),
+                ),
                 RouteStepDto(RouteStepType.SUBWAY, 300, 2100, boardingName = "경복궁역", alightingName = "안국역", lineName = "3호선", stopCount = 2),
             ),
             route.segments[1].steps,

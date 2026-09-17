@@ -259,6 +259,11 @@ def test_route_source_contract_requires_steps_and_nullable_step_fields() -> None
         "lineName",
         "stopCount",
     } <= set(schemas["RouteStep"]["required"])
+    geometry = schemas["RouteStep"]["properties"]["geometry"]
+    assert geometry["oneOf"] == [
+        {"$ref": "#/components/schemas/RouteGeometry"},
+        {"type": "null"},
+    ]
 
 
 @pytest.mark.parametrize("status", ["READY", "FAILED"])

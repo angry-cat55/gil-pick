@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from math import atan2, cos, radians, sin, sqrt
 from time import monotonic
 
 from geoalchemy2 import Geometry
@@ -18,21 +20,29 @@ from app.api.errors import AppError
 from app.clients.route_provider import (
     Coordinate,
     NormalizedRoute,
-    Provider as ClientProvider,
     RouteProvider,
     RouteProviderError,
+)
+from app.clients.route_provider import (
+    Provider as ClientProvider,
+)
+from app.clients.route_provider import (
+    TransitStepType as ClientTransitStepType,
+)
+from app.clients.route_provider import (
     TransportMode as ClientTransportMode,
 )
 from app.core.logging import request_id_context
 from app.db import transaction_session
 from app.models.itinerary import ItineraryItem, Place, TripDay
-from app.models.route import Route as RouteModel, RouteEstimate as RouteEstimateModel
-from app.services.eta import recalculate_day_eta
+from app.models.route import Route as RouteModel
+from app.models.route import RouteEstimate as RouteEstimateModel
 from app.schemas.route import (
     FailedRouteData,
     NotCalculatedRouteData,
     Provider,
     Route,
+    RouteData,
     RouteFailure,
     RouteFailureCode,
     RouteGeometry,
@@ -40,11 +50,11 @@ from app.schemas.route import (
     RouteModeEstimate,
     RouteSegment,
     RouteSegmentEstimatesData,
-    RouteStep,
     RouteStatus,
-    RouteData,
+    RouteStep,
     TransportMode,
 )
+from app.services.eta import recalculate_day_eta
 
 logger = logging.getLogger("gilpick.route")
 
@@ -364,6 +374,13 @@ class RouteCalculationService:
                         mode,
                         deadline=deadline,
                     )
+                    if mode is ClientTransportMode.TRANSIT:
+                        normalized = await self._enrich_transit_geometry(
+                            normalized,
+                            origin=origin.coordinate,
+                            destination=destination.coordinate,
+                            deadline=deadline,
+                        )
                     self._log_attempt(
                         snapshot=snapshot,
                         provider=normalized.provider,
@@ -395,6 +412,138 @@ class RouteCalculationService:
                         retryable=False,
                     ) from error
         raise RuntimeError("경로 구간 재시도 상태가 올바르지 않습니다.")
+
+    async def _enrich_transit_geometry(
+        self,
+        route: NormalizedRoute,
+        *,
+        origin: Coordinate,
+        destination: Coordinate,
+        deadline: float,
+    ) -> NormalizedRoute:
+        """Kakao 단계 경계의 보행 공백을 TMAP geometry로 보완한다.
+
+        Args:
+            route: 단계별 geometry가 포함된 Kakao 대중교통 경로.
+            origin: 일정에 저장된 출발 장소 WGS84 좌표.
+            destination: 일정에 저장된 도착 장소 WGS84 좌표.
+            deadline: Kakao 호출과 공유하는 전체 계산 종료 monotonic 시각.
+
+        Returns:
+            모든 단계가 연속하고 장소 양 끝에 닿는 대중교통 경로. 시간·거리 합계는
+            Kakao 값을 유지한다.
+
+        Raises:
+            RouteProviderError: 단계 계약이 불완전하거나, WALK 단계가 없는 공백이 있거나,
+                TMAP 보행 형상 계산·검증에 실패한 경우.
+
+        Notes:
+            3m 이하 차이는 좌표 정밀도 오차로 맞추고, 그보다 큰 독립 공백은 전체
+            deadline 안에서 동시에 계산한다.
+        """
+        if not route.steps or any(step.geometry is None for step in route.steps):
+            raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+
+        geometries = [list(step.geometry or []) for step in route.steps]
+        gaps: list[tuple[Coordinate, Coordinate, int, str]] = []
+
+        def connect(
+            start: Coordinate,
+            end: Coordinate,
+            *,
+            walk_index: int | None,
+            position: str,
+            snap: Callable[[], None],
+        ) -> None:
+            if _coordinate_distance_meters(start, end) <= 3.0:
+                snap()
+                return
+            if walk_index is None:
+                raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+            gaps.append((start, end, walk_index, position))
+
+        connect(
+            origin,
+            geometries[0][0],
+            walk_index=(0 if route.steps[0].type is ClientTransitStepType.WALK else None),
+            position="prepend",
+            snap=lambda: geometries[0].__setitem__(0, origin),
+        )
+        for index in range(len(geometries) - 1):
+            left = geometries[index]
+            right = geometries[index + 1]
+            walk_index: int | None = None
+            position = "append"
+            if route.steps[index + 1].type is ClientTransitStepType.WALK:
+                walk_index = index + 1
+                position = "prepend"
+            elif route.steps[index].type is ClientTransitStepType.WALK:
+                walk_index = index
+            connect(
+                left[-1],
+                right[0],
+                walk_index=walk_index,
+                position=position,
+                snap=lambda right=right, left=left: right.__setitem__(0, left[-1]),
+            )
+        connect(
+            geometries[-1][-1],
+            destination,
+            walk_index=(
+                len(route.steps) - 1
+                if route.steps[-1].type is ClientTransitStepType.WALK
+                else None
+            ),
+            position="append",
+            snap=lambda: geometries[-1].__setitem__(-1, destination),
+        )
+
+        async def calculate_gap(
+            gap: tuple[Coordinate, Coordinate, int, str],
+        ) -> tuple[list[Coordinate], int, str]:
+            start, end, walk_index, position = gap
+            result = await self.providers[ClientTransportMode.WALK].calculate(
+                start,
+                end,
+                ClientTransportMode.WALK,
+                deadline=deadline,
+            )
+            if (
+                result.provider is not ClientProvider.TMAP
+                or result.transport_mode is not ClientTransportMode.WALK
+                or _coordinate_distance_meters(result.coordinates[0], start) > 3.0
+                or _coordinate_distance_meters(result.coordinates[-1], end) > 3.0
+            ):
+                raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+            connector = list(result.coordinates)
+            connector[0] = start
+            connector[-1] = end
+            return connector, walk_index, position
+
+        connectors = await asyncio.gather(*(calculate_gap(gap) for gap in gaps))
+        for connector, walk_index, position in connectors:
+            if position == "prepend":
+                geometries[walk_index] = connector[:-1] + geometries[walk_index]
+            else:
+                geometries[walk_index] = geometries[walk_index] + connector[1:]
+
+        joined: list[Coordinate] = []
+        steps = []
+        for step, geometry in zip(route.steps, geometries):
+            if joined and joined[-1] != geometry[0]:
+                raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+            joined.extend(geometry if not joined else geometry[1:])
+            steps.append(step.model_copy(update={"geometry": geometry}))
+
+        return route.model_copy(
+            update={
+                "coordinates": joined,
+                "steps": steps,
+                "attribution": (
+                    f"{route.attribution} · TMAP" if gaps else route.attribution
+                ),
+            }
+        )
 
     @staticmethod
     def _log_attempt(
@@ -811,8 +960,43 @@ def _segment(
             coordinates=[(point.longitude, point.latitude) for point in value.coordinates],
         ),
         provider_attribution=value.attribution,
-        steps=[RouteStep.model_validate(step.model_dump()) for step in value.steps],
+        steps=[
+            RouteStep(
+                type=step.type.value,
+                duration_seconds=step.duration_seconds,
+                distance_meters=step.distance_meters,
+                boarding_name=step.boarding_name,
+                alighting_name=step.alighting_name,
+                line_name=step.line_name,
+                stop_count=step.stop_count,
+                geometry=(
+                    RouteGeometry(
+                        type="LineString",
+                        coordinates=[
+                            (point.longitude, point.latitude)
+                            for point in step.geometry
+                        ],
+                    )
+                    if step.geometry is not None
+                    else None
+                ),
+            )
+            for step in value.steps
+        ],
     )
+
+
+def _coordinate_distance_meters(start: Coordinate, end: Coordinate) -> float:
+    """두 WGS84 좌표의 대권거리를 미터로 반환한다."""
+    latitude_start = radians(start.latitude)
+    latitude_end = radians(end.latitude)
+    latitude_delta = latitude_end - latitude_start
+    longitude_delta = radians(end.longitude - start.longitude)
+    haversine = (
+        sin(latitude_delta / 2) ** 2
+        + cos(latitude_start) * cos(latitude_end) * sin(longitude_delta / 2) ** 2
+    )
+    return 6_371_000 * 2 * atan2(sqrt(haversine), sqrt(1 - haversine))
 
 
 def _route(

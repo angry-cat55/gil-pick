@@ -70,6 +70,7 @@ class RouteStep(ApiModel):
     alighting_name: str | None
     line_name: str | None
     stop_count: int | None = Field(ge=0)
+    geometry: RouteGeometry | None = None
 
 
 class RouteSegment(ApiModel):
