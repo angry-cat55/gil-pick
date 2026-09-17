@@ -64,8 +64,14 @@ class FixedTransitProvider:
 
 
 class WalkingProvider:
-    def __init__(self, failure: RouteProviderError | None = None) -> None:
+    def __init__(
+        self,
+        failure: RouteProviderError | None = None,
+        *,
+        endpoint_offset: float = 0.0,
+    ) -> None:
         self.failure = failure
+        self.endpoint_offset = endpoint_offset
         self.calls: list[tuple[Coordinate, Coordinate]] = []
 
     async def calculate(
@@ -84,12 +90,20 @@ class WalkingProvider:
             longitude=(origin.longitude + destination.longitude) / 2,
             latitude=(origin.latitude + destination.latitude) / 2,
         )
+        snapped_origin = Coordinate(
+            longitude=origin.longitude + self.endpoint_offset,
+            latitude=origin.latitude,
+        )
+        snapped_destination = Coordinate(
+            longitude=destination.longitude - self.endpoint_offset,
+            latitude=destination.latitude,
+        )
         return NormalizedRoute(
             provider=Provider.TMAP,
             transport_mode=TransportMode.WALK,
             duration_seconds=999,
             distance_meters=999,
-            coordinates=[origin, midpoint, destination],
+            coordinates=[snapped_origin, midpoint, snapped_destination],
             attribution="TMAP",
         )
 
@@ -201,3 +215,43 @@ async def test_tmap_enrichment_failure_fails_entire_route() -> None:
     assert result.failure is not None
     assert result.failure.code == "ROUTE_PROVIDER_UNAVAILABLE"
     assert len(walking.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_tmap_road_snap_within_access_tolerance_is_normalized_to_requested_endpoints() -> None:
+    route = transit_route([
+        step(TransitStepType.WALK, 127.001, 127.013),
+    ])
+    walking = WalkingProvider(endpoint_offset=0.0001)  # 서울 위도 기준 약 9m
+
+    result = await service(route, walking).calculate(snapshot())
+
+    assert result.status == "READY"
+    assert result.route is not None
+    geometry = result.route.segments[0].geometry.coordinates
+    assert geometry[0] == (127.0, 37.5)
+    assert geometry[-1] == (127.013, 37.5)
+
+
+@pytest.mark.asyncio
+async def test_tmap_road_snap_outside_access_tolerance_is_rejected(caplog) -> None:  # type: ignore[no-untyped-def]
+    route = transit_route([
+        step(TransitStepType.WALK, 127.001, 127.013),
+    ])
+    walking = WalkingProvider(endpoint_offset=0.001)  # 서울 위도 기준 약 88m
+
+    result = await service(route, walking).calculate(snapshot())
+
+    assert result.status == "FAILED"
+    assert result.failure is not None
+    assert result.failure.code == "ROUTE_INVALID_RESULT"
+    rejection = next(
+        record
+        for record in caplog.records
+        if getattr(record, "stage", None) == "tmap_endpoint_validation"
+    )
+    assert rejection.result_code == "ROUTE_INVALID_RESULT"
+    assert rejection.start_error_meters > 30
+    assert rejection.end_error_meters > 30
+    assert not hasattr(rejection, "start_coordinate")
+    assert not hasattr(rejection, "end_coordinate")

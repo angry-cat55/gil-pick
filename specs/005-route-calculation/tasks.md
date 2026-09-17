@@ -325,11 +325,19 @@
   - 담당: jh
   - 선행: T048, T049
   - 검증: 신규·legacy 응답 역직렬화, Backend segment geometry만 지도 경로로 사용, route unit test 통과
-- [X] T051 F005 명세·설계·OpenAPI·검증 기록 동기화 in specs/005-route-calculation/, docs/design/api-spec.md
+
+## Phase 10: TMAP endpoint 도로망 스냅 허용 (#697)
+
+- [X] T051 TMAP 보행 보완 endpoint 접근 오차 정규화 in api/app/services/route.py, api/tests/unit/test_transit_geometry_enrichment.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T049
+  - 검증: 30m 이내 도로망 스냅은 요청 endpoint로 정규화해 `READY`, 30m 초과 이탈은 `ROUTE_INVALID_RESULT`, 좌표 없는 구조화 진단 로그와 route unit test 통과
+- [X] T052 F005 명세·설계·검증 기록 동기화 in specs/005-route-calculation/
   - 영역: 문서·통합
   - 담당: jh
-  - 선행: T048, T049, T050
-  - 검증: `speckit-analyze`, Backend unit·contract·integration, Android route test, `git diff --check` 통과; 실제 provider 검증 미실행 시 이유 명시
+  - 선행: T051
+  - 검증: `speckit-analyze`, Backend unit·contract, `git diff --check` 통과; 실제 provider·배포 후 device 검증 미실행 시 이유 명시
 
 ---
 

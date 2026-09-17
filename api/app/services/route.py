@@ -58,6 +58,9 @@ from app.services.eta import recalculate_day_eta
 
 logger = logging.getLogger("gilpick.route")
 
+TRANSIT_GEOMETRY_CONTINUITY_TOLERANCE_METERS = 3.0
+TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS = 30.0
+
 
 @dataclass(frozen=True, slots=True)
 class RouteItemSnapshot:
@@ -380,6 +383,7 @@ class RouteCalculationService:
                             origin=origin.coordinate,
                             destination=destination.coordinate,
                             deadline=deadline,
+                            sequence=sequence,
                         )
                     self._log_attempt(
                         snapshot=snapshot,
@@ -420,6 +424,7 @@ class RouteCalculationService:
         origin: Coordinate,
         destination: Coordinate,
         deadline: float,
+        sequence: int | None = None,
     ) -> NormalizedRoute:
         """Kakao 단계 경계의 보행 공백을 TMAP geometry로 보완한다.
 
@@ -428,6 +433,7 @@ class RouteCalculationService:
             origin: 일정에 저장된 출발 장소 WGS84 좌표.
             destination: 일정에 저장된 도착 장소 WGS84 좌표.
             deadline: Kakao 호출과 공유하는 전체 계산 종료 monotonic 시각.
+            sequence: 좌표를 제외한 실패 진단에 사용할 일정 구간 번호.
 
         Returns:
             모든 단계가 연속하고 장소 양 끝에 닿는 대중교통 경로. 시간·거리 합계는
@@ -455,7 +461,10 @@ class RouteCalculationService:
             position: str,
             snap: Callable[[], None],
         ) -> None:
-            if _coordinate_distance_meters(start, end) <= 3.0:
+            if (
+                _coordinate_distance_meters(start, end)
+                <= TRANSIT_GEOMETRY_CONTINUITY_TOLERANCE_METERS
+            ):
                 snap()
                 return
             if walk_index is None:
@@ -508,12 +517,29 @@ class RouteCalculationService:
                 ClientTransportMode.WALK,
                 deadline=deadline,
             )
+            start_error_meters = _coordinate_distance_meters(
+                result.coordinates[0], start
+            )
+            end_error_meters = _coordinate_distance_meters(
+                result.coordinates[-1], end
+            )
             if (
                 result.provider is not ClientProvider.TMAP
                 or result.transport_mode is not ClientTransportMode.WALK
-                or _coordinate_distance_meters(result.coordinates[0], start) > 3.0
-                or _coordinate_distance_meters(result.coordinates[-1], end) > 3.0
+                or start_error_meters > TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS
+                or end_error_meters > TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS
             ):
+                logger.warning(
+                    "transit geometry enrichment rejected",
+                    extra={
+                        "route_sequence": sequence,
+                        "provider": result.provider.value,
+                        "stage": "tmap_endpoint_validation",
+                        "start_error_meters": round(start_error_meters, 1),
+                        "end_error_meters": round(end_error_meters, 1),
+                        "result_code": "ROUTE_INVALID_RESULT",
+                    },
+                )
                 raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
             connector = list(result.coordinates)
             connector[0] = start
