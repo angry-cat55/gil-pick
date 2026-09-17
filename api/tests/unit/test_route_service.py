@@ -189,8 +189,8 @@ def _two_place_snapshot(longitude_gap: float, mode: TransportMode = TransportMod
 
 
 @pytest.mark.asyncio
-async def test_short_transit_without_route_falls_back_to_walking() -> None:
-    """#685: 가까운 대중교통 구간에 경로가 없으면 도보로 대신 계산해 날짜 경로를 성공시킨다."""
+async def test_transit_without_route_falls_back_to_walking() -> None:
+    """#685: 대중교통 경로가 없으면 도보로 대신 계산해 날짜 경로를 성공시킨다."""
     transit = FakeProvider(provider=Provider.KAKAO, failures=[RouteProviderError("ROUTE_NOT_FOUND", retryable=False)])
     tmap = FakeProvider(provider=Provider.TMAP)
 
@@ -206,8 +206,8 @@ async def test_short_transit_without_route_falls_back_to_walking() -> None:
 
 
 @pytest.mark.asyncio
-async def test_short_transit_fails_with_short_distance_code_when_walking_also_fails() -> None:
-    """#685: 도보 대체까지 실패하면 가까운 거리 전용 code로 실패한다."""
+async def test_transit_fails_with_walking_fallback_code_when_walking_also_fails() -> None:
+    """#685: 도보 대체까지 실패하면 전용 code로 실패한다."""
     transit = FakeProvider(provider=Provider.KAKAO, failures=[RouteProviderError("ROUTE_NOT_FOUND", retryable=False)])
     tmap = FakeProvider(provider=Provider.TMAP, failures=[RouteProviderError("ROUTE_NOT_FOUND", retryable=False)])
 
@@ -215,26 +215,26 @@ async def test_short_transit_fails_with_short_distance_code_when_walking_also_fa
 
     assert result.status == "FAILED"
     assert result.failure is not None
-    assert result.failure.code == "ROUTE_SHORT_DISTANCE_NOT_FOUND"
+    assert result.failure.code == "ROUTE_WALKING_FALLBACK_NOT_FOUND"
     assert result.failure.retryable is False
 
 
 @pytest.mark.asyncio
-async def test_far_transit_without_route_keeps_existing_failure() -> None:
-    """#685: 기준보다 먼 구간의 경로 없음은 도보로 대체하지 않고 기존 code를 유지한다."""
+async def test_far_transit_without_route_also_falls_back_to_walking() -> None:
+    """#685: 거리 기준은 없다. 먼 구간도 이용할 대중교통이 없으면 도보로 대체한다."""
     transit = FakeProvider(provider=Provider.KAKAO, failures=[RouteProviderError("ROUTE_NOT_FOUND", retryable=False)])
     tmap = FakeProvider(provider=Provider.TMAP)
 
-    result = await _service(tmap=tmap, transit=transit).calculate(_two_place_snapshot(0.01))  # 약 880m
+    result = await _service(tmap=tmap, transit=transit).calculate(_two_place_snapshot(0.03))  # 약 2.6km
 
-    assert result.status == "FAILED"
-    assert result.failure is not None
-    assert result.failure.code == "ROUTE_NOT_FOUND"
-    assert tmap.calls == 0
+    assert result.status == "READY"
+    assert result.route is not None
+    assert result.route.segments[0].is_walking_fallback is True
+    assert tmap.calls == 1
 
 
 @pytest.mark.asyncio
-async def test_short_transit_provider_error_is_not_replaced_by_walking() -> None:
+async def test_transit_provider_error_is_not_replaced_by_walking() -> None:
     """#685: 경로 없음이 아닌 장애(timeout 등)는 도보로 대체하지 않는다."""
     transit = FakeProvider(
         provider=Provider.KAKAO,

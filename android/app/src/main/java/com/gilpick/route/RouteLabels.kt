@@ -59,15 +59,15 @@ val RouteFailureDto.messageRes: Int
         RouteFailureCodes.PROVIDER_UNAVAILABLE -> R.string.route_failure_unavailable
         RouteFailureCodes.NOT_FOUND -> R.string.route_failure_not_found
         RouteFailureCodes.INVALID_RESULT -> R.string.route_failure_invalid
-        RouteFailureCodes.SHORT_DISTANCE_NOT_FOUND -> R.string.route_failure_short_distance
+        RouteFailureCodes.WALKING_FALLBACK_NOT_FOUND -> R.string.route_failure_walking_fallback
         else -> R.string.route_failure_unknown
     }
 
-/** `error` 상태의 제목. 가까운 거리에서 도보 경로까지 없으면 전용 제목을 쓴다(#685). */
+/** `error` 상태의 제목. 대중교통·도보 경로가 모두 없으면 전용 제목을 쓴다(#685). */
 val RouteProblem.titleRes: Int
     @StringRes get() = when {
-        this is RouteProblem.Calculation && failure.code == RouteFailureCodes.SHORT_DISTANCE_NOT_FOUND ->
-            R.string.route_failure_short_distance_title
+        this is RouteProblem.Calculation && failure.code == RouteFailureCodes.WALKING_FALLBACK_NOT_FOUND ->
+            R.string.route_failure_walking_fallback_title
         else -> R.string.route_error_title
     }
 

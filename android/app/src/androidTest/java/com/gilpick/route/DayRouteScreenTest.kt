@@ -112,13 +112,13 @@ class DayRouteScreenTest {
         composeRule.onNodeWithText("다시 시도").assertIsDisplayed()
     }
 
-    /** #685: 가까운 거리에서 도보 경로까지 없으면 전용 제목과 본문으로 안내한다. 먼 거리의 기존 안내는 그대로다. */
+    /** #685: 대중교통·도보 경로가 모두 없으면 전용 제목과 본문으로 안내한다. 다른 실패 안내는 그대로다. */
     @Test
-    fun 가까운_거리에서_도보_경로도_없으면_전용_안내를_보여준다() {
-        setScreen(RouteUiState.Error(RouteProblem.Calculation(routeFailure(RouteFailureCodes.SHORT_DISTANCE_NOT_FOUND, retryable = false), 3)))
+    fun 대중교통과_도보_경로가_모두_없으면_전용_안내를_보여준다() {
+        setScreen(RouteUiState.Error(RouteProblem.Calculation(routeFailure(RouteFailureCodes.WALKING_FALLBACK_NOT_FOUND, retryable = false), 3)))
 
         composeRule.onNodeWithText("길찾기 결과가 없습니다").assertIsDisplayed()
-        composeRule.onNodeWithText("가까운 거리는 도보 길찾기를 이용해주세요").assertIsDisplayed()
+        composeRule.onNodeWithText("대중교통·도보 경로를 찾지 못했어요").assertIsDisplayed()
     }
 
     /** #685: 도보로 대체된 구간만 구간 정보 아래에 인라인 안내를 보인다. 오류가 아니라 정상 경로다. */
@@ -131,7 +131,7 @@ class DayRouteScreenTest {
 
         composeRule.onNodeWithTag("${TAG_SEGMENT_WALKING_FALLBACK_PREFIX}1", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithTag("${TAG_SEGMENT_WALKING_FALLBACK_PREFIX}2", useUnmergedTree = true).assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("1번째 구간, 경복궁에서 북촌한옥마을까지 도보 10분 800m, 가까운 거리는 도보를 이용하세요").assertExists()
+        composeRule.onNodeWithContentDescription("1번째 구간, 경복궁에서 북촌한옥마을까지 도보 10분 800m, 대중교통 경로가 없어 도보로 안내해요").assertExists()
         composeRule.onNodeWithText("길찾기 결과가 없습니다").assertDoesNotExist()
     }
 

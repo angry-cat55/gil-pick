@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -92,11 +91,6 @@ class SingleSegmentResult:
     duration_seconds: int
     distance_meters: int
     provider: ClientProvider
-
-
-# 대중교통 경로가 없을 때 도보로 대신 계산할 출발·도착 직선거리 상한(m, #685).
-# 이보다 먼 구간의 경로 없음은 실제 무경로로 보고 기존 실패를 유지한다.
-WALKING_FALLBACK_MAX_DISTANCE_METERS = 500
 
 
 class RouteCalculationService:
@@ -329,9 +323,9 @@ class RouteCalculationService:
                 deadline=deadline,
             )
         except RouteProviderError as error:
-            if not _can_fall_back_to_walking(mode, error, origin, destination):
+            if not _can_fall_back_to_walking(mode, error):
                 raise
-        # 가까운 대중교통 구간은 Kakao가 경로를 주지 않는다. 도보로 한 번 대신 계산한다(#685).
+        # 가는 길에 이용할 대중교통이 없으면 Kakao가 경로를 주지 않는다. 도보로 한 번 대신 계산한다(#685).
         try:
             segment = await self._calculate_segment_with_mode(
                 snapshot=snapshot,
@@ -343,7 +337,7 @@ class RouteCalculationService:
                 deadline=deadline,
             )
         except RouteProviderError as error:
-            raise RouteProviderError("ROUTE_SHORT_DISTANCE_NOT_FOUND", retryable=False) from error
+            raise RouteProviderError("ROUTE_WALKING_FALLBACK_NOT_FOUND", retryable=False) from error
         return segment.model_copy(update={"is_walking_fallback": True})
 
     async def _calculate_segment_with_mode(
@@ -848,7 +842,7 @@ def _failed(code: str, *, retryable: bool) -> RouteCalculationResult:
         "ROUTE_PROVIDER_UNAVAILABLE": "경로 제공자를 일시적으로 사용할 수 없습니다.",
         "ROUTE_NOT_FOUND": "이동 가능한 경로를 찾지 못했습니다.",
         "ROUTE_INVALID_RESULT": "경로 계산 결과가 올바르지 않습니다.",
-        "ROUTE_SHORT_DISTANCE_NOT_FOUND": "가까운 거리는 도보 길찾기를 이용해주세요.",
+        "ROUTE_WALKING_FALLBACK_NOT_FOUND": "대중교통·도보 경로를 찾지 못했습니다.",
     }
     failure_code = RouteFailureCode(code)
     return RouteCalculationResult(
@@ -996,36 +990,14 @@ def _route_data_from_result(
     raise ValueError("응답으로 변환할 수 없는 경로 계산 결과입니다.")
 
 
-def _can_fall_back_to_walking(
-    mode: ClientTransportMode,
-    error: RouteProviderError,
-    origin: RouteItemSnapshot,
-    destination: RouteItemSnapshot,
-) -> bool:
-    """대중교통 경로 없음이면서 두 장소가 가까울 때만 도보 대체를 허용한다(#685).
+def _can_fall_back_to_walking(mode: ClientTransportMode, error: RouteProviderError) -> bool:
+    """대중교통 구간에서 이용할 대중교통이 하나도 없을 때만 도보 대체를 허용한다(#685).
 
+    Kakao는 출발·도착지 근처에 정류장이 없거나(`STARTNODES_NULL`·`ENDNODES_NULL`) 대중교통 경로가
+    없으면(`NO_RESULTS`·`EQUAL_POINTS`) `ROUTE_NOT_FOUND`로 정규화된다. 거리와 무관하게 이 경우만 대체한다.
     timeout·rate limit·잘못된 응답은 경로가 없다는 뜻이 아니므로 대체하지 않는다.
     """
-    return (
-        mode is ClientTransportMode.TRANSIT
-        and error.code == "ROUTE_NOT_FOUND"
-        and _straight_distance_meters(origin.coordinate, destination.coordinate)
-        <= WALKING_FALLBACK_MAX_DISTANCE_METERS
-    )
-
-
-def _straight_distance_meters(origin: Coordinate, destination: Coordinate) -> float:
-    """두 WGS84 좌표 사이의 대원 거리(m, haversine)."""
-    earth_radius_meters = 6_371_000.0
-    d_lat = math.radians(destination.latitude - origin.latitude)
-    d_lng = math.radians(destination.longitude - origin.longitude)
-    a = (
-        math.sin(d_lat / 2) ** 2
-        + math.cos(math.radians(origin.latitude))
-        * math.cos(math.radians(destination.latitude))
-        * math.sin(d_lng / 2) ** 2
-    )
-    return 2 * earth_radius_meters * math.asin(math.sqrt(a))
+    return mode is ClientTransportMode.TRANSIT and error.code == "ROUTE_NOT_FOUND"
 
 
 def _provider_for_mode(mode: ClientTransportMode) -> ClientProvider:

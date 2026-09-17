@@ -44,8 +44,8 @@ object RouteFailureCodes {
     const val NOT_FOUND = "ROUTE_NOT_FOUND"
     const val INVALID_RESULT = "ROUTE_INVALID_RESULT"
 
-    /** 가까운 대중교통 구간을 도보로 대신 계산하려 했지만 도보 경로도 없었다(#685). */
-    const val SHORT_DISTANCE_NOT_FOUND = "ROUTE_SHORT_DISTANCE_NOT_FOUND"
+    /** 대중교통 경로가 없어 도보로 대신 계산하려 했지만 도보 경로도 없었다(#685). */
+    const val WALKING_FALLBACK_NOT_FOUND = "ROUTE_WALKING_FALLBACK_NOT_FOUND"
 }
 
 /** 구간을 계산한 경로 제공자. attribution 문구는 [RouteSegmentDto.providerAttribution]이 따로 준다. */
@@ -114,7 +114,7 @@ data class RouteSegmentDto(
     /** 대중교통 상세 단계(#548). 도보·자동차, 예전에 저장된 경로, 상세가 불완전한 구간은 비어 있다. */
     val steps: List<RouteStepDto> = emptyList(),
     /**
-     * 대중교통을 골랐지만 너무 가까워 경로가 없어 서버가 도보로 대신 계산한 구간(#685).
+     * 대중교통을 골랐지만 이용할 대중교통이 없어 서버가 도보로 대신 계산한 구간(#685).
      * 이때 [transportMode]는 `WALK`다. 예전에 저장된 경로에는 없어 `false`다.
      */
     val isWalkingFallback: Boolean = false,
