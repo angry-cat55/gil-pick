@@ -176,9 +176,10 @@ def test_processed_last_item_allows_filling_null_transport() -> None:
 def test_processed_item_still_rejects_changing_existing_transport() -> None:
     """이미 있던 이동 수단을 다른 값으로 바꾸는 것은 여전히 막는다(#582)."""
     item_id = uuid.uuid4()
+    trip_day_id = uuid.uuid4()
     stored = ItineraryItem(
         item_id=item_id,
-        trip_day_id=uuid.uuid4(),
+        trip_day_id=trip_day_id,
         place_id=uuid.uuid4(),
         sequence=1,
         status="COMPLETED",
@@ -193,13 +194,23 @@ def test_processed_item_still_rejects_changing_existing_transport() -> None:
         category="OTHER",
         location="POINT(127 37)",
     )
+    planned = ItineraryItem(
+        item_id=uuid.uuid4(),
+        trip_day_id=trip_day_id,
+        place_id=uuid.uuid4(),
+        sequence=2,
+        status="PLANNED",
+        planned_stay_minutes=60,
+        stay_source="RECOMMENDED",
+        transport_mode_to_next=None,
+    )
     day = TripDay(
         trip_day_id=stored.trip_day_id,
         trip_id=uuid.uuid4(),
         visit_date=date(2026, 9, 1),
         day_number=1,
         schedule_version=1,
-        items=[stored],
+        items=[stored, planned],
     )
     incoming = _payload(
         [
@@ -216,3 +227,84 @@ def test_processed_item_still_rejects_changing_existing_transport() -> None:
         _validate_locked_items(day, incoming)
 
     assert error.value.code == "ITINERARY_ITEM_LOCKED"
+
+
+@pytest.mark.parametrize("locked_status", ["EN_ROUTE", "ARRIVED", "COMPLETED", "SKIPPED"])
+def test_locked_item_allows_clearing_transport_when_planned_successor_is_removed(
+    locked_status: str,
+) -> None:
+    """마지막 예정 장소 삭제로 잠긴 장소가 새 마지막이 되면 이동 수단을 비울 수 있다(#688)."""
+    completed_id = uuid.uuid4()
+    en_route_id = uuid.uuid4()
+    planned_id = uuid.uuid4()
+    trip_day_id = uuid.uuid4()
+    completed = ItineraryItem(
+        item_id=completed_id,
+        trip_day_id=trip_day_id,
+        place_id=uuid.uuid4(),
+        sequence=1,
+        status="COMPLETED",
+        planned_stay_minutes=60,
+        stay_source="RECOMMENDED",
+        transport_mode_to_next="WALK",
+    )
+    completed.place = Place(
+        place_id=completed.place_id,
+        tour_content_id="11111",
+        name="완료 장소",
+        category="OTHER",
+        location="POINT(127 37)",
+    )
+    en_route = ItineraryItem(
+        item_id=en_route_id,
+        trip_day_id=trip_day_id,
+        place_id=uuid.uuid4(),
+        sequence=2,
+        status=locked_status,
+        planned_stay_minutes=60,
+        stay_source="RECOMMENDED",
+        transport_mode_to_next="TRANSIT",
+    )
+    en_route.place = Place(
+        place_id=en_route.place_id,
+        tour_content_id="12345",
+        name="이동 중 장소",
+        category="OTHER",
+        location="POINT(127 37)",
+    )
+    planned = ItineraryItem(
+        item_id=planned_id,
+        trip_day_id=trip_day_id,
+        place_id=uuid.uuid4(),
+        sequence=3,
+        status="PLANNED",
+        planned_stay_minutes=60,
+        stay_source="RECOMMENDED",
+        transport_mode_to_next=None,
+    )
+    day = TripDay(
+        trip_day_id=trip_day_id,
+        trip_id=uuid.uuid4(),
+        visit_date=date(2026, 9, 17),
+        day_number=1,
+        schedule_version=1,
+        items=[completed, en_route, planned],
+    )
+    incoming = _payload(
+        [
+            {
+                **_new_item(1, "WALK"),
+                "itemId": str(completed_id),
+                "placeId": "tourapi:11111",
+                "place": None,
+            },
+            {
+                **_new_item(2),
+                "itemId": str(en_route_id),
+                "placeId": "tourapi:12345",
+                "place": None,
+            }
+        ]
+    ).items
+
+    _validate_locked_items(day, incoming)  # 예외 없이 통과해야 한다.
