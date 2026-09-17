@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gilpick.R
 import androidx.activity.compose.LocalActivity
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.progress.DeviceLocationProvider
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.naver.maps.geometry.LatLng
@@ -49,6 +50,8 @@ import com.naver.maps.map.MapView
 import com.naver.maps.map.NaverMap
 import com.naver.maps.map.NaverMapSdk
 import com.naver.maps.map.LocationTrackingMode
+import com.naver.maps.map.overlay.Overlay
+import com.naver.maps.map.overlay.PolylineOverlay
 import com.naver.maps.map.util.FusedLocationSource
 import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.overlay.OverlayImage
@@ -96,8 +99,13 @@ fun RouteMap(
     val markerColor = MaterialTheme.colorScheme.primary.toArgb()
     val doneColor = gilpickColors.success.toArgb()
     val faintColor = gilpickColors.faint.toArgb()
-    // 밝은 기본 지도에서 옅은 파랑은 도로와 구분이 안 돼 marker와 같은 primary로 그린다(#549).
-    val pathColor = markerColor
+    // 이동수단별 선 색(#687). 색만으로 구분하지 않도록 대중교통 안의 도보는 점선으로 그린다.
+    val lineColors = RouteLineColors(
+        walk = gilpickColors.routeWalk.toArgb(),
+        bus = gilpickColors.routeBus.toArgb(),
+        subway = gilpickColors.routeSubway.toArgb(),
+        car = gilpickColors.routeCar.toArgb(),
+    )
     val description = stringResource(R.string.route_map_description, route.markers.size)
     val startLabel = stringResource(R.string.route_marker_start)
     val overlays = remember { RouteOverlays() }
@@ -175,8 +183,10 @@ fun RouteMap(
             },
             startIcon = { pillMarker(context, startLabel, markerColor, density.density) },
             markerSizePx = (MARKER_SIZE_DP * density.density).toInt(),
-            pathColor = pathColor,
+            lineColors = lineColors,
             pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
+            dashPx = with(density) { DASH_LENGTH.roundToPx() },
+            gapPx = with(density) { DASH_GAP.roundToPx() },
             boundsPaddingPx = with(density) { BOUNDS_PADDING.roundToPx() },
         )
         fitted.value = content
@@ -316,7 +326,7 @@ private fun MapUnavailable(modifier: Modifier) {
 /** 지도에 올린 overlay 묶음. 다시 그리기 전에 전부 떼어 lifecycle 재진입 시 중복이 없게 한다. */
 private class RouteOverlays {
     private val markers = mutableListOf<Marker>()
-    private val paths = mutableListOf<PathOverlay>()
+    private val paths = mutableListOf<Overlay>()
 
     fun clear() {
         markers.forEach { it.map = null }
@@ -336,8 +346,10 @@ private class RouteOverlays {
         markerIcon: (RouteMarkerDto) -> OverlayImage,
         startIcon: () -> OverlayImage,
         markerSizePx: Int,
-        pathColor: Int,
+        lineColors: RouteLineColors,
         pathWidthPx: Int,
+        dashPx: Int,
+        gapPx: Int,
         boundsPaddingPx: Int,
     ) {
         clear()
@@ -353,6 +365,8 @@ private class RouteOverlays {
                 color = basePathColor
                 outlineColor = AndroidColor.TRANSPARENT
                 width = pathWidthPx
+                // 새 경로 선(실선·점선 모두)보다 아래에 깐다.
+                globalZIndex = ROUTE_LINE_Z_INDEX - 1
                 this.map = map
             }
         }
@@ -382,16 +396,34 @@ private class RouteOverlays {
             }
         }
         route.segments.forEach { segment ->
-            val coords = segmentPath(segment).map { LatLng(it.latitude, it.longitude) }
-            coords.forEach { bounds.include(it) }
-            // 구간 형상은 두 점 이상이 계약이지만, 어긋난 응답으로 앱이 죽지 않게 한 번 더 지킨다.
-            if (coords.size < 2) return@forEach
-            paths += PathOverlay().apply {
-                this.coords = coords
-                color = pathColor
-                outlineColor = AndroidColor.TRANSPARENT
-                width = pathWidthPx
-                this.map = map
+            segmentPath(segment).forEach { bounds.include(LatLng(it.latitude, it.longitude)) }
+            routeLines(segment).forEach { line ->
+                val coords = line.coordinates.map { LatLng(it.latitude, it.longitude) }
+                // 구간·단계 형상은 두 점 이상이 계약이지만, 어긋난 응답으로 앱이 죽지 않게 한 번 더 지킨다.
+                if (coords.size < 2) return@forEach
+                val color = lineColors.of(line.kind)
+                paths += if (line.kind.dashed) {
+                    // PathOverlay에는 점선이 없어 PolylineOverlay의 pattern을 쓴다. 두께는 화면 픽셀이라 확대해도 간격이 같다.
+                    PolylineOverlay().apply {
+                        this.coords = coords
+                        this.color = color
+                        width = pathWidthPx
+                        setPattern(dashPx, gapPx)
+                        capType = PolylineOverlay.LineCap.Round
+                        joinType = PolylineOverlay.LineJoin.Round
+                        globalZIndex = ROUTE_LINE_Z_INDEX
+                        this.map = map
+                    }
+                } else {
+                    PathOverlay().apply {
+                        this.coords = coords
+                        this.color = color
+                        outlineColor = AndroidColor.TRANSPARENT
+                        width = pathWidthPx
+                        globalZIndex = ROUTE_LINE_Z_INDEX
+                        this.map = map
+                    }
+                }
             }
         }
         if (!fitCamera) return
@@ -400,6 +432,62 @@ private class RouteOverlays {
             map.moveCamera(CameraUpdate.scrollAndZoomTo(LatLng(route.markers[0].latitude, route.markers[0].longitude), SINGLE_PLACE_ZOOM))
         } else if (route.markers.isNotEmpty()) {
             map.moveCamera(CameraUpdate.fitBounds(bounds.build(), boundsPaddingPx))
+        }
+    }
+}
+
+/** 지도 선 하나의 종류(#687). 색과 선 모양(점선 여부)을 정한다. */
+internal enum class RouteLineKind(val dashed: Boolean) {
+    /** 도보를 고른 구간(도보 대체 포함). 선 전체가 걷는 길이라 실선이다. */
+    WALK(false),
+
+    /** 대중교통 구간 안의 도보(정류장까지·환승·하차 후). 탈것과 구분되게 점선이다. */
+    WALK_IN_TRANSIT(true),
+    BUS(false),
+    SUBWAY(false),
+    CAR(false),
+
+    /** 단계 형상이 없는 예전 대중교통 구간. 버스·지하철을 나눌 수 없어 한 선으로 그린다. */
+    TRANSIT_UNSPLIT(false),
+}
+
+/** 지도에 그릴 선 하나. [coordinates]는 GeoJSON `[경도, 위도]` 순서다. */
+internal data class RouteLine(val kind: RouteLineKind, val coordinates: List<Position>)
+
+/** 선 종류별 색(ARGB). 값은 theme token에서 온다. */
+internal data class RouteLineColors(val walk: Int, val bus: Int, val subway: Int, val car: Int) {
+    fun of(kind: RouteLineKind): Int = when (kind) {
+        RouteLineKind.WALK, RouteLineKind.WALK_IN_TRANSIT -> walk
+        RouteLineKind.BUS -> bus
+        RouteLineKind.SUBWAY -> subway
+        RouteLineKind.CAR, RouteLineKind.TRANSIT_UNSPLIT -> car
+    }
+}
+
+/**
+ * 구간을 이동수단별 선으로 나눈다(#687). 구간 이동수단과 대중교통 단계 종류를 선 스타일로 바꾸는 단일 지점이다.
+ *
+ * - `WALK`·`CAR` 구간은 구간 형상 하나다.
+ * - `TRANSIT` 구간은 단계 순서대로 `WALK`(점선)·`BUS`·`SUBWAY` 선이다. Backend가 장소와 첫·마지막 정류장
+ *   사이 보행 경로를 첫·마지막 도보 단계에 붙여 주므로(#686·#689) 처음·마지막 도보도 점선으로 장소까지 잇는다.
+ * - 단계가 없거나 하나라도 형상이 없는 예전 대중교통 구간은 나눌 수 없어 구간 형상 하나로 둔다.
+ */
+internal fun routeLines(segment: RouteSegmentDto): List<RouteLine> = when (segment.transportMode) {
+    TransportMode.WALK -> listOf(RouteLine(RouteLineKind.WALK, segmentPath(segment)))
+    TransportMode.CAR -> listOf(RouteLine(RouteLineKind.CAR, segmentPath(segment)))
+    TransportMode.TRANSIT -> {
+        val steps = segment.steps
+        if (steps.isEmpty() || steps.any { it.geometry == null }) {
+            listOf(RouteLine(RouteLineKind.TRANSIT_UNSPLIT, segmentPath(segment)))
+        } else {
+            steps.map { step ->
+                val kind = when (step.type) {
+                    RouteStepType.WALK -> RouteLineKind.WALK_IN_TRANSIT
+                    RouteStepType.BUS -> RouteLineKind.BUS
+                    RouteStepType.SUBWAY -> RouteLineKind.SUBWAY
+                }
+                RouteLine(kind, step.geometry!!.coordinates)
+            }
         }
     }
 }
@@ -456,4 +544,11 @@ private const val MARKER_CHECK = "\u2713"
 private const val MARKER_CROSS = "\u2715"
 private const val SINGLE_PLACE_ZOOM = 15.0
 private val PATH_WIDTH = 5.dp
+
+/** 대중교통 안 도보 점선의 선·빈칸 길이(#687). */
+private val DASH_LENGTH = 6.dp
+private val DASH_GAP = 5.dp
+
+/** 경로 선의 전역 z-index. 기존 경로(비교)는 이보다 아래, 마커는 SDK 기본값으로 위에 온다. */
+private const val ROUTE_LINE_Z_INDEX = PathOverlay.DEFAULT_GLOBAL_Z_INDEX
 internal val BOUNDS_PADDING = 48.dp

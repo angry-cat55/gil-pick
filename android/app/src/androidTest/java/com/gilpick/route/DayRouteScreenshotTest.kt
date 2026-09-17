@@ -59,6 +59,32 @@ class DayRouteScreenshotTest {
     @Test
     fun 경로_content_1곳() = capture("route_content_single") { Screen(RouteUiState.Content(singleRoute())) }
 
+    /** #687: 대중교통 단계 형상이 있는 경로. 도보 점선·버스·지하철 범례가 함께 보인다. */
+    @Test
+    fun 경로_content_대중교통_단계_선_360dp_최대_글자배율() = capture("route_content_transit_lines_360dp_fontscale2") {
+        Box(modifier = Modifier.width(360.dp)) { LargeFont { Screen(RouteUiState.Content(transitStepLinesRoute())) } }
+    }
+
+    private fun transitStepLinesRoute(): RouteDto = readyRoute().let { base ->
+        fun step(type: RouteStepType, from: Double) = RouteStepDto(
+            type = type, durationSeconds = 180, distanceMeters = 300,
+            geometry = RouteGeometryDto("LineString", listOf(listOf(from, 37.58), listOf(from + 0.001, 37.579))),
+        )
+        base.copy(
+            segments = base.segments.map { segment ->
+                if (segment.sequence != 2) segment else segment.copy(
+                    steps = listOf(
+                        step(RouteStepType.WALK, 126.9831),
+                        step(RouteStepType.BUS, 126.9841),
+                        step(RouteStepType.WALK, 126.9851),
+                        step(RouteStepType.SUBWAY, 126.9861),
+                        step(RouteStepType.WALK, 126.9871),
+                    ),
+                )
+            },
+        )
+    }
+
     @Test
     fun 경로_content_진행_중() = capture("route_content_in_progress") { Screen(RouteUiState.Content(readyRoute(), inProgressMarks())) }
 

@@ -1,12 +1,15 @@
 package com.gilpick.route
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import android.Manifest
 import android.content.Context
@@ -44,7 +47,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -456,6 +463,8 @@ private fun RouteSheet(
         ) {
             // 상태 범례는 시작된 날짜에만 뜻이 있다. 시작 전에는 진행 상태를 지어내지 않고(UI-010) 지도 힌트만 둔다.
             Legend(showStatuses = marks.statuses.isNotEmpty(), modifier = Modifier.padding(top = spacing.space3))
+            // 지도 선 색·모양의 뜻(#687). 그날 경로에 있는 종류만 보여 범례가 길어지지 않게 한다.
+            LineLegend(kinds = route.segments.flatMap { routeLines(it) }.map { it.kind }.toSet(), modifier = Modifier.padding(top = spacing.space2))
             Column(
                 modifier = Modifier
                     // sheet 높이가 모자라면 합계·범례가 아니라 목록이 줄어들며 스크롤한다.
@@ -561,6 +570,56 @@ private fun Legend(showStatuses: Boolean, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * 이동수단 선 범례(#687). 선 조각(색·실선/점선)과 문구를 함께 보여 색만으로 뜻을 전하지 않는다.
+ * 360dp·큰 글자에서 한 줄에 다 들어가지 않으면 다음 줄로 넘긴다.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LineLegend(kinds: Set<RouteLineKind>, modifier: Modifier = Modifier) {
+    if (kinds.isEmpty()) return
+    val spacing = LocalGilpickSpacing.current
+    val colors = LocalGilpickColors.current
+    val lineColors = RouteLineColors(
+        walk = colors.routeWalk.toArgb(),
+        bus = colors.routeBus.toArgb(),
+        subway = colors.routeSubway.toArgb(),
+        car = colors.routeCar.toArgb(),
+    )
+    FlowRow(
+        modifier = modifier.fillMaxWidth().testTag(TAG_LINE_LEGEND),
+        horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+        verticalArrangement = Arrangement.spacedBy(spacing.space1),
+    ) {
+        RouteLineKind.entries.filter { it in kinds }.forEach { kind ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(spacing.space1 + 2.dp)) {
+                val color = Color(lineColors.of(kind))
+                Canvas(modifier = Modifier.size(width = LEGEND_LINE_WIDTH, height = LEGEND_DOT)) {
+                    drawLine(
+                        color = color,
+                        start = Offset(0f, size.height / 2),
+                        end = Offset(size.width, size.height / 2),
+                        strokeWidth = LEGEND_LINE_STROKE.toPx(),
+                        cap = StrokeCap.Round,
+                        pathEffect = if (kind.dashed) PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())) else null,
+                    )
+                }
+                Text(text = stringResource(kind.legendRes), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = LEGEND_ALPHA))
+            }
+        }
+    }
+}
+
+private val RouteLineKind.legendRes: Int
+    get() = when (this) {
+        RouteLineKind.WALK -> R.string.route_legend_walk
+        RouteLineKind.WALK_IN_TRANSIT -> R.string.route_legend_walk_transfer
+        RouteLineKind.BUS -> R.string.route_legend_bus
+        RouteLineKind.SUBWAY -> R.string.route_legend_subway
+        RouteLineKind.CAR -> R.string.route_legend_car
+        RouteLineKind.TRANSIT_UNSPLIT -> R.string.route_legend_transit
+    }
 
 @Composable
 private fun LegendItem(color: Color, label: String) {
@@ -804,6 +863,7 @@ private fun SequenceDot(sequence: Int, status: ItemStatus? = null) {
 internal const val TAG_SHEET = "route_sheet"
 internal const val TAG_SUMMARY = "route_summary"
 internal const val TAG_ATTRIBUTION = "route_attribution"
+internal const val TAG_LINE_LEGEND = "route_line_legend"
 internal const val TAG_SEGMENT_PREFIX = "route_segment_"
 internal const val TAG_SEGMENT_WALKING_FALLBACK_PREFIX = "route_segment_walking_fallback_"
 internal const val TAG_MARKER_PREFIX = "route_marker_"
@@ -829,6 +889,8 @@ private const val SHEET_EXPANDED_FRACTION = 0.85f
 
 /** Figma 실측(범례 12dp 점, 카드 6dp 점, 흰 60%·40%·5%, `primary` 20%). 화면 전용이라 토큰이 아니다. */
 private val LEGEND_DOT: Dp = 12.dp
+private val LEGEND_LINE_WIDTH: Dp = 18.dp
+private val LEGEND_LINE_STROKE: Dp = 3.dp
 private val CARD_DOT: Dp = 6.dp
 /** 카드 최소 폭. 이보다 좁아지면 n등분을 포기하고 가로 스크롤한다. */
 private val CARD_MIN_WIDTH: Dp = 88.dp

@@ -413,6 +413,12 @@
     <string name="route_legend_active">이동 중</string>
     <string name="route_legend_upcoming">예정</string>
     <string name="route_legend_pan_hint">지도 이동 가능</string>
+    <string name="route_legend_walk">도보</string>
+    <string name="route_legend_walk_transfer">정류장·환승 도보</string>
+    <string name="route_legend_bus">버스</string>
+    <string name="route_legend_subway">지하철</string>
+    <string name="route_legend_car">자동차</string>
+    <string name="route_legend_transit">대중교통</string>
     <string name="route_sheet_handle">경로 정보 크기 조절</string>
     <string name="route_sheet_collapsed">접힘</string>
     <string name="route_sheet_default">기본</string>

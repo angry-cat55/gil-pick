@@ -18,6 +18,9 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -110,6 +113,19 @@ class DayRouteScreenTest {
 
         composeRule.onNodeWithText("이동 경로를 찾지 못했어요. 장소 위치나 이동 수단을 확인해 주세요.").assertIsDisplayed()
         composeRule.onNodeWithText("다시 시도").assertIsDisplayed()
+    }
+
+    /** #687: 지도 선 범례는 그날 경로에 있는 이동수단만 문구와 함께 보인다. */
+    @Test
+    fun 선_범례는_경로에_있는_이동수단만_보여준다() {
+        // 기본 경로는 도보 구간과 단계 형상이 없는 예전 대중교통 구간이다.
+        setScreen(RouteUiState.Content(readyRoute()))
+
+        composeRule.onNodeWithTag(TAG_LINE_LEGEND).assertExists()
+        composeRule.onNode(hasText("도보") and hasAnyAncestor(hasTestTag(TAG_LINE_LEGEND))).assertExists()
+        composeRule.onNode(hasText("대중교통") and hasAnyAncestor(hasTestTag(TAG_LINE_LEGEND))).assertExists()
+        composeRule.onNode(hasText("버스") and hasAnyAncestor(hasTestTag(TAG_LINE_LEGEND))).assertDoesNotExist()
+        composeRule.onNode(hasText("정류장·환승 도보") and hasAnyAncestor(hasTestTag(TAG_LINE_LEGEND))).assertDoesNotExist()
     }
 
     /** #685: 대중교통·도보 경로가 모두 없으면 전용 제목과 본문으로 안내한다. 다른 실패 안내는 그대로다. */
