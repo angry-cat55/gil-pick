@@ -401,11 +401,22 @@ def _validate_locked_items(day: TripDay, items: list[SaveItem]) -> None:
             if incoming and incoming.transport_mode_to_next
             else None
         )
-        # 처리된 마지막 장소 뒤에 새 장소를 붙이면 그 장소의 이동 수단이 null → 값으로
-        # 채워진다. 이 전이는 허용하고, 이미 있던 이동 수단을 바꾸거나 지우는 것만 막는다(#582).
+        removed_planned_successor = any(
+            candidate.sequence > stored.sequence
+            and candidate.status == "PLANNED"
+            and candidate.item_id not in requested
+            for candidate in day.items
+        )
+        # 처리된 마지막 장소 뒤에 새 장소를 붙이는 null → 값 전이(#582)와, 뒤의 예정 장소를
+        # 삭제해 새 마지막이 되는 값 → null 전이(#688)는 허용한다. 그 밖의 기존 값 변경은 막는다.
         transport_locked = (
             stored.transport_mode_to_next is not None
             and incoming_transport != stored.transport_mode_to_next
+            and not (
+                incoming is not None
+                and incoming_transport is None
+                and removed_planned_successor
+            )
         )
         if (
             incoming is None
