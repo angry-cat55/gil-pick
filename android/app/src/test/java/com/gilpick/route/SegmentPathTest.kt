@@ -9,15 +9,15 @@ class SegmentPathTest {
     private val route = readyRoute()
 
     @Test
-    fun `제공자 경로 양 끝이 장소와 다르면 장소 좌표를 앞뒤에 잇는다`() {
+    fun `제공자 경로 양 끝이 장소와 달라도 직선 좌표를 덧붙이지 않는다`() {
         val segment = route.segments[0].copy(
             geometry = RouteGeometryDto("LineString", listOf(listOf(126.978, 37.5790), listOf(126.982, 37.5820))),
         )
 
-        val path = segmentPath(segment, route.markers)
+        val path = segmentPath(segment)
 
         assertEquals(
-            listOf(listOf(126.977, 37.5796), listOf(126.978, 37.5790), listOf(126.982, 37.5820), listOf(126.9831, 37.5826)),
+            listOf(listOf(126.978, 37.5790), listOf(126.982, 37.5820)),
             path,
         )
     }
@@ -26,6 +26,6 @@ class SegmentPathTest {
     fun `양 끝이 이미 장소 좌표면 그대로 둔다`() {
         val segment = route.segments[0]
 
-        assertEquals(segment.geometry.coordinates, segmentPath(segment, route.markers))
+        assertEquals(segment.geometry.coordinates, segmentPath(segment))
     }
 }

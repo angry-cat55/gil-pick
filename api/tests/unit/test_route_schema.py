@@ -47,6 +47,33 @@ def test_ready_route_accepts_ordered_segments_and_geojson() -> None:
     assert data.route.segments[0].geometry.type == "LineString"
 
 
+def test_legacy_route_step_without_geometry_defaults_to_none() -> None:
+    payload = _ready_payload()
+    route = payload["route"]
+    assert isinstance(route, dict)
+    segments = route["segments"]
+    assert isinstance(segments, list)
+    segment = segments[0]
+    assert isinstance(segment, dict)
+    segment["transportMode"] = "TRANSIT"
+    segment["provider"] = "KAKAO"
+    segment["providerAttribution"] = "Kakao Maps"
+    segment["steps"] = [{
+        "type": "WALK",
+        "durationSeconds": 60,
+        "distanceMeters": 80,
+        "boardingName": None,
+        "alightingName": None,
+        "lineName": None,
+        "stopCount": None,
+    }]
+    route["providerAttributions"] = ["Kakao Maps"]
+
+    data = ReadyRouteData.model_validate(payload)
+
+    assert data.route.segments[0].steps[0].geometry is None
+
+
 @pytest.mark.parametrize("provider", ["KAKAO", "ODSAY"])
 def test_ready_route_accepts_current_and_legacy_transit_providers(provider: str) -> None:
     payload = _ready_payload()

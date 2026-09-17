@@ -308,6 +308,31 @@
 
 ---
 
+## Phase 9: 대중교통 단계 geometry 보완 (#686)
+
+- [X] T048 Kakao 단계별 geometry와 legacy nullable 계약 test 작성 in api/tests/unit/test_transit_steps.py, api/tests/unit/test_route_schema.py, api/tests/contract/test_route_contract.py
+  - 영역: BE·계약
+  - 담당: jh
+  - 선행: T043
+  - 검증: Kakao `path.points` 단계 보존, API 직렬화, geometry 없는 기존 JSONB 조회, OpenAPI nullable 계약 통과
+- [X] T049 대중교통 보행 공백 TMAP 보완과 전체 실패 처리 in api/app/services/route.py, api/tests/unit/test_transit_geometry_enrichment.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T048
+  - 검증: 장소↔단계·환승 공백 보완, 3m 이하 endpoint 정렬, WALK 없는 공백·TMAP 실패 시 날짜 전체 `FAILED`, Kakao 합계 유지
+- [X] T050 Android 단계 geometry 호환과 직선 fallback 제거 in android/app/src/main/java/com/gilpick/route/RouteApi.kt, android/app/src/main/java/com/gilpick/route/RouteMap.kt
+  - 영역: FE
+  - 담당: jh
+  - 선행: T048, T049
+  - 검증: 신규·legacy 응답 역직렬화, Backend segment geometry만 지도 경로로 사용, route unit test 통과
+- [X] T051 F005 명세·설계·OpenAPI·검증 기록 동기화 in specs/005-route-calculation/, docs/design/api-spec.md
+  - 영역: 문서·통합
+  - 담당: jh
+  - 선행: T048, T049, T050
+  - 검증: `speckit-analyze`, Backend unit·contract·integration, Android route test, `git diff --check` 통과; 실제 provider 검증 미실행 시 이유 명시
+
+---
+
 ## Dependencies & Execution Order
 
 ### Issue #536 구간별 이동 수단 추정

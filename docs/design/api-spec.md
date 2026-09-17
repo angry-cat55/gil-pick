@@ -996,7 +996,7 @@ Response `200`:
 
 경로 실패 code는 `ROUTE_PROVIDER_TIMEOUT`, `ROUTE_PROVIDER_RATE_LIMITED`, `ROUTE_PROVIDER_UNAVAILABLE`, `ROUTE_NOT_FOUND`, `ROUTE_INVALID_RESULT`다. Provider 호출은 시도당 최대 5초, 날짜 전체 계산은 최대 10초이며 timeout·네트워크 요청 오류·429·5xx만 남은 시간 안에서 한 번 재시도한다. 각 구간과 응답의 `providerAttribution`·`providerAttributions`는 화면에 표시해야 한다.
 
-Kakao Maps 대중교통 구간의 `steps`는 제공 순서의 `WALK`·`BUS`·`SUBWAY` 단계다. 각 단계는 `durationSeconds`(초), `distanceMeters`(미터), nullable `boardingName`·`alightingName`·`lineName`·`stopCount`를 가진다. WALK·CAR, 기존 저장 경로, 또는 일부 상세 메타데이터가 유효하지 않은 대중교통 구간은 `steps: []`이며, 상세 오류만으로 유효한 경로·형상을 실패 처리하지 않는다.
+Kakao Maps 대중교통 구간의 `steps`는 제공 순서의 `WALK`·`BUS`·`SUBWAY` 단계다. 각 단계는 `durationSeconds`(초), `distanceMeters`(미터), nullable `boardingName`·`alightingName`·`lineName`·`stopCount`·`geometry`를 가진다. 신규 Kakao 계산의 단계 `geometry`는 GeoJSON `LineString`이며 장소↔단계 또는 단계↔단계 좌표 차이가 3m를 초과하면 인접 WALK 단계에 TMAP 보행 형상을 보완한다. 보완 실패 또는 WALK 단계 없는 공백은 직선을 만들지 않고 날짜 전체 경로를 `FAILED`로 처리한다. 시간·거리 합계는 Kakao 값을 유지하고, TMAP 형상을 사용한 구간의 attribution은 `Kakao Maps · TMAP`이다. WALK·CAR 및 기존 저장 경로의 `steps`는 빈 목록일 수 있고, 기존 단계 형상 누락은 `geometry: null`로 조회한다.
 
 주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 

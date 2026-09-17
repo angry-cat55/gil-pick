@@ -45,6 +45,7 @@ class NormalizedTransitStep(BaseModel):
     alighting_name: str | None = None
     line_name: str | None = None
     stop_count: int | None = Field(default=None, ge=0, strict=True)
+    geometry: list[Coordinate] | None = Field(default=None, min_length=2)
 
 
 class NormalizedRoute(BaseModel):

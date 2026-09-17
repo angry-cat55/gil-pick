@@ -34,9 +34,9 @@
 
 ## 결정 4: Kakao Maps 지도 형상
 
-**Decision**: 대중교통 응답의 첫 번째 `routes` 항목을 기본 추천 경로로 채택하고 `steps[].path.points`를 제공 순서대로 이어 지도 형상으로 사용한다. 공식 `StepProperties`의 `WALKING`·`BUS`·`SUBWAY`를 각각 `WALK`·`BUS`·`SUBWAY`로 정규화하고, `time`·`distance`는 초·미터 그대로 사용한다. `stops`의 첫 번째·마지막 이름은 승차·하차 지점으로, 중복을 제거한 `vehicles[].name`은 제공 순서대로 ` / `로 연결한 노선명으로 사용한다. 공식 계약에 정류장 수 의미가 없으므로 `stopCount`는 null이다.
+**Decision**: 대중교통 응답의 첫 번째 `routes` 항목을 기본 추천 경로로 채택하고 각 `steps[].path.points`를 단계별 형상으로 보존한다. 공식 `StepProperties`의 `WALKING`·`BUS`·`SUBWAY`를 각각 `WALK`·`BUS`·`SUBWAY`로 정규화하고, `time`·`distance`는 초·미터 그대로 사용한다. 장소↔첫·마지막 단계와 인접 단계 사이 좌표 차이가 3m를 초과하면 인접 WALK 단계에 TMAP 보행 형상을 보완한다. 보완 실패 또는 WALK 단계 없는 공백은 `FAILED`로 처리한다. `stops`의 첫 번째·마지막 이름은 승차·하차 지점으로, 중복을 제거한 `vehicles[].name`은 제공 순서대로 ` / `로 연결한 노선명으로 사용한다. 공식 계약에 정류장 수 의미가 없으므로 `stopCount`는 null이다.
 
-**Rationale**: Kakao Maps 공식 응답이 기본 추천 경로의 단계별 실제 좌표와 상세 이동 정보를 제공하므로 별도 형상 호출이나 임의 직선 연결이 필요 없다. 상세 정보는 보조 정보이므로 누락·오류가 있어도 유효한 전체 경로를 실패시키지 않는다.
+**Rationale**: 실제 앱 검증에서 장소 좌표와 Kakao 첫 단계 사이가 벌어져 Android가 직선을 추가하는 문제가 확인됐다(#686). Kakao 단계 형상을 보존하고 실제 공백만 기존 TMAP WALK로 보완해야 각 이동 단계와 지도 선을 일치시킬 수 있다. 보완 실패를 성공으로 낮추면 다시 직선 또는 불완전 경로를 제공하게 되므로 전체 경로를 실패 처리한다.
 
 **Alternatives considered**: 정류장 좌표 직선 연결은 FR-003을 충족하지 못한다. 제공자 원문을 그대로 공개하거나 일부 단계만 반환하면 계약 결합과 불완전한 안내가 생겨 제외했다.
 
