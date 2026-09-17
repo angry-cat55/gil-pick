@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
@@ -135,6 +136,21 @@ class RefreshTokenData(ApiModel):
         pattern=OPAQUE_SELECTOR_PATTERN,
     )
     refresh_expires_in: Literal[2592000]
+
+
+class LbsConsentRequest(ApiModel):
+    """현재 위치기반서비스 이용약관에 대한 명시적 동의 요청."""
+
+    lbs_agreed: Literal[True]
+    lbs_version: Literal["v1.0"]
+
+
+class LbsConsentData(ApiModel):
+    """서버에 기록된 위치기반서비스 이용약관 동의."""
+
+    lbs_agreed: Literal[True]
+    lbs_agreed_at: datetime
+    lbs_version: Literal["v1.0"]
 
 
 class ResponseMeta(ApiModel):

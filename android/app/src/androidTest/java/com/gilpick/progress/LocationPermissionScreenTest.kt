@@ -30,7 +30,12 @@ class LocationPermissionScreenTest {
         var later = 0
         composeRule.setContent {
             GilpickTheme {
-                LocationPermissionScreen(onAllow = { allowed++ }, onLater = { later++ }, modifier = Modifier.fillMaxSize())
+                LocationPermissionScreen(
+                    onAllow = { allowed++ },
+                    onLater = { later++ },
+                    lbsAgreed = true,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
 

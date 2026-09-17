@@ -40,6 +40,11 @@ class User(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("social_provider", "social_subject", name="uq_users_social_identity"),
         CheckConstraint("social_provider IN ('KAKAO')", name="ck_users_social_provider"),
+        CheckConstraint(
+            "(lbs_agreed = false AND lbs_agreed_at IS NULL AND lbs_version IS NULL) OR "
+            "(lbs_agreed = true AND lbs_agreed_at IS NOT NULL AND lbs_version IS NOT NULL)",
+            name="ck_users_lbs_consent_complete",
+        ),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -50,6 +55,11 @@ class User(TimestampMixin, Base):
     replacement_suggestion_enabled: Mapped[bool] = mapped_column(
         Boolean, server_default=text("true"), nullable=False
     )
+    lbs_agreed: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
+    lbs_agreed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lbs_version: Mapped[str | None] = mapped_column(String(20))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     device_sessions: Mapped[list[DeviceSession]] = relationship(

@@ -106,6 +106,7 @@ class PolicyDocumentLauncherTest {
             when (document) {
                 PolicyDocument.PRIVACY_POLICY -> privacy
                 PolicyDocument.TERMS_OF_SERVICE -> terms
+                PolicyDocument.LOCATION_TERMS -> terms
             }
         },
         launch = { opened += it },

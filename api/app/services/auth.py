@@ -17,15 +17,48 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.clients.kakao import KakaoClientError
 from app.core.config import Settings
 from app.core.logging import log_auth_event
-from app.core.security import create_access_token, create_opaque_token, parse_opaque_token
+from app.core.security import (
+    create_access_token,
+    create_opaque_token,
+    parse_opaque_token,
+)
 from app.models.auth import AuthLoginTransaction, DeviceSession, User
 from app.models.trip import Trip
-from app.schemas.auth import AuthTokenData, RefreshTokenData, UserSummary
+from app.schemas.auth import (
+    AuthTokenData,
+    LbsConsentData,
+    RefreshTokenData,
+    UserSummary,
+)
 
 logger = logging.getLogger("gilpick.auth")
 TRANSACTION_TTL = timedelta(minutes=10)
 TICKET_TTL = timedelta(seconds=120)
 REFRESH_TTL = timedelta(days=30)
+CURRENT_LBS_VERSION = "v1.0"
+
+
+async def agree_to_lbs_terms(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    now: datetime | None = None,
+) -> LbsConsentData:
+    """현재 LBS 약관 동의를 최초 한 번만 기록하고 같은 버전 재요청은 멱등 처리한다."""
+    clock = now or datetime.now(UTC)
+    user = await session.get(User, user_id, with_for_update=True)
+    if user is None or user.deleted_at is not None:
+        raise AuthServiceError("INVALID_ACCESS_TOKEN", status_code=401)
+    if not user.lbs_agreed or user.lbs_version != CURRENT_LBS_VERSION:
+        user.lbs_agreed = True
+        user.lbs_agreed_at = clock
+        user.lbs_version = CURRENT_LBS_VERSION
+        await session.flush()
+    return LbsConsentData(
+        lbs_agreed=True,
+        lbs_agreed_at=user.lbs_agreed_at or clock,
+        lbs_version=CURRENT_LBS_VERSION,
+    )
 
 
 class AuthServiceError(RuntimeError):

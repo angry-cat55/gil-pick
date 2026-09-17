@@ -3,6 +3,7 @@ package com.gilpick.progress
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +56,11 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
 fun LocationPermissionScreen(
     onAllow: () -> Unit,
     onLater: () -> Unit,
+    lbsAgreed: Boolean = false,
+    onLbsAgreedChange: (Boolean) -> Unit = {},
+    onOpenLbsTerms: () -> Unit = {},
+    submitting: Boolean = false,
+    submitFailed: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -134,6 +141,41 @@ fun LocationPermissionScreen(
                 textColor = colors.onWarningContainer,
                 modifier = Modifier.background(colors.warningContainer, cardShape),
             )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = spacing.space4),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = lbsAgreed,
+                    onCheckedChange = onLbsAgreedChange,
+                    enabled = !submitting,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.lbs_terms_required),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.lbs_terms_open),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = scheme.primary,
+                        modifier = Modifier
+                            .padding(top = spacing.space1)
+                            .clickable(enabled = !submitting, onClick = onOpenLbsTerms),
+                    )
+                }
+            }
+            if (submitFailed) {
+                Text(
+                    text = stringResource(R.string.lbs_terms_save_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.error,
+                    modifier = Modifier.fillMaxWidth().padding(top = spacing.space2),
+                )
+            }
         }
         Column(
             modifier = Modifier
@@ -142,9 +184,11 @@ fun LocationPermissionScreen(
             verticalArrangement = Arrangement.spacedBy(spacing.space2),
         ) {
             GradientButton(
-                label = stringResource(R.string.location_permission_allow),
+                label = stringResource(if (submitting) R.string.lbs_terms_saving else R.string.location_permission_allow),
                 onClick = onAllow,
                 modifier = Modifier.fillMaxWidth(),
+                processing = submitting,
+                enabled = lbsAgreed,
             )
             SecondaryButton(
                 label = stringResource(R.string.location_permission_later),

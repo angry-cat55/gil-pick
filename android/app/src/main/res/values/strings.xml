@@ -6,6 +6,10 @@
     <string name="login_tagline">실시간 혼잡·날씨·운영시간을 감지해 최적의 경로를 다시 안내합니다</string>
     <string name="login_kakao">카카오로 시작하기</string>
     <string name="login_terms">시작하면 이용약관 및 개인정보처리방침에 동의한 것으로 간주됩니다</string>
+    <string name="lbs_terms_required">[필수] 위치기반서비스 이용약관에 동의합니다</string>
+    <string name="lbs_terms_open">약관 전문 보기</string>
+    <string name="lbs_terms_save_failed">동의를 기록하지 못했어요. 네트워크 상태를 확인하고 다시 시도해 주세요.</string>
+    <string name="lbs_terms_saving">동의 기록 중</string>
     <string name="login_in_progress">카카오 인증을 진행하고 있습니다</string>
     <string name="login_retry">다시 시도</string>
     <string name="login_error_retryable">지금은 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
@@ -769,6 +773,7 @@
     <string name="settings_app_section">앱 정보</string>
     <string name="settings_privacy_policy">개인정보처리방침</string>
     <string name="settings_terms_of_service">이용약관</string>
+    <string name="settings_location_terms">위치기반서비스 이용약관</string>
     <string name="settings_policy_open_failed">문서를 열 수 없어요</string>
     <string name="settings_policy_error_missing">문서 위치가 아직 준비되지 않았어요.</string>
     <string name="settings_policy_error_not_https">안전하지 않은 주소라 열지 않았어요.</string>

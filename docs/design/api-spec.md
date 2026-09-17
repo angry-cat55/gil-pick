@@ -135,6 +135,7 @@ Backend가 생성하는 오류는 위 형식을 따른다. 인증 endpoint 자�
 | AUTH-003 | 인증 | 카카오 login ticket 교환 | [ ] | [ ] | POST | `/api/v1/auth/kakao/exchange` |
 | AUTH-004 | 인증 | 액세스 토큰 재발급 | [ ] | [ ] | POST | `/api/v1/auth/token/refresh` |
 | AUTH-005 | 인증 | 로그아웃 | [ ] | [ ] | POST | `/api/v1/auth/logout` |
+| AUTH-006 | 인증 | 위치기반서비스 약관 동의 | [X] | [X] | PUT | `/api/v1/auth/me/lbs-consent` |
 | USER-001 | 사용자 | 내 정보 조회 | [ ] | [ ] | GET | `/api/v1/users/me` |
 | TRIP-001 | 여행 | 여행 목록 조회 | [ ] | [ ] | GET | `/api/v1/trips` |
 | TRIP-002 | 여행 | 여행 생성 | [ ] | [ ] | POST | `/api/v1/trips` |
@@ -361,6 +362,42 @@ Response: `204 No Content`
 - 모든 기기에서 로그아웃 기능은 MVP에서 제외한다.
 
 주요 오류: `401 INVALID_REFRESH_TOKEN`, `401 TOKEN_EXPIRED`, `403 DEVICE_MISMATCH`
+
+### AUTH-006 위치기반서비스 약관 동의
+
+`PUT /api/v1/auth/me/lbs-consent`
+
+위치 권한 요청 직전에 인증된 사용자의 명시적 동의를 기록한다. 같은 사용자가 같은 버전에 다시 동의해도 최초 동의 시각을 유지하는 멱등 요청이다.
+
+Request Body:
+
+```json
+{
+  "lbsAgreed": true,
+  "lbsVersion": "v1.0"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "lbsAgreed": true,
+    "lbsAgreedAt": "2026-09-17T12:00:00Z",
+    "lbsVersion": "v1.0"
+  },
+  "meta": { "requestId": "uuid" }
+}
+```
+
+정책:
+- `lbsAgreed=false` 또는 현재 버전과 다른 값은 `400 INVALID_REQUEST`로 거절한다.
+- 서버 기록이 성공하기 전에는 Android 위치 권한을 요청하지 않는다.
+- 기존 사용자는 migration 후 미동의 상태이며 최초 위치기반 기능 사용 시 동의한다.
+
+주요 오류: `400 INVALID_REQUEST`, `401 INVALID_ACCESS_TOKEN`
 
 ### USER-001 내 정보 조회
 

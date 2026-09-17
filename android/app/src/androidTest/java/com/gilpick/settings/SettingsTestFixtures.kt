@@ -7,6 +7,7 @@ import com.gilpick.auth.AuthService
 import com.gilpick.auth.AuthSessionStore
 import com.gilpick.auth.CreateLoginTransactionRequest
 import com.gilpick.auth.KeystoreSessionCipher
+import com.gilpick.auth.LbsConsentRequest
 import com.gilpick.auth.LoginTicketExchangeRequest
 import com.gilpick.auth.RefreshTokenRequest
 import com.gilpick.auth.ResponseMeta
@@ -100,6 +101,8 @@ class DeleteAccountAuthService(private val response: () -> Response<Unit>) : Aut
 }
 
 internal object NoAuthService : AuthService {
+    override suspend fun agreeToLbsTerms(bearer: String, body: LbsConsentRequest) =
+        error("설정 경로는 LBS 동의 endpoint를 호출하지 않는다")
     override suspend fun createLoginTransaction(body: CreateLoginTransactionRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")
     override suspend fun exchangeLoginTicket(body: LoginTicketExchangeRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")
     override suspend fun refreshTokens(body: RefreshTokenRequest) = error("설정 경로는 인증 endpoint를 호출하지 않는다")

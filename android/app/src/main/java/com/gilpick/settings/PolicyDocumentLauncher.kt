@@ -12,7 +12,7 @@ import com.gilpick.BuildConfig
  * 두 문서는 서로 다른 위치를 가리키므로 구분해서 연다. 앱 안에 문서 본문을 넣거나 정책 전용
  * 화면을 만들지 않는다 — 승인된 문서의 현재 내용을 그대로 보여야 하기 때문이다.
  */
-enum class PolicyDocument { PRIVACY_POLICY, TERMS_OF_SERVICE }
+enum class PolicyDocument { PRIVACY_POLICY, TERMS_OF_SERVICE, LOCATION_TERMS }
 
 /**
  * 정책 문서를 열지 못한 이유(FR-008).
@@ -82,6 +82,7 @@ class PolicyDocumentLauncher(
                 when (document) {
                     PolicyDocument.PRIVACY_POLICY -> BuildConfig.PRIVACY_POLICY_URL
                     PolicyDocument.TERMS_OF_SERVICE -> BuildConfig.TERMS_OF_SERVICE_URL
+                    PolicyDocument.LOCATION_TERMS -> BuildConfig.LOCATION_TERMS_URL
                 }
             },
             launch = { url ->

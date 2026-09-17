@@ -215,7 +215,43 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /auth/me/lbs-consent:
+    put:
+      operationId: agreeToLbsTerms
+      summary: 위치기반서비스 이용약관 동의 기록
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LbsConsentRequest'
+      responses:
+        '200':
+          description: 동의 기록 완료 또는 같은 버전의 기존 동의 반환
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LbsConsentResponse'
+        '401':
+          description: 유효하지 않은 Access Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '400':
+          description: 미동의 값 또는 지원하지 않는 약관 버전
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
 components:
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
   schemas:
     DeviceId:
       type: string
@@ -254,6 +290,33 @@ components:
 
     LogoutRequest:
       $ref: '#/components/schemas/RefreshTokenRequest'
+
+    LbsConsentRequest:
+      type: object
+      additionalProperties: false
+      required: [lbsAgreed, lbsVersion]
+      properties:
+        lbsAgreed:
+          type: boolean
+          const: true
+        lbsVersion:
+          type: string
+          const: v1.0
+
+    LbsConsentData:
+      type: object
+      additionalProperties: false
+      required: [lbsAgreed, lbsAgreedAt, lbsVersion]
+      properties:
+        lbsAgreed:
+          type: boolean
+          const: true
+        lbsAgreedAt:
+          type: string
+          format: date-time
+        lbsVersion:
+          type: string
+          const: v1.0
 
     UserSummary:
       type: object
@@ -369,6 +432,19 @@ components:
           const: true
         data:
           $ref: '#/components/schemas/RefreshTokenData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    LbsConsentResponse:
+      type: object
+      additionalProperties: false
+      required: [success, data, meta]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/LbsConsentData'
         meta:
           $ref: '#/components/schemas/ResponseMeta'
 
