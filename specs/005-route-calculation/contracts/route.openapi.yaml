@@ -201,6 +201,10 @@ components:
           type: array
           default: []
           items: { $ref: '#/components/schemas/RouteStep' }
+        isWalkingFallback:
+          type: boolean
+          default: false
+          description: 사용자는 TRANSIT을 골랐지만 직선거리 500m 이하에서 대중교통 경로가 없어 TMAP 도보로 대신 계산한 구간이면 true(#685). 이때 transportMode는 WALK, provider는 TMAP이다. 예전 저장 경로에는 없으며 false로 본다.
     Route:
       type: object
       required: [routeId, scheduleVersion, totalDurationSeconds, totalDistanceMeters, markers, segments, providerAttributions, calculatedAt]
@@ -229,7 +233,7 @@ components:
       properties:
         code:
           type: string
-          enum: [ROUTE_PROVIDER_TIMEOUT, ROUTE_PROVIDER_RATE_LIMITED, ROUTE_PROVIDER_UNAVAILABLE, ROUTE_NOT_FOUND, ROUTE_INVALID_RESULT]
+          enum: [ROUTE_PROVIDER_TIMEOUT, ROUTE_PROVIDER_RATE_LIMITED, ROUTE_PROVIDER_UNAVAILABLE, ROUTE_NOT_FOUND, ROUTE_INVALID_RESULT, ROUTE_SHORT_DISTANCE_NOT_FOUND]
         message: { type: string }
         retryable: { type: boolean }
     RouteData:

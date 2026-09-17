@@ -978,7 +978,8 @@ Response `200`:
           "distanceMeters": 1600,
           "geometry": {"type": "LineString", "coordinates": [[126.9770, 37.5796], [126.9830, 37.5826]]},
           "providerAttribution": "TMAP",
-          "steps": []
+          "steps": [],
+          "isWalkingFallback": false
         }
       ],
       "providerAttributions": ["TMAP"],
@@ -994,7 +995,9 @@ Response `200`:
 
 장소가 0곳인 날짜는 `NOT_CALCULATED`와 `route: null`, `failure: null`을 반환한다. 경로 계산이 실패한 날짜는 `FAILED`, `route: null`과 안정적인 `failure` code를 반환한다.
 
-경로 실패 code는 `ROUTE_PROVIDER_TIMEOUT`, `ROUTE_PROVIDER_RATE_LIMITED`, `ROUTE_PROVIDER_UNAVAILABLE`, `ROUTE_NOT_FOUND`, `ROUTE_INVALID_RESULT`다. Provider 호출은 시도당 최대 5초, 날짜 전체 계산은 최대 10초이며 timeout·네트워크 요청 오류·429·5xx만 남은 시간 안에서 한 번 재시도한다. 각 구간과 응답의 `providerAttribution`·`providerAttributions`는 화면에 표시해야 한다.
+경로 실패 code는 `ROUTE_PROVIDER_TIMEOUT`, `ROUTE_PROVIDER_RATE_LIMITED`, `ROUTE_PROVIDER_UNAVAILABLE`, `ROUTE_NOT_FOUND`, `ROUTE_INVALID_RESULT`, `ROUTE_SHORT_DISTANCE_NOT_FOUND`다.
+
+가까운 대중교통 구간의 도보 대체(#685): `TRANSIT` 구간이 `ROUTE_NOT_FOUND`이고 출발·도착 직선거리가 500m 이하이면 서버가 TMAP 도보 경로를 한 번 대신 계산한다. 성공하면 그 구간은 `transportMode: "WALK"`, `provider: "TMAP"`, `isWalkingFallback: true`로 내려가고 날짜 경로는 정상(`READY`)이다. 도보 계산까지 실패하면 `ROUTE_SHORT_DISTANCE_NOT_FOUND`로 실패한다. 500m를 넘는 구간의 경로 없음과 timeout·rate limit·잘못된 응답에는 대체하지 않고 기존 code를 유지한다. `isWalkingFallback`은 추가 필드이며 예전 저장 경로에는 없으므로 `false`로 본다. Provider 호출은 시도당 최대 5초, 날짜 전체 계산은 최대 10초이며 timeout·네트워크 요청 오류·429·5xx만 남은 시간 안에서 한 번 재시도한다. 각 구간과 응답의 `providerAttribution`·`providerAttributions`는 화면에 표시해야 한다.
 
 Kakao Maps 대중교통 구간의 `steps`는 제공 순서의 `WALK`·`BUS`·`SUBWAY` 단계다. 각 단계는 `durationSeconds`(초), `distanceMeters`(미터), nullable `boardingName`·`alightingName`·`lineName`·`stopCount`를 가진다. WALK·CAR, 기존 저장 경로, 또는 일부 상세 메타데이터가 유효하지 않은 대중교통 구간은 `steps: []`이며, 상세 오류만으로 유효한 경로·형상을 실패 처리하지 않는다.
 
