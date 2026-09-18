@@ -20,6 +20,7 @@ from app.api.errors import AppError
 from app.clients.route_provider import (
     Coordinate,
     NormalizedRoute,
+    NormalizedTransitStep,
     RouteProvider,
     RouteProviderError,
 )
@@ -437,21 +438,25 @@ class RouteCalculationService:
 
         Returns:
             모든 단계가 연속하고 장소 양 끝에 닿는 대중교통 경로. 시간·거리 합계는
-            Kakao 값을 유지한다.
+            Kakao 값을 유지하며, 인접 WALK 단계가 없는 공백에는 시간·거리 0인
+            synthetic WALK 단계를 추가한다.
 
         Raises:
-            RouteProviderError: 단계 계약이 불완전하거나, WALK 단계가 없는 공백이 있거나,
-                TMAP 보행 형상 계산·검증에 실패한 경우.
+            RouteProviderError: Kakao 단계 계약이 불완전하거나 보완 뒤 단계가 연속하지
+                않는 경우.
 
         Notes:
             3m 이하 차이는 좌표 정밀도 오차로 맞추고, 그보다 큰 독립 공백은 전체
-            deadline 안에서 동시에 계산한다.
+            deadline 안에서 동시에 계산한다. TMAP 계산·검증 실패는 해당 WALK 단계의
+            시작·끝 좌표를 잇는 직선 geometry로 격리한다.
         """
         if not route.steps or any(step.geometry is None for step in route.steps):
             raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
 
         geometries = [list(step.geometry or []) for step in route.steps]
-        gaps: list[tuple[Coordinate, Coordinate, int, str]] = []
+        gaps: list[
+            tuple[Coordinate, Coordinate, int | None, str, int]
+        ] = []
 
         def connect(
             start: Coordinate,
@@ -459,6 +464,7 @@ class RouteCalculationService:
             *,
             walk_index: int | None,
             position: str,
+            insertion_index: int,
             snap: Callable[[], None],
         ) -> None:
             if (
@@ -467,15 +473,14 @@ class RouteCalculationService:
             ):
                 snap()
                 return
-            if walk_index is None:
-                raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
-            gaps.append((start, end, walk_index, position))
+            gaps.append((start, end, walk_index, position, insertion_index))
 
         connect(
             origin,
             geometries[0][0],
             walk_index=(0 if route.steps[0].type is ClientTransitStepType.WALK else None),
             position="prepend",
+            insertion_index=0,
             snap=lambda: geometries[0].__setitem__(0, origin),
         )
         for index in range(len(geometries) - 1):
@@ -493,6 +498,7 @@ class RouteCalculationService:
                 right[0],
                 walk_index=walk_index,
                 position=position,
+                insertion_index=index + 1,
                 snap=lambda right=right, left=left: right.__setitem__(0, left[-1]),
             )
         connect(
@@ -504,13 +510,14 @@ class RouteCalculationService:
                 else None
             ),
             position="append",
+            insertion_index=len(route.steps),
             snap=lambda: geometries[-1].__setitem__(-1, destination),
         )
 
         async def calculate_gap(
-            gap: tuple[Coordinate, Coordinate, int, str],
-        ) -> tuple[list[Coordinate], int, str, bool]:
-            start, end, walk_index, position = gap
+            gap: tuple[Coordinate, Coordinate, int | None, str, int],
+        ) -> tuple[list[Coordinate], int | None, str, int, bool]:
+            start, end, walk_index, position, insertion_index = gap
             try:
                 result = await self.providers[ClientTransportMode.WALK].calculate(
                     start,
@@ -545,7 +552,7 @@ class RouteCalculationService:
                 connector = list(result.coordinates)
                 connector[0] = start
                 connector[-1] = end
-                return connector, walk_index, position, True
+                return connector, walk_index, position, insertion_index, True
             except RouteProviderError as error:
                 logger.warning(
                     "transit geometry enrichment fell back to straight line",
@@ -556,13 +563,30 @@ class RouteCalculationService:
                         "result_code": error.code,
                     },
                 )
-                return [start, end], walk_index, position, False
+                return [start, end], walk_index, position, insertion_index, False
 
         connectors = await asyncio.gather(*(calculate_gap(gap) for gap in gaps))
         used_tmap_geometry = False
         straight_walk_bounds: dict[int, list[Coordinate | None]] = {}
-        for connector, walk_index, position, used_tmap in connectors:
+        inserted_walks: dict[int, list[NormalizedTransitStep]] = {}
+        for (
+            connector,
+            walk_index,
+            position,
+            insertion_index,
+            used_tmap,
+        ) in connectors:
             used_tmap_geometry = used_tmap_geometry or used_tmap
+            if walk_index is None:
+                inserted_walks.setdefault(insertion_index, []).append(
+                    NormalizedTransitStep(
+                        type=ClientTransitStepType.WALK,
+                        duration_seconds=0,
+                        distance_meters=0,
+                        geometry=connector,
+                    )
+                )
+                continue
             if not used_tmap:
                 bounds = straight_walk_bounds.setdefault(walk_index, [None, None])
                 if position == "prepend":
@@ -579,11 +603,20 @@ class RouteCalculationService:
 
         joined: list[Coordinate] = []
         steps = []
-        for step, geometry in zip(route.steps, geometries):
+
+        def append_step(step: NormalizedTransitStep) -> None:
+            geometry = list(step.geometry or [])
             if joined and joined[-1] != geometry[0]:
                 raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
             joined.extend(geometry if not joined else geometry[1:])
-            steps.append(step.model_copy(update={"geometry": geometry}))
+            steps.append(step)
+
+        for index, (step, geometry) in enumerate(zip(route.steps, geometries)):
+            for inserted in inserted_walks.get(index, []):
+                append_step(inserted)
+            append_step(step.model_copy(update={"geometry": geometry}))
+        for inserted in inserted_walks.get(len(route.steps), []):
+            append_step(inserted)
 
         return route.model_copy(
             update={
