@@ -55,6 +55,7 @@ _SEOUL_LOCATION_RESTRICTION = {
         "high": {"latitude": 37.715133, "longitude": 127.269311},
     }
 }
+_EARTH_RADIUS_METERS = 6_371_000
 
 
 class _PlainTextParser(HTMLParser):
@@ -141,11 +142,43 @@ def distance_meters(left: PlaceSummary, right: PlaceSummary) -> float:
     """두 장소 좌표의 haversine 거리를 미터로 계산한다."""
     if None in (left.latitude, left.longitude, right.latitude, right.longitude):
         return math.inf
-    lat1, lat2 = math.radians(left.latitude), math.radians(right.latitude)
+    return coordinate_distance_meters(
+        left.latitude, left.longitude, right.latitude, right.longitude
+    )
+
+
+def coordinate_distance_meters(
+    left_latitude: float,
+    left_longitude: float,
+    right_latitude: float,
+    right_longitude: float,
+) -> float:
+    """좌표 두 쌍의 haversine 거리를 미터로 계산한다."""
+    lat1, lat2 = math.radians(left_latitude), math.radians(right_latitude)
     dlat = lat2 - lat1
-    dlon = math.radians(right.longitude - left.longitude)
+    dlon = math.radians(right_longitude - left_longitude)
     value = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    return 6_371_000 * 2 * math.asin(math.sqrt(value))
+    return _EARTH_RADIUS_METERS * 2 * math.asin(math.sqrt(value))
+
+
+def location_rectangle(
+    latitude: float, longitude: float, radius_meters: int
+) -> dict[str, dict[str, float]]:
+    """원형 반경을 포함하는 Google Text Search용 사각형을 만든다."""
+    latitude_delta = math.degrees(radius_meters / _EARTH_RADIUS_METERS)
+    longitude_delta = math.degrees(
+        radius_meters / (_EARTH_RADIUS_METERS * math.cos(math.radians(latitude)))
+    )
+    return {
+        "low": {
+            "latitude": latitude - latitude_delta,
+            "longitude": longitude - longitude_delta,
+        },
+        "high": {
+            "latitude": latitude + latitude_delta,
+            "longitude": longitude + longitude_delta,
+        },
+    }
 
 
 def find_match(
@@ -223,6 +256,7 @@ class PlaceService:
         seen = set(state.get("seen_place_ids", []))
 
         nearby = query is None and latitude is not None and longitude is not None
+        location_search = latitude is not None and longitude is not None
         params: dict[str, Any] = {"pageNo": page_no, "numOfRows": limit}
         if nearby:
             params.update(
@@ -265,6 +299,14 @@ class PlaceService:
             item = tour_place(raw)
             if item is None or item.place_id in seen:
                 continue
+            if location_search and (
+                item.latitude is None
+                or item.longitude is None
+                or coordinate_distance_meters(
+                    latitude, longitude, item.latitude, item.longitude
+                ) > radius_meters
+            ):
+                continue
             if category is not None and item.category is not category:
                 continue
             if item.place_id not in {entry.place_id for entry in items}:
@@ -279,7 +321,11 @@ class PlaceService:
             google_attempted = True
             params = {
                 "pageSize": limit - len(items),
-                "locationRestriction": _SEOUL_LOCATION_RESTRICTION,
+                "locationRestriction": {
+                    "rectangle": location_rectangle(
+                        latitude, longitude, radius_meters
+                    )
+                } if location_search else _SEOUL_LOCATION_RESTRICTION,
             }
             if category is None:
                 assert query is not None
@@ -303,6 +349,14 @@ class PlaceService:
                         continue
                     candidate = google_place(raw, google_category)
                     if candidate is None or candidate.place_id in seen:
+                        continue
+                    if location_search and (
+                        candidate.latitude is None
+                        or candidate.longitude is None
+                        or coordinate_distance_meters(
+                            latitude, longitude, candidate.latitude, candidate.longitude
+                        ) > radius_meters
+                    ):
                         continue
                     match, ambiguous = find_match(items, candidate)
                     if match:

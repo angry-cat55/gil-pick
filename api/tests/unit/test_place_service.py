@@ -483,6 +483,48 @@ async def test_google_is_called_only_for_commercial_category_shortage() -> None:
 
 
 @pytest.mark.asyncio
+async def test_keyword_search_with_location_prefers_results_inside_radius() -> None:
+    """위치가 포함된 키워드 검색은 먼 TourAPI 결과를 빼고 Google도 같은 지역으로 제한한다."""
+    google = StubGoogleClient(
+        {
+            "places": [
+                google_place(
+                    "nearby", name="스타벅스 종로점", address="서울특별시 종로구",
+                    latitude=37.5700, longitude=126.9800,
+                ),
+                google_place(
+                    "far-google", name="스타벅스 강남점", address="서울특별시 강남구",
+                    latitude=37.4979, longitude=127.0276,
+                ),
+            ]
+        }
+    )
+    tour = StubTourClient(
+        [
+            tour_response(
+                [
+                    tour_item(
+                        "far", name="스타벅스 강남점", large="FD", middle="FD05",
+                        latitude=37.4979, longitude=127.0276,
+                    )
+                ]
+            )
+        ]
+    )
+
+    items, _, _ = await service(tour, google).search_places(
+        query="스타벅스", category=None, area_code=None,
+        latitude=37.5665, longitude=126.9780, radius_meters=2000,
+        cursor=None, limit=20,
+    )
+
+    assert [item.place_id for item in items] == ["google:nearby"]
+    restriction = google.calls[0][1]["locationRestriction"]["rectangle"]
+    assert restriction["low"]["latitude"] < 37.5665 < restriction["high"]["latitude"]
+    assert restriction["low"]["longitude"] < 126.9780 < restriction["high"]["longitude"]
+
+
+@pytest.mark.asyncio
 async def test_google_supplement_excludes_non_seoul_addresses() -> None:
     """Google이 경계 밖 결과를 섞어도 서울 주소만 검색 결과에 포함한다."""
     google = StubGoogleClient(
