@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -417,6 +419,16 @@ class TripDetailScreenTest {
         composeRule.onNodeWithText("일정 편집").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("오늘 여행 시작", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("여행 진행 화면으로").assertDoesNotExist()
+    }
+
+    @Test
+    fun 일정_편집_버튼은_가로_가운데에_있다() {
+        setDetail(detailWith(ItineraryOverviewPhase.Content(listOf(day("2026-09-01", 1)))))
+
+        val button = composeRule.onNodeWithText("일정 편집").performScrollTo().getBoundsInRoot()
+        val root = composeRule.onRoot().getBoundsInRoot()
+        // #716: 감싸는 Column이 버튼 폭으로 줄면 왼쪽에 붙는다.
+        assertEquals(((root.left + root.right) / 2).value, ((button.left + button.right) / 2).value, 1f)
     }
 
     /** 여행은 받았고 일정 영역만 [itinerary] 상태인 상세 화면 상태를 만든다. */

@@ -637,7 +637,7 @@ private fun ItineraryActions(onEditItinerary: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
 
     Column(
-        modifier = Modifier.padding(bottom = spacing.space2),
+        modifier = Modifier.fillMaxWidth().padding(bottom = spacing.space2),
         verticalArrangement = Arrangement.spacedBy(spacing.space1),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
