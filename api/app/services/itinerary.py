@@ -51,7 +51,14 @@ class ItineraryService:
     async def get_overview(
         self, *, trip_id: uuid.UUID, start_date: date, end_date: date
     ) -> ItineraryOverview:
-        """여행 기간의 저장·빈 날짜 일정을 한 번에 조회한다."""
+        """여행 기간의 저장·빈 날짜 일정을 한 번에 조회한다.
+
+        종료된 여행이면 가지 못한 장소를 먼저 건너뛰기로 마감해 마감된 상태를 돌려준다(#711).
+        """
+        # 순환 import를 피한다(progress → detection → itinerary 모델 공유).
+        from app.services.progress import close_out_ended_trip
+
+        await close_out_ended_trip(self.session, trip_id=trip_id, end_date=end_date)
         days = (
             await self.session.scalars(
                 select(TripDay)

@@ -249,6 +249,105 @@ def apply_manual_transition(
     return affected, transition_type
 
 
+def apply_trip_end_close_out(day: TripDay, now: datetime) -> list[dict[str, str]]:
+    """종료된 여행의 시작된 날짜에서 가지 못한 장소를 건너뛰기로 마감한다(#711).
+
+    Args:
+        day: 시작됐지만 완료되지 않은 날짜와 전체 일정 항목 aggregate.
+        now: 날짜 완료 시각으로 기록할 서버 시각.
+
+    Returns:
+        감사 기록에 저장할 변경 전후 목록.
+
+    Notes:
+        `PLANNED`·`EN_ROUTE`만 `SKIPPED`로 바꾼다. `ARRIVED`·`COMPLETED`·`SKIPPED`는 실제
+        방문 기록이라 그대로 둔다. 남은 `PLANNED`·`EN_ROUTE`가 없으므로 기존 완료 규칙대로
+        날짜도 완료한다. 이 함수는 메모리 상태만 바꾸며 commit은 호출자가 수행한다.
+    """
+    affected: list[dict[str, str]] = []
+    for item in sorted(day.items, key=lambda item: item.sequence):
+        if item.status in {"PLANNED", "EN_ROUTE"}:
+            affected.append({
+                "itemId": str(item.item_id),
+                "beforeStatus": item.status,
+                "afterStatus": "SKIPPED",
+            })
+            item.status = "SKIPPED"
+    affected.append({"dayStatusBefore": day.status, "dayStatusAfter": "COMPLETED"})
+    day.status = "COMPLETED"
+    day.completed_at = now
+    day.detection_active = False
+    return affected
+
+
+async def close_out_ended_trip(
+    session: AsyncSession,
+    *,
+    trip_id: uuid.UUID,
+    end_date: date,
+    now: datetime | None = None,
+) -> None:
+    """일정상 마지막 날이 지난 여행의 가지 못한 장소를 건너뛰기로 마감한다(#711).
+
+    주기 작업자 없이(F007 지연 확정과 같은 방식) 종료된 여행의 일정·진행을 조회하기 전에
+    호출한다. 여행은 도착 처리와 무관하게 마지막 날(KST)이 지나면 종료다. 시작하지 않고
+    지나간 날짜는 진행 기록이 없으므로 건드리지 않는다.
+
+    Args:
+        session: 요청 transaction. commit은 호출자(요청 종료)가 수행한다.
+        trip_id: 소유권을 이미 확인한 여행.
+        end_date: 여행의 마지막 날짜.
+        now: 종료 판정과 완료 시각에 쓸 서버 시각. 테스트에서 주입한다.
+    """
+    now = now or datetime.now(UTC)
+    if now.astimezone(timezone(timedelta(hours=9))).date() <= end_date:
+        return
+    days = (
+        await session.scalars(
+            select(TripDay)
+            .options(selectinload(TripDay.items))
+            .where(TripDay.trip_id == trip_id, TripDay.status == "IN_PROGRESS")
+            .with_for_update()
+        )
+    ).all()
+    if not days:
+        return
+    # 순환 import를 피한다. 만료된 무응답 후보는 마감 전에 기존 규칙대로 먼저 확정한다.
+    from app.services.detection import DetectionService
+
+    detection = DetectionService(session)
+    for day in days:
+        await detection.finalize_due_candidates(day, now=now)
+        if day.status != "IN_PROGRESS":
+            continue
+        affected = apply_trip_end_close_out(day, now)
+        day.progress_version += 1
+        session.add(
+            ProgressTransition(
+                trip_day_id=day.trip_day_id,
+                primary_item_id=None,
+                transition_type="TRIP_END_SKIP",
+                status="CONFIRMED",
+                source="TRIP_END",
+                affected_items=affected,
+                detected_at=now,
+                confirmed_at=now,
+                schedule_version_before=day.schedule_version,
+                schedule_version_after=day.schedule_version,
+                progress_version_after=day.progress_version,
+                idempotency_key=uuid.uuid4(),
+            )
+        )
+        logger.info({
+            "operation": "CLOSE_OUT_ENDED_TRIP_DAY",
+            "request_id": request_id_context.get(),
+            "trip_id": str(trip_id),
+            "visit_date": day.visit_date.isoformat(),
+            "skipped": len(affected) - 1,
+        })
+    await session.flush()
+
+
 class ProgressService:
     """진행 API의 원자적 상태 변경과 응답 파생을 담당한다."""
 
@@ -262,7 +361,18 @@ class ProgressService:
         self.calculator = calculator
         self.session_factory = session_factory
 
-    async def get_day(self, *, trip_id: uuid.UUID, visit_date: date) -> ProgressData:
+    async def get_day(
+        self,
+        *,
+        trip_id: uuid.UUID,
+        visit_date: date,
+        trip_end_date: date | None = None,
+    ) -> ProgressData:
+        """날짜의 진행 현황을 조회한다. [trip_end_date]를 주면 종료된 여행을 먼저 마감한다(#711)."""
+        if trip_end_date is not None:
+            await close_out_ended_trip(
+                self.session, trip_id=trip_id, end_date=trip_end_date
+            )
         day = await self._load_day(trip_id, visit_date)
         if day is None:
             return ProgressData(

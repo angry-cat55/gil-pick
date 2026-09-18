@@ -30,7 +30,6 @@ import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.ItineraryEditRoute
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
-import com.gilpick.progress.CurrentLocationProvider
 import com.gilpick.progress.ProgressRepository
 import com.gilpick.progress.ProgressService
 import com.gilpick.progress.createProgressRetrofit
@@ -199,8 +198,6 @@ class RouteNavigationTest {
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
                                 routeRepository = routeRepository,
-                                progressRepository = progressRepository,
-                                locationProvider = CurrentLocationProvider { null },
                                 tripId = tripId,
                             )
                         }

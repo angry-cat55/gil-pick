@@ -89,6 +89,9 @@ class ProgressViewModelTest {
     /** 백그라운드 위치 권한 보유 여부. test가 기기 상태 대신 바꾼다. */
     private var backgroundPermission = true
 
+    /** 시작 요청에 실릴 현재 위치. `null`이면 위치를 얻지 못한 것이다. */
+    private var location: CurrentLocationDto? = null
+
     /** 2026-09-08 11:10:30 KST. [inProgress]의 B ETA(02:20Z = 11:20 KST)까지 9분 30초 남았다. */
     private var now: Instant = Instant.parse("2026-09-08T02:10:30Z")
     private val clock = object : Clock() {
@@ -677,17 +680,142 @@ class ProgressViewModelTest {
         assertEquals(ItemStatus.EN_ROUTE, today.rows[1].progress.status)
     }
 
+    // --- #711: 여행 중 화면에서 시작, 도착 처리가 남은 지난 날짜에 머무르기 ---
+
     @Test
-    fun `일정 편집은 오늘과 이후 날짜만 가능하고 지난 날짜는 읽기 전용이다`() = viewModelTest { viewModel ->
-        itineraryService.onOverview = { ok(threeDayOverview()) }
+    fun `이동 시작은 위치와 고른 이동수단과 version 0을 싣고 성공하면 그 자리에서 진행 중이 된다`() = viewModelTest { viewModel ->
+        location = CurrentLocationDto(latitude = 37.5, longitude = 127.0, accuracyMeters = 10.0, occurredAt = "2026-09-08T02:10:00Z")
+        progressService.onGet = { progressOk(notStarted(date = it)) }
         viewModel.load()
         runCurrent()
 
-        assertTrue((viewModel.state.value as ProgressUiState.Content).canEditItinerary)
-        viewModel.selectDate(LocalDate.parse("2026-09-09"))
-        assertTrue((viewModel.state.value as ProgressUiState.Content).canEditItinerary)
-        viewModel.selectDate(LocalDate.parse("2026-09-07"))
-        assertFalse((viewModel.state.value as ProgressUiState.Content).canEditItinerary)
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.CAR)
+        runCurrent()
+
+        val body = progressService.startCalls.single().second
+        assertEquals(0, body.progressVersion)
+        assertEquals(location, body.currentLocation)
+        assertEquals(TransportMode.CAR, body.transportMode)
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DayStatus.IN_PROGRESS, content.progress.dayStatus)
+        assertFalse(content.starting)
+    }
+
+    @Test
+    fun `현장 시작은 위치도 이동수단도 보내지 않는다`() = viewModelTest { viewModel ->
+        location = CurrentLocationDto(latitude = 37.5, longitude = 127.0, accuracyMeters = 10.0, occurredAt = "2026-09-08T02:10:00Z")
+        progressService.onGet = { progressOk(notStarted(date = it)) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.startToday(StartMode.AT_FIRST_PLACE, null)
+        runCurrent()
+
+        val body = progressService.startCalls.single().second
+        assertEquals(StartMode.AT_FIRST_PLACE, body.startMode)
+        assertNull(body.currentLocation)
+        assertNull(body.transportMode)
+    }
+
+    @Test
+    fun `시작이 통신 실패하면 원인을 남기고 다시 시도는 같은 선택과 같은 멱등 키로 보낸다`() = viewModelTest { viewModel ->
+        progressService.onStart = { throw java.io.IOException("offline") }
+        progressService.onGet = { progressOk(notStarted(date = it)) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.TRANSIT)
+        runCurrent()
+        val failure = (viewModel.state.value as ProgressUiState.Content).startFailure
+        assertEquals(StartFailure(StartMode.MOVE_TO_FIRST, TransportMode.TRANSIT, ProgressError.Network), failure)
+
+        viewModel.retryStart()
+        runCurrent()
+
+        assertEquals(2, progressService.startCalls.size)
+        assertEquals(progressService.startCalls[0], progressService.startCalls[1])
+    }
+
+    @Test
+    fun `시작이 VERSION_CONFLICT면 실패로 남기지 않고 최신 현황을 다시 받는다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(notStarted(date = it)) }
+        viewModel.load()
+        runCurrent()
+        progressService.onStart = { progressError(409, ProgressErrorCodes.VERSION_CONFLICT) }
+        progressService.onGet = { progressOk(inProgress()) }
+
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.WALK)
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(1, progressService.startCalls.size)
+        assertNull(content.startFailure)
+        assertEquals(DayStatus.IN_PROGRESS, content.progress.dayStatus)
+    }
+
+    @Test
+    fun `이미 시작된 날짜에서는 시작 요청을 보내지 않는다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(inProgress()) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.WALK)
+        runCurrent()
+
+        assertTrue(progressService.startCalls.isEmpty())
+    }
+
+    @Test
+    fun `도착 처리가 남은 지난 날짜가 있으면 그 날짜에 머무르고 상태를 고칠 수 있다`() = viewModelTest { viewModel ->
+        itineraryService.onOverview = { ok(pendingYesterdayOverview()) }
+        progressService.onGet = { date -> progressOk(if (date == YESTERDAY) inProgress().copy(date = date) else notStarted(date = date)) }
+        viewModel.load()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(LocalDate.parse(YESTERDAY), content.today)
+        assertTrue(content.stayingOnPastDay)
+        assertTrue(content.isToday && content.viewingStarted)
+
+        viewModel.arrive()
+        runCurrent()
+        assertEquals(P_ITEM_B, progressService.updateCalls.single().second)
+    }
+
+    @Test
+    fun `남은 지난 날짜를 모두 처리하면 다시 조회해 오늘로 넘어간다`() = viewModelTest { viewModel ->
+        var overview = pendingYesterdayOverview()
+        itineraryService.onOverview = { ok(overview) }
+        progressService.onGet = { date -> progressOk(if (date == YESTERDAY) inProgress().copy(date = date) else notStarted(date = date)) }
+        progressService.onUpdate = { _, _ ->
+            overview = threeDayOverview()
+            progressOk(inProgress(progressVersion = 3).copy(date = YESTERDAY, dayStatus = DayStatus.COMPLETED))
+        }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.skip()
+        runCurrent()
+
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(LocalDate.parse(PROGRESS_DATE), content.today)
+        assertFalse(content.stayingOnPastDay)
+        // 날짜별 version이라 어제의 3이 오늘의 0을 가리면 안 된다.
+        assertEquals(DayStatus.NOT_STARTED, content.progress.dayStatus)
+    }
+
+    @Test
+    fun `완료했거나 시작하지 않고 지나간 날짜에는 머무르지 않는다`() {
+        val today = LocalDate.parse(PROGRESS_DATE)
+        assertNull(threeDayOverview().days.pendingDayBefore(today))
+        val neverStarted = overview(day(YESTERDAY, dayNumber = 1, version = 1, items = listOf(savedItem("item-past", 1, name = "창덕궁"))))
+        assertNull(neverStarted.days.pendingDayBefore(today))
+        // 오늘의 남은 장소는 "지난 날짜"가 아니다.
+        assertNull(todayOverview().days.pendingDayBefore(today))
+        assertEquals(LocalDate.parse(YESTERDAY), pendingYesterdayOverview().days.pendingDayBefore(today))
+        // 일정상 마지막 날(9/9)이 지나면 도착 처리가 남아 있어도 여행은 종료다.
+        assertEquals(LocalDate.parse(YESTERDAY), pendingYesterdayOverview().days.pendingDayBefore(LocalDate.parse("2026-09-09")))
+        assertNull(pendingYesterdayOverview().days.pendingDayBefore(LocalDate.parse("2026-09-10")))
     }
 
     @Test
@@ -778,6 +906,21 @@ class ProgressViewModelTest {
         todayOverview().days.single().copy(dayNumber = 2),
         day("2026-09-09", dayNumber = 3, version = 1, items = listOf(savedItem("item-future", 1, name = "남산타워"))),
     )
+
+    /** [threeDayOverview]에서 어제만 도착 처리가 남은 상태로 바꾼 개요. 어제 항목은 [inProgress]의 세 항목과 같은 ID다. */
+    private fun pendingYesterdayOverview() = threeDayOverview().let { overview ->
+        overview.copy(
+            days = overview.days.map { day ->
+                if (day.date != YESTERDAY) day else day.copy(
+                    items = listOf(
+                        savedItem(P_ITEM_A, 1, name = "창덕궁", status = ItemStatus.COMPLETED),
+                        savedItem(P_ITEM_B, 2, name = "종묘", status = ItemStatus.EN_ROUTE),
+                        savedItem(P_ITEM_C, 3, name = "익선동"),
+                    ),
+                )
+            },
+        )
+    }
 
     /** 9/8 하루 여행 개요. [inProgress]의 세 항목과 같은 ID다. */
     private fun todayOverview() = overview(
@@ -1011,7 +1154,7 @@ class ProgressViewModelTest {
             geofenceManager = GeofenceManager(client = geofenceClient, session = geofenceSession),
             hasBackgroundPermission = { backgroundPermission },
             alternativeRepository = AlternativeRepository(api = alternativeService, auth = auth).takeIf { withAlternative },
-            replacementRepository = com.gilpick.replacement.ReplacementRepository(api = replacementService, auth = auth),
+            replacementRepository = com.gilpick.replacement.ReplacementRepository(api = replacementService, auth = auth),            locationProvider = CurrentLocationProvider { location },
         )
     }
 }

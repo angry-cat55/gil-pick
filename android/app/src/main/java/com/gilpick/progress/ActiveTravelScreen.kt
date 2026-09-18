@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ import com.gilpick.notification.IconBoxButton
 import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.itinerary.iconRes
 import com.gilpick.itinerary.labelRes
 import com.gilpick.route.RouteDto
@@ -123,7 +125,9 @@ import kotlinx.coroutines.delay
  * @param onOpenAlternatives F009 변수 경고 배너 탭. 그 감지의 대체 장소 화면으로 간다(F009 FR-028).
  * @param onNotifications 헤더 알림 벨. F011 알림 목록으로 간다.
  * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. F011 감지 목록(US6)으로 간다.
- * @param onEdit 헤더 `편집`. 보고 있는 날짜(`yyyy-MM-dd`)의 일정 편집으로 간다. 지난 날짜에서는 비활성이다(#509).
+ * @param onEdit 헤더 `일정 편집`. 일정 상세로 가고 편집은 거기서 한다(#711).
+ * @param onStartToday 시작 카드의 `오늘 여행 시작하기`에서 고른 시작 방식·이동수단으로 시작한다(#711).
+ * @param onRetryStart 실패한 시작을 같은 선택으로 다시 보낸다.
  * @param map 지도 영역. 기본은 F005 Naver [RouteMap]이며, UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -153,7 +157,9 @@ fun ActiveTravelScreen(
     onOpenAlternatives: (detectionId: String) -> Unit = {},
     onNotifications: () -> Unit = {},
     onOpenVariableMonitor: () -> Unit = {},
-    onEdit: (date: String) -> Unit = {},
+    onEdit: () -> Unit = {},
+    onStartToday: (StartMode, TransportMode?) -> Unit = { _, _ -> },
+    onRetryStart: () -> Unit = {},
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, mapModifier ->
         RouteMap(route = route, marks = marks, modifier = mapModifier, sheetFraction = 0f, myLocation = true)
     },
@@ -193,6 +199,8 @@ fun ActiveTravelScreen(
                     onDismissCandidate = onDismissCandidate,
                     onUndo = onUndo,
                     onUndoReplacement = onUndoReplacement,
+                    onStartToday = onStartToday,
+                    onRetryStart = onRetryStart,
                     onEnableDetection = onEnableDetection,
                     onDismissDetectionNotice = onDismissDetectionNotice,
                     onOpenAlternatives = onOpenAlternatives,
@@ -217,7 +225,7 @@ private fun Header(
     onReturnToToday: () -> Unit,
     onNotifications: () -> Unit,
     onOpenVariableMonitor: () -> Unit,
-    onEdit: (date: String) -> Unit,
+    onEdit: () -> Unit,
 ) {
     val spacing = LocalGilpickSpacing.current
     val colors = LocalGilpickColors.current
@@ -279,12 +287,11 @@ private fun Header(
                 boxColor = colors.warningContainer,
                 modifier = Modifier.testTag(TAG_VARIABLE_MONITOR),
             )
-            // 보고 있는 날짜의 일정 편집. 내용이 없거나 지난 날짜면 비활성이고 사유는 날짜 안내가 알린다(#509).
+            // 일정 상세로 간다. 편집은 거기서 한다(#711).
             IconBoxButton(
                 icon = R.drawable.ic_lucide_pencil,
                 contentDescription = stringResource(R.string.progress_edit),
-                onClick = { content?.let { onEdit(it.viewing.toString()) } },
-                enabled = content?.canEditItinerary == true,
+                onClick = onEdit,
                 modifier = Modifier.testTag(TAG_EDIT),
             )
         }
@@ -301,6 +308,10 @@ private fun Header(
                 ViewingBanner(
                     dayNumber = viewingItinerary.dayNumber,
                     past = content.viewing < content.today,
+                    // 지난 날짜에 머무르는 중이면 돌아갈 곳은 오늘이 아니라 그 날짜다(#711).
+                    returnLabel = content.todayItinerary?.dayNumber?.takeIf { content.stayingOnPastDay }
+                        ?.let { stringResource(R.string.progress_return_day, it) }
+                        ?: stringResource(R.string.progress_return_today),
                     onReturnToToday = onReturnToToday,
                     modifier = Modifier.padding(top = spacing.space2 + 2.dp),
                 )
@@ -311,7 +322,7 @@ private fun Header(
 
 /** Figma: 오늘이 아닌 날짜의 안내 `N일차 · 지난 일정`/`예정 일정`과 `오늘로 돌아가기`(UI-005). */
 @Composable
-private fun ViewingBanner(dayNumber: Int, past: Boolean, onReturnToToday: () -> Unit, modifier: Modifier = Modifier) {
+private fun ViewingBanner(dayNumber: Int, past: Boolean, returnLabel: String, onReturnToToday: () -> Unit, modifier: Modifier = Modifier) {
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
@@ -333,14 +344,6 @@ private fun ViewingBanner(dayNumber: Int, past: Boolean, onReturnToToday: () -> 
                 fontWeight = FontWeight.SemiBold,
                 color = colors.muted,
             )
-            // 헤더 `편집`이 비활성인 이유(#509).
-            if (past) {
-                Text(
-                    text = stringResource(R.string.progress_viewing_past_read_only),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.muted,
-                )
-            }
         }
         Box(
             modifier = Modifier
@@ -350,7 +353,7 @@ private fun ViewingBanner(dayNumber: Int, past: Boolean, onReturnToToday: () -> 
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = stringResource(R.string.progress_return_today),
+                text = returnLabel,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -554,6 +557,8 @@ private fun Content(
     onDismissCandidate: () -> Unit,
     onUndo: () -> Unit,
     onUndoReplacement: () -> Unit,
+    onStartToday: (StartMode, TransportMode?) -> Unit,
+    onRetryStart: () -> Unit,
     onEnableDetection: () -> Unit,
     onDismissDetectionNotice: () -> Unit,
     onOpenAlternatives: (detectionId: String) -> Unit,
@@ -591,8 +596,16 @@ private fun Content(
                     modifier = Modifier.padding(bottom = spacing.space2),
                 )
             }
+            if (content.isToday && content.stayingOnPastDay) {
+                PendingDayNotice(modifier = Modifier.padding(bottom = spacing.space2))
+            }
             if (content.isToday) {
-                NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
+                // 시작 전에는 시작 카드만, 시작한 뒤에야 `도착했어요`·`건너뛰기`가 있는 카드가 나온다(#711).
+                if (content.progress.dayStatus == DayStatus.NOT_STARTED) {
+                    StartCard(content = content, onStartToday = onStartToday, onRetryStart = onRetryStart)
+                } else {
+                    NextPlaceCard(content = content, onArrive = onArrive, onSkip = onSkip, onDepart = onDepart)
+                }
             }
             content.actionError?.let { failure ->
                 ActionErrorBar(failure = failure, onRetry = onRetryAction, onDismiss = onDismissActionError, modifier = Modifier.padding(top = spacing.space2))
@@ -680,7 +693,7 @@ private fun Content(
  * - `ARRIVED` 장소가 있음: `현재 장소`, 장소명, `도착 시각 · 체류 예정`, `다음 장소로 출발`.
  * - 다음 장소가 있음: `다음 장소`, 장소명, `예상 도착` 시각과 남은·지난 시간, 이전 장소에서의 이동, `도착했어요`·`건너뛰기`.
  *
- * 시작 전 날짜(`NOT_STARTED`)나 남은 장소가 없는 진행 중 날짜에는 카드를 그리지 않는다. 전환 요청 중에는
+ * 시작 전 날짜(`NOT_STARTED`)에는 이 카드 대신 [StartCard]가 나온다(#711). 남은 장소가 없는 진행 중 날짜에는 카드를 그리지 않는다. 전환 요청 중에는
  * 내용을 그대로 두고 행동만 비활성화하며 요청한 버튼에 진행 표시를 겹친다(UI-008).
  */
 @Composable
@@ -694,6 +707,73 @@ private fun NextPlaceCard(content: ProgressUiState.Content, onArrive: () -> Unit
         current != null -> ArrivedCard(row = current, hasNext = next != null, pending = pending, onDepart = onDepart)
         next != null && progress.dayStatus == DayStatus.IN_PROGRESS -> MovingCard(content = content, row = next, pending = pending, onArrive = onArrive, onSkip = onSkip)
     }
+}
+
+/**
+ * 시작 카드(#711). 오늘이 시작 전일 때 첫 장소와 `오늘 여행 시작하기`를 보인다. 일정 상세에서 옮겨 왔다.
+ *
+ * 버튼은 시작 방식 시트([StartTravelFlow])를 연다. 실패하면 원인 문장과 함께 `다시 시도`로 바뀌고, 다시 시도는
+ * 사용자가 방식을 다시 고르지 않고 실패한 선택 그대로 보낸다(#654).
+ */
+@Composable
+private fun StartCard(content: ProgressUiState.Content, onStartToday: (StartMode, TransportMode?) -> Unit, onRetryStart: () -> Unit) {
+    val spacing = LocalGilpickSpacing.current
+    val first = content.todayRows.firstOrNull() ?: return
+    val failure = content.startFailure
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
+
+    StartTravelFlow(
+        open = sheetOpen,
+        firstPlaceName = first.item.place.name,
+        onDismiss = { sheetOpen = false },
+        onStart = onStartToday,
+    )
+    Card(modifier = Modifier.testTag(TAG_CARD_START)) {
+        CardLabel(stringResource(R.string.progress_card_first))
+        PlaceName(first.item.place.name)
+        if (failure != null) {
+            Text(
+                text = stringResource(
+                    if (failure.error == ProgressError.Network) R.string.trip_detail_start_error_network else R.string.trip_detail_start_error_unexpected,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = spacing.space1),
+            )
+        }
+        GradientButton(
+            label = stringResource(
+                when {
+                    content.starting -> R.string.trip_detail_starting
+                    failure != null -> R.string.trip_detail_start_retry
+                    else -> R.string.progress_start_today
+                },
+            ),
+            onClick = { if (failure != null) onRetryStart() else sheetOpen = true },
+            width = GradientButtonWidth.Standalone,
+            height = CARD_BUTTON_HEIGHT,
+            enabled = !content.starting,
+            processing = content.starting,
+            modifier = Modifier.fillMaxWidth().padding(top = spacing.space4),
+        )
+    }
+}
+
+/** 지난 날짜에 머무르는 이유(#711). 색이 아니라 문장으로 알린다(가이드라인 10절). */
+@Composable
+private fun PendingDayNotice(modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    Text(
+        text = stringResource(R.string.progress_pending_day_notice),
+        style = MaterialTheme.typography.bodySmall,
+        color = LocalGilpickColors.current.muted,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = spacing.space3, vertical = spacing.space2)
+            .testTag(TAG_PENDING_DAY_NOTICE),
+    )
 }
 
 /** 전환 실패 안내(US2 시나리오 8): 원인 문구와 `다시 시도`(재전송이 뜻 있을 때)·`닫기`. */
@@ -1650,6 +1730,8 @@ internal const val TAG_NOTIFICATIONS = "progress_notifications"
 internal const val TAG_EDIT = "progress_edit"
 internal const val TAG_VARIABLE_MONITOR = "progress_variable_monitor"
 internal const val TAG_CARD_NEXT = "progress_card_next"
+internal const val TAG_CARD_START = "progress_card_start"
+internal const val TAG_PENDING_DAY_NOTICE = "progress_pending_day_notice"
 internal const val TAG_TRANSIT_STEPS = "progress_transit_steps"
 internal const val TAG_ROW_TRANSIT_STEPS_PREFIX = "progress_row_transit_steps_"
 internal const val TAG_CARD_ARRIVED = "progress_card_arrived"

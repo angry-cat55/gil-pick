@@ -26,10 +26,6 @@ import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.ItineraryRepository
 import com.gilpick.itinerary.ItineraryService
 import com.gilpick.itinerary.createItineraryRetrofit
-import com.gilpick.progress.CurrentLocationProvider
-import com.gilpick.progress.ProgressRepository
-import com.gilpick.progress.ProgressService
-import com.gilpick.progress.createProgressRetrofit
 import com.gilpick.route.RouteRepository
 import com.gilpick.route.RouteService
 import com.gilpick.route.createRouteRetrofit
@@ -71,7 +67,6 @@ class TripDeleteFlowTest {
     private lateinit var repository: TripRepository
     private lateinit var itineraryRepository: ItineraryRepository
     private lateinit var routeRepository: RouteRepository
-    private lateinit var progressRepository: ProgressRepository
 
     /** 서버가 들고 있는 여행. 삭제되면 목록에서 빠지고 상세는 404가 된다. */
     private var deleted = false
@@ -141,10 +136,6 @@ class TripDeleteFlowTest {
         )
         routeRepository = RouteRepository(
             api = createRouteRetrofit(server.url("/api/v1/").toString()).create(RouteService::class.java),
-            auth = auth,
-        )
-        progressRepository = ProgressRepository(
-            api = createProgressRetrofit(server.url("/api/v1/").toString()).create(ProgressService::class.java),
             auth = auth,
         )
     }
@@ -302,7 +293,7 @@ class TripDeleteFlowTest {
                             onRetry = viewModel::retry,
                             onLoadMore = viewModel::loadMore,
                             onCreateTrip = {},
-                            onTripClick = { navController.navigate(DetailRoute(it)) },
+                            onTripClick = { navController.navigate(DetailRoute(it.tripId)) },
                         )
                     }
                     composable<DetailRoute> { entry ->
@@ -312,8 +303,6 @@ class TripDeleteFlowTest {
                                 repository = repository,
                                 itineraryRepository = itineraryRepository,
                                 routeRepository = routeRepository,
-                                progressRepository = progressRepository,
-                                locationProvider = CurrentLocationProvider { null },
                                 tripId = tripId,
                             )
                         }

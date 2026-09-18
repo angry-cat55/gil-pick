@@ -6,7 +6,9 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.route.RouteMarks
+import com.gilpick.trip.KST
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -29,7 +31,8 @@ sealed interface ProgressUiState {
     data class Error(val error: ProgressError) : ProgressUiState
 
     /**
-     * 오늘 날짜의 진행 현황.
+     * 기준 날짜의 진행 현황. 기준 날짜는 보통 오늘이고, 도착 처리가 남은 지난 날짜가 있으면 그 날짜다(#711).
+     * 아래에서 "오늘"은 이 기준 날짜를 뜻한다.
      *
      * @property days 여행 기간의 모든 날짜(F004 개요). 헤더의 날짜 진행 표시와 장소명의 출처다.
      * @property progress 오늘 날짜의 진행 현황(PROG-001).
@@ -47,6 +50,8 @@ sealed interface ProgressUiState {
      * @property activeDetections F008 변수 감지 중 사용자 결정 전(`ACTIVE`)인 것(DETECT-001). 조회 실패면 빈 목록이다(F009 data-model §3.3).
      * @property replacementUndoPending F010 장소 변경을 되돌리는 중. 행동을 잠근다(F010 UI-007).
      * @property replacementUndoError F010 마지막 장소 변경 되돌리기 실패. 토스트에 원인을 보인다.
+     * @property starting `오늘 여행 시작하기`를 보낸 뒤 응답을 기다리는 중. 버튼을 잠근다(#711).
+     * @property startFailure 마지막 시작 실패. 시작 카드에 원인과 `다시 시도`를 보인다(#711).
      */
     data class Content(
         val days: List<DayItineraryDto>,
@@ -65,6 +70,8 @@ sealed interface ProgressUiState {
         val activeDetections: List<DetectionListItemDto> = emptyList(),
         val replacementUndoPending: Boolean = false,
         val replacementUndoError: ReplacementError? = null,
+        val starting: Boolean = false,
+        val startFailure: StartFailure? = null,
     ) : ProgressUiState {
 
         /**
@@ -147,7 +154,7 @@ sealed interface ProgressUiState {
                 .filter { it.processingSource == ProgressProcessingSource.AUTO }
                 .map { it.itemId }
                 .toSet()
-        /** 진행 현황의 날짜(오늘, KST). */
+        /** 진행 현황의 날짜(KST). 보통 오늘이고, 도착 처리가 남은 지난 날짜에 머무르는 중이면 그 날짜다(#711). */
         val today: LocalDate get() = LocalDate.parse(progress.date)
 
         /** 목록에 보이는 날짜. 기본은 오늘이다. */
@@ -156,8 +163,8 @@ sealed interface ProgressUiState {
         /** 오늘을 보고 있다. 다음 장소 카드·진행 행동·상태 수정 시트는 오늘에만 있다(UI-005). */
         val isToday: Boolean get() = viewing == today
 
-        /** 보고 있는 날짜의 일정을 편집할 수 있다. 오늘·이후 날짜만이고 지난 날짜는 읽기 전용이다(#509). */
-        val canEditItinerary: Boolean get() = viewing >= today
+        /** 도착 처리가 남은 지난 날짜에 머무르는 중이다(#711). 기준 날짜가 기기의 오늘보다 앞이다. */
+        val stayingOnPastDay: Boolean get() = today < now.atZone(KST).toLocalDate()
 
         /** 오늘 날짜의 개요. 개요에 오늘이 없으면(기간 밖) `null`이다. */
         val todayItinerary: DayItineraryDto? get() = days.firstOrNull { it.date == progress.date }
@@ -214,6 +221,21 @@ sealed interface ProgressUiState {
 }
 
 /**
+ * [today] 전 날짜 중 시작됐지만 도착 처리가 남은 가장 이른 날짜(#711). 없으면 `null`이다.
+ *
+ * 서버의 당일 완료 규칙과 같다: `PLANNED`·`EN_ROUTE`가 하나도 없으면 완료다. 시작하지 않고 지나간
+ * 날짜(모두 `PLANNED`)는 처리할 것이 없으므로 머무르지 않는다. 여행은 도착 처리와 무관하게 일정상 마지막 날이
+ * 지나면 종료이므로, 종료된 여행에서도 머무르지 않는다.
+ */
+fun List<DayItineraryDto>.pendingDayBefore(today: LocalDate): LocalDate? = takeIf {
+    it.isNotEmpty() && today <= LocalDate.parse(it.last().date)
+}?.firstOrNull { day ->
+    LocalDate.parse(day.date) < today &&
+        day.items.any { it.status != ItemStatus.PLANNED } &&
+        day.items.any { it.status == ItemStatus.PLANNED || it.status == ItemStatus.EN_ROUTE }
+}?.let { LocalDate.parse(it.date) }
+
+/**
  * 진행 현황을 지도·경로 화면의 진행 표시로 옮긴다(UI-011). 시작 전 날짜는 계획만 보이도록 [RouteMarks.NONE]이다.
  */
 fun ProgressData.toRouteMarks(): RouteMarks = if (dayStatus == DayStatus.NOT_STARTED) {
@@ -241,6 +263,13 @@ data class ProgressAction(val itemId: String, val status: ItemStatus)
 data class ProgressActionFailure(val action: ProgressAction, val error: ProgressError) {
     val retryable: Boolean get() = error == ProgressError.Network || error == ProgressError.Unexpected
 }
+
+/**
+ * 시작 실패. `다시 시도`는 사용자가 다시 고르지 않고 실패한 선택 그대로 보낸다(#654).
+ *
+ * @property transportMode 시작 구간 이동수단. 현장 시작이면 `null`이다.
+ */
+data class StartFailure(val startMode: StartMode, val transportMode: TransportMode?, val error: ProgressError)
 
 /**
  * 확인 시트 응답 실패. **어떤 답이 실패했는지**를 [decision]에 함께 담는다.

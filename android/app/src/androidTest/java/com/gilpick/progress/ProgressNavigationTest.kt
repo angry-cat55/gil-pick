@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -40,14 +41,14 @@ import com.gilpick.route.RouteService
 import com.gilpick.route.createRouteRetrofit
 import com.gilpick.route.routeGraph
 import com.gilpick.trip.KST
-import com.gilpick.trip.TripDetailPhase
 import com.gilpick.trip.TripDetailScreen
 import com.gilpick.trip.TripDetailViewModel
 import com.gilpick.trip.TripRepository
 import com.gilpick.trip.TripService
 import com.gilpick.trip.createTripRetrofit
 import com.gilpick.ui.theme.GilpickTheme
-import java.time.LocalDate
+import java.time.Clock
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import mockwebserver3.Dispatcher
@@ -63,13 +64,13 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * T021·T036: 여행 상세 `여행 진행 화면으로` → 진행 화면 → `장소 추가`·`경로 보기`·뒤로 가기, 다른 날짜 조회와
+ * T021·T036·#711: 진행 화면 → `일정 편집`(일정 상세)·`장소 추가`·`경로 보기`·뒤로 가기, 다른 날짜 조회와
  * 그 날짜의 `경로 보기`, 편집에서 돌아온 뒤 재조회 검증.
  *
- * `MainActivity.kt`의 `TripDetailRoute` 배선을 그대로 옮겨 [progressGraph]·[itineraryGraph]·[routeGraph]와
- * 한 NavHost에 둔다. 여행·일정 개요·진행 현황은 [MockWebServer]가 준다. 오늘(9/8)은 이미 시작된 날짜라
- * 상세 버튼이 `여행 진행 화면으로`다. 진행 화면의 ViewModel은 기기 날짜로 PROG-001을 조회하므로 응답의
- * `date`(9/8)가 오늘 역할을 한다. 지도는 SDK 인증이 필요해 자리 표시로 바꿔 끼운다.
+ * 진행 화면이 시작 지점이다. 내 여행 목록의 진행 중 여행과 하단 `여행 중` 탭이 여기로 바로 들어온다(#711).
+ * `MainActivity.kt`의 `TripDetailRoute` 배선을 옮겨 [progressGraph]·[itineraryGraph]·[routeGraph]와 한 NavHost에
+ * 둔다. 여행·일정 개요·진행 현황은 [MockWebServer]가 준다. 오늘은 [progressGraph]의 `clock`으로 9/8에 고정한다.
+ * 지도는 SDK 인증이 필요해 자리 표시로 바꿔 끼운다.
  */
 class ProgressNavigationTest {
 
@@ -133,34 +134,33 @@ class ProgressNavigationTest {
     }
 
     @Test
-    fun 상세의_여행_진행_화면으로를_누르면_진행_화면이_열리고_뒤로_가면_상세가_유지된다() {
+    fun 진행_화면의_일정_편집을_누르면_일정_상세가_열리고_뒤로_가면_진행_화면으로_돌아와_다시_조회한다() {
         setGraph()
-        awaitDetail()
-
-        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().performClick()
-
         awaitProgress()
         composeRule.onNodeWithText("2일차 · 1/3 완료").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_CARD_NEXT).assertIsDisplayed()
         composeRule.onNodeWithTag(TAG_FAKE_MAP).assertIsDisplayed()
-        composeRule.runOnIdle {
-            assertEquals(ActiveTravelRoute(PROGRESS_TRIP_ID, "서울 여행"), navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>())
-            // 상세가 오늘(9/8) 진행 현황을 한 번, 진행 화면이 기기 날짜로 한 번 조회했다.
-            assertEquals(2, progressRequests.size)
-            assertTrue(progressRequests.first().endsWith("/days/$PROGRESS_DATE/progress"))
-        }
+        val requestsBefore = progressRequests.size
+        composeRule.runOnIdle { assertTrue(progressRequests.first().endsWith("/days/$PROGRESS_DATE/progress")) }
+
+        composeRule.onNodeWithTag(TAG_EDIT).performClick()
+
+        awaitDetail()
+        // 시작은 여행 중 화면이 맡는다. 일정 상세에는 시작 영역이 없다.
+        composeRule.onAllNodesWithText("오늘 여행 시작").assertCountEquals(0)
+        composeRule.onAllNodesWithText("여행 진행 화면으로").assertCountEquals(0)
+        composeRule.runOnIdle { assertEquals(DetailRoute(PROGRESS_TRIP_ID), navController.currentBackStackEntry?.toRoute<DetailRoute>()) }
 
         composeRule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
-        awaitDetail()
-        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().assertIsDisplayed()
-        composeRule.runOnIdle { assertEquals(DetailRoute(PROGRESS_TRIP_ID), navController.currentBackStackEntry?.toRoute<DetailRoute>()) }
+        awaitProgress()
+        composeRule.waitUntil(WAIT_MILLIS) { progressRequests.size > requestsBefore }
+        composeRule.runOnIdle {
+            assertEquals(ActiveTravelRoute(PROGRESS_TRIP_ID, "서울 여행"), navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>())
+        }
     }
 
     @Test
     fun 진행_화면의_장소_추가와_경로_보기는_오늘_날짜의_편집과_경로_화면으로_간다() {
         setGraph()
-        awaitDetail()
-        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().performClick()
         awaitProgress()
 
         composeRule.onNodeWithText("경로 보기").performClick()
@@ -175,7 +175,7 @@ class ProgressNavigationTest {
         composeRule.runOnIdle {
             // 편집 entry가 back stack에 있고 그 위에 검색이 열렸다.
             assertEquals(
-                ItineraryEditRoute(PROGRESS_TRIP_ID, LocalDate.now(KST).toString(), openSearch = true),
+                ItineraryEditRoute(PROGRESS_TRIP_ID, PROGRESS_DATE, openSearch = true),
                 navController.getBackStackEntry<ItineraryEditRoute>().toRoute<ItineraryEditRoute>(),
             )
         }
@@ -184,8 +184,6 @@ class ProgressNavigationTest {
     @Test
     fun 다른_날짜를_고르면_그_날짜의_경로_화면으로_가고_편집에서_돌아오면_진행_현황을_다시_조회한다() {
         setGraph()
-        awaitDetail()
-        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().performClick()
         awaitProgress()
         val requestsBefore = progressRequests.size
 
@@ -217,22 +215,23 @@ class ProgressNavigationTest {
 
     private fun awaitDetail() {
         composeRule.waitUntil(WAIT_MILLIS) {
-            composeRule.onAllNodesWithText("여행 진행 화면으로").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("일정 편집").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
     private fun awaitProgress() {
-        composeRule.waitUntil(WAIT_MILLIS) {
+        // 진행 화면이 시작 지점이라 process의 첫 test는 인증 저장소·Retrofit 초기화까지 이 대기 안에서 치른다.
+        composeRule.waitUntil(2 * WAIT_MILLIS) {
             composeRule.onAllNodesWithText("다음 장소").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
-    /** `MainActivity.kt`의 `TripDetailRoute` 배선을 그대로 옮긴다. 오늘은 9/8로 고정한다. */
+    /** `MainActivity.kt`의 배선을 그대로 옮긴다. 진행 화면에서 시작하고 오늘은 9/8로 고정한다. */
     private fun setGraph() {
         composeRule.setContent {
             navController = rememberNavController()
             GilpickTheme {
-                NavHost(navController = navController, startDestination = DetailRoute(PROGRESS_TRIP_ID)) {
+                NavHost(navController = navController, startDestination = ActiveTravelRoute(PROGRESS_TRIP_ID, "서울 여행")) {
                     composable<DetailRoute> { entry ->
                         val tripId = entry.toRoute<DetailRoute>().tripId
                         val viewModel = remember(tripId) {
@@ -240,10 +239,7 @@ class ProgressNavigationTest {
                                 repository = tripRepository,
                                 itineraryRepository = itineraryRepository,
                                 routeRepository = routeRepository,
-                                progressRepository = progressRepository,
-                                locationProvider = CurrentLocationProvider { null },
                                 tripId = tripId,
-                                today = { LocalDate.parse(PROGRESS_DATE) },
                             )
                         }
                         val state by viewModel.state.collectAsStateWithLifecycle()
@@ -264,14 +260,6 @@ class ProgressNavigationTest {
                             onSelectPlace = {},
                             routes = routes,
                             onOpenRoute = { date, dayNumber -> navController.navigate(DayRouteRoute(tripId, date, dayNumber)) },
-                            onStartToday = viewModel::startToday,
-                            onRetryStart = viewModel::retryStart,
-                            onOpenProgress = {
-                                (state.phase as? TripDetailPhase.Content)?.let { content ->
-                                    navController.navigate(ActiveTravelRoute(tripId, content.trip.name))
-                                }
-                            },
-                            onLaunchConsumed = viewModel::consumeLaunched,
                         )
                     }
                     itineraryGraph(navController, onSessionExpired = {}, repository = { itineraryRepository })
@@ -289,6 +277,8 @@ class ProgressNavigationTest {
                         onSessionExpired = {},
                         repository = { progressRepository },
                         itineraryRepository = { itineraryRepository },
+                        onOpenTripDetail = { tripId -> navController.navigate(DetailRoute(tripId)) },
+                        clock = Clock.fixed(Instant.parse("${PROGRESS_DATE}T03:00:00Z"), KST),
                         map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )
                 }

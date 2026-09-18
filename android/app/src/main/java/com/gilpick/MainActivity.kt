@@ -107,6 +107,7 @@ import com.gilpick.trip.TripFormScreen
 import com.gilpick.trip.TripFormViewModel
 import com.gilpick.trip.TripListScreen
 import com.gilpick.trip.TripListViewModel
+import com.gilpick.trip.TripStatus
 import com.gilpick.trip.openNewTripItinerary
 import com.gilpick.ui.theme.GilpickTheme
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -444,7 +445,14 @@ private fun TripRoute(
                     onRetry = viewModel::retry,
                     onLoadMore = viewModel::loadMore,
                     onCreateTrip = { navController.navigate(TripFormRoute) },
-                    onTripClick = { tripId -> navController.navigate(TripDetailRoute(tripId)) },
+                    // 진행 중인 여행은 여행 중 화면으로, 그 밖에는 일정 상세로 간다(#711).
+                    onTripClick = { trip ->
+                        if (trip.status == TripStatus.IN_PROGRESS) {
+                            navController.navigate(ActiveTravelRoute(trip.tripId, trip.name))
+                        } else {
+                            navController.navigate(TripDetailRoute(trip.tripId))
+                        }
+                    },
                     onNotifications = { navController.navigate(NotificationListRoute) },
                 )
             }
@@ -527,16 +535,6 @@ private fun TripRoute(
                     // F005 날짜별 경로. 상세로 돌아오면 위 load()가 개요와 경로 상태를 다시 받는다.
                     onOpenRoute = { date, dayNumber -> navController.navigate(DayRouteRoute(tripId, date, dayNumber)) },
                     onRetryRoute = viewModel::retryRoute,
-                    // F006 오늘 여행 시작. 위치 권한 요청은 화면이 끝내고 ViewModel이 위치 취득·시작 요청을 한다.
-                    // 시작되면(방금이든 이미든) 진행 화면으로 간다. 여행명은 상세가 이미 알고 있어 route로 나른다.
-                    onStartToday = viewModel::startToday,
-                    onRetryStart = viewModel::retryStart,
-                    onOpenProgress = {
-                        (state.phase as? TripDetailPhase.Content)?.let { content ->
-                            navController.navigate(ActiveTravelRoute(tripId, content.trip.name))
-                        }
-                    },
-                    onLaunchConsumed = viewModel::consumeLaunched,
                 )
             }
 
@@ -593,9 +591,8 @@ private fun TripRoute(
             // `경로 보기`가 이 route로 들어오고, 빈 상태의 `장소 추가`는 위 itineraryGraph로 간다.
             routeGraph(navController, onSessionExpired = onSessionExpired)
 
-            // F006 진행 화면. destination 정의는 com.gilpick.progress가 소유한다. 여행 상세의
-            // `오늘 여행 시작`·`여행 진행 화면으로`가 이 route로 들어오고, `장소 추가`·`경로 보기`는
-            // 위 itineraryGraph·routeGraph로 간다.
+            // F006 진행 화면. destination 정의는 com.gilpick.progress가 소유한다. 내 여행 목록의 진행 중 여행과
+            // 하단 `여행 중` 탭이 이 route로 들어오고(#711), `장소 추가`·`경로 보기`는 위 itineraryGraph·routeGraph로 간다.
             // #502 하단 `여행 중` 탭. 진행 중 여행을 찾으면 이 진입 화면을 빼고 여행 중 화면으로 바꾼다.
             // 뒤로 가면 시작 탭(내 여행)이고, 탭을 다시 누르면 새로 찾는다(여행이 끝났을 수 있다).
             composable<ActiveTripTabRoute> {
@@ -622,6 +619,7 @@ private fun TripRoute(
                 onSessionExpired = onSessionExpired,
                 onNotifications = { navController.navigate(NotificationListRoute) },
                 onOpenVariableMonitor = { tripId -> navController.navigate(VariableMonitorRoute(tripId)) },
+                onOpenTripDetail = { tripId -> navController.navigate(TripDetailRoute(tripId)) },
             )
 
             // F009 대체 장소. destination 정의는 com.gilpick.alternative가 소유한다. 진행 화면의 변수 경고

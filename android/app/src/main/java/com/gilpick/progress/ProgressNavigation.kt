@@ -31,6 +31,8 @@ import com.gilpick.route.DayRouteRoute
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteMap
 import com.gilpick.route.RouteMarks
+import com.gilpick.trip.KST
+import java.time.Clock
 import kotlinx.serialization.Serializable
 
 /**
@@ -48,7 +50,8 @@ data class ActiveTravelRoute(
 /**
  * 진행 화면 destination을 app navigation graph에 등록한다.
  *
- * 진입점은 여행 상세의 `오늘 여행 시작`·`여행 진행 화면으로`뿐이다(plan.md). `장소 추가`는 오늘 날짜의
+ * 진입점은 내 여행 목록의 진행 중 여행과 하단 `여행 중` 탭이다(#711). `오늘 여행 시작하기`도 이 화면에 있고,
+ * 헤더 `일정 편집`은 일정 상세로 간다. `장소 추가`는 오늘 날짜의
  * 일정 편집(장소 검색 바로 열기)으로, `경로 보기`는 보고 있는 날짜의 F005 경로 화면으로 간다. 돌아오면
  * 이 entry가 다시 RESUMED가 되므로 [LifecycleResumeEffect]가 개요·진행 현황을 다시 조회한다. 앱을
  * 잠시 나갔다 와도 같은 경로로 재조회한다.
@@ -59,6 +62,9 @@ data class ActiveTravelRoute(
  * @param itineraryRepository 일정 개요 접근 지점을 만든다. 기본값은 실제 서버이며 navigation test가 바꿔 끼운다.
  * @param alternativeRepository F009 배너용 감지 목록 접근 지점을 만든다. `null`을 돌려주면 배너를 조회하지 않는다.
  * @param replacementRepository F010 장소 변경 되돌리기 접근 지점을 만든다. `null`을 돌려주면 되돌리기를 보내지 않는다.
+ * @param onOpenTripDetail 헤더 `일정 편집`. `MainActivity`가 일정 상세로 잇는다. 돌아오면 재개 조회가 바뀐 일정을 받는다(#711).
+ * @param locationProvider 시작 요청에 실을 현재 위치의 출처를 만든다. navigation test가 바꿔 끼운다.
+ * @param clock 오늘 날짜의 출처. navigation test가 고정한다.
  * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. `MainActivity`가 `VariableMonitorRoute(tripId)`로 잇는다.
  * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
  */
@@ -71,6 +77,9 @@ fun NavGraphBuilder.progressGraph(
     replacementRepository: (Context) -> ReplacementRepository? = ReplacementRepository::default,
     onNotifications: () -> Unit = {},
     onOpenVariableMonitor: (tripId: String) -> Unit = {},
+    onOpenTripDetail: (tripId: String) -> Unit = {},
+    locationProvider: (Context) -> CurrentLocationProvider = { DeviceLocationProvider.create(it.applicationContext) },
+    clock: Clock = Clock.system(KST),
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
         RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f, myLocation = true)
     },
@@ -92,6 +101,8 @@ fun NavGraphBuilder.progressGraph(
                 hasBackgroundPermission = { ProgressViewModel.hasBackgroundLocationPermission(context) },
                 alternativeRepository = alternativeRepository(context),
                 replacementRepository = replacementRepository(context),
+                locationProvider = locationProvider(context),
+                clock = clock,
             )
         }
         val viewModel: ProgressViewModel = viewModel(factory = factory)
@@ -137,8 +148,10 @@ fun NavGraphBuilder.progressGraph(
             onOpenAlternatives = { detectionId -> navController.navigate(AlternativePlacesRoute(detectionId, route.tripId)) },
             onNotifications = onNotifications,
             onOpenVariableMonitor = { onOpenVariableMonitor(route.tripId) },
-            // 보고 있는 날짜의 일정 편집. 돌아오면 위 재개 조회가 새 일정을 받고 보던 날짜는 유지된다(#509).
-            onEdit = { date -> navController.navigate(ItineraryEditRoute(route.tripId, date)) },
+            // 일정 상세로 간다. 돌아오면 위 재개 조회가 새 일정을 받고 보던 날짜는 유지된다(#711).
+            onEdit = { onOpenTripDetail(route.tripId) },
+            onStartToday = viewModel::startToday,
+            onRetryStart = viewModel::retryStart,
             map = map,
         )
     }

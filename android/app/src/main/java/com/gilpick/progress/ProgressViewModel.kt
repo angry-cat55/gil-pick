@@ -24,6 +24,7 @@ import com.gilpick.auth.SessionRevocationWorker
 import com.gilpick.auth.createAuthRetrofit
 import com.gilpick.itinerary.ItemStatus
 import com.gilpick.itinerary.ItineraryRepository
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.itinerary.toItineraryError
 import com.gilpick.notification.FcmTokenClearWorker
 import com.gilpick.notification.FcmTokenSyncWorker
@@ -53,6 +54,7 @@ import kotlinx.coroutines.launch
  * @param clock 오늘 날짜와 현재 시각의 출처. test가 고정한다.
  * @param hasBackgroundPermission 백그라운드 위치 권한 보유 여부. 자동 감지를 걸 수 있는지의 유일한 판단
  *   근거이며, 화면이 다시 보일 때마다 다시 묻는다. 권한이 없어도 F006 수동 진행은 그대로 둔다(FR-024).
+ * @param locationProvider `오늘 여행 시작하기`의 시작 요청에 실을 현재 위치를 한 번 얻는다. 못 얻으면 위치 없이 시작한다.
  * @param alternativeRepository F009 변수 경고 배너의 감지 목록(DETECT-001) 출처. `null`이면 조회하지 않고 배너도 없다.
  */
 class ProgressViewModel(
@@ -65,10 +67,16 @@ class ProgressViewModel(
     private val hasBackgroundPermission: () -> Boolean = { true },
     private val alternativeRepository: AlternativeRepository? = null,
     private val replacementRepository: ReplacementRepository? = null,
+    private val locationProvider: CurrentLocationProvider = CurrentLocationProvider { null },
 ) : ViewModel() {
 
-    /** 진행 현황을 조회하는 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다. */
-    val today: LocalDate = LocalDate.now(clock)
+    /**
+     * 기기의 오늘 날짜(KST). `empty`의 `장소 추가`가 이 날짜의 편집으로 간다.
+     *
+     * 진행 현황을 조회하는 날짜는 이 값이 아닐 수 있다. 도착 처리가 남은 지난 날짜가 있으면 그 날짜가
+     * 기준이다([fetch], #711). 화면을 켜 둔 채 자정을 넘겨도 맞도록 매번 새로 읽는다.
+     */
+    val today: LocalDate get() = LocalDate.now(clock)
 
     private val _state = MutableStateFlow<ProgressUiState>(ProgressUiState.Loading)
 
@@ -122,7 +130,12 @@ class ProgressViewModel(
                     next !is ProgressUiState.Content -> if (next is ProgressUiState.Error) kept else next
                     // 전환 응답이 먼저 도착해 더 새 version을 보고 있으면 늦게 온 조회로 되돌리지 않는다.
                     else -> next.copy(
-                        progress = if (next.progress.progressVersion < kept.progress.progressVersion) kept.progress else next.progress,
+                        // version은 날짜별이다. 기준 날짜가 바뀌었으면(#711) 비교하지 않고 새 날짜를 받는다.
+                        progress = if (next.progress.date == kept.progress.date &&
+                            next.progress.progressVersion < kept.progress.progressVersion
+                        ) kept.progress else next.progress,
+                        starting = kept.starting,
+                        startFailure = kept.startFailure,
                         pendingAction = kept.pendingAction,
                         actionError = kept.actionError,
                         viewingDate = kept.viewingDate,
@@ -237,8 +250,56 @@ class ProgressViewModel(
                     is AuthResult.Failure -> kept.copy(pendingAction = null, actionError = ProgressActionFailure(action, error!!))
                 }
             }
-            if (error == ProgressError.VersionConflict || error == ProgressError.InvalidTransition) load()
+            val finishedPastDay = result is AuthResult.Success &&
+                result.value.dayStatus == DayStatus.COMPLETED && result.value.date != today.toString()
+            // 남아 있던 지난 날짜를 모두 처리했다. 다시 조회해 다음 기준 날짜(보통 오늘)로 넘어간다(#711).
+            if (finishedPastDay || error == ProgressError.VersionConflict || error == ProgressError.InvalidTransition) load()
         }
+    }
+
+    /**
+     * 오늘 여행을 시작한다(FR-001·FR-004b, PROG-002). 일정 상세에서 옮겨 왔다(#711).
+     *
+     * 오늘이 시작 전일 때만 동작한다. 위치는 `MOVE_TO_FIRST`에서만 얻고, 못 얻어도 시작은 진행한다(FR-020).
+     * 성공하면 응답의 진행 현황으로 바꿔 그 자리에서 `도착했어요`·`건너뛰기`가 나온다. 일정이 바뀌었거나
+     * 다른 곳에서 먼저 시작됐으면(`VERSION_CONFLICT`·`DAY_EMPTY`·`DAY_NOT_TODAY`) 최신 현황을 다시 조회한다.
+     */
+    fun startToday(startMode: StartMode, transportMode: TransportMode?) {
+        val content = _state.value as? ProgressUiState.Content ?: return
+        if (content.starting || content.progress.dayStatus != DayStatus.NOT_STARTED) return
+        _state.value = content.copy(starting = true, startFailure = null)
+        viewModelScope.launch {
+            // 현장 시작은 시작 구간이 없어 현재 위치를 쓰지 않는다(#650 계약, #654).
+            val location = if (startMode == StartMode.MOVE_TO_FIRST) locationProvider.current() else null
+            val result = progressRepository.startDay(
+                tripId = tripId,
+                date = content.today,
+                progressVersion = content.progress.progressVersion,
+                currentLocation = location,
+                startMode = startMode,
+                transportMode = transportMode,
+            )
+            val error = (result as? AuthResult.Failure)?.error?.toProgressError()
+            val stale = error == ProgressError.VersionConflict || error == ProgressError.DayEmpty || error == ProgressError.DayNotToday
+            _state.update { current ->
+                val kept = current as? ProgressUiState.Content ?: return@update current
+                when (result) {
+                    is AuthResult.Success -> kept.copy(progress = result.value, now = clock.instant(), starting = false)
+                    is AuthResult.Failure -> kept.copy(
+                        starting = false,
+                        startFailure = StartFailure(startMode, transportMode, error!!).takeIf { !stale },
+                    )
+                }
+            }
+            if (result is AuthResult.Success) syncGeofences()
+            if (stale) load()
+        }
+    }
+
+    /** 실패한 시작을 사용자가 고른 시작 방식·이동수단 그대로 다시 보낸다. 같은 `Idempotency-Key`가 나간다(#654). */
+    fun retryStart() {
+        val failure = (_state.value as? ProgressUiState.Content)?.startFailure ?: return
+        startToday(failure.startMode, failure.transportMode)
     }
 
     /**
@@ -403,7 +464,8 @@ class ProgressViewModel(
 
     private suspend fun fetch(): ProgressUiState = coroutineScope {
         val overview = async { itineraryRepository.getOverview(tripId) }
-        val progress = async { progressRepository.getDayProgress(tripId, today) }
+        val date = today
+        val progress = async { progressRepository.getDayProgress(tripId, date) }
         // 배너 감지는 함께 조회하되 실패는 배너 숨김으로 격리한다(F009 research R9). 진행 화면을 막지 않는다.
         val detections = alternativeRepository?.let { repository ->
             async { repository.listDetections(tripId, status = DetectionStatus.ACTIVE, limit = BANNER_DETECTION_LIMIT) }
@@ -412,7 +474,11 @@ class ProgressViewModel(
             is AuthResult.Success -> result.value.days
             is AuthResult.Failure -> return@coroutineScope ProgressUiState.Error(result.error.toItineraryError().toProgressError())
         }
-        when (val result = progress.await()) {
+        // 도착 처리가 남은 지난 날짜가 있으면 그 날짜에 머무른다(#711). 드문 경우라 오늘 조회는 그대로 병렬로
+        // 보내 두고, 그때만 한 번 더 조회한다.
+        val pendingDay = days.pendingDayBefore(date)
+        val progressResult = if (pendingDay == null) progress.await() else progressRepository.getDayProgress(tripId, pendingDay)
+        when (val result = progressResult) {
             is AuthResult.Success -> if (result.value.items.isEmpty()) {
                 ProgressUiState.Empty
             } else {
@@ -506,17 +572,21 @@ class ProgressViewModel(
             hasBackgroundPermission: () -> Boolean = { true },
             alternativeRepository: AlternativeRepository? = null,
             replacementRepository: ReplacementRepository? = null,
+            locationProvider: CurrentLocationProvider = CurrentLocationProvider { null },
+            clock: Clock = Clock.system(KST),
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ProgressViewModel(
                     progressRepository = progressRepository,
                     itineraryRepository = itineraryRepository,
                     tripId = tripId,
+                    clock = clock,
                     detectionRepository = detectionRepository,
                     geofenceManager = geofenceManager,
                     hasBackgroundPermission = hasBackgroundPermission,
                     alternativeRepository = alternativeRepository,
                     replacementRepository = replacementRepository,
+                    locationProvider = locationProvider,
                 )
             }
         }

@@ -151,7 +151,9 @@ async def get_day_progress(
     trip: Annotated[Trip, Depends(_owned_trip_date)],
     service: Annotated[ProgressService, Depends(_service)],
 ) -> JSONResponse:
-    data = await service.get_day(trip_id=trip.trip_id, visit_date=visit_date)
+    data = await service.get_day(
+        trip_id=trip.trip_id, visit_date=visit_date, trip_end_date=trip.end_date
+    )
     return success_response(request, data)
 
 

@@ -18,7 +18,7 @@ from app.models.itinerary import ItineraryItem, Place, TripDay
 from app.models.progress import ProgressSegment, ProgressTransition
 from app.models.trip import Trip
 from app.schemas.progress import StartDayProgressRequest
-from app.services.progress import ProgressService
+from app.services.progress import ProgressService, close_out_ended_trip
 from app.api.errors import AppError
 from app.services.route import SingleSegmentResult
 from app.clients.route_provider import Provider, RouteProviderError
@@ -969,3 +969,67 @@ async def test_change_later_planned_to_arrived_completes_previous_arrived(
     assert {entry.get("itemId") for entry in transition.affected_items} == {
         str(first), str(third)
     }
+
+
+@pytest.mark.asyncio
+async def test_ended_trip_close_out_skips_unvisited_items_once(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """#711: 마지막 날이 지나면 가지 못한 장소만 건너뛰기로 마감하고, 다시 조회해도 한 번만 기록한다."""
+    trip_id, day_id, user_id = await _seed_three(session_factory)
+    first, second, third = await _start_and_complete_first(session_factory, trip_id, user_id)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+
+    async def statuses() -> tuple[str, int, dict[uuid.UUID, str]]:
+        async with session_factory() as session:
+            day = await session.get(TripDay, day_id)
+            rows = await session.execute(
+                select(ItineraryItem.item_id, ItineraryItem.status).where(ItineraryItem.trip_day_id == day_id)
+            )
+            return day.status, day.progress_version, dict(rows.all())
+
+    # 마지막 날 당일은 아직 여행 중이라 그대로다.
+    async with transaction_session(session_factory) as session:
+        await close_out_ended_trip(session, trip_id=trip_id, end_date=today)
+    assert await statuses() == (
+        "IN_PROGRESS", 3, {first: "COMPLETED", second: "EN_ROUTE", third: "PLANNED"},
+    )
+
+    after_end = datetime.now(UTC) + timedelta(days=2)
+    for _ in range(2):
+        async with transaction_session(session_factory) as session:
+            await close_out_ended_trip(session, trip_id=trip_id, end_date=today, now=after_end)
+
+    assert await statuses() == (
+        "COMPLETED", 4, {first: "COMPLETED", second: "SKIPPED", third: "SKIPPED"},
+    )
+    async with session_factory() as session:
+        recorded = await session.scalar(
+            select(func.count()).select_from(ProgressTransition).where(
+                ProgressTransition.trip_day_id == day_id,
+                ProgressTransition.transition_type == "TRIP_END_SKIP",
+            )
+        )
+    assert recorded == 1
+
+
+@pytest.mark.asyncio
+async def test_ended_trip_close_out_leaves_never_started_day_untouched(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """#711: 시작하지 않고 지나간 날짜는 진행 기록이 없으므로 건드리지 않는다."""
+    trip_id, day_id, _ = await _seed_three(session_factory)
+    today = datetime.now(UTC).astimezone(timezone(timedelta(hours=9))).date()
+
+    async with transaction_session(session_factory) as session:
+        await close_out_ended_trip(
+            session, trip_id=trip_id, end_date=today, now=datetime.now(UTC) + timedelta(days=2)
+        )
+
+    async with session_factory() as session:
+        day = await session.get(TripDay, day_id)
+        item_statuses = (
+            await session.scalars(select(ItineraryItem.status).where(ItineraryItem.trip_day_id == day_id))
+        ).all()
+    assert (day.status, day.progress_version) == ("NOT_STARTED", 0)
+    assert set(item_statuses) == {"PLANNED"}
