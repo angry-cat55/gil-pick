@@ -728,6 +728,14 @@ async def test_appending_after_skipped_last_item_reopens_at_last_visited_place_w
     assert inbound is not None
     assert (inbound.from_item_id, inbound.duration_seconds) == (visited_id, 600)
 
+    # test DB는 공유한다. ETA가 잡힌 진행 중 날짜를 남기면 전역 감지 평가를 세는 다른 test가 함께 집는다.
+    async with transaction_session(session_factory) as session:
+        await session.execute(
+            update(TripDay)
+            .where(TripDay.trip_id == trip_id, TripDay.visit_date == visit_date)
+            .values(detection_active=False)
+        )
+
 
 @pytest.mark.asyncio
 async def test_overview_includes_all_dates_and_unsaved_days(
