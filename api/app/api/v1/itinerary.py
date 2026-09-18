@@ -24,6 +24,7 @@ from app.schemas.itinerary import (
 )
 from app.schemas.trip import Trip
 from app.services.itinerary import ItineraryService
+from app.services.progress import compute_gap_segment
 from app.services.route import RouteService, build_route_service
 from app.services.trip import TripService
 
@@ -170,6 +171,15 @@ async def save_day_itinerary(
         )
     else:
         route_data = await route_service.get_current(
+            trip_id=trip.trip_id,
+            visit_date=visit_date,
+        )
+    # 완료된 날짜를 다시 열었는데 건너뛴 장소가 사이에 있으면 계획 경로에 `직전 방문지 → 추가한 장소`
+    # 구간이 없다. 건너뛰기와 같이 그 구간을 계산해 예상 도착 정보를 채운다(#726). 시작 전 날짜는 해당 없다.
+    if route_input_changed and any(item.status != "PLANNED" for item in day.items):
+        await compute_gap_segment(
+            route_service.session_factory,
+            route_service.calculator,
             trip_id=trip.trip_id,
             visit_date=visit_date,
         )

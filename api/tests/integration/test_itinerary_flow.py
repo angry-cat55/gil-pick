@@ -20,8 +20,10 @@ from app.models.route import Route as RouteModel
 from app.models.trip import Trip
 from app.schemas.itinerary import SaveDayItineraryRequest, StaySource
 from app.schemas.trip import UpdateTripRequest
+from app.clients.route_provider import Provider
 from app.services.itinerary import ItineraryService
-from app.services.route import RouteCalculationService, RouteService
+from app.services.progress import ProgressService, compute_gap_segment
+from app.services.route import RouteCalculationService, RouteService, SingleSegmentResult
 from app.services.trip import TripService
 
 
@@ -652,6 +654,79 @@ async def test_appending_to_completed_day_reopens_it(
         )
         assert transition is not None
         assert transition.progress_version_after == 3
+
+
+class _SegmentCalculator:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def calculate_single_segment(self, **kwargs):
+        self.calls += 1
+        return SingleSegmentResult(duration_seconds=600, distance_meters=800, provider=Provider.TMAP)
+
+
+@pytest.mark.asyncio
+async def test_appending_after_skipped_last_item_reopens_at_last_visited_place_with_segment(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """마지막 장소를 건너뛰어 완료된 날짜에 장소를 추가하면 마지막 방문지에서 출발로 잇는다(#726)."""
+    trip_id, visit_date = await _seed(session_factory)
+    now = datetime.now(UTC)
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=SaveDayItineraryRequest(
+                version=0, items=[_place_item(1, "WALK"), _second_place_item(2, None)]
+            ),
+            idempotency_key=uuid.uuid4(),
+        )
+        visited_id, skipped_id = saved.items[0].item_id, saved.items[1].item_id
+        await session.execute(
+            update(ItineraryItem).where(ItineraryItem.item_id == visited_id)
+            .values(status="COMPLETED", actual_arrived_at=now, actual_departed_at=now, completed_at=now)
+        )
+        await session.execute(
+            update(ItineraryItem).where(ItineraryItem.item_id == skipped_id).values(status="SKIPPED")
+        )
+        await session.execute(
+            update(TripDay)
+            .where(TripDay.trip_id == trip_id, TripDay.visit_date == visit_date)
+            .values(
+                status="COMPLETED", actual_started_at=now, completed_at=now,
+                detection_active=False, progress_version=3,
+            )
+        )
+
+    appended = SaveDayItineraryRequest(
+        version=saved.version,
+        items=[
+            {**_place_item(1, "WALK"), "itemId": str(visited_id), "place": None},
+            {**_second_place_item(2, "WALK"), "itemId": str(skipped_id), "place": None},
+            _place_item(3, None),
+        ],
+    )
+    async with transaction_session(session_factory) as session:
+        updated, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=appended, idempotency_key=uuid.uuid4(),
+        )
+
+    assert [item.status for item in updated.items] == ["ARRIVED", "SKIPPED", "PLANNED"]
+    added_id = updated.items[2].item_id
+
+    calculator = _SegmentCalculator()
+    await compute_gap_segment(session_factory, calculator, trip_id=trip_id, visit_date=visit_date)
+    # 이미 계산한 구간은 다시 계산하지 않는다.
+    await compute_gap_segment(session_factory, calculator, trip_id=trip_id, visit_date=visit_date)
+
+    assert calculator.calls == 1
+    async with session_factory() as session:
+        progress = await ProgressService(session).get_day(trip_id=trip_id, visit_date=visit_date)
+    assert progress.day_status == "IN_PROGRESS"
+    assert (progress.current_item_id, progress.next_item_id) == (visited_id, added_id)
+    inbound = progress.items[2].inbound_travel
+    assert inbound is not None
+    assert (inbound.from_item_id, inbound.duration_seconds) == (visited_id, 600)
 
 
 @pytest.mark.asyncio
