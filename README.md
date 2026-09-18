@@ -207,6 +207,7 @@ Android 계측·실기기 테스트와 실제 외부 provider smoke test는 CI �
 | [ERD 명세](docs/design/er-schema.md) | 테이블, 제약조건, transaction 경계 |
 | [UI 가이드](docs/design/ui-guidelines.md) | 화면 상태, 디자인 token, 접근성 기준 |
 | [AWS 배포](docs/deployment/aws-dev.md) | 공유 개발 환경 구성과 운영 절차 |
+| [AWS 부하 테스트](docs/deployment/load-test.md) | 실제 앱 조회 흐름 기반 동시 세션 성능 검증 절차 |
 
 ## 팀
 
