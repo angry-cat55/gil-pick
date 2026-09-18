@@ -70,8 +70,9 @@ import com.naver.maps.map.overlay.PathOverlay
  * 구간 목록이 같은 순서로 제공하므로 지도 없이도 화면은 성립한다(UI-005).
  *
  * F006 진행 표시([marks])가 있으면 marker를 상태별로 바꾼다: 완료·도착은 초록 체크, 건너뜀은 회색 X, 이동 중은
- * 파란 번호, 남은 예정은 회색 번호. 시작 위치가 있으면 `시작 위치` marker를 더한다(F006 UI-011, T031). 색만으로
- * 구분하지 않도록 같은 정보를 구간 목록이 문구로 제공한다.
+ * 파란 번호, 남은 예정은 회색 번호(F006 UI-011, T031). 색만으로 구분하지 않도록 같은 정보를 구간 목록이 문구로 제공한다.
+ * 시작 위치에는 marker를 두지 않는다(#729). 실시간 현재 위치 점과 같은 자리에 겹치기 때문이고, 시작 위치 → 첫 장소
+ * 선이 출발한 곳을 알린다. 시작 위치는 카메라 범위에만 넣는다.
  *
  * @param route 그릴 경로. 마커는 [RouteDto.markers] 순서 번호로, 구간은 [RouteDto.segments]의 geometry로 그린다.
  * @param baseRoute 비교 대상으로 함께 그릴 기존 경로. 기본값 `null`이면 [route] 하나만 그려 이 인자가
@@ -83,7 +84,7 @@ import com.naver.maps.map.overlay.PathOverlay
  * @param focus 카메라를 옮길 대상(#618, #614). 기본값 `null`이면 이 인자가 없던 때와 같다. 값이 바뀌면 overlay는
  *   그대로 두고 카메라만 옮긴다. 같은 대상을 다시 골라도 옮기도록 [RouteFocus.tick]이 값을 구분한다.
  * @param myLocation `true`면 실시간 현재 위치 overlay를 켠다(#614). 위치 권한이 있을 때만 켜지고, 없으면 지도는
- *   그대로다. 시작 위치 marker(`시작 위치` 알약)와 달리 이 표시는 SDK 기본 현재 위치 점이다.
+ *   그대로다. 이 표시는 SDK 기본 현재 위치 점이다.
  */
 @Composable
 fun RouteMap(
@@ -109,7 +110,6 @@ fun RouteMap(
         car = gilpickColors.routeCar.toArgb(),
     )
     val description = stringResource(R.string.route_map_description, route.markers.size)
-    val startLabel = stringResource(R.string.route_marker_start)
     val overlays = remember { RouteOverlays() }
     // 카메라를 경로 전체에 맞추는 일은 그릴 내용이 바뀌었을 때만 한다. sheet 높이가 바뀌어 다시 그릴 때도
     // 맞추면 사용자가 카드·내 위치로 옮겨 둔 카메라가 경로로 되돌아간다(#651).
@@ -183,7 +183,6 @@ fun RouteMap(
                     ItemStatus.EN_ROUTE, null -> circleMarker(context, marker.sequence.toString(), markerColor, density.density)
                 }
             },
-            startIcon = { pillMarker(context, startLabel, markerColor, density.density) },
             markerSizePx = (MARKER_SIZE_DP * density.density).toInt(),
             lineColors = lineColors,
             pathWidthPx = with(density) { PATH_WIDTH.roundToPx() },
@@ -364,7 +363,6 @@ private class RouteOverlays {
         basePathColor: Int,
         marks: RouteMarks,
         markerIcon: (RouteMarkerDto) -> OverlayImage,
-        startIcon: () -> OverlayImage,
         markerSizePx: Int,
         lineColors: RouteLineColors,
         pathWidthPx: Int,
@@ -390,16 +388,8 @@ private class RouteOverlays {
                 this.map = map
             }
         }
-        marks.start?.let { start ->
-            val position = LatLng(start.latitude, start.longitude)
-            bounds.include(position)
-            markers += Marker().apply {
-                this.position = position
-                icon = startIcon()
-                anchor = android.graphics.PointF(0.5f, 0.5f)
-                this.map = map
-            }
-        }
+        // 시작 위치는 marker 없이 카메라 범위에만 넣는다(#729).
+        marks.start?.let { start -> bounds.include(LatLng(start.latitude, start.longitude)) }
         route.markers.forEach { marker ->
             val position = LatLng(marker.latitude, marker.longitude)
             bounds.include(position)
@@ -523,10 +513,10 @@ internal fun circleMarker(context: Context, label: String, color: Int, density: 
     return OverlayImage.fromView(markerView(context, label, color, density, sizePx, sizePx, GradientDrawable.OVAL))
 }
 
-/** `시작 위치` 알약형 마커. 글자가 원에 들어가지 않아 너비만 넓힌다. F009 기존 장소 `!` 표시에도 쓴다. */
+/** 알약형 마커. F009 기존 장소 `!` 표시에 쓴다. */
 internal fun pillMarker(context: Context, label: String, color: Int, density: Float): OverlayImage {
     val heightPx = (MARKER_SIZE_DP * density).toInt()
-    val widthPx = (START_MARKER_WIDTH_DP * density).toInt()
+    val widthPx = (PILL_MARKER_WIDTH_DP * density).toInt()
     return OverlayImage.fromView(markerView(context, label, color, density, widthPx, heightPx, GradientDrawable.RECTANGLE))
 }
 
@@ -558,7 +548,7 @@ private fun markerView(context: Context, label: String, color: Int, density: Flo
 internal const val LOCATION_PERMISSION_REQUEST = 1_614
 
 internal const val MARKER_SIZE_DP = 28
-private const val START_MARKER_WIDTH_DP = 52
+private const val PILL_MARKER_WIDTH_DP = 52
 private const val MARKER_TEXT_SP = 12f
 private const val MARKER_CHECK = "\u2713"
 private const val MARKER_CROSS = "\u2715"
