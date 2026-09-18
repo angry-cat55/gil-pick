@@ -6,6 +6,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -275,8 +277,11 @@ internal fun NaverMapHost(
         return
     }
 
+    // 지도를 담는 바탕. 지도 위 제스처를 스크롤 조상이 가져가지 못하게 막는다(#706).
+    val touchHost = remember(mapView) { MapTouchHost(context).apply { addView(mapView) } }
+
     AndroidView(
-        factory = { mapView },
+        factory = { touchHost },
         modifier = modifier
             .onSizeChanged { size = it }
             .semantics { contentDescription = description }
@@ -320,6 +325,21 @@ private fun MapUnavailable(modifier: Modifier) {
             style = MaterialTheme.typography.bodyMedium,
             color = Color.White.copy(alpha = 0.5f),
         )
+    }
+}
+
+/**
+ * [MapView]를 담아 지도 위에서 시작한 제스처를 스크롤 조상이 가로채지 못하게 막는 바탕(#706).
+ *
+ * 지도는 `verticalScroll` 화면 안에 놓인다(장소 상세·여행 중·하루 경로·대체 장소). 그대로 두면 조상이 touch slop을
+ * 넘긴 드래그를 가져가 지도로 가던 이벤트가 CANCEL로 끊기고, 지도가 짧게 끊어져 움직인다. 지도로 들어오는 이벤트마다
+ * 가로채기를 막아 드래그·핀치를 지도가 끝까지 받게 한다. 이 요청은 다음 `ACTION_DOWN`에서 터치 상태와 함께 저절로
+ * 풀리므로, 지도 밖에서 시작한 드래그는 그대로 화면을 스크롤한다.
+ */
+internal class MapTouchHost(context: Context) : FrameLayout(context) {
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        parent?.requestDisallowInterceptTouchEvent(true)
+        return false
     }
 }
 
