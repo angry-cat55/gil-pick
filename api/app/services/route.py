@@ -509,49 +509,73 @@ class RouteCalculationService:
 
         async def calculate_gap(
             gap: tuple[Coordinate, Coordinate, int, str],
-        ) -> tuple[list[Coordinate], int, str]:
+        ) -> tuple[list[Coordinate], int, str, bool]:
             start, end, walk_index, position = gap
-            result = await self.providers[ClientTransportMode.WALK].calculate(
-                start,
-                end,
-                ClientTransportMode.WALK,
-                deadline=deadline,
-            )
-            start_error_meters = _coordinate_distance_meters(
-                result.coordinates[0], start
-            )
-            end_error_meters = _coordinate_distance_meters(
-                result.coordinates[-1], end
-            )
-            if (
-                result.provider is not ClientProvider.TMAP
-                or result.transport_mode is not ClientTransportMode.WALK
-                or start_error_meters > TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS
-                or end_error_meters > TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS
-            ):
+            try:
+                result = await self.providers[ClientTransportMode.WALK].calculate(
+                    start,
+                    end,
+                    ClientTransportMode.WALK,
+                    deadline=deadline,
+                )
+                start_error_meters = _coordinate_distance_meters(
+                    result.coordinates[0], start
+                )
+                end_error_meters = _coordinate_distance_meters(
+                    result.coordinates[-1], end
+                )
+                if (
+                    result.provider is not ClientProvider.TMAP
+                    or result.transport_mode is not ClientTransportMode.WALK
+                    or start_error_meters > TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS
+                    or end_error_meters > TMAP_ENDPOINT_ACCESS_TOLERANCE_METERS
+                ):
+                    logger.warning(
+                        "transit geometry enrichment rejected",
+                        extra={
+                            "route_sequence": sequence,
+                            "provider": result.provider.value,
+                            "stage": "tmap_endpoint_validation",
+                            "start_error_meters": round(start_error_meters, 1),
+                            "end_error_meters": round(end_error_meters, 1),
+                            "result_code": "ROUTE_INVALID_RESULT",
+                        },
+                    )
+                    raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
+                connector = list(result.coordinates)
+                connector[0] = start
+                connector[-1] = end
+                return connector, walk_index, position, True
+            except RouteProviderError as error:
                 logger.warning(
-                    "transit geometry enrichment rejected",
+                    "transit geometry enrichment fell back to straight line",
                     extra={
                         "route_sequence": sequence,
-                        "provider": result.provider.value,
-                        "stage": "tmap_endpoint_validation",
-                        "start_error_meters": round(start_error_meters, 1),
-                        "end_error_meters": round(end_error_meters, 1),
-                        "result_code": "ROUTE_INVALID_RESULT",
+                        "provider": ClientProvider.TMAP.value,
+                        "stage": "tmap_geometry_straight_fallback",
+                        "result_code": error.code,
                     },
                 )
-                raise RouteProviderError("ROUTE_INVALID_RESULT", retryable=False)
-            connector = list(result.coordinates)
-            connector[0] = start
-            connector[-1] = end
-            return connector, walk_index, position
+                return [start, end], walk_index, position, False
 
         connectors = await asyncio.gather(*(calculate_gap(gap) for gap in gaps))
-        for connector, walk_index, position in connectors:
+        used_tmap_geometry = False
+        straight_walk_bounds: dict[int, list[Coordinate | None]] = {}
+        for connector, walk_index, position, used_tmap in connectors:
+            used_tmap_geometry = used_tmap_geometry or used_tmap
+            if not used_tmap:
+                bounds = straight_walk_bounds.setdefault(walk_index, [None, None])
+                if position == "prepend":
+                    bounds[0] = connector[0]
+                else:
+                    bounds[1] = connector[-1]
             if position == "prepend":
                 geometries[walk_index] = connector[:-1] + geometries[walk_index]
             else:
                 geometries[walk_index] = geometries[walk_index] + connector[1:]
+        for walk_index, (start, end) in straight_walk_bounds.items():
+            geometry = geometries[walk_index]
+            geometries[walk_index] = [start or geometry[0], end or geometry[-1]]
 
         joined: list[Coordinate] = []
         steps = []
@@ -566,7 +590,9 @@ class RouteCalculationService:
                 "coordinates": joined,
                 "steps": steps,
                 "attribution": (
-                    f"{route.attribution} · TMAP" if gaps else route.attribution
+                    f"{route.attribution} · TMAP"
+                    if used_tmap_geometry
+                    else route.attribution
                 ),
             }
         )

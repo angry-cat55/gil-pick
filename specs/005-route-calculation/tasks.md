@@ -315,11 +315,11 @@
   - 담당: jh
   - 선행: T043
   - 검증: Kakao `path.points` 단계 보존, API 직렬화, geometry 없는 기존 JSONB 조회, OpenAPI nullable 계약 통과
-- [X] T049 대중교통 보행 공백 TMAP 보완과 전체 실패 처리 in api/app/services/route.py, api/tests/unit/test_transit_geometry_enrichment.py
+- [X] T049 대중교통 보행 공백 TMAP 보완과 실패 처리 in api/app/services/route.py, api/tests/unit/test_transit_geometry_enrichment.py
   - 영역: BE
   - 담당: jh
   - 선행: T048
-  - 검증: 장소↔단계·환승 공백 보완, 3m 이하 endpoint 정렬, WALK 없는 공백·TMAP 실패 시 날짜 전체 `FAILED`, Kakao 합계 유지
+  - 검증: 장소↔단계·환승 공백 보완, 3m 이하 endpoint 정렬, WALK 없는 공백은 날짜 전체 `FAILED`, TMAP 보완 실패 시 해당 WALK 직선 geometry와 Kakao 합계 유지
 - [X] T050 Android 단계 geometry 호환과 직선 fallback 제거 in android/app/src/main/java/com/gilpick/route/RouteApi.kt, android/app/src/main/java/com/gilpick/route/RouteMap.kt
   - 영역: FE
   - 담당: jh

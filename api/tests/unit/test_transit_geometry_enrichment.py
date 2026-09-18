@@ -201,19 +201,34 @@ async def test_gap_without_adjacent_walk_step_fails_instead_of_drawing_straight_
 
 
 @pytest.mark.asyncio
-async def test_tmap_enrichment_failure_fails_entire_route() -> None:
+@pytest.mark.parametrize(
+    "failure_code",
+    ["ROUTE_PROVIDER_UNAVAILABLE", "ROUTE_NOT_FOUND"],
+)
+async def test_tmap_enrichment_failure_keeps_transit_route_with_straight_walk_geometry(
+    failure_code: str,
+) -> None:
     route = transit_route([
         step(TransitStepType.WALK, 127.001, 127.013),
     ])
     walking = WalkingProvider(
-        RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=False)
+        RouteProviderError(failure_code, retryable=False)
     )
 
     result = await service(route, walking).calculate(snapshot())
 
-    assert result.status == "FAILED"
-    assert result.failure is not None
-    assert result.failure.code == "ROUTE_PROVIDER_UNAVAILABLE"
+    assert result.status == "READY"
+    assert result.route is not None
+    segment = result.route.segments[0]
+    assert segment.transport_mode == "TRANSIT"
+    assert segment.provider_attribution == "Kakao Maps"
+    assert segment.duration_seconds == 600
+    assert segment.distance_meters == 5_000
+    assert segment.steps[0].geometry is not None
+    assert segment.steps[0].geometry.coordinates == [
+        (127.0, 37.5),
+        (127.013, 37.5),
+    ]
     assert len(walking.calls) == 1
 
 
@@ -234,7 +249,7 @@ async def test_tmap_road_snap_within_access_tolerance_is_normalized_to_requested
 
 
 @pytest.mark.asyncio
-async def test_tmap_road_snap_outside_access_tolerance_is_rejected(caplog) -> None:  # type: ignore[no-untyped-def]
+async def test_tmap_road_snap_outside_access_tolerance_uses_straight_walk_geometry(caplog) -> None:  # type: ignore[no-untyped-def]
     route = transit_route([
         step(TransitStepType.WALK, 127.001, 127.013),
     ])
@@ -242,9 +257,13 @@ async def test_tmap_road_snap_outside_access_tolerance_is_rejected(caplog) -> No
 
     result = await service(route, walking).calculate(snapshot())
 
-    assert result.status == "FAILED"
-    assert result.failure is not None
-    assert result.failure.code == "ROUTE_INVALID_RESULT"
+    assert result.status == "READY"
+    assert result.route is not None
+    assert result.route.segments[0].steps[0].geometry is not None
+    assert result.route.segments[0].steps[0].geometry.coordinates == [
+        (127.0, 37.5),
+        (127.013, 37.5),
+    ]
     rejection = next(
         record
         for record in caplog.records

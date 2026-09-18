@@ -99,7 +99,7 @@ android/app/src/main/java/com/gilpick/
 2. 짧은 transaction에서 일정을 저장하고 `schedule_version`을 확정한다. 경로 입력이 바뀌면 이전 현재 경로를 `HISTORICAL`로 바꾸고 커밋한다.
 3. 0개는 `NOT_CALCULATED`, 1개는 외부 호출 없이 합계 0의 `READY`를 저장한다.
 4. 2개 이상이면 immutable snapshot의 구간을 구조적 동시성으로 계산한다. 전체 deadline은 10초, 시도 timeout은 `min(5초, 남은 시간)`이다. timeout·429·5xx만 남은 시간 안에서 1회 재시도한다.
-5. Kakao Maps는 대중교통 응답의 첫 번째 기본 추천 경로만 채택하고 각 `steps[].path.points`를 provider-neutral 상세 단계의 GeoJSON 형상으로 보존한다. 공식 `StepProperties`의 `WALKING`·`BUS`·`SUBWAY`, 초·미터, `stops[].name`, `vehicles[].name`을 함께 변환하며 신규 계산에서 단계 계약이 유효하지 않으면 `ROUTE_INVALID_RESULT`로 실패 처리한다. 장소↔단계와 단계↔단계 좌표 차이가 3m를 초과하면 기존 TMAP WALK adapter를 전체 deadline 안에서 호출해 인접 WALK 단계 형상을 보완한다. TMAP이 요청 endpoint를 도로망에 스냅해 반환하면 각 endpoint 30m 이내까지 허용하고 끝점만 요청 좌표로 정규화한다. 30m를 초과한 결과, 보완 실패나 WALK 단계 없는 공백은 날짜 전체 `FAILED`로 전파하고, 시간·거리 합계는 Kakao 값을 유지한다.
+5. Kakao Maps는 대중교통 응답의 첫 번째 기본 추천 경로만 채택하고 각 `steps[].path.points`를 provider-neutral 상세 단계의 GeoJSON 형상으로 보존한다. 공식 `StepProperties`의 `WALKING`·`BUS`·`SUBWAY`, 초·미터, `stops[].name`, `vehicles[].name`을 함께 변환하며 신규 계산에서 단계 계약이 유효하지 않으면 `ROUTE_INVALID_RESULT`로 실패 처리한다. 장소↔단계와 단계↔단계 좌표 차이가 3m를 초과하면 기존 TMAP WALK adapter를 전체 deadline 안에서 호출해 인접 WALK 단계 형상을 보완한다. TMAP이 요청 endpoint를 도로망에 스냅해 반환하면 각 endpoint 30m 이내까지 허용하고 끝점만 요청 좌표로 정규화한다. 인접 WALK 단계가 없는 공백은 날짜 전체 `FAILED`로 전파한다. 반면 30m를 초과한 결과를 포함한 TMAP 보완 실패는 해당 WALK 단계의 시작·끝 요청 좌표만 잇는 직선 geometry로 대체하며, Kakao Maps 구간의 이동수단·시간·거리 합계는 유지한다.
 6. 모든 구간 성공 시 별도 transaction에서 현재 version을 재확인하고 `READY`를 활성화한다. 하나라도 실패하면 `FAILED`를 기록한다. version이 달라졌다면 결과를 현재 경로로 저장하지 않는다.
 7. 일정 저장 응답은 경로 실패와 관계없이 성공이다. 재시도 endpoint는 현재 `FAILED`·같은 version만 허용한다. 별도 멱등성 저장소 없이 `(trip_day_id, schedule_version)` 경로를 upsert하여 중복 요청에도 같은 경로 하나만 유지한다.
 
