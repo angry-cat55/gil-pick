@@ -33,7 +33,7 @@ sealed interface RouteUiState {
  * 시작 전 날짜와 F005 단독 조회는 [NONE]이라 계획만 그린다. 진행 현황 조회가 실패해도 [NONE]으로
  * 두어 경로 화면은 성립한다.
  *
- * @property start 시작 시 얻은 현재 위치(`[경도, 위도]`). 있으면 `현위치` marker를 그린다.
+ * @property start 시작 시 얻은 현재 위치(`[경도, 위도]`). marker는 그리지 않고 카메라 범위에만 넣는다(#729).
  * @property statuses 장소별 진행 상태. 없는 장소는 계획 표시 그대로다.
  */
 data class RouteMarks(

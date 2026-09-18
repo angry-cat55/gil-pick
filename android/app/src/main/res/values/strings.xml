@@ -397,8 +397,7 @@
     <string name="route_segment_arrow">→</string>
     <string name="route_segment_detail">%1$s · %2$s · %3$s</string>
     <string name="route_marker_description">%1$d번째 장소 %2$s</string>
-    <string name="route_marker_start">시작 위치</string>
-    <!-- #614 실시간 현재 위치. 시작 위치 marker(route_marker_start)와 구분되는 표현을 쓴다. -->
+    <!-- #614 실시간 현재 위치. -->
     <string name="route_my_location">내 위치로 이동</string>
     <string name="route_my_location_denied">위치 권한을 허용하면 현재 위치를 볼 수 있어요</string>
     <!-- #651 권한은 있지만 위치를 못 얻었다(위치 서비스 꺼짐·신호 없음). 아무 반응이 없는 대신 다음 행동을 알린다. -->
