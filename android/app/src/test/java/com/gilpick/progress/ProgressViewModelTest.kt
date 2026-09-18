@@ -813,6 +813,9 @@ class ProgressViewModelTest {
         // 오늘의 남은 장소는 "지난 날짜"가 아니다.
         assertNull(todayOverview().days.pendingDayBefore(today))
         assertEquals(LocalDate.parse(YESTERDAY), pendingYesterdayOverview().days.pendingDayBefore(today))
+        // 일정상 마지막 날(9/9)이 지나면 도착 처리가 남아 있어도 여행은 종료다.
+        assertEquals(LocalDate.parse(YESTERDAY), pendingYesterdayOverview().days.pendingDayBefore(LocalDate.parse("2026-09-09")))
+        assertNull(pendingYesterdayOverview().days.pendingDayBefore(LocalDate.parse("2026-09-10")))
     }
 
     @Test

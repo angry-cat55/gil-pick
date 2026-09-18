@@ -224,9 +224,12 @@ sealed interface ProgressUiState {
  * [today] 전 날짜 중 시작됐지만 도착 처리가 남은 가장 이른 날짜(#711). 없으면 `null`이다.
  *
  * 서버의 당일 완료 규칙과 같다: `PLANNED`·`EN_ROUTE`가 하나도 없으면 완료다. 시작하지 않고 지나간
- * 날짜(모두 `PLANNED`)는 처리할 것이 없으므로 머무르지 않는다.
+ * 날짜(모두 `PLANNED`)는 처리할 것이 없으므로 머무르지 않는다. 여행은 도착 처리와 무관하게 일정상 마지막 날이
+ * 지나면 종료이므로, 종료된 여행에서도 머무르지 않는다.
  */
-fun List<DayItineraryDto>.pendingDayBefore(today: LocalDate): LocalDate? = firstOrNull { day ->
+fun List<DayItineraryDto>.pendingDayBefore(today: LocalDate): LocalDate? = takeIf {
+    it.isNotEmpty() && today <= LocalDate.parse(it.last().date)
+}?.firstOrNull { day ->
     LocalDate.parse(day.date) < today &&
         day.items.any { it.status != ItemStatus.PLANNED } &&
         day.items.any { it.status == ItemStatus.PLANNED || it.status == ItemStatus.EN_ROUTE }
