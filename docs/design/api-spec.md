@@ -766,6 +766,7 @@ Request Body:
 - 같은 요청의 재전송은 항목 중복과 version 이중 증가 없이 현재 결과 반환
 - 이동 중이거나 처리된 장소는 장소·`transportModeToNext` 값·순서 변경과 삭제를 거부하고 체류시간만 수정 가능. 단 잠긴 장소가 그 날짜의 마지막이라 `transportModeToNext`가 `null`이던 상태에서, 뒤에 새 장소가 추가돼 더 이상 마지막이 아니게 되면 그 값을 채우는 것은 허용한다(2026-09-16 #582). 뒤의 예정 장소를 삭제해 잠긴 장소가 새 마지막이 되는 경우 기존 값을 `null`로 비우는 것도 허용한다(2026-09-17 #688). 이 두 일정 경계 정규화 외의 이동수단 변경은 계속 거부한다.
 - 처리된 장소의 상태 수정은 진행 API에서 처리
+- 당일 완료(`COMPLETED`)된 날짜에 새 장소를 추가해 `PLANNED` 항목이 생기면 같은 transaction에서 그 날짜를 `IN_PROGRESS`로 다시 연다(2026-09-18 #724). `completedAt`을 비우고 자동 감지를 다시 켠 뒤 `progressVersion`을 1 올리고 `REOPEN_DAY` 전환(`source: ITINERARY_EDIT`)으로 기록한다. 마지막 장소가 `ARRIVED`로 남아 있으면 그대로 두어 `다음 장소로 출발`로 이어지고, `EN_ROUTE`·`ARRIVED` 항목이 없을 때만 첫 `PLANNED` 항목을 `EN_ROUTE`로 파생한다. 장소 추가 없는 저장은 완료 상태를 바꾸지 않는다.
 - 기존 항목은 `itemId`를 유지한 채 update로 반영하며 delete 후 재삽입하지 않는다. 진행 이력·감지·교체 이력이 `itemId`를 참조하므로 재삽입하면 FK 위반이 난다(2026-09-16 #582). 요청에 없는 기존 항목만 삭제한다.
 - F004 단독 범위에서는 `routeStatus: NOT_CALCULATED`, `route: null`을 반환한다. F005 적용 뒤에는 일정 저장 성공 후 계획 경로를 자동 계산해 `READY` 또는 `FAILED`와 경로 정보를 반환한다.
 

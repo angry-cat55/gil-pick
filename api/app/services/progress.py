@@ -280,6 +280,74 @@ def apply_trip_end_close_out(day: TripDay, now: datetime) -> list[dict[str, str]
     return affected
 
 
+def apply_day_reopen(day: TripDay) -> list[dict[str, str]]:
+    """완료된 날짜에 새 `PLANNED` 장소가 생겼을 때 그 날짜를 다시 진행 중으로 연다(#724).
+
+    Args:
+        day: `COMPLETED`이고 `PLANNED` 항목이 하나 이상 있는 날짜 aggregate.
+
+    Returns:
+        감사 기록에 저장할 변경 전후 목록.
+
+    Notes:
+        날짜 완료 해제는 `UNDO_SKIP`·`UNDO_COMPLETE`와 같은 규칙이다. 마지막 장소가 `ARRIVED`로
+        남아 있으면(FR-013) 그대로 두어 사용자가 `다음 장소로 출발`로 이어 가게 한다. `EN_ROUTE`·
+        `ARRIVED`가 없을 때만(마지막 장소를 건너뛴 경우) 첫 `PLANNED`를 `EN_ROUTE`로 파생한다.
+        이 함수는 메모리 상태만 바꾸며 commit은 호출자가 수행한다.
+    """
+    affected: list[dict[str, str]] = []
+    ordered = sorted(day.items, key=lambda item: item.sequence)
+    if not any(item.status in {"EN_ROUTE", "ARRIVED"} for item in ordered):
+        first_planned = next(item for item in ordered if item.status == "PLANNED")
+        first_planned.status = "EN_ROUTE"
+        affected.append({
+            "itemId": str(first_planned.item_id),
+            "beforeStatus": "PLANNED",
+            "afterStatus": "EN_ROUTE",
+        })
+    affected.append({"dayStatusBefore": day.status, "dayStatusAfter": "IN_PROGRESS"})
+    day.status = "IN_PROGRESS"
+    day.completed_at = None
+    day.detection_active = True
+    return affected
+
+
+def reopen_completed_day(session: AsyncSession, day: TripDay, now: datetime) -> bool:
+    """일정 저장으로 완료된 날짜에 `PLANNED` 장소가 생겼으면 다시 열고 전환을 기록한다(#724).
+
+    Args:
+        session: 일정 저장 transaction. commit은 호출자가 수행한다.
+        day: 저장 뒤 다시 조회한 날짜 aggregate.
+        now: 전환 기록 시각.
+
+    Returns:
+        날짜를 다시 열었는지.
+    """
+    if day.status != "COMPLETED" or not any(
+        item.status == "PLANNED" for item in day.items
+    ):
+        return False
+    affected = apply_day_reopen(day)
+    day.progress_version += 1
+    session.add(
+        ProgressTransition(
+            trip_day_id=day.trip_day_id,
+            primary_item_id=None,
+            transition_type="REOPEN_DAY",
+            status="CONFIRMED",
+            source="ITINERARY_EDIT",
+            affected_items=affected,
+            detected_at=now,
+            confirmed_at=now,
+            schedule_version_before=day.schedule_version,
+            schedule_version_after=day.schedule_version,
+            progress_version_after=day.progress_version,
+            idempotency_key=uuid.uuid4(),
+        )
+    )
+    return True
+
+
 async def close_out_ended_trip(
     session: AsyncSession,
     *,

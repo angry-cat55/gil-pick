@@ -28,6 +28,7 @@ from app.schemas.itinerary import (
 )
 from app.schemas.route import RouteStatus
 from app.services.eta import recalculate_day_eta
+from app.services.progress import reopen_completed_day
 from app.services.route import route_data_from_model
 
 logger = logging.getLogger("gilpick.itinerary")
@@ -215,6 +216,9 @@ class ItineraryService:
         day = await self._load_day(trip_id=trip_id, visit_date=visit_date, refresh=True)
         if day is None:  # pragma: no cover - transaction invariant
             raise RuntimeError("저장한 일정을 다시 조회할 수 없습니다.")
+        # 완료된 날짜에 장소를 추가하면 다시 진행 중으로 열어 그 장소를 처리할 수 있게 한다(#724).
+        if reopen_completed_day(self.session, day, datetime.now(UTC)):
+            await self.session.flush()
         if day.status == "IN_PROGRESS":
             await recalculate_day_eta(self.session, day.trip_day_id)
         logger.info(
