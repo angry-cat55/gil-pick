@@ -49,7 +49,7 @@ class TripCreateNavigationTest {
 
         composeRule.runOnIdle {
             val edit = navController.currentBackStackEntry!!.toRoute<ItineraryEditRoute>()
-            assertEquals(ItineraryEditRoute(TRIP_ID, "2026-09-01"), edit)
+            assertEquals(ItineraryEditRoute(TRIP_ID, "2026-09-01", newTrip = true), edit)
             // 폼은 백스택에 남지 않는다.
             assertTrue(navController.currentBackStack.value.none { it.destination.hasRoute<FormRoute>() })
 
