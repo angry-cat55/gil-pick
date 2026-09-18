@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import AppError
 from app.models.itinerary import ItineraryItem, TripDay
+from app.models.progress import ProgressSegment
 from app.schemas.progress import StartDayProgressRequest
 from app.schemas.progress import StartMode
 from app.services.progress import (
@@ -17,6 +18,7 @@ from app.services.progress import (
     apply_start_transition,
     apply_trip_end_close_out,
     close_out_ended_trip,
+    gap_segment_items,
     reopen_completed_day,
 )
 
@@ -342,15 +344,72 @@ def test_reopen_keeps_arrived_last_place_so_user_can_depart_to_added_place() -> 
     assert [item.status for item in day.items] == ["COMPLETED", "EN_ROUTE"]
 
 
-def test_reopen_derives_en_route_when_last_place_was_skipped() -> None:
-    """#724: 도착해 있는 장소가 없으면(마지막을 건너뜀) 추가한 장소가 바로 이동 중이 된다."""
-    added = _item(3, "PLANNED")
-    day = _completed_day([_item(1, "COMPLETED"), _item(2, "SKIPPED"), added])
+def test_reopen_returns_last_visited_place_to_arrived_when_last_place_was_skipped() -> None:
+    """#726: 마지막을 건너뛰어 도착해 있는 장소가 없으면 마지막 방문지에서 `다음 장소로 출발`로 잇는다."""
+    visited, added = _item(2, "COMPLETED"), _item(4, "PLANNED")
+    visited.actual_departed_at = visited.completed_at = datetime(2026, 9, 8, 9, tzinfo=UTC)
+    day = _completed_day([_item(1, "COMPLETED"), visited, _item(3, "SKIPPED"), added])
+    session = MagicMock(spec=AsyncSession)
+
+    assert reopen_completed_day(session, day, datetime(2026, 9, 8, 10, tzinfo=UTC)) is True
+
+    assert [item.status for item in day.items] == ["COMPLETED", "ARRIVED", "SKIPPED", "PLANNED"]
+    assert (visited.actual_departed_at, visited.completed_at) == (None, None)
+    assert session.add.call_args.args[0].affected_items == [
+        {"itemId": str(visited.item_id), "beforeStatus": "COMPLETED", "afterStatus": "ARRIVED"},
+        {"dayStatusBefore": "COMPLETED", "dayStatusAfter": "IN_PROGRESS"},
+    ]
+    # 출발하면 출발 시각이 지금으로 찍히고 건너뛴 장소를 지나 추가한 장소가 이동 중이 된다.
+    departed_at = datetime(2026, 9, 8, 11, tzinfo=UTC)
+    apply_manual_transition(day, visited, "COMPLETED", departed_at)
+    assert [item.status for item in day.items] == ["COMPLETED", "COMPLETED", "SKIPPED", "EN_ROUTE"]
+    assert visited.actual_departed_at == departed_at
+
+
+def test_reopen_derives_en_route_when_no_place_was_visited() -> None:
+    """#726: 방문한 장소가 하나도 없으면 출발할 곳이 없어 추가한 장소가 바로 이동 중이 된다."""
+    day = _completed_day([_item(1, "SKIPPED"), _item(2, "PLANNED")])
 
     assert reopen_completed_day(MagicMock(spec=AsyncSession), day, datetime(2026, 9, 8, 10, tzinfo=UTC)) is True
 
-    assert [item.status for item in day.items] == ["COMPLETED", "SKIPPED", "EN_ROUTE"]
+    assert [item.status for item in day.items] == ["SKIPPED", "EN_ROUTE"]
     assert day.status == "IN_PROGRESS"
+
+
+def _progress_day(items: list[ItineraryItem]) -> TripDay:
+    day = _day(items)
+    day.routes = []
+    day.progress_segments = []
+    return day
+
+
+def test_gap_segment_spans_skipped_places_from_last_visited_to_next() -> None:
+    """#726: 건너뛴 장소가 사이에 있으면 `직전 방문지 → 다음 장소` 구간을 계산 대상으로 고른다."""
+    visited, added = _item(1, "ARRIVED"), _item(3, "PLANNED")
+    day = _progress_day([visited, _item(2, "SKIPPED"), added])
+
+    assert gap_segment_items(day) == (visited, added)
+
+
+def test_gap_segment_is_not_needed_when_already_computed_or_day_not_in_progress() -> None:
+    """#726: 이미 계산한 구간과 진행 중이 아닌 날짜는 다시 계산하지 않는다."""
+    visited, added = _item(1, "ARRIVED"), _item(3, "PLANNED")
+    day = _progress_day([visited, _item(2, "SKIPPED"), added])
+    day.progress_segments = [
+        ProgressSegment(
+            trip_day_id=day.trip_day_id, from_item_id=visited.item_id, to_item_id=added.item_id,
+            duration_seconds=600, distance_meters=800, transport_mode="WALK", provider="TMAP",
+        )
+    ]
+    assert gap_segment_items(day) is None
+
+    day.progress_segments = []
+    day.status = "COMPLETED"
+    assert gap_segment_items(day) is None
+
+    day.status = "IN_PROGRESS"
+    added.status = "SKIPPED"
+    assert gap_segment_items(day) is None
 
 
 @pytest.mark.parametrize(

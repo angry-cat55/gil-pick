@@ -290,21 +290,40 @@ def apply_day_reopen(day: TripDay) -> list[dict[str, str]]:
         감사 기록에 저장할 변경 전후 목록.
 
     Notes:
-        날짜 완료 해제는 `UNDO_SKIP`·`UNDO_COMPLETE`와 같은 규칙이다. 마지막 장소가 `ARRIVED`로
-        남아 있으면(FR-013) 그대로 두어 사용자가 `다음 장소로 출발`로 이어 가게 한다. `EN_ROUTE`·
-        `ARRIVED`가 없을 때만(마지막 장소를 건너뛴 경우) 첫 `PLANNED`를 `EN_ROUTE`로 파생한다.
+        날짜 완료 해제는 `UNDO_SKIP`·`UNDO_COMPLETE`와 같은 규칙이다. 사용자는 추가한 장소로 아직
+        출발하지 않았으므로 `다음 장소로 출발`로 이어 가게 한다(#726). 마지막 장소가 `ARRIVED`로 남아
+        있으면(FR-013) 그대로 둔다. 도착해 있는 장소가 없으면(마지막 장소를 건너뛴 경우) 새 장소 앞의
+        마지막 `COMPLETED` 장소를 `ARRIVED`로 되돌린다. 출발 시각이 새로 찍혀야 ETA가 지금 기준이 된다.
+        방문한 장소가 하나도 없을 때만 첫 `PLANNED`를 `EN_ROUTE`로 파생한다.
         이 함수는 메모리 상태만 바꾸며 commit은 호출자가 수행한다.
     """
     affected: list[dict[str, str]] = []
     ordered = sorted(day.items, key=lambda item: item.sequence)
     if not any(item.status in {"EN_ROUTE", "ARRIVED"} for item in ordered):
         first_planned = next(item for item in ordered if item.status == "PLANNED")
-        first_planned.status = "EN_ROUTE"
-        affected.append({
-            "itemId": str(first_planned.item_id),
-            "beforeStatus": "PLANNED",
-            "afterStatus": "EN_ROUTE",
-        })
+        last_visited = next(
+            (
+                item for item in reversed(ordered)
+                if item.sequence < first_planned.sequence and item.status == "COMPLETED"
+            ),
+            None,
+        )
+        if last_visited is not None:
+            last_visited.status = "ARRIVED"
+            last_visited.actual_departed_at = None
+            last_visited.completed_at = None
+            affected.append({
+                "itemId": str(last_visited.item_id),
+                "beforeStatus": "COMPLETED",
+                "afterStatus": "ARRIVED",
+            })
+        else:
+            first_planned.status = "EN_ROUTE"
+            affected.append({
+                "itemId": str(first_planned.item_id),
+                "beforeStatus": "PLANNED",
+                "afterStatus": "EN_ROUTE",
+            })
     affected.append({"dayStatusBefore": day.status, "dayStatusAfter": "IN_PROGRESS"})
     day.status = "IN_PROGRESS"
     day.completed_at = None
@@ -346,6 +365,116 @@ def reopen_completed_day(session: AsyncSession, day: TripDay, now: datetime) -> 
         )
     )
     return True
+
+
+def _segment_upsert(
+    *,
+    trip_day_id: uuid.UUID,
+    from_item_id: uuid.UUID,
+    to_item_id: uuid.UUID,
+    mode: ClientTransportMode,
+    calculated,  # type: ignore[no-untyped-def]
+):
+    """장소 사이 진행 구간을 저장하거나 최신 계산으로 바꾸는 statement를 만든다."""
+    values = {
+        "transport_mode": mode.value,
+        "provider": calculated.provider.value,
+        "duration_seconds": calculated.duration_seconds,
+        "distance_meters": calculated.distance_meters,
+        "computed_at": datetime.now(UTC),
+    }
+    return pg_insert(ProgressSegment).values(
+        trip_day_id=trip_day_id, from_item_id=from_item_id, to_item_id=to_item_id, **values,
+    ).on_conflict_do_update(
+        index_elements=[
+            ProgressSegment.trip_day_id,
+            ProgressSegment.from_item_id,
+            ProgressSegment.to_item_id,
+        ],
+        index_where=ProgressSegment.from_item_id.is_not(None),
+        set_=values,
+    )
+
+
+def gap_segment_items(day: TripDay) -> tuple[ItineraryItem, ItineraryItem] | None:
+    """건너뛴 장소 때문에 계획 경로에 없는 `직전 방문지 → 다음 장소` 구간의 양 끝을 찾는다(#726).
+
+    Returns:
+        계산이 필요하면 (직전 장소, 다음 장소), 아니면 ``None``. 진행 중이 아닌 날짜, 사이에 건너뛴
+        장소가 없는 경우(계획 경로에 구간이 있다), 이미 계산한 구간은 ``None``이다.
+    """
+    if day.status != "IN_PROGRESS":
+        return None
+    ordered = sorted(day.items, key=lambda item: item.sequence)
+    following = next((item for item in ordered if item.status in {"PLANNED", "EN_ROUTE"}), None)
+    if following is None:
+        return None
+    previous = next(
+        (
+            item for item in reversed(ordered)
+            if item.sequence < following.sequence and item.status != "SKIPPED"
+        ),
+        None,
+    )
+    if previous is None or not previous.transport_mode_to_next:
+        return None
+    key = (previous.item_id, following.item_id)
+    if key in _route_durations(day) or key in _progress_segments(day):
+        return None
+    return previous, following
+
+
+async def compute_gap_segment(
+    session_factory: async_sessionmaker[AsyncSession],
+    calculator: RouteCalculationService,
+    *,
+    trip_id: uuid.UUID,
+    visit_date: date,
+) -> None:
+    """일정 저장 뒤 `직전 방문지 → 추가한 장소` 구간이 없으면 계산해 ETA에 반영한다(#726).
+
+    건너뛰기(`update_item_status`)가 건너뛴 장소 앞뒤를 잇는 구간을 계산하는 것과 같은 규칙이다.
+    Provider가 실패하면 구간 없이 둔다. 일정 저장은 이미 확정됐고 이동 정보만 비어 보인다.
+    """
+    async with transaction_session(session_factory) as session:
+        day = await ProgressService(session)._load_day(trip_id, visit_date)
+        ends = None if day is None else gap_segment_items(day)
+        if day is None or ends is None:
+            return
+        previous, following = ends
+        point = cast(Place.location, Geometry(geometry_type="POINT", srid=4326))
+        rows = (
+            await session.execute(
+                select(ItineraryItem.item_id, func.ST_X(point), func.ST_Y(point))
+                .join(Place, Place.place_id == ItineraryItem.place_id)
+                .where(ItineraryItem.item_id.in_([previous.item_id, following.item_id]))
+            )
+        ).all()
+        coordinates = {row[0]: Coordinate(longitude=row[1], latitude=row[2]) for row in rows}
+        mode = ClientTransportMode(previous.transport_mode_to_next)
+        trip_day_id, from_id, to_id = day.trip_day_id, previous.item_id, following.item_id
+    try:
+        calculated = await calculator.calculate_single_segment(
+            origin=coordinates[from_id],
+            destination=coordinates[to_id],
+            transport_mode=mode,
+            overall_deadline_seconds=8.0,
+        )
+    except RouteProviderError as error:
+        logger.info({
+            "operation": "CALCULATE_PROGRESS_SEGMENT",
+            "request_id": request_id_context.get(),
+            "trip_id": str(trip_id),
+            "visit_date": visit_date.isoformat(),
+            "result_code": error.code,
+        })
+        return
+    async with transaction_session(session_factory) as session:
+        await session.execute(_segment_upsert(
+            trip_day_id=trip_day_id, from_item_id=from_id, to_item_id=to_id,
+            mode=mode, calculated=calculated,
+        ))
+        await recalculate_day_eta(session, trip_day_id)
 
 
 async def close_out_ended_trip(
@@ -693,31 +822,13 @@ class ProgressService:
                         )
             else:
                 async with transaction_session(self.session_factory) as segment_session:
-                    statement = pg_insert(ProgressSegment).values(
+                    await segment_session.execute(_segment_upsert(
                         trip_day_id=day.trip_day_id,
                         from_item_id=previous.item_id,
                         to_item_id=following.item_id,
-                        transport_mode=mode.value,
-                        provider=calculated.provider.value,
-                        duration_seconds=calculated.duration_seconds,
-                        distance_meters=calculated.distance_meters,
-                        computed_at=datetime.now(UTC),
-                    ).on_conflict_do_update(
-                        index_elements=[
-                            ProgressSegment.trip_day_id,
-                            ProgressSegment.from_item_id,
-                            ProgressSegment.to_item_id,
-                        ],
-                        index_where=ProgressSegment.from_item_id.is_not(None),
-                        set_={
-                            "transport_mode": mode.value,
-                            "provider": calculated.provider.value,
-                            "duration_seconds": calculated.duration_seconds,
-                            "distance_meters": calculated.distance_meters,
-                            "computed_at": datetime.now(UTC),
-                        },
-                    )
-                    await segment_session.execute(statement)
+                        mode=mode,
+                        calculated=calculated,
+                    ))
                     await recalculate_day_eta(segment_session, day.trip_day_id)
                     result = await ProgressService(segment_session).get_day(
                         trip_id=day.trip_id,
