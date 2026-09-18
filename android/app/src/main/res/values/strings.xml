@@ -117,6 +117,7 @@
     <string name="trip_detail_start_error_unexpected">지금은 여행을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>
     <string name="trip_detail_start_retry">다시 시도</string>
     <string name="trip_detail_edit_itinerary">일정 편집</string>
+    <string name="trip_detail_save_trip">여행 저장</string>
 
     <!-- 여행 상세 일정 영역 -->
     <string name="trip_detail_itinerary_loading">일정을 불러오는 중</string>
