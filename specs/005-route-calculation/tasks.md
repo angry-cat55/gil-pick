@@ -319,7 +319,7 @@
   - 영역: BE
   - 담당: jh
   - 선행: T048
-  - 검증: 장소↔단계·환승 공백 보완, 3m 이하 endpoint 정렬, WALK 없는 공백은 날짜 전체 `FAILED`, TMAP 보완 실패 시 해당 WALK 직선 geometry와 Kakao 합계 유지
+  - 검증: 장소↔단계·환승 공백 보완, 3m 이하 endpoint 정렬, TMAP 보완 실패 시 해당 WALK 직선 geometry와 Kakao 합계 유지
 - [X] T050 Android 단계 geometry 호환과 직선 fallback 제거 in android/app/src/main/java/com/gilpick/route/RouteApi.kt, android/app/src/main/java/com/gilpick/route/RouteMap.kt
   - 영역: FE
   - 담당: jh
@@ -338,6 +338,14 @@
   - 담당: jh
   - 선행: T051
   - 검증: `speckit-analyze`, Backend unit·contract, `git diff --check` 통과; 실제 provider·배포 후 device 검증 미실행 시 이유 명시
+
+## Phase 11: WALKING 없는 대중교통 공백 보완 (#703)
+
+- [X] T053 Kakao WALKING 없는 공백에 TMAP synthetic WALK 단계 삽입 in api/app/services/route.py, api/tests/unit/test_transit_geometry_enrichment.py
+  - 영역: BE
+  - 담당: jh
+  - 선행: T052
+  - 검증: 장소↔첫·마지막 단계와 BUS↔SUBWAY 공백에 TMAP 호출·synthetic WALK 삽입, TMAP 실패 시 직선 geometry, Kakao 합계 유지
 
 ---
 

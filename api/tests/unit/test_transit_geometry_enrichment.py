@@ -185,19 +185,78 @@ async def test_sub_three_meter_coordinate_error_is_snapped_without_tmap_call() -
 
 
 @pytest.mark.asyncio
-async def test_gap_without_adjacent_walk_step_fails_instead_of_drawing_straight_line() -> None:
+async def test_gaps_without_kakao_walk_steps_are_added_as_tmap_walk_steps() -> None:
     route = transit_route([
         step(TransitStepType.BUS, 127.0, 127.006),
         step(TransitStepType.SUBWAY, 127.007, 127.013),
     ])
     walking = WalkingProvider()
 
+    result = await service(route, walking).calculate(
+        snapshot(origin=126.999, destination=127.014)
+    )
+
+    assert result.status == "READY"
+    assert result.route is not None
+    segment = result.route.segments[0]
+    assert segment.duration_seconds == 600
+    assert segment.distance_meters == 5_000
+    assert segment.provider_attribution == "Kakao Maps · TMAP"
+    assert [item.type.value for item in segment.steps] == [
+        "WALK",
+        "BUS",
+        "WALK",
+        "SUBWAY",
+        "WALK",
+    ]
+    assert len(walking.calls) == 3
+    assert segment.steps[0].geometry is not None
+    assert segment.steps[0].geometry.coordinates == [
+        (126.999, 37.5),
+        (126.9995, 37.5),
+        (127.0, 37.5),
+    ]
+    assert segment.steps[2].geometry is not None
+    assert segment.steps[2].geometry.coordinates == [
+        (127.006, 37.5),
+        (127.0065, 37.5),
+        (127.007, 37.5),
+    ]
+    assert segment.steps[4].geometry is not None
+    assert segment.steps[4].geometry.coordinates == [
+        (127.013, 37.5),
+        (127.0135, 37.5),
+        (127.014, 37.5),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_synthetic_walk_step_uses_straight_geometry_when_tmap_fails() -> None:
+    route = transit_route([
+        step(TransitStepType.BUS, 127.0, 127.006),
+        step(TransitStepType.SUBWAY, 127.007, 127.013),
+    ])
+    walking = WalkingProvider(
+        RouteProviderError("ROUTE_PROVIDER_UNAVAILABLE", retryable=False)
+    )
+
     result = await service(route, walking).calculate(snapshot())
 
-    assert result.status == "FAILED"
-    assert result.failure is not None
-    assert result.failure.code == "ROUTE_INVALID_RESULT"
-    assert walking.calls == []
+    assert result.status == "READY"
+    assert result.route is not None
+    segment = result.route.segments[0]
+    assert segment.provider_attribution == "Kakao Maps"
+    assert [item.type.value for item in segment.steps] == [
+        "BUS",
+        "WALK",
+        "SUBWAY",
+    ]
+    assert len(walking.calls) == 1
+    assert segment.steps[1].geometry is not None
+    assert segment.steps[1].geometry.coordinates == [
+        (127.006, 37.5),
+        (127.007, 37.5),
+    ]
 
 
 @pytest.mark.asyncio
