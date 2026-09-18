@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, date, datetime, timedelta, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from app.services.progress import (
     apply_start_transition,
     apply_trip_end_close_out,
     close_out_ended_trip,
+    reopen_completed_day,
 )
 
 
@@ -309,3 +310,60 @@ async def test_close_out_does_nothing_until_the_last_day_has_passed_in_kst() -> 
     )
 
     session.scalars.assert_not_called()
+
+
+def _completed_day(items: list[ItineraryItem]) -> TripDay:
+    day = _day(items)
+    day.status = "COMPLETED"
+    day.completed_at = datetime(2026, 9, 8, 9, tzinfo=UTC)
+    day.detection_active = False
+    return day
+
+
+def test_reopen_keeps_arrived_last_place_so_user_can_depart_to_added_place() -> None:
+    """#724: 마지막 장소에 도착해 완료된 날짜에 장소를 추가하면 `다음 장소로 출발`로 이어진다."""
+    arrived, added = _item(1, "ARRIVED"), _item(2, "PLANNED")
+    day = _completed_day([arrived, added])
+    session = MagicMock(spec=AsyncSession)
+
+    assert reopen_completed_day(session, day, datetime(2026, 9, 8, 10, tzinfo=UTC)) is True
+
+    assert [item.status for item in day.items] == ["ARRIVED", "PLANNED"]
+    assert (day.status, day.completed_at, day.detection_active) == ("IN_PROGRESS", None, True)
+    assert day.progress_version == 2
+    transition = session.add.call_args.args[0]
+    assert (transition.transition_type, transition.source) == ("REOPEN_DAY", "ITINERARY_EDIT")
+    assert transition.progress_version_after == 2
+    assert transition.affected_items == [
+        {"dayStatusBefore": "COMPLETED", "dayStatusAfter": "IN_PROGRESS"},
+    ]
+    # 다시 연 뒤에는 기존 규칙대로 출발하면 추가한 장소가 이동 중이 된다.
+    apply_manual_transition(day, arrived, "COMPLETED", datetime(2026, 9, 8, 11, tzinfo=UTC))
+    assert [item.status for item in day.items] == ["COMPLETED", "EN_ROUTE"]
+
+
+def test_reopen_derives_en_route_when_last_place_was_skipped() -> None:
+    """#724: 도착해 있는 장소가 없으면(마지막을 건너뜀) 추가한 장소가 바로 이동 중이 된다."""
+    added = _item(3, "PLANNED")
+    day = _completed_day([_item(1, "COMPLETED"), _item(2, "SKIPPED"), added])
+
+    assert reopen_completed_day(MagicMock(spec=AsyncSession), day, datetime(2026, 9, 8, 10, tzinfo=UTC)) is True
+
+    assert [item.status for item in day.items] == ["COMPLETED", "SKIPPED", "EN_ROUTE"]
+    assert day.status == "IN_PROGRESS"
+
+
+@pytest.mark.parametrize(
+    ("day_status", "item_status"),
+    [("COMPLETED", "ARRIVED"), ("IN_PROGRESS", "PLANNED"), ("NOT_STARTED", "PLANNED")],
+)
+def test_reopen_leaves_other_days_untouched(day_status: str, item_status: str) -> None:
+    """#724: 장소 추가 없는 완료 날짜와 완료가 아닌 날짜는 바꾸지 않는다."""
+    day = _completed_day([_item(1, item_status)])
+    day.status = day_status
+    session = MagicMock(spec=AsyncSession)
+
+    assert reopen_completed_day(session, day, datetime(2026, 9, 8, 10, tzinfo=UTC)) is False
+
+    assert (day.status, day.progress_version) == (day_status, 1)
+    session.add.assert_not_called()

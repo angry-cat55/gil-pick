@@ -593,6 +593,68 @@ async def test_appending_after_completed_last_item_fills_null_transport(
 
 
 @pytest.mark.asyncio
+async def test_appending_to_completed_day_reopens_it(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """마지막 장소에 도착해 완료된 날짜에 장소를 추가하면 날짜가 다시 진행 중이 된다(#724)."""
+    trip_id, visit_date = await _seed(session_factory)
+    now = datetime.now(UTC)
+    async with transaction_session(session_factory) as session:
+        saved, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=_create_payload(), idempotency_key=uuid.uuid4(),
+        )
+        await session.execute(
+            update(ItineraryItem)
+            .where(ItineraryItem.item_id == saved.items[0].item_id)
+            .values(status="ARRIVED", actual_arrived_at=now)
+        )
+        await session.execute(
+            update(TripDay)
+            .where(TripDay.trip_id == trip_id, TripDay.visit_date == visit_date)
+            .values(
+                status="COMPLETED", actual_started_at=now, completed_at=now,
+                detection_active=False, progress_version=2,
+            )
+        )
+
+    appended = SaveDayItineraryRequest(
+        version=saved.version,
+        items=[
+            {
+                **_place_item(1, "WALK"),
+                "itemId": str(saved.items[0].item_id),
+                "place": None,
+            },
+            _second_place_item(2, None),
+        ],
+    )
+    async with transaction_session(session_factory) as session:
+        updated, _, _ = await ItineraryService(session).save_day(
+            trip_id=trip_id, visit_date=visit_date, start_date=visit_date,
+            payload=appended, idempotency_key=uuid.uuid4(),
+        )
+
+    # 도착해 있는 마지막 장소는 그대로라 앱이 `다음 장소로 출발`로 이어 간다.
+    assert [item.status for item in updated.items] == ["ARRIVED", "PLANNED"]
+    async with session_factory() as session:
+        day = await session.scalar(
+            select(TripDay).where(TripDay.trip_id == trip_id, TripDay.visit_date == visit_date)
+        )
+        assert day is not None
+        assert (day.status, day.completed_at, day.detection_active) == ("IN_PROGRESS", None, True)
+        assert day.progress_version == 3
+        transition = await session.scalar(
+            select(ProgressTransition).where(
+                ProgressTransition.trip_day_id == day.trip_day_id,
+                ProgressTransition.transition_type == "REOPEN_DAY",
+            )
+        )
+        assert transition is not None
+        assert transition.progress_version_after == 3
+
+
+@pytest.mark.asyncio
 async def test_overview_includes_all_dates_and_unsaved_days(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
