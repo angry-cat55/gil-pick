@@ -42,19 +42,6 @@ flowchart LR
 
 세부 정책과 완료 조건은 [MVP 정의](docs/planning/mvp.md), [기능 명세](docs/planning/functional-spec.md), 각 Feature의 `specs/` 문서를 기준으로 합니다.
 
-## 현재 개발 상태
-
-2026-09-16 기준 Feature 상태입니다. `DONE`이 아닌 항목은 핵심 구현이 일부 병합되어 있어도 재작업 또는 전체 검증이 남아 있습니다.
-
-| 상태 | Feature |
-|---|---|
-| `DONE` | F001 인증, F002 여행 관리, F003 장소 검색, F004 일정 구성, F005 경로 계산, F006 여행 진행, F007 위치 기반 감지, F008 여행 변수 감지, F011 알림 |
-| `READY (재작업)` | F009 대체 장소 추천 |
-| `IN_PROGRESS` | F010 일정 변경 |
-| `VERIFY` | F012 사용자 설정 |
-
-최신 상태와 전이 근거는 [MVP Feature 목록](docs/planning/mvp-features.md)에서 관리합니다.
-
 ## 시스템 구조
 
 ```mermaid
