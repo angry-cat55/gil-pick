@@ -15,6 +15,8 @@ from app.services.progress import (
     ProgressService,
     apply_manual_transition,
     apply_start_transition,
+    apply_trip_end_close_out,
+    close_out_ended_trip,
 )
 
 
@@ -272,3 +274,38 @@ def test_change_planned_to_arrived_reconciles_all_other_progress() -> None:
     assert following.completed_at is None
     assert sum(item.status == "ARRIVED" for item in day.items) == 1
     assert sum(item.status == "EN_ROUTE" for item in day.items) == 0
+
+
+def test_trip_end_close_out_skips_unvisited_items_and_completes_day() -> None:
+    """#711: 종료된 여행은 가지 못한 장소만 건너뛰기로 바꾸고 방문 기록은 그대로 둔다."""
+    done, arrived, en_route, planned, skipped = (
+        _item(1, "COMPLETED"), _item(2, "ARRIVED"), _item(3, "EN_ROUTE"),
+        _item(4, "PLANNED"), _item(5, "SKIPPED"),
+    )
+    day = _day([done, arrived, en_route, planned, skipped])
+    now = datetime(2026, 9, 10, tzinfo=UTC)
+
+    affected = apply_trip_end_close_out(day, now)
+
+    assert [item.status for item in day.items] == [
+        "COMPLETED", "ARRIVED", "SKIPPED", "SKIPPED", "SKIPPED",
+    ]
+    assert (day.status, day.completed_at, day.detection_active) == ("COMPLETED", now, False)
+    assert affected == [
+        {"itemId": str(en_route.item_id), "beforeStatus": "EN_ROUTE", "afterStatus": "SKIPPED"},
+        {"itemId": str(planned.item_id), "beforeStatus": "PLANNED", "afterStatus": "SKIPPED"},
+        {"dayStatusBefore": "IN_PROGRESS", "dayStatusAfter": "COMPLETED"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_close_out_does_nothing_until_the_last_day_has_passed_in_kst() -> None:
+    """#711: 마지막 날(KST) 23:59까지는 여행 중이라 조회조차 하지 않는다."""
+    session = AsyncMock(spec=AsyncSession)
+
+    await close_out_ended_trip(
+        session, trip_id=uuid.uuid4(), end_date=date(2026, 9, 9),
+        now=datetime(2026, 9, 9, 14, 59, tzinfo=UTC),  # KST 9/9 23:59
+    )
+
+    session.scalars.assert_not_called()

@@ -821,6 +821,8 @@ Response `200` 또는 신규 일자 `201`:
 
 여행 기간의 모든 날짜를 `days[]`로 반환한다. 저장된 적 없는 날짜도 `version: 0`, `routeStatus: NOT_CALCULATED`, 빈 `items`, `route: null`로 포함한다. 최대 7일이므로 pagination은 사용하지 않는다.
 
+여행의 마지막 날짜(KST)가 지났으면 응답 전에 종료 마감을 한다(#711): 시작됐지만 완료되지 않은 날짜의 `PLANNED`·`EN_ROUTE` 장소를 `SKIPPED`로 바꾸고 그 날짜를 `COMPLETED`로 만든 뒤, `progressVersion`을 1 올리고 `TRIP_END_SKIP` 전환으로 기록한다. 시작하지 않고 지나간 날짜는 바꾸지 않는다.
+
 주요 오류: `401 INVALID_ACCESS_TOKEN`, `403 TRIP_FORBIDDEN`, `404 TRIP_NOT_FOUND`
 
 ### PLACE-001 장소 검색
@@ -1110,6 +1112,8 @@ Response `200`:
 ### PROG-001 당일 진행 현황 조회
 
 `GET /api/v1/trips/{tripId}/days/{date}/progress`
+
+여행의 마지막 날짜(KST)가 지났으면 응답 전에 종료 마감을 한다(#711): 시작됐지만 완료되지 않은 날짜의 `PLANNED`·`EN_ROUTE` 장소를 `SKIPPED`로 바꾸고 그 날짜를 `COMPLETED`로 만든 뒤, `progressVersion`을 1 올리고 `TRIP_END_SKIP` 전환으로 기록한다. 시작하지 않고 지나간 날짜는 바꾸지 않는다.
 
 Response `200`:
 
