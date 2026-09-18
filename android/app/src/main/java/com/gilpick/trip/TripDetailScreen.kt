@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.gilpick.ui.component.DestructiveConfirmDialog
+import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.displayFont
@@ -123,6 +124,8 @@ import kotlinx.coroutines.delay
  * @param routes 날짜(`yyyy-MM-dd`)별 경로 영역 상태(F005). 없는 날짜는 경로 정보 없음으로 그린다.
  * @param onOpenRoute 그 날짜의 경로 화면(F005)으로 이동한다. 인자는 날짜와 일차다.
  * @param onRetryRoute 실패한 날짜의 경로 계산을 같은 입력으로 다시 시도한다(F005 FR-010). 인자는 날짜다.
+ * @param onSaveTrip 새 여행을 만든 직후에만 준다(#722). `일정 편집` 위에 `여행 저장`을 보이고, 누르면 만들기를 끝낸다.
+ *   여행과 일정은 이미 저장돼 있어 요청을 보내지 않는다. null이면 버튼이 없다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,6 +144,7 @@ fun TripDetailScreen(
     routes: Map<String, DayRoutePhase> = emptyMap(),
     onOpenRoute: (date: String, dayNumber: Int) -> Unit = { _, _ -> },
     onRetryRoute: (date: String) -> Unit = {},
+    onSaveTrip: (() -> Unit)? = null,
 ) {
     val spacing = LocalGilpickSpacing.current
     val title = stringResource(R.string.trip_detail_title)
@@ -182,6 +186,7 @@ fun TripDetailScreen(
                 onSelectPlace = onSelectPlace,
                 onOpenRoute = onOpenRoute,
                 onRetryRoute = onRetryRoute,
+                onSaveTrip = onSaveTrip,
             )
 
             is TripDetailPhase.Failed -> {
@@ -525,6 +530,7 @@ private fun DetailContent(
     onSelectPlace: (placeId: String) -> Unit,
     onOpenRoute: (date: String, dayNumber: Int) -> Unit,
     onRetryRoute: (date: String) -> Unit,
+    onSaveTrip: (() -> Unit)?,
 ) {
     val spacing = LocalGilpickSpacing.current
 
@@ -540,7 +546,7 @@ private fun DetailContent(
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
                 TripStats(trip = trip, itinerary = itinerary, routes = routes)
-                ItineraryActions(onEditItinerary = onEditItinerary)
+                ItineraryActions(onEditItinerary = onEditItinerary, onSaveTrip = onSaveTrip)
             }
         }
 
@@ -631,9 +637,10 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
  * `일정 편집`(spec UI-006).
  *
  * `오늘 여행 시작`은 여행 중 화면으로 옮겼다(#711). 일정 상세는 일정 확인과 편집만 맡는다.
+ * 새 여행을 만든 직후에만 그 위에 `여행 저장`을 둔다(#722).
  */
 @Composable
-private fun ItineraryActions(onEditItinerary: () -> Unit) {
+private fun ItineraryActions(onEditItinerary: () -> Unit, onSaveTrip: (() -> Unit)?) {
     val spacing = LocalGilpickSpacing.current
 
     Column(
@@ -641,6 +648,13 @@ private fun ItineraryActions(onEditItinerary: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(spacing.space1),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (onSaveTrip != null) {
+            GradientButton(
+                label = stringResource(R.string.trip_detail_save_trip),
+                onClick = onSaveTrip,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         TextButton(
             onClick = onEditItinerary,
             modifier = Modifier.heightIn(min = MIN_TOUCH),

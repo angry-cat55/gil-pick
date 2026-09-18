@@ -469,7 +469,11 @@ private fun TripRoute(
                     val startDate = state.startDate
                     viewModel.consumeSaved()
                     if (startDate != null) {
-                        navController.openNewTripItinerary<TripFormRoute>(TripDetailRoute(tripId), tripId, startDate)
+                        navController.openNewTripItinerary<TripFormRoute>(
+                            TripDetailRoute(tripId, newTrip = true),
+                            tripId,
+                            startDate,
+                        )
                     } else {
                         // 저장은 기간 검증을 통과해야 하므로 오지 않는 경로다. 오면 기존처럼 목록으로 돌아간다.
                         navController.popBackStack()
@@ -488,7 +492,8 @@ private fun TripRoute(
             }
 
             composable<TripDetailRoute> { entry ->
-                val tripId = entry.toRoute<TripDetailRoute>().tripId
+                val route = entry.toRoute<TripDetailRoute>()
+                val tripId = route.tripId
                 val viewModel: TripDetailViewModel = viewModel(
                     factory = TripDetailViewModel.factory(LocalContext.current, tripId),
                 )
@@ -537,6 +542,12 @@ private fun TripRoute(
                     // F005 날짜별 경로. 상세로 돌아오면 위 load()가 개요와 경로 상태를 다시 받는다.
                     onOpenRoute = { date, dayNumber -> navController.navigate(DayRouteRoute(tripId, date, dayNumber)) },
                     onRetryRoute = viewModel::retryRoute,
+                    // 새 여행을 만든 직후의 상세에서만 `여행 저장`으로 만들기를 끝내고 목록으로 간다(#722).
+                    onSaveTrip = if (route.newTrip) {
+                        { navController.popBackStack(TripListRoute, inclusive = false) }
+                    } else {
+                        null
+                    },
                 )
             }
 
@@ -827,9 +838,10 @@ private object TripFormRoute
  * 여행 상세.
  *
  * @property tripId 보여 줄 여행. 목록에서 고른 항목의 식별자다.
+ * @property newTrip 새 여행을 만든 직후 들어왔는지. `일정 편집` 위에 `여행 저장`이 보인다(#722).
  */
 @Serializable
-private data class TripDetailRoute(val tripId: String)
+private data class TripDetailRoute(val tripId: String, val newTrip: Boolean = false)
 
 /**
  * 여행 수정.

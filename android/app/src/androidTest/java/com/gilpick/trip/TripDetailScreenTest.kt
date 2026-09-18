@@ -431,6 +431,30 @@ class TripDetailScreenTest {
         assertEquals(((root.left + root.right) / 2).value, ((button.left + button.right) / 2).value, 1f)
     }
 
+    @Test
+    fun 새_여행_상세는_일정_편집_위에_여행_저장을_보이고_누르면_알린다() {
+        var saved = 0
+        setDetail(
+            detailWith(ItineraryOverviewPhase.Content(listOf(day("2026-09-01", 1)))),
+            onSaveTrip = { saved += 1 },
+        )
+
+        val save = composeRule.onNodeWithText("여행 저장").performScrollTo().getBoundsInRoot()
+        val edit = composeRule.onNodeWithText("일정 편집").getBoundsInRoot()
+        assertTrue(save.bottom <= edit.top)
+
+        composeRule.onNodeWithText("여행 저장").performClick()
+        assertEquals(1, saved)
+    }
+
+    @Test
+    fun 새_여행이_아닌_상세에는_여행_저장이_없다() {
+        setDetail(detailWith(ItineraryOverviewPhase.Content(listOf(day("2026-09-01", 1)))))
+
+        composeRule.onNodeWithText("일정 편집").assertExists()
+        composeRule.onNodeWithText("여행 저장").assertDoesNotExist()
+    }
+
     /** 여행은 받았고 일정 영역만 [itinerary] 상태인 상세 화면 상태를 만든다. */
     private fun detailWith(
         itinerary: ItineraryOverviewPhase,
@@ -543,6 +567,7 @@ class TripDetailScreenTest {
         onSelectPlace: (String) -> Unit = {},
         routes: Map<String, DayRoutePhase> = emptyMap(),
         onRetryRoute: (String) -> Unit = {},
+        onSaveTrip: (() -> Unit)? = null,
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -559,6 +584,7 @@ class TripDetailScreenTest {
                     onSelectPlace = onSelectPlace,
                     routes = routes,
                     onRetryRoute = onRetryRoute,
+                    onSaveTrip = onSaveTrip,
                 )
             }
         }
