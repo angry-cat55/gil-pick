@@ -7,6 +7,9 @@ import com.gilpick.itinerary.TransportMode
 
 internal const val PROGRESS_TRIP_ID = "3f1d2c4b-5a6e-4f70-8a91-b2c3d4e5f607"
 internal const val PROGRESS_DATE = "2026-09-08"
+
+/** [PROGRESS_DATE]의 전날. 도착 처리가 남은 지난 날짜 test가 쓴다(#711). */
+internal const val YESTERDAY = "2026-09-07"
 internal const val P_ITEM_A = "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b3"
 internal const val P_ITEM_B = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
 internal const val P_ITEM_C = "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e"

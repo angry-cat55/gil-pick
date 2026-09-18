@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -40,8 +39,6 @@ import com.gilpick.route.RouteError
 import com.gilpick.route.RouteFailureDto
 import com.gilpick.route.RouteMarkerDto
 import com.gilpick.place.PlaceCategory
-import com.gilpick.progress.ProgressError
-import com.gilpick.progress.StartMode
 import com.gilpick.ui.theme.GilpickTheme
 import kotlinx.serialization.Serializable
 import org.junit.Assert.assertEquals
@@ -343,11 +340,10 @@ class TripDetailScreenTest {
     }
 
     @Test
-    fun F005와_F006_범위인_값은_비활성이거나_정보_없음으로_둔다() {
-        // spec UI-006: 총 이동 시간은 F004에서 값이 없다. `오늘 여행 시작`은 진행 현황을 받기 전(F006 Loading)이라 비활성이다.
+    fun F005_범위인_값은_정보_없음으로_둔다() {
+        // spec UI-006: 총 이동 시간은 F004에서 값이 없다. `오늘 여행 시작`은 여행 중 화면으로 옮겨 여기에는 없다(#711).
         setDetail(detailWith(ItineraryOverviewPhase.Content(emptyList())))
 
-        composeRule.onNodeWithText("오늘 여행 시작").assertIsNotEnabled()
         composeRule.onNodeWithText("총 이동").assertIsDisplayed()
         // hero 지역 줄(TripDto에 지역이 없음, #442)과 `총 이동` 값이 모두 `정보 없음`이다.
         composeRule.onAllNodesWithText("정보 없음").assertCountEquals(2)
@@ -412,125 +408,16 @@ class TripDetailScreenTest {
         composeRule.onNodeWithText("경로 계산 중").assertDoesNotExist()
     }
 
-    // --- 5. F006 T018: 오늘 여행 시작 버튼 ---
+    // --- 5. #711: 시작은 여행 중 화면이 맡는다 ---
 
     @Test
-    fun 기간_밖이면_시작_버튼이_비활성이고_이유를_함께_적는다() {
-        setDetail(startWith(TripStartPhase.NotTravelDay))
+    fun 일정_상세에는_오늘_여행_시작_영역이_없고_일정_편집만_있다() {
+        setDetail(detailWith(ItineraryOverviewPhase.Content(listOf(day("2026-09-01", 1)))))
 
-        composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().assertIsNotEnabled()
-        composeRule.onNodeWithText("오늘은 여행 날짜가 아닙니다").assertIsDisplayed()
+        composeRule.onNodeWithText("일정 편집").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("오늘 여행 시작", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("여행 진행 화면으로").assertDoesNotExist()
     }
-
-    @Test
-    fun 장소가_없으면_시작_대신_장소_추가를_안내하고_오늘_날짜로_추가에_들어간다() {
-        var added: String? = null
-        setDetail(startWith(TripStartPhase.NoPlaces("2026-09-02")), onAddPlace = { added = it })
-
-        composeRule.onNodeWithText("오늘 일정에 장소가 없어요", substring = true).performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("오늘 여행 시작").assertDoesNotExist()
-        composeRule.onNodeWithText("장소 추가").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-
-        assertEquals("2026-09-02", added)
-    }
-
-    @Test
-    fun 시작할_수_있으면_버튼이_활성이고_누르면_시작_방식을_먼저_고른다() {
-        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
-        setDetail(startWith(TripStartPhase.Ready("2026-09-02", 0)), onStartToday = { mode, transport -> started += mode to transport })
-
-        composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().assertIsEnabled().performClick()
-
-        // 시트가 먼저 열리고, 고르기 전에는 시작 요청이 가지 않는다(#654).
-        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertIsDisplayed()
-        composeRule.runOnIdle { assertEquals(emptyList<Pair<StartMode, TransportMode?>>(), started) }
-
-        // 현장 시작은 위치도 이동수단도 없이 보낸다.
-        composeRule.onNodeWithText("첫 장소에서 시작하기").performClick()
-        composeRule.onNodeWithText("시작하기").performClick()
-
-        composeRule.runOnIdle { assertEquals(listOf(StartMode.AT_FIRST_PLACE to null), started) }
-    }
-
-    @Test
-    fun 첫_장소로_이동하기는_고른_이동수단을_함께_보낸다() {
-        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
-        setDetail(startWith(TripStartPhase.Ready("2026-09-02", 0)), onStartToday = { mode, transport -> started += mode to transport })
-
-        composeRule.onNodeWithText("오늘 여행 시작").performScrollTo().performClick()
-        composeRule.onNodeWithText("첫 장소로 이동하기").performClick()
-        composeRule.onNodeWithText("자동차").performClick()
-        composeRule.onNodeWithText("시작하기").performClick()
-
-        // 위치 권한이 없는 기기에서는 권한 안내가 먼저 뜨므로 요청 여부를 단정하지 않는다.
-        composeRule.runOnIdle {
-            assertTrue(started.isEmpty() || started == listOf(StartMode.MOVE_TO_FIRST to TransportMode.CAR))
-        }
-    }
-
-    @Test
-    fun 시작_중에는_버튼을_잠그고_진행_중임을_적는다() {
-        setDetail(startWith(TripStartPhase.Starting("2026-09-02")))
-
-        composeRule.onNodeWithText("시작하는 중").performScrollTo().assertIsNotEnabled()
-    }
-
-    @Test
-    fun 이미_시작된_날짜는_여행_진행_화면으로_버튼이_되고_누르면_진행_화면으로_간다() {
-        var opened: String? = null
-        setDetail(startWith(TripStartPhase.Started("2026-09-02")), onOpenProgress = { opened = it })
-
-        composeRule.onNodeWithText("여행 진행 화면으로").performScrollTo().assertIsEnabled().performClick()
-
-        assertEquals("2026-09-02", opened)
-        composeRule.onNodeWithText("오늘 여행 시작").assertDoesNotExist()
-    }
-
-    @Test
-    fun 방금_시작되면_진행_화면으로_이동하고_신호를_소비한다() {
-        var opened: String? = null
-        var consumed = 0
-        setDetail(startWith(TripStartPhase.Launched("2026-09-02")), onOpenProgress = { opened = it }, onLaunchConsumed = { consumed++ })
-
-        composeRule.waitForIdle()
-
-        assertEquals("2026-09-02", opened)
-        assertEquals(1, consumed)
-    }
-
-    @Test
-    fun 시작_실패는_원인과_다시_시도를_보인다() {
-        var retried = 0
-        setDetail(startWith(TripStartPhase.Failed(ProgressError.Network)), onRetryStart = { retried++ })
-
-        composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요.").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("다시 시도").performScrollTo().performClick()
-
-        assertEquals(1, retried)
-    }
-
-    @Test
-    fun 시작_요청_실패의_다시_시도는_고른_시작_방식_그대로_다시_요청한다() {
-        var retried = 0
-        setDetail(
-            startWith(TripStartPhase.Failed(ProgressError.Unexpected, ready = TripStartPhase.Ready("2026-09-02", 0))),
-            onRetryStart = { retried++ },
-        )
-
-        composeRule.onNodeWithText("지금은 여행을 시작할 수 없습니다", substring = true).performScrollTo().assertIsDisplayed()
-        // 다시 시도는 방식을 다시 묻지 않는다(#654).
-        composeRule.onNodeWithText("다시 시도").performScrollTo().performClick()
-
-        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertDoesNotExist()
-        assertEquals(1, retried)
-    }
-
-    /** 여행은 받았고 시작 영역만 [start] 상태인 상세 화면 상태를 만든다. */
-    private fun startWith(start: TripStartPhase): TripDetailUiState = TripDetailUiState(
-        phase = TripDetailPhase.Content(sample("t1", startDate = "2026-09-01", endDate = "2026-09-03")),
-        itinerary = ItineraryOverviewPhase.Content(listOf(day("2026-09-01", 1), day("2026-09-02", 2), day("2026-09-03", 3))),
-        start = start,
-    )
 
     /** 여행은 받았고 일정 영역만 [itinerary] 상태인 상세 화면 상태를 만든다. */
     private fun detailWith(
@@ -606,7 +493,7 @@ class TripDetailScreenTest {
                             onRetry = {},
                             onLoadMore = {},
                             onCreateTrip = {},
-                            onTripClick = { navController.navigate(DetailRoute(it)) },
+                            onTripClick = { navController.navigate(DetailRoute(it.tripId)) },
                         )
                     }
                     composable<EditRoute> { entry ->
@@ -644,10 +531,6 @@ class TripDetailScreenTest {
         onSelectPlace: (String) -> Unit = {},
         routes: Map<String, DayRoutePhase> = emptyMap(),
         onRetryRoute: (String) -> Unit = {},
-        onStartToday: (StartMode, TransportMode?) -> Unit = { _, _ -> },
-        onRetryStart: () -> Unit = {},
-        onOpenProgress: (String) -> Unit = {},
-        onLaunchConsumed: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -664,10 +547,6 @@ class TripDetailScreenTest {
                     onSelectPlace = onSelectPlace,
                     routes = routes,
                     onRetryRoute = onRetryRoute,
-                    onStartToday = onStartToday,
-                    onRetryStart = onRetryStart,
-                    onOpenProgress = onOpenProgress,
-                    onLaunchConsumed = onLaunchConsumed,
                 )
             }
         }

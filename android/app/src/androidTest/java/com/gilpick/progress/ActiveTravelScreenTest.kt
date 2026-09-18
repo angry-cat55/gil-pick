@@ -37,10 +37,12 @@ import com.gilpick.alternative.DetectionListItemDto
 import com.gilpick.alternative.DetectionStatus
 import com.gilpick.alternative.DetectionType
 import com.gilpick.itinerary.ItemStatus
+import com.gilpick.itinerary.TransportMode
 import com.gilpick.route.ITEM_A
 import com.gilpick.route.ITEM_B
 import com.gilpick.route.ITEM_C
 import com.gilpick.ui.theme.GilpickTheme
+import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -214,14 +216,76 @@ class ActiveTravelScreenTest {
         composeRule.onNodeWithContentDescription("2번째 장소 북촌한옥마을, 건너뜀, 건너뜀").performScrollTo().assertIsDisplayed()
     }
 
+    // ---- #711: 시작 카드 ----
+
     @Test
-    fun 시작_전_날짜는_카드_없이_목록만_보인다() {
+    fun 시작_전_오늘은_시작_카드만_보이고_도착했어요와_건너뛰기는_없다() {
         setScreen(content(progress = notStartedProgress()))
 
+        composeRule.onNodeWithTag(TAG_CARD_START).assertIsDisplayed()
+        composeRule.onNodeWithText("오늘 여행 시작하기").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("도착했어요").assertDoesNotExist()
+        composeRule.onNodeWithText("건너뛰기").assertDoesNotExist()
         composeRule.onNodeWithTag(TAG_CARD_NEXT).assertDoesNotExist()
-        composeRule.onNodeWithTag(TAG_CARD_ARRIVED).assertDoesNotExist()
         composeRule.onNodeWithText("2일차 · 0/3 완료").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("1번째 장소 경복궁, 예정, 정보 없음").assertIsDisplayed()
+    }
+
+    @Test
+    fun 오늘_여행_시작하기는_시작_방식_시트를_열고_현장_시작은_위치_없이_바로_시작한다() {
+        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
+        setScreen(content(progress = notStartedProgress()), onStartToday = { mode, transport -> started += mode to transport })
+
+        composeRule.onNodeWithText("오늘 여행 시작하기").performClick()
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertIsDisplayed()
+        composeRule.onNodeWithText("오늘 첫 장소는 경복궁입니다").assertIsDisplayed()
+        composeRule.onNodeWithText("첫 장소에서 시작하기").performClick()
+        composeRule.onNodeWithText("시작하기").performClick()
+
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(listOf<Pair<StartMode, TransportMode?>>(StartMode.AT_FIRST_PLACE to null), started) }
+    }
+
+    @Test
+    fun 시작한_뒤에는_시작_카드_대신_도착했어요와_건너뛰기가_나온다() {
+        setScreen(content())
+
+        composeRule.onNodeWithTag(TAG_CARD_START).assertDoesNotExist()
+        composeRule.onNodeWithText("도착했어요").assertIsDisplayed()
+        composeRule.onNodeWithText("건너뛰기").assertIsDisplayed()
+    }
+
+    @Test
+    fun 시작_실패는_원인과_다시_시도를_보이고_다시_시도는_시트를_다시_열지_않는다() {
+        var retried = 0
+        setScreen(
+            content(progress = notStartedProgress()).copy(startFailure = StartFailure(StartMode.MOVE_TO_FIRST, TransportMode.CAR, ProgressError.Network)),
+            onRetryStart = { retried++ },
+        )
+
+        composeRule.onNodeWithText("연결을 확인한 뒤 다시 시도해 주세요.").assertIsDisplayed()
+        composeRule.onNodeWithText("다시 시도").performClick()
+
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(1, retried) }
+    }
+
+    @Test
+    fun 다른_날짜를_보는_중에는_시작_카드가_없다() {
+        setScreen(content(progress = notStartedProgress(), days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-09")))
+
+        composeRule.onNodeWithTag(TAG_CARD_START).assertDoesNotExist()
+    }
+
+    @Test
+    fun 도착_처리가_남은_지난_날짜에_머무르면_이유를_알리고_도착했어요와_행_수정이_그대로_된다() {
+        // 기기의 오늘은 9/9인데 진행 기준 날짜는 아직 9/8이다.
+        setScreen(content(now = Instant.parse("2026-09-09T01:00:00Z"), days = threeDays()))
+
+        composeRule.onNodeWithTag(TAG_PENDING_DAY_NOTICE).assertIsDisplayed()
+        composeRule.onNodeWithText("도착했어요").assertIsDisplayed().assertIsEnabled()
+        row(1).performClick()
+        composeRule.onNodeWithTag(TAG_STATUS_SHEET).assertIsDisplayed()
     }
 
     @Test
@@ -408,28 +472,24 @@ class ActiveTravelScreenTest {
     // ---- #509: 헤더 편집, #554: 뒤로 가기 없음 ----
 
     @Test
-    fun 헤더_편집은_오늘과_예정_날짜에서_보고_있는_날짜로_가고_지난_날짜는_비활성과_사유를_보인다() {
-        val edited = mutableListOf<String>()
+    fun 헤더_일정_편집은_어느_날짜를_보든_활성이고_일정_상세로_간다() {
+        var edited = 0
         var state by mutableStateOf<ProgressUiState>(content(days = threeDays()))
         composeRule.setContent {
             GilpickTheme {
                 ActiveTravelScreen(
                     state = state, tripName = "서울 여행", onRetry = {}, onAddPlace = {}, onOpenRoute = { _, _ -> },
-                    onReauthenticate = {}, onEdit = { edited += it },
+                    onReauthenticate = {}, onEdit = { edited++ },
                     map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }
         }
 
         composeRule.onNodeWithTag(TAG_EDIT).assertHeightIsAtLeast(48.dp).assertIsEnabled().performClick()
-        composeRule.runOnIdle { state = content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-09")) }
-        composeRule.onNodeWithTag(TAG_EDIT).assertIsEnabled().performClick()
-        composeRule.runOnIdle { assertEquals(listOf("2026-09-08", "2026-09-09"), edited) }
-
+        // 편집은 일정 상세에서 하므로 지난 날짜를 보는 중에도 막지 않는다(#711).
         composeRule.runOnIdle { state = content(days = threeDays()).copy(viewingDate = LocalDate.parse("2026-09-07")) }
-        composeRule.onNodeWithTag(TAG_EDIT).assertIsNotEnabled()
-        composeRule.onNodeWithText("지난 날짜의 일정은 편집할 수 없어요").assertIsDisplayed()
-
+        composeRule.onNodeWithTag(TAG_EDIT).assertIsEnabled().performClick()
+        composeRule.runOnIdle { assertEquals(2, edited) }
     }
 
     @Test
@@ -676,6 +736,8 @@ class ActiveTravelScreenTest {
         onSelectDate: (LocalDate) -> Unit = {},
         onReturnToToday: () -> Unit = {},
         onOpenAlternatives: (String) -> Unit = {},
+        onStartToday: (StartMode, TransportMode?) -> Unit = { _, _ -> },
+        onRetryStart: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -695,6 +757,8 @@ class ActiveTravelScreenTest {
                     onSelectDate = onSelectDate,
                     onReturnToToday = onReturnToToday,
                     onOpenAlternatives = onOpenAlternatives,
+                    onStartToday = onStartToday,
+                    onRetryStart = onRetryStart,
                     map = { _, _, modifier -> FakeMap(modifier) },
                 )
             }

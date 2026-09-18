@@ -1,10 +1,6 @@
 package com.gilpick.trip
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,8 +30,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
@@ -46,7 +39,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,19 +59,15 @@ import com.gilpick.ui.component.DestructiveConfirmDialog
 import com.gilpick.ui.component.TAG_HEADER_BACK
 import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.displayFont
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImage
 import com.gilpick.R
@@ -87,24 +75,13 @@ import com.gilpick.itinerary.DayItineraryDto
 import com.gilpick.itinerary.ItineraryError
 import com.gilpick.itinerary.ItineraryItemDto
 import com.gilpick.itinerary.TransportMode
-import com.gilpick.itinerary.toPlaceTransport
-import com.gilpick.place.TransportOption
-import com.gilpick.progress.DeviceLocationProvider
-import com.gilpick.progress.LocationPermissionScreen
-import com.gilpick.progress.LbsConsentRepository
-import com.gilpick.progress.ProgressError
-import com.gilpick.progress.StartMode
 import com.gilpick.route.RouteDto
 import com.gilpick.route.RouteSegmentDto
 import com.gilpick.route.distanceLabel
 import com.gilpick.route.durationLabel
 import com.gilpick.route.messageRes
-import com.gilpick.settings.PolicyDocument
-import com.gilpick.settings.PolicyDocumentLauncher
 import com.gilpick.ui.component.BadgeTone
 import com.gilpick.ui.component.ErrorState as CommonErrorState
-import com.gilpick.ui.component.GradientButton
-import com.gilpick.ui.component.GradientButtonWidth
 import com.gilpick.ui.component.StatusBadge
 import com.gilpick.ui.theme.LocalGilpickColors
 import com.gilpick.ui.theme.LocalGilpickRadius
@@ -112,8 +89,6 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import com.gilpick.auth.AuthResult
 
 /**
  * 여행 상세 화면.
@@ -148,11 +123,6 @@ import com.gilpick.auth.AuthResult
  * @param routes 날짜(`yyyy-MM-dd`)별 경로 영역 상태(F005). 없는 날짜는 경로 정보 없음으로 그린다.
  * @param onOpenRoute 그 날짜의 경로 화면(F005)으로 이동한다. 인자는 날짜와 일차다.
  * @param onRetryRoute 실패한 날짜의 경로 계산을 같은 입력으로 다시 시도한다(F005 FR-010). 인자는 날짜다.
- * @param onStartToday 시작 방식 시트에서 고른 값으로 오늘 여행을 시작한다(F006, #654). `MOVE_TO_FIRST`는 고른
- *   이동수단을, `AT_FIRST_PLACE`는 `null`을 함께 넘긴다. 위치 권한 요청은 화면이 먼저 끝낸다.
- * @param onRetryStart 시작 영역의 실패를 다시 시도한다.
- * @param onOpenProgress 진행 화면(F006)으로 이동한다. 방금 시작됐거나 이미 시작된 날짜에서 호출된다. 인자는 날짜다.
- * @param onLaunchConsumed 방금 시작됨 신호를 소비했음을 알린다. [onOpenProgress] 직후 호출된다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -171,22 +141,9 @@ fun TripDetailScreen(
     routes: Map<String, DayRoutePhase> = emptyMap(),
     onOpenRoute: (date: String, dayNumber: Int) -> Unit = { _, _ -> },
     onRetryRoute: (date: String) -> Unit = {},
-    onStartToday: (StartMode, TransportMode?) -> Unit = { _, _ -> },
-    onRetryStart: () -> Unit = {},
-    onOpenProgress: (date: String) -> Unit = {},
-    onLaunchConsumed: () -> Unit = {},
 ) {
     val spacing = LocalGilpickSpacing.current
     val title = stringResource(R.string.trip_detail_title)
-
-    // 방금 시작됐으면 진행 화면으로 간다. 신호를 바로 소비해 돌아왔을 때 다시 이동하지 않는다.
-    val start = state.start
-    LaunchedEffect(start) {
-        if (start is TripStartPhase.Launched) {
-            onOpenProgress(start.date)
-            onLaunchConsumed()
-        }
-    }
 
     // 다이얼로그를 열었는지는 화면 안에서만 쓰이는 표시 상태다. ViewModel에 두면 화면
     // 밖에서 아무도 읽지 않는 값을 함께 들고 다니게 된다. 회전으로 사라지지 않도록
@@ -216,7 +173,6 @@ fun TripDetailScreen(
                 heroImage = state.heroImage,
                 itinerary = state.itinerary,
                 routes = routes,
-                start = state.start,
                 onBack = onBack,
                 onEdit = onEdit,
                 onRequestDelete = { confirmOpen = true },
@@ -226,9 +182,6 @@ fun TripDetailScreen(
                 onSelectPlace = onSelectPlace,
                 onOpenRoute = onOpenRoute,
                 onRetryRoute = onRetryRoute,
-                onStartToday = onStartToday,
-                onRetryStart = onRetryStart,
-                onOpenProgress = onOpenProgress,
             )
 
             is TripDetailPhase.Failed -> {
@@ -564,10 +517,6 @@ private fun DetailContent(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onRequestDelete: () -> Unit,
-    start: TripStartPhase,
-    onStartToday: (StartMode, TransportMode?) -> Unit,
-    onRetryStart: () -> Unit,
-    onOpenProgress: (date: String) -> Unit,
     itinerary: ItineraryOverviewPhase,
     routes: Map<String, DayRoutePhase>,
     onRetryItinerary: () -> Unit,
@@ -591,15 +540,7 @@ private fun DetailContent(
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(horizontal = spacing.space5)) {
                 TripStats(trip = trip, itinerary = itinerary, routes = routes)
-                ItineraryActions(
-                    start = start,
-                    firstPlaceName = itinerary.firstPlaceName((start as? TripStartPhase.Ready)?.date),
-                    onStartToday = onStartToday,
-                    onRetryStart = onRetryStart,
-                    onOpenProgress = onOpenProgress,
-                    onAddPlace = onAddPlace,
-                    onEditItinerary = onEditItinerary,
-                )
+                ItineraryActions(onEditItinerary = onEditItinerary)
             }
         }
 
@@ -687,169 +628,19 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * `오늘 여행 시작`과 `일정 편집`(spec UI-006, F006 UI-007).
+ * `일정 편집`(spec UI-006).
  *
- * 시작 버튼은 [TripStartPhase]에 따라 `오늘 여행 시작`(활성/비활성), `시작하는 중`, `여행 진행 화면으로`,
- * `다시 시도`로 바뀐다. 비활성 이유는 흐린 색으로만 알리지 않고 문장으로 함께 적는다(가이드라인 10절).
- * 오늘 날짜에 장소가 없으면 시작 대신 `장소 추가`를 안내한다. Figma `TripDetailScreen`의 초 단위
- * 카운트다운은 데모 연출이라 구현하지 않는다(UI-007).
- *
- * 앱 사용 중 위치 권한은 여기서 요청한다(research.md 결정 7). 허용·거부 어느 쪽이든 시작은 진행하고,
- * 위치를 실을지는 ViewModel의 [DeviceLocationProvider]가 권한을 다시 확인해 정한다(FR-020).
+ * `오늘 여행 시작`은 여행 중 화면으로 옮겼다(#711). 일정 상세는 일정 확인과 편집만 맡는다.
  */
 @Composable
-private fun ItineraryActions(
-    start: TripStartPhase,
-    firstPlaceName: String?,
-    onStartToday: (StartMode, TransportMode?) -> Unit,
-    onRetryStart: () -> Unit,
-    onOpenProgress: (date: String) -> Unit,
-    onAddPlace: (date: String) -> Unit,
-    onEditItinerary: () -> Unit,
-) {
+private fun ItineraryActions(onEditItinerary: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val lbsConsentRepository = remember(context) { LbsConsentRepository.default(context) }
-    val policyLauncher = remember(context) { PolicyDocumentLauncher.default(context) }
-    // 시작 방식 시트에서 고른 이동수단. 위치 권한 흐름을 거쳐 돌아와도 그 선택으로 시작한다(#654).
-    var pendingTransport by rememberSaveable { mutableStateOf(TransportMode.WALK) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { onStartToday(StartMode.MOVE_TO_FIRST, pendingTransport) }
-    // 권한이 없으면 시스템 창 전에 위치 권한 안내 화면을 먼저 보인다(#440). 허용·거부·나중에 하기 모두 시작한다(FR-020).
-    var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
-    var lbsAgreed by rememberSaveable { mutableStateOf(false) }
-    var savingLbsConsent by rememberSaveable { mutableStateOf(false) }
-    var lbsConsentFailed by rememberSaveable { mutableStateOf(false) }
-    var startSheetOpen by rememberSaveable { mutableStateOf(false) }
-    // 현재 위치에서 첫 장소로 이동하는 시작만 위치가 필요하다. 현장 시작은 권한을 묻지 않는다.
-    val moveToFirst = { transport: TransportMode ->
-        pendingTransport = transport
-        if (DeviceLocationProvider.hasLocationPermission(context)) {
-            onStartToday(StartMode.MOVE_TO_FIRST, transport)
-        } else {
-            permissionGuideOpen = true
-        }
-    }
-    if (startSheetOpen) {
-        StartModeSheet(
-            firstPlaceName = firstPlaceName,
-            onDismiss = { startSheetOpen = false },
-            onMoveToFirst = { transport ->
-                startSheetOpen = false
-                moveToFirst(transport)
-            },
-            onAtFirstPlace = {
-                startSheetOpen = false
-                onStartToday(StartMode.AT_FIRST_PLACE, null)
-            },
-        )
-    }
-    if (permissionGuideOpen) {
-        // 헤더 없는 전체 화면 안내라 창 폭 제한을 끈 Dialog로 덮는다. 뒤로 가기는 시작하지 않고 닫는다.
-        Dialog(
-            onDismissRequest = { permissionGuideOpen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            LocationPermissionScreen(
-                onAllow = {
-                    savingLbsConsent = true
-                    lbsConsentFailed = false
-                    scope.launch {
-                        when (lbsConsentRepository.agree()) {
-                            is AuthResult.Success -> {
-                                savingLbsConsent = false
-                                permissionGuideOpen = false
-                                permissionLauncher.launch(
-                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                                )
-                            }
-                            is AuthResult.Failure -> {
-                                savingLbsConsent = false
-                                lbsConsentFailed = true
-                            }
-                        }
-                    }
-                },
-                onLater = {
-                    permissionGuideOpen = false
-                    onStartToday(StartMode.MOVE_TO_FIRST, pendingTransport)
-                },
-                lbsAgreed = lbsAgreed,
-                onLbsAgreedChange = {
-                    lbsAgreed = it
-                    lbsConsentFailed = false
-                },
-                onOpenLbsTerms = { policyLauncher.open(PolicyDocument.LOCATION_TERMS) },
-                submitting = savingLbsConsent,
-                submitFailed = lbsConsentFailed,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
 
     Column(
         modifier = Modifier.padding(bottom = spacing.space2),
         verticalArrangement = Arrangement.spacedBy(spacing.space1),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val note: String? = when (start) {
-            is TripStartPhase.NoPlaces -> stringResource(R.string.trip_detail_start_no_places)
-            is TripStartPhase.Failed -> stringResource(start.error.startMessageRes)
-            else -> null
-        }
-        // 여행 날짜가 아니면 비활성 버튼 위에 이유 배너를 둔다(Figma, 가이드라인 7절 D2: 이유 문장 병기 필수).
-        if (start == TripStartPhase.NotTravelDay) {
-            NotTravelDayBanner()
-        } else if (note != null) {
-            Text(
-                text = note,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (start is TripStartPhase.Failed) MaterialTheme.colorScheme.error else LocalGilpickColors.current.muted,
-                textAlign = TextAlign.Center,
-            )
-        }
-        when (start) {
-            is TripStartPhase.NoPlaces -> StartButton(
-                label = stringResource(R.string.trip_detail_start_add_place),
-                onClick = { onAddPlace(start.date) },
-            )
-
-            is TripStartPhase.Started -> StartButton(
-                label = stringResource(R.string.trip_detail_open_progress),
-                onClick = { onOpenProgress(start.date) },
-            )
-
-            is TripStartPhase.Launched -> StartButton(
-                label = stringResource(R.string.trip_detail_open_progress),
-                onClick = { onOpenProgress(start.date) },
-            )
-
-            // 다시 시도는 사용자가 방식을 다시 고르지 않고 실패한 선택 그대로 보낸다(#654).
-            is TripStartPhase.Failed -> StartButton(
-                label = stringResource(R.string.trip_detail_start_retry),
-                onClick = onRetryStart,
-            )
-
-            is TripStartPhase.Starting -> StartButton(
-                label = stringResource(R.string.trip_detail_starting),
-                onClick = {},
-                enabled = false,
-                busy = true,
-            )
-
-            is TripStartPhase.Ready -> StartButton(
-                label = stringResource(R.string.trip_detail_start_travel),
-                onClick = { startSheetOpen = true },
-            )
-
-            TripStartPhase.Loading, TripStartPhase.NotTravelDay -> StartButton(
-                label = stringResource(R.string.trip_detail_start_travel),
-                onClick = {},
-                enabled = false,
-            )
-        }
         TextButton(
             onClick = onEditItinerary,
             modifier = Modifier.heightIn(min = MIN_TOUCH),
@@ -878,241 +669,6 @@ private fun ItineraryActions(
         }
     }
 }
-
-/**
- * 시작 영역의 전체 너비 주 버튼. 공통 [GradientButton]이다(#433).
- *
- * - [enabled]가 alse면 비활성 표현(가이드라인 7절 D2)이다. 여행 날짜가 아닐 때의 이유 문장은 버튼 위 안내가 맡는다.
- * - [busy]면 처리 중 표현(80% + 라벨 앞 spinner, UI-008)이고 클릭이 막힌다.
- * - 높이·곡률은 바꾸지 않았다. Figma 52dp 정렬은 여행 상세 화면 Issue(#442) 범위다.
- */
-@Composable
-private fun StartButton(
-    label: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    busy: Boolean = false,
-) {
-    GradientButton(
-        label = label,
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        width = GradientButtonWidth.Standalone,
-        height = START_BUTTON_HEIGHT,
-        processing = busy,
-        enabled = enabled,
-    )
-}
-
-/**
- * 시작 방식 선택 시트(#654, #650 PROG-002). Figma에 없는 새 시트라 F004 이동 수단 시트의 모양을 따른다.
- *
- * `첫 장소로 이동하기`는 시작 구간 이동수단까지 골라 `MOVE_TO_FIRST`로, `첫 장소에서 시작하기`는
- * 위치도 이동수단도 없이 `AT_FIRST_PLACE`로 시작한다. 두 선택은 색이 아니라 라벨·설명·체크로 구분한다.
- *
- * @param firstPlaceName 오늘의 첫 장소명. 일정 개요를 아직 못 받았으면 `null`이고 안내 문구만 바뀐다.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun StartModeSheet(
-    firstPlaceName: String?,
-    onDismiss: () -> Unit,
-    onMoveToFirst: (TransportMode) -> Unit,
-    onAtFirstPlace: () -> Unit,
-) {
-    val spacing = LocalGilpickSpacing.current
-    var mode by rememberSaveable { mutableStateOf(StartMode.MOVE_TO_FIRST) }
-    var transport by rememberSaveable { mutableStateOf(TransportMode.WALK) }
-    val title = stringResource(R.string.trip_detail_start_sheet_title)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(topStart = LocalGilpickRadius.current.sheet, topEnd = LocalGilpickRadius.current.sheet),
-        dragHandle = null,
-        scrimColor = Color.Black.copy(alpha = 0.5f),
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(start = spacing.space6, end = spacing.space6, top = spacing.space5, bottom = spacing.space8)
-                .navigationBarsPadding()
-                .testTag(TAG_START_MODE_SHEET),
-        ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(bottom = spacing.space5)
-                    .size(width = 40.dp, height = 4.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.outlineVariant),
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontFamily = title.displayFont(),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = firstPlaceName
-                    ?.let { stringResource(R.string.trip_detail_start_sheet_subtitle, it) }
-                    ?: stringResource(R.string.trip_detail_start_sheet_subtitle_unknown),
-                style = MaterialTheme.typography.bodyMedium,
-                color = LocalGilpickColors.current.muted,
-                modifier = Modifier.padding(top = spacing.space1, bottom = spacing.space5),
-            )
-            StartModeOption(
-                label = stringResource(R.string.trip_detail_start_move_label),
-                description = stringResource(R.string.trip_detail_start_move_description),
-                selected = mode == StartMode.MOVE_TO_FIRST,
-                onClick = { mode = StartMode.MOVE_TO_FIRST },
-                modifier = Modifier.padding(bottom = spacing.space2),
-            )
-            StartModeOption(
-                label = stringResource(R.string.trip_detail_start_at_place_label),
-                description = stringResource(R.string.trip_detail_start_at_place_description),
-                selected = mode == StartMode.AT_FIRST_PLACE,
-                onClick = { mode = StartMode.AT_FIRST_PLACE },
-            )
-            // 현장 시작은 시작 구간이 없어 이동수단을 묻지 않는다(#650 계약).
-            if (mode == StartMode.MOVE_TO_FIRST) {
-                Text(
-                    text = stringResource(R.string.trip_detail_start_transport_title),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = spacing.space5, bottom = spacing.space3),
-                )
-                TransportMode.entries.forEach { option ->
-                    TransportOption(
-                        option = option.toPlaceTransport(),
-                        selected = transport == option,
-                        onClick = { transport = option },
-                        modifier = Modifier.padding(bottom = spacing.space2),
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.padding(top = spacing.space4),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space3),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(SHEET_BUTTON_HEIGHT)
-                        .clip(RoundedCornerShape(LocalGilpickRadius.current.md))
-                        .background(MaterialTheme.colorScheme.background)
-                        .clickable(onClick = onDismiss, role = Role.Button),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = stringResource(R.string.place_detail_cancel),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                GradientButton(
-                    label = stringResource(R.string.trip_detail_start_sheet_confirm),
-                    onClick = { if (mode == StartMode.MOVE_TO_FIRST) onMoveToFirst(transport) else onAtFirstPlace() },
-                    modifier = Modifier.weight(2f),
-                    height = SHEET_BUTTON_HEIGHT,
-                )
-            }
-        }
-    }
-}
-
-/** 시작 방식 카드. 라벨과 한 줄 설명을 함께 두어 선택지를 색·체크만으로 구분하지 않는다(가이드라인 10절). */
-@Composable
-private fun StartModeOption(
-    label: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
-            .border(2.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
-            .clickable(onClick = onClick, role = Role.RadioButton)
-            .semantics(mergeDescendants = true) { this.selected = selected }
-            .padding(horizontal = LocalGilpickSpacing.current.space4, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(LocalGilpickSpacing.current.space3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = LocalGilpickColors.current.muted,
-            )
-        }
-        if (selected) {
-            Icon(
-                painter = painterResource(R.drawable.ic_lucide_check),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-}
-
-/** 오늘 날짜의 첫 장소명. 일정 개요를 아직 못 받았거나 그 날짜에 장소가 없으면 `null`이다(#654). */
-private fun ItineraryOverviewPhase.firstPlaceName(date: String?): String? {
-    if (date == null) return null
-    val days = (this as? ItineraryOverviewPhase.Content)?.days ?: return null
-    return days.firstOrNull { it.date == date }?.items?.firstOrNull()?.place?.name
-}
-
-/** 시작 방식 선택 시트. UI test가 시트가 열렸는지 확인한다(#654). */
-internal const val TAG_START_MODE_SHEET = "trip_detail_start_mode_sheet"
-
-/** 여행 날짜가 아닐 때 시작 버튼 위 이유 배너(Figma: 시계 아이콘 + `background` 배경, `radiusMd`). 카운트다운은 데모 연출이라 두지 않는다. */
-@Composable
-private fun NotTravelDayBanner() {
-    val spacing = LocalGilpickSpacing.current
-    val muted = LocalGilpickColors.current.muted
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = spacing.space2)
-            .background(MaterialTheme.colorScheme.background, RoundedCornerShape(LocalGilpickRadius.current.md))
-            .padding(horizontal = spacing.space3, vertical = spacing.space2),
-        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_lucide_clock),
-            // 바로 옆 문장이 이유를 전달한다(가이드라인 10절).
-            contentDescription = null,
-            tint = muted,
-            modifier = Modifier.size(EDIT_ICON),
-        )
-        Text(
-            text = stringResource(R.string.trip_detail_start_travel_unavailable),
-            style = MaterialTheme.typography.bodySmall,
-            color = muted,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-/** 시작 요청 실패 원인 문구. 세션 만료는 앱 전체 흐름이 다루므로 여기서는 일반 실패로 안내한다. */
-private val ProgressError.startMessageRes: Int
-    get() = when (this) {
-        ProgressError.Network -> R.string.trip_detail_start_error_network
-        else -> R.string.trip_detail_start_error_unexpected
-    }
 
 /**
  * 날짜별 일정 영역.
@@ -1732,12 +1288,6 @@ private const val LOADING_INDICATOR_DELAY_MILLIS = 1_000L
 /** 가이드라인 5절·10절: 주요 CTA 52~56dp, 터치 영역 48dp 이상. */
 private val PRIMARY_BUTTON_HEIGHT = Dp(56f)
 private val MIN_TOUCH = Dp(48f)
-
-/** Figma `오늘 여행 시작` 높이(`h-[52px]`). */
-private val START_BUTTON_HEIGHT = 52.dp
-
-/** 시트 하단 `취소`·`시작하기` 버튼 높이. F004 이동 수단 시트와 같다. */
-private val SHEET_BUTTON_HEIGHT = 50.dp
 
 /** Figma hero(`h-[180px]`)와 가이드라인 3절 hero gradient(위 30% → 가운데 투명 → 아래 50%). */
 private val HERO_HEIGHT = 180.dp
