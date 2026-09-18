@@ -137,6 +137,16 @@ class ItineraryEditScreenTest {
     }
 
     @Test
+    fun 새_여행이면_주버튼이_여행_저장이다() {
+        var saves = 0
+        setScreen(state(draft = listOf(draft("경복궁"))), onSave = { saves++ }, newTrip = true)
+
+        composeRule.onNodeWithContentDescription("저장").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("여행 저장").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertEquals(1, saves) }
+    }
+
+    @Test
     fun 저장_실패는_초안_위에_원인을_보여주고_저장이_재시도다() {
         var saves = 0
         setScreen(state(draft = listOf(draft("경복궁")), saveError = ItineraryError.Network), onSave = { saves++ })
@@ -374,6 +384,7 @@ class ItineraryEditScreenTest {
         onApplyTransport: (TransportMode) -> Unit = {},
         onApplyRemoveTransport: (TransportMode) -> Unit = {},
         onRemove: (Int) -> Unit = {},
+        newTrip: Boolean = false,
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -394,6 +405,7 @@ class ItineraryEditScreenTest {
                     onApplyTransport = onApplyTransport,
                     onRemove = onRemove,
                     onApplyRemoveTransport = onApplyRemoveTransport,
+                    newTrip = newTrip,
                 )
             }
         }

@@ -111,6 +111,7 @@ import java.time.LocalDate
  * @param onApplyTransport 이동 수단 시트의 `적용`.
  * @param onRemove 행의 삭제. 가운데 행이면 새 구간의 이동 수단을 먼저 묻는다(#654).
  * @param onApplyRemoveTransport 가운데 행을 뺄 때 고른 `앞 장소 → 뒤 장소` 이동 수단(#654).
+ * @param newTrip 새 여행을 만든 직후인지. 하단 주버튼을 `저장` 대신 `여행 저장`으로 보인다(#715).
  */
 @Composable
 fun ItineraryEditScreen(
@@ -130,6 +131,7 @@ fun ItineraryEditScreen(
     onApplyTransport: (TransportMode) -> Unit,
     onRemove: (Int) -> Unit,
     onApplyRemoveTransport: (TransportMode) -> Unit,
+    newTrip: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalGilpickSpacing.current
@@ -193,6 +195,7 @@ fun ItineraryEditScreen(
                 saving = state.saving,
                 enabled = state.phase is ItineraryEditPhase.Content && state.selectedDate != null,
                 saveError = state.saveError,
+                save = stringResource(if (newTrip) R.string.itinerary_edit_save_trip else R.string.itinerary_edit_save),
                 onSave = onSave,
             )
         }
@@ -738,10 +741,9 @@ private fun AddPlaceButton(enabled: Boolean, onClick: () -> Unit) {
  * 저장 중 표현은 처리 중이라 이 버튼에서는 바꾸지 않았다(#433 범위 밖).
  */
 @Composable
-private fun SaveBar(saving: Boolean, enabled: Boolean, saveError: ItineraryError?, onSave: () -> Unit) {
+private fun SaveBar(saving: Boolean, enabled: Boolean, saveError: ItineraryError?, save: String, onSave: () -> Unit) {
     val spacing = LocalGilpickSpacing.current
     val shape = RoundedCornerShape(LocalGilpickRadius.current.lg)
-    val save = stringResource(R.string.itinerary_edit_save)
     val savingLabel = stringResource(R.string.itinerary_edit_saving)
 
     Column(

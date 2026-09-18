@@ -27,12 +27,14 @@ import kotlinx.serialization.json.Json
  * @property date 진입 시 선택할 날짜(`yyyy-MM-dd`). 여행 상세의 `일정 편집`은 첫 날짜를,
  *   날짜 헤더의 `추가`는 그 날짜를 넘긴다.
  * @property openSearch 진입 직후 F003 장소 검색으로 바로 갈지. 날짜 헤더의 `추가`가 `true`다.
+ * @property newTrip 새 여행을 만든 직후 들어왔는지. 하단 주버튼이 `여행 저장`이 된다(#715).
  */
 @Serializable
 data class ItineraryEditRoute(
     val tripId: String,
     val date: String,
     val openSearch: Boolean = false,
+    val newTrip: Boolean = false,
 )
 
 /**
@@ -117,6 +119,7 @@ fun NavGraphBuilder.itineraryGraph(
 
         ItineraryEditScreen(
             state = state,
+            newTrip = route.newTrip,
             onClose = viewModel::requestClose,
             onSelectDate = viewModel::selectDate,
             onAddPlace = { navController.navigate(PlaceSearchRoute(firstPlace = state.draft.isEmpty())) },
