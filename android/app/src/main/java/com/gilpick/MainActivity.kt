@@ -503,10 +503,12 @@ private fun TripRoute(
                 // 삭제에 성공하면 목록으로 돌아간다. 목록도 진입할 때마다 다시 조회하므로
                 // (위 TripListRoute) 삭제된 여행은 돌아간 화면에서 이미 빠져 있다.
                 // TripListViewModel에 삭제를 알리는 경로를 따로 두지 않는 이유다.
+                // 여행 중 화면의 편집으로 들어왔으면 바로 아래가 삭제된 여행의 여행 중 화면이라
+                // 한 칸만 pop하지 않고 목록까지 돌아간다(#717).
                 LaunchedEffect(state.deletion) {
                     if (state.deletion is TripDeletePhase.Deleted) {
                         viewModel.consumeDeleted()
-                        navController.popBackStack()
+                        navController.popBackStack(TripListRoute, inclusive = false)
                     }
                 }
 

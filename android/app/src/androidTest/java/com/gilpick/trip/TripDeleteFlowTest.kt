@@ -1,5 +1,7 @@
 package com.gilpick.trip
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -37,6 +40,7 @@ import mockwebserver3.MockWebServer
 import okhttp3.Headers
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -70,6 +74,8 @@ class TripDeleteFlowTest {
 
     /** 서버가 들고 있는 여행. 삭제되면 목록에서 빠지고 상세는 404가 된다. */
     private var deleted = false
+
+    private lateinit var navController: NavHostController
 
     /** 서버가 받은 DELETE 요청 수. 멱등 검증과 중복 요청 방지 확인에 쓴다. */
     private var deleteCount = 0
@@ -177,6 +183,23 @@ class TripDeleteFlowTest {
         composeRule.onNodeWithText(string(R.string.trips_empty)).assertIsDisplayed()
     }
 
+    @Test
+    fun 여행_중_화면에서_들어온_상세에서_삭제해도_목록으로_돌아간다() {
+        // #717: back stack이 목록 → 여행 중 → 상세일 때 한 칸만 pop하면 삭제된 여행의 여행 중 화면이 남는다.
+        setGraph(viaActive = true)
+
+        openDetail()
+        composeRule.onNodeWithText(ACTIVE_EDIT).performClick()
+        composeRule.onNodeWithContentDescription(string(R.string.trip_detail_more)).assertIsDisplayed()
+
+        confirmDelete()
+
+        composeRule.onAllNodesWithText(string(R.string.trips_title)).onFirst().assertIsDisplayed()
+        composeRule.onNodeWithText(TRIP_NAME).assertDoesNotExist()
+        // 뒤로 가도 돌아갈 여행 중 화면·상세가 없다.
+        composeRule.runOnIdle { assertNull(navController.previousBackStackEntry) }
+    }
+
     // --- 2. 확인 절차 ---
 
     @Test
@@ -273,12 +296,12 @@ class TripDeleteFlowTest {
      * 목록과 상세를 실제 view model로 연결한 graph를 띄운다.
      *
      * `MainActivity`와 같은 구조를 쓴다. 목록은 진입할 때마다 다시 조회하고, 상세는
-     * 삭제가 끝나면 `popBackStack()`으로 돌아간다.
+     * 삭제가 끝나면 목록까지 pop한다. [viaActive]면 목록과 상세 사이에 여행 중 화면 자리를 둔다.
      */
-    private fun setGraph() {
+    private fun setGraph(viaActive: Boolean = false) {
         composeRule.setContent {
             GilpickTheme {
-                val navController = rememberNavController()
+                val navController = rememberNavController().also { navController = it }
                 NavHost(navController = navController, startDestination = ListRoute) {
                     composable<ListRoute> {
                         val viewModel = remember { TripListViewModel(repository) }
@@ -293,8 +316,18 @@ class TripDeleteFlowTest {
                             onRetry = viewModel::retry,
                             onLoadMore = viewModel::loadMore,
                             onCreateTrip = {},
-                            onTripClick = { navController.navigate(DetailRoute(it.tripId)) },
+                            onTripClick = {
+                                navController.navigate(
+                                    if (viaActive) ActiveRoute(it.tripId) else DetailRoute(it.tripId),
+                                )
+                            },
                         )
+                    }
+                    composable<ActiveRoute> { entry ->
+                        val tripId = entry.toRoute<ActiveRoute>().tripId
+                        TextButton(onClick = { navController.navigate(DetailRoute(tripId)) }) {
+                            Text(ACTIVE_EDIT)
+                        }
                     }
                     composable<DetailRoute> { entry ->
                         val tripId = entry.toRoute<DetailRoute>().tripId
@@ -312,7 +345,7 @@ class TripDeleteFlowTest {
                         LaunchedEffect(state.deletion) {
                             if (state.deletion is TripDeletePhase.Deleted) {
                                 viewModel.consumeDeleted()
-                                navController.popBackStack()
+                                navController.popBackStack(ListRoute, inclusive = false)
                             }
                         }
 
@@ -381,10 +414,14 @@ class TripDeleteFlowTest {
     @Serializable
     private data class DetailRoute(val tripId: String)
 
+    @Serializable
+    private data class ActiveRoute(val tripId: String)
+
     private companion object {
         const val TRIP_ID = "33333333-4444-4555-8666-777777777777"
         const val TRIP_NAME = "서울 여행"
         const val REQUEST_ID = "11111111-2222-4333-8444-555555555555"
         const val TIMEOUT_MILLIS = 5_000L
+        const val ACTIVE_EDIT = "편집"
     }
 }
