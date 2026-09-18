@@ -82,6 +82,12 @@ Live test는 quota를 소모하므로 대표 좌표만 사용한다. 응답·log
 - 3m 이하 좌표 차이는 외부 호출 없이 endpoint를 맞추고, 인접 WALK 단계가 없는 공백과 TMAP 보완 실패는 `ROUTE_INVALID_RESULT` 또는 해당 provider 오류로 날짜 전체를 `FAILED` 처리했다.
 - 실제 Kakao·TMAP 종단 호출은 이 작업에서 secret을 읽거나 주입하지 않았으므로 미실행했다. 공유 dev/staging credential이 준비된 환경에서 첫·마지막 도보 및 환승 WALK 좌표와 attribution을 추가 확인해야 한다.
 
+### TMAP endpoint 도로망 스냅 회귀 검증 (#697, 2026-09-18)
+
+- 약 9m 스냅된 TMAP 보행 endpoint는 실제 형상을 유지하면서 요청 endpoint로 정규화되어 `READY`가 된다.
+- 약 88m 이탈한 endpoint는 `ROUTE_INVALID_RESULT`로 거부되며, 진단 로그에는 구간·단계·오차 거리만 기록하고 좌표는 기록하지 않는다.
+- 실제 기기에서 재현한 9월 18일 일정은 배포 전 기존 Backend에서 `ROUTE_INVALID_RESULT`를 반환했다. 수정 Backend 배포 후 같은 일정 재시도 검증은 PR 병합·배포 뒤 수행해야 한다.
+
 ### 교체 전 ODsay 불연속 형상 회귀 검증 (#421, 2026-09-14, 이력)
 
 - 실제 `loadLane` 응답은 동일한 `result.lane[].section[].graphPos[]` 형식이지만 환승이 포함된 경로에서는 선 조각의 경계 좌표가 서로 다를 수 있음을 확인했다.
