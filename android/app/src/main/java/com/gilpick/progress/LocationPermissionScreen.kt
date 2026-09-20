@@ -50,7 +50,8 @@ import com.gilpick.ui.theme.LocalGilpickSpacing
  * 백그라운드 위치는 여기서 묻지 않는다. 여행 중 화면의 자동 감지 안내가 두 번째 단계로 이어받는다(F007 UI-005).
  *
  * @param onAllow `위치 권한 허용하기`. 호출부가 시스템 권한 창을 띄운다.
- * @param onLater `나중에 하기`. 권한 없이 시작한다(FR-020, 수동 행동은 권한과 무관하게 동작).
+ * @param onLater `나중에 하기`. 권한을 허용하지 않고 화면을 닫는다. 시작하지 않으며, 권한 없이는 `첫 장소로 이동하기`를
+ *   쓸 수 없다(#731). `첫 장소에서 시작하기`와 수동 행동은 권한과 무관하게 동작한다(FR-020).
  */
 @Composable
 fun LocationPermissionScreen(

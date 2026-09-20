@@ -59,7 +59,7 @@ F006 구현에서 제외하는 Figma 요소: 변수 경고 배너·날씨 안내
 
 | 원칙 | 반영 | 결과 |
 |---|---|---|
-| I. 사용자 통제와 fallback | 위치 권한·정확도·provider 실패가 시작·수동 전환을 막지 않음(FR-005·FR-020). 수동 출발은 명세대로 전용 되돌리기 없이 상태 수정으로 복구 | PASS |
+| I. 사용자 통제와 fallback | 위치 정확도·provider 실패가 시작·수동 전환을 막지 않고, 위치 권한이 없어도 `첫 장소에서 시작하기`와 수동 전환은 가능함. 현재 위치가 필요한 `첫 장소로 이동하기`만 권한이 있을 때 선택(FR-005·FR-020, #731). 수동 출발은 명세대로 전용 되돌리기 없이 상태 수정으로 복구 | PASS |
 | II. 계약 우선 SDD | PROG-001/002/006을 OpenAPI로 정의, ERD·api-spec 동기화 항목 명시(data-model.md) | PASS |
 | III. 일관성·멱등성·추적성 | `progress_version` 충돌 감지, `Idempotency-Key` + `(trip_day_id, idempotency_key)` unique, 파생 전환 한 transaction, `progress_transitions.affected_items` 전후 기록, 서버 시각 기준 | PASS |
 | IV. 외부 실패 격리 | 구간 계산은 transaction 밖·deadline 8초, 실패 시 ETA null(`정보 없음`)과 전환 성공 분리 | PASS |
