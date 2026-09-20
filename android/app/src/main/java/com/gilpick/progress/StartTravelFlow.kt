@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -34,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,15 +49,11 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.gilpick.R
-import com.gilpick.auth.AuthResult
 import com.gilpick.itinerary.TransportMode
 import com.gilpick.itinerary.toPlaceTransport
 import com.gilpick.place.TransportOption
-import com.gilpick.settings.PolicyDocument
-import com.gilpick.settings.PolicyDocumentLauncher
 import com.gilpick.ui.component.GradientButton
 import com.gilpick.ui.component.GradientButtonWidth
 import com.gilpick.ui.theme.LocalGilpickColors
@@ -67,7 +61,6 @@ import com.gilpick.ui.theme.LocalGilpickRadius
 import com.gilpick.ui.theme.LocalGilpickShadows
 import com.gilpick.ui.theme.LocalGilpickSpacing
 import com.gilpick.ui.theme.displayFont
-import kotlinx.coroutines.launch
 
 /**
  * `오늘 여행 시작하기`를 누른 뒤의 흐름(#711): 시작 방식 시트(#654) → 필요하면 위치 권한 안내(#440) → [onStart].
@@ -92,9 +85,6 @@ fun StartTravelFlow(
     hasLocationPermission: (Context) -> Boolean = DeviceLocationProvider::hasLocationPermission,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val lbsConsentRepository = remember(context) { LbsConsentRepository.default(context) }
-    val policyLauncher = remember(context) { PolicyDocumentLauncher.default(context) }
     // 시트를 열 때마다 권한을 다시 읽는다. 시스템 설정에서 바꾼 결과도 다음 시작에 반영된다.
     var locationGranted by remember(open) { mutableStateOf(hasLocationPermission(context)) }
     // 시트에서 고른 시작 방식·이동수단. 권한 흐름을 거쳐 돌아와도 유지한다(#654).
@@ -112,9 +102,6 @@ fun StartTravelFlow(
     // 위치 없이는 `첫 장소로 이동하기`를 쓸 수 없다는 안내 창(#731). 권한 안내 화면은 이 창에서만 연다.
     var locationNoticeOpen by rememberSaveable { mutableStateOf(false) }
     var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
-    var lbsAgreed by rememberSaveable { mutableStateOf(false) }
-    var savingLbsConsent by rememberSaveable { mutableStateOf(false) }
-    var lbsConsentFailed by rememberSaveable { mutableStateOf(false) }
     if (open) {
         StartModeSheet(
             firstPlaceName = firstPlaceName,
@@ -156,43 +143,16 @@ fun StartTravelFlow(
         )
     }
     if (permissionGuideOpen) {
-        // 헤더 없는 전체 화면 안내라 창 폭 제한을 끈 Dialog로 덮는다. 뒤로 가기·`나중에 하기`는 시작하지 않고 시트로 돌아간다.
-        Dialog(
-            onDismissRequest = { permissionGuideOpen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            LocationPermissionScreen(
-                onAllow = {
-                    savingLbsConsent = true
-                    lbsConsentFailed = false
-                    scope.launch {
-                        when (lbsConsentRepository.agree()) {
-                            is AuthResult.Success -> {
-                                savingLbsConsent = false
-                                permissionGuideOpen = false
-                                permissionLauncher.launch(
-                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                                )
-                            }
-                            is AuthResult.Failure -> {
-                                savingLbsConsent = false
-                                lbsConsentFailed = true
-                            }
-                        }
-                    }
-                },
-                onLater = { permissionGuideOpen = false },
-                lbsAgreed = lbsAgreed,
-                onLbsAgreedChange = {
-                    lbsAgreed = it
-                    lbsConsentFailed = false
-                },
-                onOpenLbsTerms = { policyLauncher.open(PolicyDocument.LOCATION_TERMS) },
-                submitting = savingLbsConsent,
-                submitFailed = lbsConsentFailed,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        // 뒤로 가기·`나중에 하기`는 시작하지 않고 시트로 돌아간다.
+        LocationPermissionGuideDialog(
+            onClose = { permissionGuideOpen = false },
+            onConsented = {
+                permissionGuideOpen = false
+                permissionLauncher.launch(
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                )
+            },
+        )
     }
 }
 

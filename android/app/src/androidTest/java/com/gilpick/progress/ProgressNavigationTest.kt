@@ -1,5 +1,6 @@
 package com.gilpick.progress
 
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -213,6 +214,24 @@ class ProgressNavigationTest {
         }
     }
 
+    @Test
+    fun 자동_감지_꺼짐_안내의_권한_허용은_앱_설정이_아니라_위치_권한_안내_화면을_먼저_연다() {
+        setGraph(hasBackgroundPermission = { false })
+        awaitProgress()
+        composeRule.waitUntil(WAIT_MILLIS) { composeRule.onAllNodesWithText("권한 허용").fetchSemanticsNodes().isNotEmpty() }
+
+        composeRule.onNodeWithText("권한 허용").performScrollTo().performClick()
+
+        // 약관 동의를 거치는 안내 화면이 먼저 뜬다(F007 UI-005·FR-024a). 앱 설정으로 바로 넘어가지 않는다.
+        composeRule.onNodeWithText("위치 권한이 필요해요").assertIsDisplayed()
+        composeRule.onNodeWithText("나중에 하기").performClick()
+
+        composeRule.onNodeWithText("위치 권한이 필요해요").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(ActiveTravelRoute(PROGRESS_TRIP_ID, "서울 여행"), navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>())
+        }
+    }
+
     private fun awaitDetail() {
         composeRule.waitUntil(WAIT_MILLIS) {
             composeRule.onAllNodesWithText("일정 편집").fetchSemanticsNodes().isNotEmpty()
@@ -227,7 +246,7 @@ class ProgressNavigationTest {
     }
 
     /** `MainActivity.kt`의 배선을 그대로 옮긴다. 진행 화면에서 시작하고 오늘은 9/8로 고정한다. */
-    private fun setGraph() {
+    private fun setGraph(hasBackgroundPermission: (Context) -> Boolean = ProgressViewModel::hasBackgroundLocationPermission) {
         composeRule.setContent {
             navController = rememberNavController()
             GilpickTheme {
@@ -278,6 +297,7 @@ class ProgressNavigationTest {
                         repository = { progressRepository },
                         itineraryRepository = { itineraryRepository },
                         onOpenTripDetail = { tripId -> navController.navigate(DetailRoute(tripId)) },
+                        hasBackgroundPermission = hasBackgroundPermission,
                         clock = Clock.fixed(Instant.parse("${PROGRESS_DATE}T03:00:00Z"), KST),
                         map = { _, _, modifier -> Box(modifier = modifier.fillMaxSize().testTag(TAG_FAKE_MAP)) },
                     )

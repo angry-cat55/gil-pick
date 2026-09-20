@@ -11,7 +11,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -64,6 +67,7 @@ data class ActiveTravelRoute(
  * @param replacementRepository F010 장소 변경 되돌리기 접근 지점을 만든다. `null`을 돌려주면 되돌리기를 보내지 않는다.
  * @param onOpenTripDetail 헤더 `일정 편집`. `MainActivity`가 일정 상세로 잇는다. 돌아오면 재개 조회가 바뀐 일정을 받는다(#711).
  * @param locationProvider 시작 요청에 실을 현재 위치의 출처를 만든다. navigation test가 바꿔 끼운다.
+ * @param hasBackgroundPermission 자동 감지에 필요한 백그라운드 위치 권한 확인. navigation test가 바꿔 끼운다.
  * @param clock 오늘 날짜의 출처. navigation test가 고정한다.
  * @param onOpenVariableMonitor 헤더 변수 감지 경고 버튼. `MainActivity`가 `VariableMonitorRoute(tripId)`로 잇는다.
  * @param map 지도 영역. 기본값은 Naver [RouteMap]이며 UI test가 자리 표시로 바꿔 끼운다.
@@ -79,6 +83,7 @@ fun NavGraphBuilder.progressGraph(
     onOpenVariableMonitor: (tripId: String) -> Unit = {},
     onOpenTripDetail: (tripId: String) -> Unit = {},
     locationProvider: (Context) -> CurrentLocationProvider = { DeviceLocationProvider.create(it.applicationContext) },
+    hasBackgroundPermission: (Context) -> Boolean = ProgressViewModel::hasBackgroundLocationPermission,
     clock: Clock = Clock.system(KST),
     map: @Composable (RouteDto, RouteMarks, Modifier) -> Unit = { route, marks, modifier ->
         RouteMap(route = route, marks = marks, modifier = modifier, sheetFraction = 0f, myLocation = true)
@@ -98,7 +103,7 @@ fun NavGraphBuilder.progressGraph(
                     client = PlayServicesGeofenceClient(context),
                     session = PrefsDetectionSessionStore(context),
                 ),
-                hasBackgroundPermission = { ProgressViewModel.hasBackgroundLocationPermission(context) },
+                hasBackgroundPermission = { hasBackgroundPermission(context) },
                 alternativeRepository = alternativeRepository(context),
                 replacementRepository = replacementRepository(context),
                 locationProvider = locationProvider(context),
@@ -117,10 +122,33 @@ fun NavGraphBuilder.progressGraph(
         }
 
         // 백그라운드 위치는 앱 사용 중 권한과 같은 화면에서 함께 물을 수 없다(research 8절).
-        // F006이 시작 시점에 앱 사용 중 권한을 받았고, 여기서 두 번째 단계만 요청한다.
+        // 앱 사용 중 권한을 먼저 받고 두 번째 단계로 백그라운드 권한을 요청한다.
         val backgroundLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) { viewModel.onBackgroundPermissionResult() }
+
+        // 자동 감지 꺼짐 안내의 `권한 허용`은 앱 설정으로 바로 가지 않고 위치 권한 안내 화면을 먼저 연다(F007 UI-005).
+        // 약관 동의를 서버에 기록하기 전에는 위치 권한을 요청하지 않는다(FR-024a).
+        var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
+        val foregroundLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) {
+            // 앱 사용 중 권한이 있을 때만 백그라운드 단계로 잇는다. 이미 허용된 경우 시스템은 창 없이 바로 돌려준다.
+            if (DeviceLocationProvider.hasLocationPermission(context)) {
+                requestBackgroundLocation(context, backgroundLauncher)
+            }
+        }
+        if (permissionGuideOpen) {
+            LocationPermissionGuideDialog(
+                onClose = { permissionGuideOpen = false },
+                onConsented = {
+                    permissionGuideOpen = false
+                    foregroundLauncher.launch(
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    )
+                },
+            )
+        }
 
         ActiveTravelScreen(
             state = state,
@@ -142,7 +170,7 @@ fun NavGraphBuilder.progressGraph(
             onDismissCandidate = viewModel::dismissCandidate,
             onUndo = viewModel::undo,
             onUndoReplacement = viewModel::undoReplacement,
-            onEnableDetection = { requestBackgroundLocation(context, backgroundLauncher) },
+            onEnableDetection = { permissionGuideOpen = true },
             onDismissDetectionNotice = viewModel::dismissDetectionNotice,
             // F009 배너 → 그 감지의 대체 장소 화면. 돌아오면 위 재개 조회가 배너를 다시 맞춘다(거절 후 소멸).
             onOpenAlternatives = { detectionId -> navController.navigate(AlternativePlacesRoute(detectionId, route.tripId)) },
