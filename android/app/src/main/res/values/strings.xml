@@ -112,6 +112,11 @@
     <string name="trip_detail_start_at_place_description">이미 첫 장소에 도착했어요</string>
     <string name="trip_detail_start_transport_title">첫 장소까지 이동 수단</string>
     <string name="trip_detail_start_sheet_confirm">시작하기</string>
+    <!-- #731 위치 권한이 없으면 `첫 장소로 이동하기`를 잠그고, 누르면 이 안내를 띄운다. -->
+    <!-- 한글은 글자 단위로 줄이 바뀌어 "사용해주세/요"처럼 끊기므로 쉼표 뒤에서 직접 줄을 나눈다. -->
+    <string name="trip_detail_start_location_required">위치 기반 서비스 승인 후,\n사용해주세요</string>
+    <string name="trip_detail_start_location_required_state">위치 권한 필요</string>
+    <string name="trip_detail_start_location_notice_close">닫기</string>
     <string name="trip_detail_starting">시작하는 중</string>
     <string name="trip_detail_start_error_network">연결을 확인한 뒤 다시 시도해 주세요.</string>
     <string name="trip_detail_start_error_unexpected">지금은 여행을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.</string>

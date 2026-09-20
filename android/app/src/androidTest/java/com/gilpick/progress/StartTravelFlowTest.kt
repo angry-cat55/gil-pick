@@ -5,7 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -16,7 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** #731: 위치 권한 유무와 관계없이 명세된 수동 시작 fallback이 이어지는지 검증한다. */
+/** #731: 위치 권한이 없으면 `첫 장소로 이동하기`를 잠그고 안내하되, 현장 시작은 권한과 무관하게 이어지는지 검증한다. */
 @RunWith(AndroidJUnit4::class)
 class StartTravelFlowTest {
 
@@ -28,43 +30,74 @@ class StartTravelFlowTest {
         val started = mutableListOf<Pair<StartMode, TransportMode?>>()
         setFlow(hasLocationPermission = true, started = started)
 
+        composeRule.onNode(hasStateDescription("위치 권한 필요")).assertDoesNotExist()
         composeRule.onNodeWithText("자동차").performClick()
         composeRule.onNodeWithText("시작하기").performClick()
 
-        composeRule.onNodeWithText("나중에 하기").assertDoesNotExist()
+        composeRule.onNodeWithText(NOTICE).assertDoesNotExist()
         composeRule.runOnIdle {
             assertEquals(listOf(StartMode.MOVE_TO_FIRST to TransportMode.CAR), started)
         }
     }
 
     @Test
-    fun 권한이_없어도_나중에_하기를_누르면_선택한_이동수단으로_시작한다() {
+    fun 권한이_없으면_첫_장소로_이동하기는_잠기고_누르면_안내가_뜨며_선택되지_않는다() {
         val started = mutableListOf<Pair<StartMode, TransportMode?>>()
         setFlow(hasLocationPermission = false, started = started)
 
-        composeRule.onNodeWithText("대중교통").performClick()
-        composeRule.onNodeWithText("시작하기").performClick()
-        composeRule.onNodeWithText("나중에 하기").assertIsDisplayed().performClick()
+        composeRule.onNode(hasStateDescription("위치 권한 필요")).assertIsDisplayed()
+        composeRule.onNodeWithText("첫 장소까지 이동 수단").assertDoesNotExist()
+        composeRule.onNodeWithText("첫 장소로 이동하기").performClick()
 
+        composeRule.onNodeWithText(NOTICE).assertIsDisplayed()
+        composeRule.onNodeWithText("첫 장소까지 이동 수단").assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(emptyList<Pair<StartMode, TransportMode?>>(), started) }
+    }
+
+    @Test
+    fun 안내를_닫으면_시트로_돌아와_첫_장소에서_시작하기로_시작할_수_있다() {
+        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
+        setFlow(hasLocationPermission = false, started = started)
+
+        composeRule.onNodeWithText("첫 장소로 이동하기").performClick()
+        composeRule.onNodeWithText("닫기").performClick()
+
+        composeRule.onNodeWithText(NOTICE).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertIsDisplayed()
+        composeRule.onNodeWithText("시작하기").performClick()
         composeRule.runOnIdle {
-            assertEquals(listOf(StartMode.MOVE_TO_FIRST to TransportMode.TRANSIT), started)
+            assertEquals(listOf<Pair<StartMode, TransportMode?>>(StartMode.AT_FIRST_PLACE to null), started)
         }
     }
 
     @Test
-    fun 시스템_권한을_모두_거부해도_위치_없는_시작을_계속한다() {
+    fun 안내에서_허용하기를_누르면_권한_안내_화면이_뜨고_나중에_하기는_시작하지_않고_시트로_돌아온다() {
         val started = mutableListOf<Pair<StartMode, TransportMode?>>()
+        setFlow(hasLocationPermission = false, started = started)
 
-        continueMoveToFirstAfterPermissionResult(
-            result = mapOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION to false,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION to false,
-            ),
-            transport = TransportMode.WALK,
-            onStart = { mode, transport -> started += mode to transport },
-        )
+        composeRule.onNodeWithText("첫 장소로 이동하기").performClick()
+        composeRule.onNodeWithText("위치 권한 허용하기").performClick()
 
-        assertEquals(listOf(StartMode.MOVE_TO_FIRST to TransportMode.WALK), started)
+        composeRule.onNodeWithText("위치 권한이 필요해요").assertIsDisplayed()
+        composeRule.onNodeWithText("나중에 하기").performClick()
+
+        composeRule.onNodeWithText("위치 권한이 필요해요").assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_START_MODE_SHEET).assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(emptyList<Pair<StartMode, TransportMode?>>(), started) }
+    }
+
+    @Test
+    fun 권한이_없어도_첫_장소에서_시작하기는_그대로_시작한다() {
+        val started = mutableListOf<Pair<StartMode, TransportMode?>>()
+        setFlow(hasLocationPermission = false, started = started)
+
+        composeRule.onNodeWithText("첫 장소에서 시작하기").performClick()
+        composeRule.onNodeWithText("시작하기").performClick()
+
+        composeRule.onNodeWithText(NOTICE).assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(listOf<Pair<StartMode, TransportMode?>>(StartMode.AT_FIRST_PLACE to null), started)
+        }
     }
 
     private fun setFlow(
@@ -83,5 +116,9 @@ class StartTravelFlowTest {
                 )
             }
         }
+    }
+
+    private companion object {
+        const val NOTICE = "위치 기반 서비스 승인 후,\n사용해주세요"
     }
 }
