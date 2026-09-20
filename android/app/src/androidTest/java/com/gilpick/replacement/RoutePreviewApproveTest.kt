@@ -5,11 +5,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -39,20 +42,32 @@ class RoutePreviewApproveTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun 승인_중에는_두_행동이_잠기고_진행이_보인다() {
-        // UI-005. 같은 승인을 두 번 보내지 않도록 행동을 잠근다.
-        var approves = 0
-        var others = 0
-        setScreen(content(approving = true), onApprove = { approves++ }, onOtherCandidates = { others++ })
+    fun 승인_중에는_진행_단계가_보이고_떠나는_행동이_잠긴다() {
+        // UI-005·#736. 비교 대신 경로 재생성 모양이 보이고, 같은 승인을 두 번 보내거나 떠날 수 없다.
+        var continues = 0
+        setScreen(content(approving = true), onContinue = { continues++ })
 
-        composeRule.onNodeWithText("변경하는 중").assertIsDisplayed()
-        composeRule.onNodeWithTag(TAG_APPROVE).assertIsNotEnabled().performClick()
-        composeRule.onNodeWithTag(TAG_OTHER_CANDIDATES).assertIsNotEnabled().performClick()
-        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertIsDisplayed()
-        composeRule.runOnIdle {
-            assertEquals(0, approves)
-            assertEquals(0, others)
-        }
+        composeRule.onNodeWithText("경로를 다시 계산하고 있습니다").assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_RECALC_STEPS).assertIsDisplayed()
+        composeRule.onNodeWithTag(TAG_APPROVE).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_HEADER_BACK).assertDoesNotExist()
+        composeRule.onNodeWithTag(TAG_RECALC_CONTINUE).assertIsNotEnabled().performClick()
+        composeRule.runOnIdle { assertEquals(0, continues) }
+    }
+
+    @Test
+    fun 승인이_끝나면_완료가_보이고_버튼으로_진행_화면에_간다() {
+        // #736. 세 단계가 모두 `완료`이고 버튼은 48dp 이상이다.
+        var continues = 0
+        setScreen(content(), approved = true, onContinue = { continues++ })
+
+        composeRule.onNodeWithText("경로 재생성 완료!").assertIsDisplayed()
+        composeRule.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "완료")).assertCountEquals(3)
+        composeRule.onNodeWithTag(TAG_RECALC_CONTINUE)
+            .assertIsEnabled()
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+        composeRule.runOnIdle { assertEquals(1, continues) }
     }
 
     @Test
@@ -206,6 +221,8 @@ class RoutePreviewApproveTest {
         onApprove: () -> Unit = {},
         onOtherCandidates: () -> Unit = {},
         onReauthenticate: () -> Unit = {},
+        approved: Boolean = false,
+        onContinue: () -> Unit = {},
     ) {
         composeRule.setContent {
             GilpickTheme {
@@ -217,6 +234,8 @@ class RoutePreviewApproveTest {
                     onApprove = onApprove,
                     onOtherCandidates = onOtherCandidates,
                     onReauthenticate = onReauthenticate,
+                    approved = approved,
+                    onContinue = onContinue,
                     map = { _, modifier -> Box(modifier.fillMaxSize().testTag(TAG_MAP_SLOT)) },
                     modifier = Modifier.fillMaxSize(),
                 )

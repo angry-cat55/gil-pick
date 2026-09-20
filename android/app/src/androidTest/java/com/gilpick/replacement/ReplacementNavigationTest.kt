@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -277,6 +278,7 @@ class ReplacementNavigationTest {
         awaitPreview()
 
         composeRule.onNodeWithTag(TAG_APPROVE).performClick()
+        continueAfterApproval()
 
         composeRule.waitUntil(WAIT_MILLIS) {
             navController.currentBackStackEntry?.destination?.hasRoute<ActiveTravelRoute>() == true
@@ -300,6 +302,7 @@ class ReplacementNavigationTest {
         awaitPreview()
 
         composeRule.onNodeWithTag(TAG_APPROVE).performClick()
+        continueAfterApproval()
 
         composeRule.waitUntil(WAIT_MILLIS) {
             navController.currentBackStackEntry?.destination?.hasRoute<ActiveTravelRoute>() == true
@@ -308,6 +311,14 @@ class ReplacementNavigationTest {
             // 새로 열지 않고 원래 화면으로 돌아왔으므로 처음 넣은 여행명이 그대로다.
             assertEquals(PROGRESS_TRIP_NAME, navController.currentBackStackEntry?.toRoute<ActiveTravelRoute>()?.tripName)
         }
+    }
+
+    /** #736: 승인이 끝나면 완료 모양이 보이고, `여행 진행 화면으로 돌아가기`를 눌러야 떠난다. */
+    private fun continueAfterApproval() {
+        composeRule.waitUntil(WAIT_MILLIS) {
+            composeRule.onAllNodesWithText("경로 재생성 완료!").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag(TAG_RECALC_CONTINUE).performClick()
     }
 
     private fun awaitCandidates() {
