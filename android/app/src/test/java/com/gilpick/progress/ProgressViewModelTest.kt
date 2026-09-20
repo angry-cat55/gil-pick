@@ -702,6 +702,39 @@ class ProgressViewModelTest {
     }
 
     @Test
+    fun `이동 시작은 위치를 얻지 못해도 null을 보내고 진행 중이 된다`() = viewModelTest { viewModel ->
+        location = null
+        progressService.onGet = { progressOk(notStarted(date = it)) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.TRANSIT)
+        runCurrent()
+
+        val body = progressService.startCalls.single().second
+        assertEquals(StartMode.MOVE_TO_FIRST, body.startMode)
+        assertEquals(TransportMode.TRANSIT, body.transportMode)
+        assertNull(body.currentLocation)
+        val content = viewModel.state.value as ProgressUiState.Content
+        assertEquals(DayStatus.IN_PROGRESS, content.progress.dayStatus)
+        assertFalse(content.starting)
+    }
+
+    @Test
+    fun `시작 버튼을 연속으로 눌러도 요청은 한 번만 보낸다`() = viewModelTest { viewModel ->
+        progressService.onGet = { progressOk(notStarted(date = it)) }
+        viewModel.load()
+        runCurrent()
+
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.WALK)
+        viewModel.startToday(StartMode.MOVE_TO_FIRST, TransportMode.WALK)
+        runCurrent()
+
+        assertEquals(1, progressService.startCalls.size)
+        assertEquals(DayStatus.IN_PROGRESS, (viewModel.state.value as ProgressUiState.Content).progress.dayStatus)
+    }
+
+    @Test
     fun `현장 시작은 위치도 이동수단도 보내지 않는다`() = viewModelTest { viewModel ->
         location = CurrentLocationDto(latitude = 37.5, longitude = 127.0, accuracyMeters = 10.0, occurredAt = "2026-09-08T02:10:00Z")
         progressService.onGet = { progressOk(notStarted(date = it)) }

@@ -1,6 +1,7 @@
 package com.gilpick.progress
 
 import android.Manifest
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -70,6 +71,7 @@ import kotlinx.coroutines.launch
  * @param firstPlaceName 오늘의 첫 장소명. 모르면 `null`이고 안내 문구만 바뀐다.
  * @param onDismiss 시트를 닫는다. 시작 방식을 골랐을 때도 호출된다.
  * @param onStart 고른 값으로 시작한다. `MOVE_TO_FIRST`는 고른 이동수단을, `AT_FIRST_PLACE`는 `null`을 함께 넘긴다.
+ * @param hasLocationPermission 현재 위치 권한 확인. 기본값은 실제 기기 권한이며 UI test에서만 고정값으로 바꾼다.
  */
 @Composable
 fun StartTravelFlow(
@@ -77,6 +79,7 @@ fun StartTravelFlow(
     firstPlaceName: String?,
     onDismiss: () -> Unit,
     onStart: (StartMode, TransportMode?) -> Unit,
+    hasLocationPermission: (Context) -> Boolean = DeviceLocationProvider::hasLocationPermission,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -86,7 +89,7 @@ fun StartTravelFlow(
     var pendingTransport by rememberSaveable { mutableStateOf(TransportMode.WALK) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { onStart(StartMode.MOVE_TO_FIRST, pendingTransport) }
+    ) { result -> continueMoveToFirstAfterPermissionResult(result, pendingTransport, onStart) }
     // 권한이 없으면 시스템 창 전에 위치 권한 안내 화면을 먼저 보인다(#440). 허용·거부·나중에 하기 모두 시작한다(FR-020).
     var permissionGuideOpen by rememberSaveable { mutableStateOf(false) }
     var lbsAgreed by rememberSaveable { mutableStateOf(false) }
@@ -95,7 +98,7 @@ fun StartTravelFlow(
     // 현재 위치에서 첫 장소로 이동하는 시작만 위치가 필요하다. 현장 시작은 권한을 묻지 않는다.
     val moveToFirst = { transport: TransportMode ->
         pendingTransport = transport
-        if (DeviceLocationProvider.hasLocationPermission(context)) {
+        if (hasLocationPermission(context)) {
             onStart(StartMode.MOVE_TO_FIRST, transport)
         } else {
             permissionGuideOpen = true
@@ -157,6 +160,18 @@ fun StartTravelFlow(
             )
         }
     }
+}
+
+/**
+ * 시스템 권한 요청 결과와 무관하게 위치 없는 시작을 계속한다(FR-020).
+ * 실제 위치 포함 여부는 [DeviceLocationProvider]가 다시 확인하므로 거부 결과를 성공으로 가장하지 않는다.
+ */
+internal fun continueMoveToFirstAfterPermissionResult(
+    @Suppress("UNUSED_PARAMETER") result: Map<String, Boolean>,
+    transport: TransportMode,
+    onStart: (StartMode, TransportMode?) -> Unit,
+) {
+    onStart(StartMode.MOVE_TO_FIRST, transport)
 }
 
 /**
