@@ -54,8 +54,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
@@ -98,6 +100,8 @@ import kotlinx.coroutines.delay
  * @param onOtherCandidates `다른 후보 보기`. 미리보기를 폐기하고 F009 후보 목록으로 돌아간다(UI-003).
  * @param onReauthenticate 로그인 상태가 만료됐다. F001 재인증 흐름으로 넘어간다.
  * @param placeName 대체 장소명. `loading` 안내 문장에 넣고, 모르면 이름 없는 문장을 쓴다(값을 지어내지 않음).
+ * @param approved 승인이 끝났다. 경로 재생성 완료 모양을 보인다(#736).
+ * @param onContinue 완료 모양의 `여행 진행 화면으로 돌아가기`와 뒤로 가기.
  * @param map 지도 영역. 기본은 F005 [RouteMap]이며 UI test·screenshot은 자리 표시로 바꿔 끼운다.
  */
 @Composable
@@ -111,6 +115,8 @@ fun RoutePreviewScreen(
     onReauthenticate: () -> Unit,
     modifier: Modifier = Modifier,
     placeName: String? = null,
+    approved: Boolean = false,
+    onContinue: () -> Unit = {},
     map: @Composable (PreviewUiState.Content, Modifier) -> Unit = { content, mapModifier ->
         PreviewMap(content = content, modifier = mapModifier)
     },
@@ -123,33 +129,49 @@ fun RoutePreviewScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        if (!fullMap) Header(onBack = onBack, enabled = !state.isApproving)
-        when (state) {
-            PreviewUiState.Loading -> DelayedLoading(placeName)
-            is PreviewUiState.Error -> ErrorState(
-                error = state.error,
-                onRetry = onRetry,
-                onOtherCandidates = onOtherCandidates,
-                onReauthenticate = onReauthenticate,
+        // `변경 승인` 뒤에는 Figma `RouteRecalculatingScreen` 흐름을 그린다(#736). 승인 중에는 떠나는 행동을
+        // 잠그고(UI-005), 승인이 끝나면 버튼과 뒤로 가기 모두 진행 화면으로 간다. 실패하면 비교로 돌아온다.
+        if (approved || state.isApproving) {
+            BackHandler { if (approved) onContinue() }
+            Header(title = R.string.replacement_recalculating_header, onBack = null)
+            RouteRecalculatingContent(
+                placeName = placeName,
+                progress = if (approved) RecalcProgress.Done else RecalcProgress.Approving,
+                onContinue = onContinue,
+                modifier = Modifier.fillMaxSize(),
             )
+        } else {
+            if (!fullMap) Header(title = R.string.replacement_preview_title, onBack = onBack)
+            when (state) {
+                PreviewUiState.Loading -> DelayedLoading(placeName)
+                is PreviewUiState.Error -> ErrorState(
+                    error = state.error,
+                    onRetry = onRetry,
+                    onOtherCandidates = onOtherCandidates,
+                    onReauthenticate = onReauthenticate,
+                )
 
-            is PreviewUiState.Content -> ContentState(
-                content = state,
-                fullMap = fullMap,
-                onFullMapChange = { fullMap = it },
-                onApprove = onApprove,
-                onRecreate = onRecreate,
-                onOtherCandidates = onOtherCandidates,
-                map = map,
-            )
+                is PreviewUiState.Content -> ContentState(
+                    content = state,
+                    fullMap = fullMap,
+                    onFullMapChange = { fullMap = it },
+                    onApprove = onApprove,
+                    onRecreate = onRecreate,
+                    onOtherCandidates = onOtherCandidates,
+                    map = map,
+                )
+            }
         }
     }
 }
 
 /** 상단 바. Figma의 뒤로 버튼과 `경로 비교` 제목이다. */
-/** 상단 바(Figma 실측): 36dp `background` 상자 뒤로 가기(승인 중 40%), Page title 18sp `경로 비교`. */
+/**
+ * 상단 바(Figma 실측): 36dp `background` 상자 뒤로 가기, Page title 18sp. 경로 재생성 상태는 Figma대로
+ * 뒤로 가기 없이 제목만 둔다(`px-5 pt-3 pb-4`).
+ */
 @Composable
-private fun Header(onBack: () -> Unit, enabled: Boolean = true) {
+private fun Header(@StringRes title: Int, onBack: (() -> Unit)?) {
     val spacing = LocalGilpickSpacing.current
 
     Row(
@@ -157,19 +179,23 @@ private fun Header(onBack: () -> Unit, enabled: Boolean = true) {
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding()
-            .padding(start = spacing.space3, end = spacing.space5, top = spacing.space1, bottom = spacing.space2),
+            .then(
+                if (onBack != null) Modifier.padding(start = spacing.space3, end = spacing.space5, top = spacing.space1, bottom = spacing.space2)
+                else Modifier.padding(start = spacing.space5, end = spacing.space5, top = spacing.space3, bottom = spacing.space4),
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.space1),
     ) {
-        IconBoxButton(
-            icon = R.drawable.ic_lucide_arrow_left,
-            contentDescription = stringResource(R.string.replacement_back),
-            onClick = onBack,
-            tint = MaterialTheme.colorScheme.onSurface,
-            enabled = enabled,
-            modifier = Modifier.testTag(TAG_HEADER_BACK),
-        )
-        val title = stringResource(R.string.replacement_preview_title)
+        if (onBack != null) {
+            IconBoxButton(
+                icon = R.drawable.ic_lucide_arrow_left,
+                contentDescription = stringResource(R.string.replacement_back),
+                onClick = onBack,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.testTag(TAG_HEADER_BACK),
+            )
+        }
+        val title = stringResource(title)
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
@@ -202,14 +228,30 @@ private fun DelayedLoading(placeName: String?) {
  * `primary` 원호 회전), 가운데 32dp `primaryContainer` 상자 + 16dp `primary` navigation 아이콘, 제목,
  * 설명, 하단 `기존 일정 유지` 안내. 3단계 체크리스트·완료 화면·별도 route는 넣지 않는다(#439 결정).
  * REPL-001은 요청·응답 1회라 진행률을 알 수 없으므로 원호는 indeterminate로 계속 돈다.
+ *
+ * `변경 승인` 뒤([RecalcProgress.Approving]·[RecalcProgress.Done])에는 Figma의 나머지 요소도 그린다(#736):
+ * `진행 단계` 카드, 완료 모양(초록 원·체크), `여행 진행 화면으로 돌아가기`. 승인도 요청·응답 1회이므로
+ * 단계는 timer로 꾸미지 않고 요청 중·성공 두 상태에만 맞춘다.
  */
 @Composable
-internal fun RouteRecalculatingContent(placeName: String?, modifier: Modifier = Modifier) {
+internal fun RouteRecalculatingContent(
+    placeName: String?,
+    modifier: Modifier = Modifier,
+    progress: RecalcProgress = RecalcProgress.Preview,
+    onContinue: () -> Unit = {},
+) {
+    val done = progress == RecalcProgress.Done
     val spacing = LocalGilpickSpacing.current
     val radius = LocalGilpickRadius.current
     val colors = LocalGilpickColors.current
     val scheme = MaterialTheme.colorScheme
-    val label = stringResource(R.string.replacement_loading)
+    val label = stringResource(
+        when (progress) {
+            RecalcProgress.Preview -> R.string.replacement_loading
+            RecalcProgress.Approving -> R.string.replacement_recalculating_title
+            RecalcProgress.Done -> R.string.replacement_recalculating_done_title
+        },
+    )
     val rotation by rememberInfiniteTransition(label = "recalculating").animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -240,26 +282,30 @@ internal fun RouteRecalculatingContent(placeName: String?, modifier: Modifier = 
                         val inset = strokePx / 2
                         val arcSize = Size(size.width - strokePx, size.height - strokePx)
                         drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(strokePx))
-                        // Figma dasharray 216/289 ≈ 원주의 75%. 회전 각도만 바뀐다.
-                        drawArc(arc, rotation - 90f, RECALC_ARC_DEGREES, false, Offset(inset, inset), arcSize, style = Stroke(strokePx, cap = StrokeCap.Round))
+                        // Figma dasharray 216/289 ≈ 원주의 75%. 회전 각도만 바뀐다. 완료면 `success` 원을 닫는다.
+                        if (done) drawArc(colors.success, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(strokePx))
+                        else drawArc(arc, rotation - 90f, RECALC_ARC_DEGREES, false, Offset(inset, inset), arcSize, style = Stroke(strokePx, cap = StrokeCap.Round))
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
                     modifier = Modifier
-                        .size(RECALC_ICON_BOX)
-                        .background(scheme.primaryContainer, RoundedCornerShape(radius.md)),
+                        .size(if (done) RECALC_DONE_BOX else RECALC_ICON_BOX)
+                        .background(
+                            if (done) colors.success else scheme.primaryContainer,
+                            RoundedCornerShape(if (done) radius.lg else radius.md),
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_lucide_navigation),
+                        painter = painterResource(if (done) R.drawable.ic_lucide_check else R.drawable.ic_lucide_navigation),
                         contentDescription = null,
-                        tint = scheme.primary,
-                        modifier = Modifier.size(RECALC_ICON),
+                        tint = if (done) scheme.onPrimary else scheme.primary,
+                        modifier = Modifier.size(if (done) RECALC_DONE_ICON else RECALC_ICON),
                     )
                 }
             }
-            val title = stringResource(R.string.replacement_recalculating_title)
+            val title = stringResource(if (done) R.string.replacement_recalculating_done_title else R.string.replacement_recalculating_title)
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
@@ -268,13 +314,22 @@ internal fun RouteRecalculatingContent(placeName: String?, modifier: Modifier = 
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = spacing.space2),
             )
+            val (named, unnamed) = when (progress) {
+                RecalcProgress.Preview -> R.string.replacement_recalculating_body_named to R.string.replacement_recalculating_body
+                RecalcProgress.Approving -> R.string.replacement_recalculating_approving_named to R.string.replacement_recalculating_approving
+                RecalcProgress.Done -> R.string.replacement_recalculating_done_named to R.string.replacement_recalculating_done
+            }
             Text(
-                text = if (placeName != null) stringResource(R.string.replacement_recalculating_body_named, placeName) else stringResource(R.string.replacement_recalculating_body),
+                text = if (placeName != null) stringResource(named, placeName) else stringResource(unnamed),
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
                 color = colors.muted,
                 textAlign = TextAlign.Center,
             )
+            if (progress != RecalcProgress.Preview) {
+                RecalcSteps(done = done, modifier = Modifier.padding(top = spacing.space8))
+            }
         }
+        val preview = progress == RecalcProgress.Preview
         Text(
             text = stringResource(R.string.replacement_recalculating_kept),
             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
@@ -282,8 +337,130 @@ internal fun RouteRecalculatingContent(placeName: String?, modifier: Modifier = 
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = spacing.space4, end = spacing.space4, top = spacing.space4, bottom = spacing.space8),
+                .padding(start = spacing.space4, end = spacing.space4, top = spacing.space4, bottom = if (preview) spacing.space8 else spacing.space3),
         )
+        if (!preview) {
+            // Figma `px-4 pb-8`, 버튼 52dp `background` 채움. 승인 중에는 잠근다(UI-005).
+            SecondaryButton(
+                label = stringResource(R.string.replacement_recalculating_continue),
+                onClick = onContinue,
+                enabled = done,
+                height = RECALC_BUTTON_HEIGHT,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = spacing.space4, end = spacing.space4, bottom = spacing.space8)
+                    .testTag(TAG_RECALC_CONTINUE),
+            )
+        }
+    }
+}
+
+/** 미리보기 생성 중 / `변경 승인` 요청 중 / 승인 완료. */
+internal enum class RecalcProgress { Preview, Approving, Done }
+
+/**
+ * Figma `진행 단계` 카드. 승인 요청 중에는 1단계 완료·2단계 진행 중·3단계 대기, 성공하면 모두 완료다.
+ * 상태는 색과 함께 모양(체크·회전 원호·점)과 `완료` 문구, 접근성 상태 문구로 알린다(가이드라인 10절).
+ */
+@Composable
+private fun RecalcSteps(done: Boolean, modifier: Modifier = Modifier) {
+    val spacing = LocalGilpickSpacing.current
+    val radius = LocalGilpickRadius.current
+    val colors = LocalGilpickColors.current
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(radius.lg)
+    val spin by rememberInfiniteTransition(label = "recalcStep").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(RECALC_STEP_SPIN_MILLIS, easing = LinearEasing), RepeatMode.Restart),
+        label = "recalcStepRotation",
+    )
+    // 0 = 완료, 1 = 진행 중, 2 = 대기
+    val steps = listOf(
+        R.string.replacement_recalculating_step_check to 0,
+        R.string.replacement_recalculating_step_route to if (done) 0 else 1,
+        R.string.replacement_recalculating_step_eta to if (done) 0 else 2,
+    )
+
+    Column(
+        modifier = LocalGilpickShadows.current.card
+            .fold(modifier.fillMaxWidth()) { acc, shadow -> acc.dropShadow(shape, shadow) }
+            .clip(shape)
+            .background(scheme.surface)
+            .padding(spacing.space5)
+            .testTag(TAG_RECALC_STEPS),
+        verticalArrangement = Arrangement.spacedBy(spacing.space4),
+    ) {
+        Text(
+            text = stringResource(R.string.replacement_recalculating_steps),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+            color = colors.muted,
+        )
+        steps.forEach { (label, status) ->
+            val stateLabel = stringResource(
+                when (status) {
+                    0 -> R.string.replacement_recalculating_step_done
+                    1 -> R.string.replacement_recalculating_step_active
+                    else -> R.string.replacement_recalculating_step_pending
+                },
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) { stateDescription = stateLabel },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.space3),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(RECALC_STEP_BOX)
+                        .background(
+                            when (status) {
+                                0 -> colors.success
+                                1 -> scheme.primaryContainer
+                                else -> scheme.background
+                            },
+                            RoundedCornerShape(radius.md),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (status) {
+                        0 -> Icon(
+                            painter = painterResource(R.drawable.ic_lucide_check),
+                            contentDescription = null,
+                            tint = scheme.onPrimary,
+                            modifier = Modifier.size(RECALC_STEP_CHECK),
+                        )
+                        1 -> {
+                            val primary = scheme.primary
+                            Box(
+                                modifier = Modifier.size(RECALC_STEP_SPINNER).drawBehind {
+                                    val strokePx = RECALC_STEP_STROKE.toPx()
+                                    val arcSize = Size(size.width - strokePx, size.height - strokePx)
+                                    drawArc(primary, spin, RECALC_ARC_DEGREES, false, Offset(strokePx / 2, strokePx / 2), arcSize, style = Stroke(strokePx))
+                                },
+                            )
+                        }
+                        else -> Box(modifier = Modifier.size(RECALC_STEP_DOT).background(colors.faint, CircleShape))
+                    }
+                }
+                Text(
+                    text = stringResource(label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (status == 2) colors.faint else scheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                if (status == 0) {
+                    // 보이는 `완료`는 접근성 상태 문구와 같은 말이라 한 번만 읽히게 한다.
+                    Text(
+                        text = stateLabel,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.success,
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -658,7 +835,7 @@ private fun ComparisonRow(label: String, before: String?, after: String?, better
 
 /**
  * 하단 고정 버튼(Figma `px-4 pb-8 pt-4 space-y-2`). `변경 승인`은 주 gradient 54dp, 승인 실패 뒤 다음 행동은
- * **경고 gradient**(가이드라인 3절), `다른 후보 보기`는 `background` 채움 50dp. 승인 중에는 둘 다 잠긴다(UI-005).
+ * **경고 gradient**(가이드라인 3절), `다른 후보 보기`는 `background` 채움 50dp. 승인 중에는 이 화면 대신 경로 재생성 모양이 보인다(#736).
  */
 @Composable
 private fun Actions(
@@ -680,7 +857,6 @@ private fun Actions(
         GradientButton(
             label = stringResource(
                 when {
-                    content.approving -> R.string.replacement_approving
                     action == ApproveAction.Recreate -> R.string.replacement_action_recreate
                     action == ApproveAction.Candidates -> R.string.replacement_action_candidates
                     action == ApproveAction.Retry -> R.string.replacement_action_retry
@@ -693,13 +869,11 @@ private fun Actions(
                 ApproveAction.Retry, null -> onApprove
             },
             tone = if (action == null) GradientTone.Primary else GradientTone.Warning,
-            processing = content.approving,
             modifier = Modifier.fillMaxWidth().testTag(TAG_APPROVE),
         )
         SecondaryButton(
             label = stringResource(R.string.replacement_other_candidates),
             onClick = onOtherCandidates,
-            enabled = !content.approving,
             height = SECONDARY_BUTTON_HEIGHT,
             modifier = Modifier.fillMaxWidth().testTag(TAG_OTHER_CANDIDATES),
         )
@@ -870,6 +1044,18 @@ private val RECALC_ICON: Dp = 16.dp
 private const val RECALC_ARC_DEGREES = 270f
 private const val RECALC_SPIN_MILLIS = 1_200
 internal const val TAG_RECALCULATING = "replacement_recalculating"
+/** 승인 뒤 상태 실측(#736): 완료 상자 `w-12`·체크 22px, 단계 상자 `w-7`·체크 13px·원호 `w-4 border-2`·점 `w-3`, `spin-cw 0.8s`, 버튼 52. */
+private val RECALC_DONE_BOX: Dp = 48.dp
+private val RECALC_DONE_ICON: Dp = 22.dp
+private val RECALC_STEP_BOX: Dp = 28.dp
+private val RECALC_STEP_CHECK: Dp = 13.dp
+private val RECALC_STEP_SPINNER: Dp = 16.dp
+private val RECALC_STEP_STROKE: Dp = 2.dp
+private val RECALC_STEP_DOT: Dp = 12.dp
+private const val RECALC_STEP_SPIN_MILLIS = 800
+private val RECALC_BUTTON_HEIGHT: Dp = 52.dp
+internal const val TAG_RECALC_STEPS = "replacement_recalculating_steps"
+internal const val TAG_RECALC_CONTINUE = "replacement_recalculating_continue"
 /** 비교 화면 지도 높이. 전체 경로가 한눈에 들어오도록 Figma 190dp보다 키웠다(#660). */
 private val MAP_HEIGHT: Dp = 240.dp
 

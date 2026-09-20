@@ -3,10 +3,11 @@ package com.gilpick.replacement
 import android.content.Context
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -101,16 +102,21 @@ fun NavGraphBuilder.replacementGraph(
         val approved by viewModel.approved.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
 
-        // 승인 성공은 한 번만 처리한다. ViewModel이 값을 되돌리지 않으므로 재구성돼도 다시 가지 않는다.
-        // 승인된 미리보기는 폐기하지 않는다(계약상 `409 ALREADY_APPROVED`).
-        LaunchedEffect(approved) {
-            val replacement = approved ?: return@LaunchedEffect
+        // 승인이 끝나면 완료 모양을 보이고, 사용자가 `여행 진행 화면으로 돌아가기`나 뒤로 가기를 누를 때 떠난다(#736).
+        // 두 번 눌러도 한 번만 간다. 승인된 미리보기는 폐기하지 않는다(계약상 `409 ALREADY_APPROVED`).
+        var leaving by remember(entry) { mutableStateOf(false) }
+        val toActiveTravel: () -> Unit = toActiveTravel@{
+            val replacement = approved ?: return@toActiveTravel
+            if (leaving) return@toActiveTravel
+            leaving = true
             // 진행 화면에서 시작했으면 그 화면으로 돌아간다. 재개 조회가 변경된 장소와 되돌리기를 받아 온다.
-            if (navController.popBackStack(ActiveTravelRoute::class, inclusive = false)) return@LaunchedEffect
+            if (navController.popBackStack(ActiveTravelRoute::class, inclusive = false)) return@toActiveTravel
             // F011 푸시나 알림 목록에서 바로 들어와 진행 화면이 back stack에 없다. 승인 결과의 `tripId`로 진행 화면을
             // 직접 연다(#624). 승인이 끝난 후보·미리보기는 뒤로 가기로 다시 보이지 않게 함께 걷어낸다.
-            navController.navigate(ActiveTravelRoute(replacement.tripId, tripName(context, replacement.tripId))) {
-                popUpTo<AlternativePlacesRoute> { inclusive = true }
+            scope.launch {
+                navController.navigate(ActiveTravelRoute(replacement.tripId, tripName(context, replacement.tripId))) {
+                    popUpTo<AlternativePlacesRoute> { inclusive = true }
+                }
             }
         }
 
@@ -132,6 +138,8 @@ fun NavGraphBuilder.replacementGraph(
             onApprove = viewModel::approve,
             onOtherCandidates = leave,
             onReauthenticate = onSessionExpired,
+            approved = approved != null,
+            onContinue = toActiveTravel,
             map = map,
             modifier = Modifier.fillMaxSize(),
         )

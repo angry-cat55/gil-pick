@@ -667,6 +667,21 @@
     <string name="replacement_recalculating_body_named">%1$s(으)로 변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요</string>
     <string name="replacement_recalculating_body">변경한 일정에 맞춰\n남은 경로와 도착 시각을 계산하고 있어요</string>
     <string name="replacement_recalculating_kept">계산에 실패해도 기존 일정은 그대로 유지됩니다</string>
+    <!-- `변경 승인` 뒤의 경로 재생성 진행·완료(#736, Figma RouteRecalculatingScreen). %1$s는 대체 장소명. -->
+    <string name="replacement_recalculating_header">경로 재생성</string>
+    <string name="replacement_recalculating_approving_named">%1$s(으)로 변경한 일정에 맞춰\n남은 경로와 도착 시각을 갱신하고 있어요</string>
+    <string name="replacement_recalculating_approving">변경한 일정에 맞춰\n남은 경로와 도착 시각을 갱신하고 있어요</string>
+    <string name="replacement_recalculating_done_title">경로 재생성 완료!</string>
+    <string name="replacement_recalculating_done_named">%1$s(으)로 변경한 일정에 맞춰\n경로와 도착 시각이 업데이트됐어요</string>
+    <string name="replacement_recalculating_done">변경한 일정에 맞춰\n경로와 도착 시각이 업데이트됐어요</string>
+    <string name="replacement_recalculating_steps">진행 단계</string>
+    <string name="replacement_recalculating_step_check">변경된 일정 확인</string>
+    <string name="replacement_recalculating_step_route">최적 경로 계산 중</string>
+    <string name="replacement_recalculating_step_eta">도착 시각 업데이트</string>
+    <string name="replacement_recalculating_step_done">완료</string>
+    <string name="replacement_recalculating_step_active">진행 중</string>
+    <string name="replacement_recalculating_step_pending">대기</string>
+    <string name="replacement_recalculating_continue">여행 진행 화면으로 돌아가기</string>
     <string name="replacement_map_description">기존 경로와 변경 경로를 함께 보여 주는 지도</string>
     <!-- 경로 비교의 전체 경로 보기(#660) -->
     <string name="replacement_full_map">전체 경로 보기</string>
@@ -702,7 +717,6 @@
     <string name="replacement_error_unexpected">잠시 후 다시 시도해 주세요</string>
 
     <!-- F010 승인(UI-005). 실패 원인마다 다음 행동이 다르다(SC-007). -->
-    <string name="replacement_approving">변경하는 중</string>
     <string name="replacement_action_recreate">다시 만들기</string>
     <string name="replacement_action_candidates">후보 목록으로</string>
     <string name="replacement_action_retry">다시 시도</string>

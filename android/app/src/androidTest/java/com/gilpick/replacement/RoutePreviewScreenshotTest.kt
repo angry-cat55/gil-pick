@@ -80,7 +80,15 @@ class RoutePreviewScreenshotTest {
     }
 
     @Test
-    fun 승인_중() = capture("replacement_approving") { Screen(content().copy(approving = true)) }
+    fun 승인_중() = captureLoading("replacement_approving") { Screen(content().copy(approving = true), placeName = "창덕궁") }
+
+    @Test
+    fun 승인_완료() = capture("replacement_approved") { Screen(content(), placeName = "창덕궁", approved = true) }
+
+    @Test
+    fun 승인_완료_360dp_최대_글자배율() = capture("replacement_approved_360dp_fontscale2") {
+        Narrow { Screen(content(), placeName = "창덕궁", approved = true) }
+    }
 
     @Test
     fun 로딩_대체_장소_이름_있음() = captureLoading("replacement_recalculating") { Screen(PreviewUiState.Loading, placeName = "창덕궁") }
@@ -110,10 +118,11 @@ class RoutePreviewScreenshotTest {
     )
 
     @Composable
-    private fun Screen(state: PreviewUiState, placeName: String? = null) {
+    private fun Screen(state: PreviewUiState, placeName: String? = null, approved: Boolean = false) {
         RoutePreviewScreen(
             state = state,
             placeName = placeName,
+            approved = approved,
             onBack = {},
             onRetry = {},
             onRecreate = {},

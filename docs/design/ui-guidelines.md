@@ -346,7 +346,7 @@ Figma는 Tailwind 곡률 단계를 쓴다. 목록 안 행은 곡률 없이 구�
 | 대상 | Figma 표현 | Figma 근거 |
 |---|---|---|
 | gradient 주버튼 (모든 비활성) | 배경을 `faint #CBD5E1` 단색으로 바꾸고 `opacity 40%`를 **함께** 적용, 주버튼 그림자 제거. 흰 라벨 유지 | 기준: `TripDetailScreen` `오늘 여행 시작`(여행 날짜가 아닐 때). **Figma 수정 필요**: `CreateTripScreen` `여행 만들고 일정 편집하기`, `EditTripScreen` `저장`(현재 gradient + 40%) |
-| 처리 중 주버튼 | gradient 유지 + `opacity 80%`, 라벨 앞 spinner | `RoutePreviewScreen` `변경하는 중` |
+| 처리 중 주버튼 | gradient 유지 + `opacity 80%`, 라벨 앞 spinner | `ActiveTravelScreen` 여행 시작 처리 중(`RoutePreviewScreen` 승인 중은 #736부터 경로 재생성 모양) |
 | `#F4F6FB` 보조 버튼 | `opacity 40%` | `RoutePreviewScreen` `다른 후보 보기`(승인 중) |
 | 헤더 아이콘 버튼 | `opacity 40%` | `RoutePreviewScreen` 뒤로 가기(승인 중) |
 | 목록 행 안 작은 아이콘 버튼 | `opacity 30%` | `ScheduleEditScreen` 위·아래 이동(첫·마지막 행) |
